@@ -400,8 +400,9 @@ onMounted(async () => {
 .seg button { background: none; border: none; color: var(--muted); padding: 6px 16px; font-size: 13px; cursor: pointer; }
 .seg button.on { background: var(--brand); color: #021018; font-weight: 600; }
 .pref-range { flex: 1; accent-color: var(--brand); }
-.pref-input { width: 80px; background: rgba(5,8,15,.8); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 6px 10px; font-size: 13px; outline: none; font-family: inherit; }
+.pref-input { width: 80px; background: var(--input-solid-bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 6px 10px; font-size: 13px; outline: none; font-family: inherit; }
 .pref-input:focus { border-color: var(--brand); }
+/* 浅色主题下设置类小输入框背景跟随主题（变量在 style.css :root/[data-theme="light"] 统一覆盖） */
 .pref-unit { color: var(--muted); font-size: 12px; }
 
 /* 成就墙 */

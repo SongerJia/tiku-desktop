@@ -23,6 +23,8 @@
   --sidebar-bg: rgba(10, 18, 34, 0.78);
   --topbar-bg: rgba(10, 18, 34, 0.55);
   --side-active-bg: rgba(42, 245, 255, 0.14);
+  /* 设置类小输入框背景（与 .input 半透明叠卡片区分） */
+  --input-solid-bg: rgba(5, 8, 15, 0.8);
 }
 
 * { box-sizing: border-box; }
@@ -317,6 +319,7 @@ html, body, #app {
   --sidebar-bg: rgba(255, 255, 255, 0.92);
   --topbar-bg: rgba(255, 255, 255, 0.78);
   --side-active-bg: rgba(8, 145, 178, 0.14);
+  --input-solid-bg: rgba(255, 255, 255, 0.92);
 }
 [data-theme="light"] .app {
   background-image:
