@@ -284,6 +284,26 @@ textarea:focus-visible {
 }
 button:focus:not(:focus-visible) { outline: none; }
 
+/* 骨架屏 shimmer */
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.14) 50%, rgba(255, 255, 255, 0.05) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+[data-theme="light"] .skeleton {
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.05) 25%, rgba(0, 0, 0, 0.12) 50%, rgba(0, 0, 0, 0.05) 75%);
+  background-size: 200% 100%;
+}
+
+/* 卡片 hover 微反馈（统一精致感） */
+.card { transition: border-color .2s, box-shadow .2s; }
+.card:hover { border-color: rgba(42, 245, 255, 0.32); }
+
 /* 滚动条 */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-thumb { background: rgba(42, 245, 255, 0.3); border-radius: 3px; }

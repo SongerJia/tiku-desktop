@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue'
+import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 
 const props = defineProps({ show: Boolean })
@@ -64,7 +65,7 @@ function fmt(q) {
         <button class="btn rv-close" @click="emit('close')">关闭</button>
       </div>
 
-      <div v-if="loading" class="rv-empty">加载中…</div>
+      <SkeletonCards v-if="loading" :count="1" />
       <div v-else-if="!items.length" class="rv-empty">
         <p>今天没有到期回顾</p>
         <p class="rv-hint">先刷几道题 / 导入几篇文档，明天就有得回顾了</p>

@@ -1,4 +1,6 @@
 <script setup>
+import CountUp from './CountUp.vue'
+import { showConfirm } from '../utils/confirm.js'
 import { ref, onMounted, computed } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { applyAppearance } from '../utils/appearance.js'
@@ -214,7 +216,9 @@ async function addHabit() {
   await loadHabits()
 }
 async function removeHabit(h) {
-  if (!confirm(`删除习惯「${h.name}」？其打卡记录一并删除。`)) return
+  const ok = await showConfirm(`删除习惯「${h.name}」？
+其打卡记录一并删除。`)
+  if (!ok) return
   await tiku.deleteHabit(h.id)
   await loadHabits()
 }
@@ -252,7 +256,7 @@ onMounted(async () => {
       <div v-if="xp" class="user-xp">
         <div class="user-xp-top">
           <span class="user-xp-level">Lv.{{ xp.level }}</span>
-          <span class="user-xp-num">{{ xp.total }} XP</span>
+          <span class="user-xp-num"><CountUp :value="xp.total" /> XP</span>
         </div>
         <div class="user-xp-bar"><div class="user-xp-fill" :style="{ width: xp.levelPct + '%' }"></div></div>
         <div class="user-xp-sub">今日 +{{ xp.today }}</div>

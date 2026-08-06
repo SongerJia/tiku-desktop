@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 import KbReader from './KbReader.vue'
 
@@ -332,7 +333,7 @@ function optionClass(key) {
       <button class="fav note-btn" :class="{ on: hasNote }" @click="noteOpen = !noteOpen" :disabled="!q">✎ 笔记</button>
     </div>
 
-    <div v-if="loading" class="hint">加载中…</div>
+    <SkeletonCards v-if="loading" :count="2" />
     <div v-else-if="showReview" class="review card">
       <div class="rv-head">
         <h2>逐题解析</h2>

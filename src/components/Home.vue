@@ -1,5 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
+import SkeletonCards from './SkeletonCards.vue'
+import CountUp from './CountUp.vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import ReviewPanel from './ReviewPanel.vue'
@@ -107,7 +109,7 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
     <div class="card stat-card">
       <div class="stat-title">知识卡片总数</div>
       <div class="stat-number">
-        <span class="num">{{ summary.total }}</span>
+        <span class="num"><CountUp :value="summary.total" /></span>
         <span class="unit">张</span>
       </div>
     </div>
@@ -203,7 +205,7 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
       <button class="btn btn-primary" @click="$emit('start-mock')">去组卷</button>
     </div>
 
-    <div v-if="loading" class="empty">加载中…</div>
+    <SkeletonCards v-if="loading" :count="3" />
 
     <ReviewPanel :show="reviewOpen" @close="reviewOpen = false" />
   </div>

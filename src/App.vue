@@ -12,6 +12,7 @@ import BankManager from './components/BankManager.vue'
 import MockExamSetup from './components/MockExamSetup.vue'
 import UnifiedSearch from './components/UnifiedSearch.vue'
 import AppToast from './components/AppToast.vue'
+import AppConfirm from './components/AppConfirm.vue'
 import { tiku } from './api/tiku.js'
 import { useResponsive } from './composables/useResponsive.js'
 import { applyAppearance } from './utils/appearance.js'
@@ -285,6 +286,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
 
     <UnifiedSearch :show="showSearch" @close="showSearch = false" />
     <AppToast />
+    <AppConfirm />
   </div>
 </template>
 

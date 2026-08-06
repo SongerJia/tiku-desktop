@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 import { bankToCsv, TYPE_LABEL } from '../utils/bankParser.js'
 import ImportWizard from './ImportWizard.vue'
@@ -337,7 +338,7 @@ async function batchDelete() {
           </div>
 
           <!-- 列表 -->
-          <div v-if="loading" class="empty">加载中…</div>
+          <SkeletonCards v-if="loading" :count="3" />
           <div v-else-if="!list.items.length" class="empty">
             <div class="empty-icon">◇</div>
             <div>没有找到题目</div>

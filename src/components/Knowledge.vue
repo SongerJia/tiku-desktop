@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
+import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 
 const props = defineProps({ subject: Object })
@@ -72,7 +73,7 @@ function typeLabel(t) {
       </div>
     </div>
 
-    <div v-if="loading" class="empty">加载中…</div>
+    <SkeletonCards v-if="loading" :count="4" />
     <div v-else-if="!questions.length" class="empty card">暂无知识点</div>
     <div v-else class="question-list">
       <div

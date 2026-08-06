@@ -1,7 +1,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
+import { showConfirm } from '../utils/confirm.js'
 import KbReader from './KbReader.vue'
 
 const docs = ref([])
@@ -95,7 +97,9 @@ async function openLinkedDoc(docId) {
 }
 
 async function onDelete(doc) {
-  if (!confirm(`确定删除「${doc.title}」？将同时移除其文本块与题目关联（副本文件一并删除，不影响你的原始文件）。`)) return
+  const ok = await showConfirm(`确定删除「${doc.title}」？
+将同时移除其文本块与题目关联（副本文件一并删除，不影响你的原始文件）。`)
+  if (!ok) return
   await tiku.kbDelete(doc.id)
   await loadTags()
   await loadList()
@@ -161,7 +165,7 @@ function fmtTime(ts) {
       </div>
     </div>
 
-    <div v-if="loading" class="empty">加载中…</div>
+    <SkeletonCards v-if="loading" :count="4" />
     <div v-else-if="!docs.length" class="empty card">
       <p>知识库还是空的</p>
       <p class="kb-hint">把 md / pdf 文档拖进导入（点「导入文档」多选），或直接整本教材 PDF 丢进来</p>

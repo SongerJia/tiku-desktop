@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 import { printHtml } from '../utils/print.js'
 
@@ -208,7 +209,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div v-if="loading" class="empty">加载中…</div>
+    <SkeletonCards v-if="loading" :count="3" />
   </div>
 </template>
 
