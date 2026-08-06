@@ -242,45 +242,33 @@ onMounted(async () => {
 
 <template>
   <div class="profile">
-    <!-- 用户信息 -->
+    <!-- 用户信息 + XP 等级（紧凑右侧） -->
     <div class="card user-card">
       <div class="avatar">{{ userName.slice(0, 1) }}</div>
       <div class="user-info">
         <div class="user-name">{{ userName }}</div>
         <div class="user-sub">本地账号 · 数据离线存储</div>
       </div>
+      <div v-if="xp" class="user-xp">
+        <div class="user-xp-top">
+          <span class="user-xp-level">Lv.{{ xp.level }}</span>
+          <span class="user-xp-num">{{ xp.total }} XP</span>
+        </div>
+        <div class="user-xp-bar"><div class="user-xp-fill" :style="{ width: xp.levelPct + '%' }"></div></div>
+        <div class="user-xp-sub">今日 +{{ xp.today }}</div>
+      </div>
     </div>
 
 
-    <!-- 学习成长（XP等级 + 知识库概览 + 成就） -->
+
+    <!-- 学习成长（知识库概览 + 成就） -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('learn')">
         <span class="sec-title">📈 学习成长</span>
+        <span class="sec-badge">{{ unlockedCount }} 成就</span>
         <span class="sec-arrow" :class="{ open: secOpen.learn }">▾</span>
       </div>
       <div v-show="secOpen.learn" class="sec-body">
-
-    <!-- XP 等级 -->
-    <div v-if="xp" class="card xp-card">
-      <div class="xp-head">
-        <span class="xp-level">Lv.{{ xp.level }}</span>
-        <span class="xp-total">累计 {{ xp.total }} XP</span>
-      </div>
-      <div class="xp-bar">
-        <div class="xp-fill" :style="{ width: xp.levelPct + '%' }"></div>
-      </div>
-      <div class="xp-sub">
-        <span>距离 Lv.{{ xp.level + 1 }} 还差 {{ Math.max(0, xp.nextLevelXp - xp.curLevelXp) }} XP</span>
-        <span class="xp-today">今日 +{{ xp.today }} · 本周 +{{ xp.week }}</span>
-      </div>
-      <div v-if="xp.weeks && xp.weeks.length" class="xp-weeks">
-        <div v-for="w in xp.weeks.slice(0, 6)" :key="w.wk" class="xp-week">
-          <span class="xp-week-wk">{{ w.wk }}</span>
-          <div class="xp-week-bar"><div class="xp-week-fill" :style="{ width: Math.min(100, Math.round(w.xp / Math.max(1, xp.weeks[0].xp) * 100)) + '%' }"></div></div>
-          <span class="xp-week-n">{{ w.xp }}</span>
-        </div>
-      </div>
-    </div>
 
     <!-- 知识库概览 -->
     <div v-if="kbStats" class="card">
@@ -512,6 +500,37 @@ onMounted(async () => {
   align-items: center;
   gap: 14px;
 }
+/* XP 等级：用户卡右侧紧凑精致版 */
+.user-xp {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.user-xp-top { display: flex; align-items: baseline; gap: 6px; }
+.user-xp-level {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--brand);
+  letter-spacing: .3px;
+}
+.user-xp-num { font-size: 11px; color: var(--muted); }
+.user-xp-bar {
+  width: 84px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(127, 127, 127, 0.22);
+  overflow: hidden;
+}
+.user-xp-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--brand), var(--brand2, #b06bff));
+  transition: width .4s;
+}
+.user-xp-sub { font-size: 10px; color: var(--muted); }
 /* 分组折叠 */
 .sec { display: flex; flex-direction: column; }
 .sec-head {
@@ -671,27 +690,7 @@ onMounted(async () => {
 .kb-stat b { font-size: 18px; color: var(--brand); }
 .kb-stat span { font-size: 11px; color: var(--muted); }
 
-/* XP 等级 */
-.xp-card { display: flex; flex-direction: column; gap: 8px; }
-.xp-head { display: flex; align-items: baseline; justify-content: space-between; }
-.xp-level { font-size: 24px; font-weight: 600; color: var(--brand); text-shadow: var(--glow-soft); }
-.xp-total { font-size: 12px; color: var(--muted); }
-.xp-bar { height: 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
-.xp-fill {
-  height: 100%;
-  border-radius: 6px;
-  background: linear-gradient(90deg, var(--brand), var(--brand2, #b06bff));
-  box-shadow: var(--glow-soft);
-  transition: width .4s;
-}
-.xp-sub { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
-.xp-today { color: var(--brand); }
-.xp-weeks { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
-.xp-week { display: flex; align-items: center; gap: 8px; }
-.xp-week-wk { font-size: 11px; color: var(--muted); width: 54px; flex-shrink: 0; }
-.xp-week-bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
-.xp-week-fill { height: 100%; border-radius: 3px; background: var(--brand2, #b06bff); opacity: .8; }
-.xp-week-n { font-size: 11px; color: var(--text); width: 34px; text-align: right; }
+/* XP 等级已精简为用户卡右侧 .user-xp（见上方） */
 
 /* 习惯管理 */
 .habit-mgr { display: flex; flex-direction: column; gap: 8px; }
