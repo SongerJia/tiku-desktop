@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "exportedAt": 1700000000000,
+  "categories": [
+    { "id": 30, "name": "建设工程经济", "parent_id": null, "level": 1, "stage": null, "sort": 3, "updated_at": 1700000000000, "deleted": 0 },
+    { "id": 31, "name": "财务会计基础", "parent_id": 30, "level": 2, "stage": "基础", "sort": 1, "updated_at": 1700000000000, "deleted": 0 }
+  ],
+  "questions": [
+    {
+      "id": 301, "category_id": 31, "type": "single",
+      "stem": "下列属于流动资产的是（ ）。",
+      "options_json": "[{\"key\":\"A\",\"text\":\"长期股权投资\"},{\"key\":\"B\",\"text\":\"存货\"},{\"key\":\"C\",\"text\":\"固定资产\"},{\"key\":\"D\",\"text\":\"无形资产\"}]",
+      "answer_json": "[\"B\"]",
+      "analysis": "存货属于流动资产；长期股权投资、固定资产、无形资产属于非流动资产。",
+      "difficulty": 2, "source": "导入样例", "updated_at": 1700000000000, "deleted": 0
+    },
+    {
+      "id": 302, "category_id": 31, "type": "judge",
+      "stem": "会计等式“资产=负债+所有者权益”是复式记账的理论基础。（ ）",
+      "options_json": "[{\"key\":\"对\",\"text\":\"对\"},{\"key\":\"错\",\"text\":\"错\"}]",
+      "answer_json": "[\"对\"]",
+      "analysis": "会计基本等式是复式记账、编制资产负债表的理论基础。",
+      "difficulty": 1, "source": "导入样例", "updated_at": 1700000000000, "deleted": 0
+    }
+  ],
+  "answerRecords": [],
+  "wrongBooks": [],
+  "favorites": [],
+  "users": []
+}

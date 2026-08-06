@@ -1,0 +1,421 @@
+<script setup>
+import { ref, computed, watch, onMounted } from 'vue'
+import { tiku } from '../api/tiku.js'
+import { bankToCsv, TYPE_LABEL } from '../utils/bankParser.js'
+import ImportWizard from './ImportWizard.vue'
+import QuestionEditor from './QuestionEditor.vue'
+
+const props = defineProps({
+  show: Boolean,
+  wide: Boolean
+})
+const emit = defineEmits(['close', 'changed'])
+
+const stats = ref({ total: 0, categories: 0, byType: [], bySubject: [] })
+const categories = ref([])
+const subjectId = ref('')
+const categoryId = ref('')
+const keyword = ref('')
+const page = ref(1)
+const pageSize = 10
+const list = ref({ total: 0, items: [] })
+const loading = ref(false)
+const toast = ref('')
+
+const showImport = ref(false)
+const showEditor = ref(false)
+const editing = ref(null)
+const confirmId = ref(null)
+
+const totalPages = computed(() => Math.max(1, Math.ceil(list.value.total / pageSize)))
+const chapters = computed(() => {
+  const s = categories.value.find(c => String(c.id) === String(subjectId.value))
+  return s ? (s.children || []) : []
+})
+const subjects = computed(() => categories.value.map(c => ({ id: c.id, name: c.name })))
+
+function showToast(msg) {
+  toast.value = msg
+  setTimeout(() => { toast.value = '' }, 2200)
+}
+
+async function loadMeta() {
+  const [cats, st] = await Promise.all([tiku.getCategories(), tiku.getBankStats()])
+  categories.value = cats
+  stats.value = st
+}
+
+async function loadList() {
+  loading.value = true
+  try {
+    list.value = await tiku.listQuestions({
+      subjectId: subjectId.value ? Number(subjectId.value) : null,
+      categoryId: categoryId.value ? Number(categoryId.value) : null,
+      keyword: keyword.value.trim(),
+      page: page.value,
+      pageSize
+    })
+  } finally {
+    loading.value = false
+  }
+}
+
+async function refreshAll() {
+  await loadMeta()
+  await loadList()
+}
+
+watch(() => props.show, (v) => { if (v) refreshAll() })
+onMounted(() => { if (props.show) refreshAll() })
+
+// 切科目要清掉章节筛选，否则会出现"科目A + 科目B的章节"这种空结果
+watch(subjectId, () => { categoryId.value = ''; page.value = 1; loadList() })
+watch(categoryId, () => { page.value = 1; loadList() })
+
+let searchTimer = null
+watch(keyword, () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => { page.value = 1; loadList() }, 300)
+})
+
+function goPage(p) {
+  if (p < 1 || p > totalPages.value) return
+  page.value = p
+  loadList()
+}
+
+function openNew() {
+  editing.value = null
+  showEditor.value = true
+}
+
+function openEdit(q) {
+  editing.value = q
+  showEditor.value = true
+}
+
+async function onSaved({ isEdit }) {
+  showToast(isEdit ? '已保存修改' : '已新增题目')
+  await refreshAll()
+  emit('changed')
+}
+
+async function doDelete(id) {
+  await tiku.deleteQuestion(id)
+  confirmId.value = null
+  showToast('已删除')
+  // 删到当前页空了就退一页，避免停在空白页
+  if (list.value.items.length === 1 && page.value > 1) page.value--
+  await refreshAll()
+  emit('changed')
+}
+
+async function onImported(res) {
+  showToast(`导入完成：新增 ${res.inserted} 题`)
+  await refreshAll()
+  emit('changed')
+}
+
+async function exportCsv() {
+  const rows = await tiku.exportBank(subjectId.value ? Number(subjectId.value) : null)
+  if (!rows.length) { showToast('当前范围没有题目'); return }
+  // 注意：bankToCsv() 内部已带 UTF-8 BOM，不要重复添加（双 BOM 会导致导回时表头识别失败）
+  const blob = new Blob([bankToCsv(rows)], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `题库导出-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+  showToast(`已导出 ${rows.length} 题`)
+}
+
+// 导出 Excel：主进程用零依赖 xlsx-lite 生成 .xlsx，这里拿到 base64 后转 blob 下载
+async function exportExcel() {
+  const rows = await tiku.exportBank(subjectId.value ? Number(subjectId.value) : null)
+  if (!rows.length) { showToast('当前范围没有题目'); return }
+  const b64 = await tiku.exportExcel(subjectId.value ? Number(subjectId.value) : null)
+  if (!b64) { showToast('当前范围没有题目'); return }
+  const bin = atob(b64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `题库导出-${new Date().toISOString().slice(0, 10)}.xlsx`
+  a.click()
+  URL.revokeObjectURL(url)
+  showToast(`已导出 ${rows.length} 题（Excel）`)
+}
+
+function answerText(q) {
+  if (q.type === 'essay') return '问答题（自评）'
+  if (q.type === 'judge') return (q.answer || []).join('')
+  return (q.answer || []).join('')
+}
+function keywordText(q) {
+  return (q.keywords && q.keywords.length) ? '采分点：' + q.keywords.join('；') : ''
+}
+</script>
+
+<template>
+  <transition name="fade">
+    <div v-if="show" class="bm-mask" :class="{ 'is-wide': wide }" @click.self="emit('close')">
+      <div class="bm-panel" :class="{ 'is-wide': wide }">
+        <div class="bm-header">
+          <span class="close" @click="emit('close')">×</span>
+          <span class="title">题库管理</span>
+          <span class="count">{{ stats.total }} 题</span>
+        </div>
+
+        <div class="bm-body">
+          <!-- 概览 -->
+          <div class="stat-row">
+            <div class="stat"><b>{{ stats.total }}</b><span>总题量</span></div>
+            <div class="stat"><b>{{ stats.categories }}</b><span>分类数</span></div>
+            <div
+              v-for="t in stats.byType"
+              :key="t.type"
+              class="stat"
+            ><b>{{ t.n }}</b><span>{{ TYPE_LABEL[t.type] || t.type }}</span></div>
+          </div>
+
+          <!-- 操作条 -->
+          <div class="toolbar">
+            <button class="btn btn-primary sm" @click="showImport = true">批量导入</button>
+            <button class="btn btn-outline sm" @click="openNew">＋ 新增题目</button>
+            <button class="btn btn-outline sm" @click="exportCsv">导出 CSV</button>
+            <button class="btn btn-outline sm" @click="exportExcel">导出 Excel</button>
+          </div>
+
+          <!-- 筛选 -->
+          <div class="filters">
+            <select v-model="subjectId" class="input">
+              <option value="">全部科目</option>
+              <option v-for="s in subjects" :key="s.id" :value="s.id">{{ s.name }}</option>
+            </select>
+            <select v-model="categoryId" class="input" :disabled="!chapters.length">
+              <option value="">全部章节</option>
+              <option v-for="c in chapters" :key="c.id" :value="c.id">{{ c.name }}</option>
+            </select>
+            <input v-model="keyword" class="input" placeholder="搜索题干关键词…" />
+          </div>
+
+          <!-- 列表 -->
+          <div v-if="loading" class="empty">加载中…</div>
+          <div v-else-if="!list.items.length" class="empty">
+            <div class="empty-icon">◇</div>
+            <div>没有找到题目</div>
+            <div class="empty-sub">点「批量导入」把你的真实题库导进来</div>
+          </div>
+
+          <div v-else class="q-list">
+            <div v-for="q in list.items" :key="q.id" class="q-item">
+              <div class="q-top">
+                <span class="q-type">{{ TYPE_LABEL[q.type] || q.type }}</span>
+                <span class="q-cat">{{ q.category_name || '未分类' }}</span>
+                <span class="q-spacer"></span>
+                <button class="mini" @click="openEdit(q)">编辑</button>
+                <button
+                  class="mini danger"
+                  @click="confirmId = confirmId === q.id ? null : q.id"
+                >{{ confirmId === q.id ? '取消' : '删除' }}</button>
+              </div>
+              <div class="q-stem">{{ q.stem }}</div>
+              <div class="q-bottom">
+                <span class="q-ans">答案 {{ answerText(q) }}</span>
+                <span class="q-diff">难度 {{ q.difficulty || 3 }}</span>
+                <span v-if="q.source" class="q-src">{{ q.source }}</span>
+              </div>
+              <div v-if="q.type === 'essay' && keywordText(q)" class="q-kw">{{ keywordText(q) }}</div>
+              <div v-if="confirmId === q.id" class="confirm">
+                <span>确定删除这道题？答题记录会保留。</span>
+                <button class="mini danger solid" @click="doDelete(q.id)">确认删除</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 分页 -->
+          <div v-if="list.total > pageSize" class="pager">
+            <button class="mini" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
+            <span class="pg">{{ page }} / {{ totalPages }}</span>
+            <button class="mini" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页</button>
+          </div>
+        </div>
+
+        <div v-if="toast" class="bm-toast">{{ toast }}</div>
+      </div>
+
+      <ImportWizard
+        :show="showImport"
+        :wide="wide"
+        :subjects="subjects"
+        @close="showImport = false"
+        @imported="onImported"
+      />
+      <QuestionEditor
+        :show="showEditor"
+        :wide="wide"
+        :question="editing"
+        :categories="categories"
+        :defaultCategoryId="categoryId || subjectId"
+        @close="showEditor = false"
+        @saved="onSaved"
+      />
+    </div>
+  </transition>
+</template>
+
+<style scoped>
+.bm-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 6, 14, 0.78);
+  backdrop-filter: blur(6px);
+  z-index: 190;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.bm-mask.is-wide { align-items: center; }
+
+.bm-panel {
+  position: relative;
+  width: 100%;
+  height: 92vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: var(--shadow), var(--glow-soft);
+}
+.bm-panel.is-wide {
+  width: 860px;
+  max-width: 94vw;
+  height: 84vh;
+  border-radius: var(--radius);
+}
+
+.bm-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.bm-header .title { flex: 1; font-size: 16px; font-weight: 700; color: var(--text); }
+.bm-header .close { font-size: 22px; color: var(--muted); cursor: pointer; line-height: 1; }
+.bm-header .close:hover { color: var(--brand); }
+.bm-header .count { font-size: 12px; color: var(--brand); }
+
+.bm-body { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+.stat-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.stat {
+  flex: 1;
+  min-width: 72px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 9px 6px;
+  text-align: center;
+  background: rgba(42, 245, 255, 0.04);
+}
+.stat b { display: block; font-size: 17px; color: var(--brand); }
+.stat span { font-size: 11px; color: var(--muted); }
+
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn.sm { padding: 6px 14px; font-size: 12px; }
+
+.filters { display: flex; gap: 8px; flex-wrap: wrap; }
+.filters .input { flex: 1; min-width: 120px; }
+.input {
+  background: rgba(5, 8, 15, 0.8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 12px;
+  outline: none;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+.input:focus { border-color: var(--brand); box-shadow: var(--glow-soft); }
+.input:disabled { opacity: 0.45; }
+
+.empty { text-align: center; color: var(--muted); font-size: 13px; padding: 40px 0; line-height: 2; }
+.empty-icon { font-size: 30px; color: var(--brand); opacity: 0.5; }
+.empty-sub { font-size: 12px; opacity: 0.75; }
+
+.q-list { display: flex; flex-direction: column; gap: 10px; }
+.q-item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 11px 12px;
+  background: rgba(42, 245, 255, 0.03);
+}
+.q-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.q-type {
+  font-size: 11px;
+  color: var(--brand);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.q-cat { font-size: 11px; color: var(--muted); }
+.q-spacer { flex: 1; }
+.q-stem { font-size: 13px; color: var(--text); line-height: 1.65; }
+.q-bottom { display: flex; gap: 12px; margin-top: 7px; font-size: 11px; color: var(--muted); }
+.q-ans { color: var(--ok); }
+.q-kw { font-size: 11px; color: var(--brand); margin-top: 5px; line-height: 1.6; opacity: 0.9; }
+
+.mini {
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.mini:hover { color: var(--brand); border-color: var(--brand); }
+.mini.danger:hover { color: var(--bad); border-color: var(--bad); }
+.mini.danger.solid { color: var(--bad); border-color: var(--bad); background: rgba(255, 77, 109, 0.1); }
+.mini[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+.confirm {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: #ffb3c1;
+}
+
+.pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 6px 0 2px; }
+.pg { font-size: 12px; color: var(--muted); }
+
+.bm-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: rgba(8, 14, 28, 0.95);
+  color: var(--text);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  box-shadow: var(--glow-soft);
+  z-index: 5;
+}
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.18s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+</style>
