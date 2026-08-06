@@ -53,6 +53,7 @@ export const tiku = {
   // 标签 / 薄弱分析 / 相似题 / 批量操作 / 设置
   setQuestionTags: (questionId, tags) => window.electronAPI.setQuestionTags(questionId, tags),
   getQuestionTags: (questionId) => window.electronAPI.getQuestionTags(questionId),
+  getQuestionById: (id) => window.electronAPI.getQuestionById(id),
   listTags: () => window.electronAPI.listTags(),
   getWeakChapters: (subjectId, limit) => window.electronAPI.getWeakChapters(subjectId, limit),
   getSimilarQuestions: (questionId, limit) => window.electronAPI.getSimilarQuestions(questionId, limit),
@@ -77,5 +78,7 @@ export const tiku = {
   kbSearch: (query, limit) => window.electronAPI.kbSearch(query, limit),
   kbStats: () => window.electronAPI.kbStats(),
   kbRead: (id) => window.electronAPI.kbRead(id),
-  kbOpen: (id) => window.electronAPI.kbOpen(id)
+  kbOpen: (id) => window.electronAPI.kbOpen(id),
+  kbSuggestDocs: (questionId, limit) => window.electronAPI.kbSuggestDocs(questionId, limit),
+  kbSuggestQuestions: (docId, limit) => window.electronAPI.kbSuggestQuestions(docId, limit)
 }

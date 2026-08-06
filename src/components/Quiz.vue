@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
+import KbReader from './KbReader.vue'
 
 const props = defineProps({
   categoryId: { default: null },
@@ -44,6 +45,44 @@ const isDone = computed(() => idx.value >= questions.value.length)
 // 交卷后的「逐题解析」：每题记录你的作答 vs 正确答案 + 解析，供复盘
 const reviews = ref([])
 const showReview = ref(false)
+
+// 逐题解析页的「相关文档」：已关联(kb_links) + L2 推荐(kbSuggestDocs)，按 qid 惰性加载
+const rDocs = ref({})
+const reader = ref({ show: false, doc: null })
+
+async function loadRDocs(qid) {
+  if (rDocs.value[qid]) return
+  const [linked, suggested] = await Promise.all([tiku.kbLinksForQuestion(qid), tiku.kbSuggestDocs(qid, 5)])
+  rDocs.value = { ...rDocs.value, [qid]: { linked, suggested } }
+}
+
+function openReader(qid, d) {
+  reader.value = { show: true, doc: { id: d.doc_id ?? d.id, type: d.type, title: d.title } }
+}
+
+async function linkDoc(qid, d) {
+  await tiku.kbLink({ docId: d.id, questionId: qid })
+  const cur = rDocs.value[qid]
+  rDocs.value = {
+    ...rDocs.value,
+    [qid]: {
+      linked: [...cur.linked, { doc_id: d.id, type: d.type, title: d.title, note: '' }],
+      suggested: cur.suggested.filter(x => x.id !== d.id)
+    }
+  }
+}
+
+async function unlinkDoc(qid, d) {
+  await tiku.kbUnlink(d.doc_id, qid)
+  const cur = rDocs.value[qid]
+  rDocs.value = {
+    ...rDocs.value,
+    [qid]: {
+      linked: cur.linked.filter(x => x.doc_id !== d.doc_id),
+      suggested: cur.suggested
+    }
+  }
+}
 
 // 背题模式下直接从题目本身取答案，不经过 submitAnswer（那会写记录）
 const reciteAnswer = computed(() => (q.value && q.value.answer) || [])
@@ -313,6 +352,26 @@ function optionClass(key) {
           <div class="rv-row"><span class="rv-k">你的答案</span><span class="rv-v">{{ r.type === 'essay' ? (r.your || '（未作答）') : optText(r.options, r.your) }}</span></div>
           <div class="rv-row"><span class="rv-k">正确答案</span><span class="rv-v ans">{{ r.type === 'essay' ? ((r.answer && r.answer.length) ? r.answer.join('；') : '（主观题·自评）') : optText(r.options, r.answer) }}</span></div>
           <div v-if="r.analysis" class="rv-analysis"><b>解析：</b>{{ r.analysis }}</div>
+          <div class="rv-docs">
+            <div class="rv-docs-head">
+              <span class="rv-docs-t">相关文档</span>
+              <button v-if="!rDocs[r.qid]" class="rv-docs-btn" @click="loadRDocs(r.qid)">查看</button>
+            </div>
+            <template v-if="rDocs[r.qid]">
+              <div v-if="!rDocs[r.qid].linked.length && !rDocs[r.qid].suggested.length" class="rv-docs-empty">暂无关联文档，可在知识库阅读页手动关联</div>
+              <div v-for="d in rDocs[r.qid].linked" :key="'l' + d.doc_id" class="rv-doc">
+                <span class="rv-doc-badge" :class="d.type">{{ d.type === 'pdf' ? 'PDF' : 'MD' }}</span>
+                <span class="rv-doc-t" @click="openReader(r.qid, d)">{{ d.title }}</span>
+                <button class="rv-doc-act" @click="unlinkDoc(r.qid, d)">解除</button>
+              </div>
+              <div v-for="d in rDocs[r.qid].suggested" :key="'s' + d.id" class="rv-doc sug">
+                <span class="rv-doc-badge" :class="d.type">{{ d.type === 'pdf' ? 'PDF' : 'MD' }}</span>
+                <span class="rv-doc-t" @click="openReader(r.qid, d)">{{ d.title }}</span>
+                <span class="rv-doc-reason">{{ d.reason }}</span>
+                <button class="rv-doc-act" @click="linkDoc(r.qid, d)">关联</button>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
       <button class="rv-done" @click="emit('exit')">回到首页</button>
@@ -459,6 +518,7 @@ function optionClass(key) {
     </div>
   </div>
   </div>
+    <KbReader :show="reader.show" :doc="reader.doc" @close="reader.show = false" />
 </template>
 
 <style scoped>
@@ -715,6 +775,44 @@ function optionClass(key) {
 .rv-v { flex: 1; line-height: 1.6; }
 .rv-v.ans { color: var(--ok); font-weight: 600; }
 .rv-analysis { margin-top: 6px; color: var(--text); opacity: .85; line-height: 1.6; font-size: 13px; }
+.rv-docs { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.rv-docs-head { display: flex; align-items: center; justify-content: space-between; }
+.rv-docs-t { font-size: 12px; font-weight: 500; color: var(--brand); }
+.rv-docs-btn {
+  font-size: 11px;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1px 10px;
+  cursor: pointer;
+}
+.rv-docs-btn:hover { color: var(--brand); border-color: var(--brand); }
+.rv-docs-empty { font-size: 12px; color: var(--muted); }
+.rv-doc { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.rv-doc.sug { opacity: .85; }
+.rv-doc-badge {
+  font-size: 10px;
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.rv-doc-badge.pdf { color: #e85f3d; border-color: rgba(232, 95, 61, 0.4); }
+.rv-doc-badge.md { color: var(--brand); border-color: var(--line); }
+.rv-doc-t { flex: 1; color: var(--text); cursor: pointer; }
+.rv-doc-t:hover { color: var(--brand); }
+.rv-doc-reason { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+.rv-doc-act {
+  font-size: 11px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.rv-doc-act:hover { color: var(--brand); }
 .btn-review {
   width: 100%; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--brand);
   color: var(--brand); padding: 10px 24px; border-radius: 24px; font-size: 14px; font-weight: 600;

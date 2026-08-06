@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 标签 / 薄弱分析 / 相似题 / 批量操作 / 设置
   setQuestionTags: (questionId, tags) => ipcRenderer.invoke('setQuestionTags', questionId, tags),
   getQuestionTags: (questionId) => ipcRenderer.invoke('getQuestionTags', questionId),
+  getQuestionById: (id) => ipcRenderer.invoke('getQuestionById', id),
   listTags: () => ipcRenderer.invoke('listTags'),
   getWeakChapters: (subjectId, limit) => ipcRenderer.invoke('getWeakChapters', subjectId, limit),
   getSimilarQuestions: (questionId, limit) => ipcRenderer.invoke('getSimilarQuestions', questionId, limit),
@@ -78,5 +79,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   kbSearch: (query, limit) => ipcRenderer.invoke('kbSearch', query, limit),
   kbStats: () => ipcRenderer.invoke('kbStats'),
   kbRead: (id) => ipcRenderer.invoke('kbRead', id),
-  kbOpen: (id) => ipcRenderer.invoke('kbOpen', id)
+  kbOpen: (id) => ipcRenderer.invoke('kbOpen', id),
+  kbSuggestDocs: (questionId, limit) => ipcRenderer.invoke('kbSuggestDocs', questionId, limit),
+  kbSuggestQuestions: (docId, limit) => ipcRenderer.invoke('kbSuggestQuestions', docId, limit)
 })

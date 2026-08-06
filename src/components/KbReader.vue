@@ -2,6 +2,7 @@
 import { ref, watch, onBeforeUnmount } from 'vue'
 import MarkdownIt from 'markdown-it'
 import { tiku } from '../api/tiku.js'
+import SimpleQuestion from './SimpleQuestion.vue'
 
 const props = defineProps({ show: Boolean, doc: Object })
 const emit = defineEmits(['close'])
@@ -13,14 +14,66 @@ const pdfContainer = ref(null)
 let pdfTask = null
 let pdfDoc = null
 
+// 「相关题目」面板：已关联(kb_links) + L2 推荐(kbSuggestQuestions) + 手动搜题关联
+const qLinks = ref([])
+const qSugg = ref([])
+const qPanel = ref(true)
+const mKw = ref('')
+const mRes = ref([])
+const mLoading = ref(false)
+const sq = ref({ show: false, q: null })
+let mTimer = null
+
+async function loadQPanel() {
+  if (!props.doc) return
+  const [links, sugg] = await Promise.all([
+    tiku.kbLinksForDoc(props.doc.id),
+    tiku.kbSuggestQuestions(props.doc.id, 5)
+  ])
+  qLinks.value = links
+  qSugg.value = sugg
+}
+
 watch(() => props.show, async (v) => {
   if (!v || !props.doc) return
   html.value = ''
   pdfState.value = { loading: false, error: '', pages: 0, done: 0 }
+  qLinks.value = []
+  qSugg.value = []
+  mKw.value = ''
+  mRes.value = []
   cleanupPdf()
   if (props.doc.type === 'md') await renderMd()
   else await renderPdf()
+  await loadQPanel()
 })
+
+async function linkQ(qid) {
+  await tiku.kbLink({ docId: props.doc.id, questionId: qid })
+  mRes.value = mRes.value.filter(x => x.id !== qid)
+  await loadQPanel()
+}
+
+async function unlinkQ(qid) {
+  await tiku.kbUnlink(props.doc.id, qid)
+  await loadQPanel()
+}
+
+function onMInput() {
+  clearTimeout(mTimer)
+  const kw = mKw.value.trim()
+  if (!kw) { mRes.value = []; mLoading.value = false; return }
+  mTimer = setTimeout(async () => {
+    mLoading.value = true
+    mRes.value = await tiku.getQuestions({ keyword: kw, limit: 6 })
+    mLoading.value = false
+  }, 300)
+}
+
+async function openQ(qid, fallbackStem) {
+  const full = await tiku.getQuestionById(qid)
+  sq.value = { show: true, q: full || { id: qid, stem: fallbackStem, options: [], answer: [], type: 'single' } }
+}
 
 function b64ToUint8(b64) {
   const bin = atob(b64)
@@ -90,7 +143,10 @@ function cleanupPdf() {
   pdfDoc = null
 }
 
-onBeforeUnmount(cleanupPdf)
+onBeforeUnmount(() => {
+  cleanupPdf()
+  clearTimeout(mTimer)
+})
 </script>
 
 <template>
@@ -112,8 +168,39 @@ onBeforeUnmount(cleanupPdf)
         <div v-if="pdfState.loading" class="empty">PDF 加载中…</div>
         <div v-if="props.doc?.type === 'md'" class="kb-md" v-html="html"></div>
         <div v-else ref="pdfContainer" class="kb-pdf"></div>
+
+        <!-- 相关题目面板：已关联 + L2 推荐 + 手动搜题关联 -->
+        <div class="kb-links">
+          <div class="kb-links-head" @click="qPanel = !qPanel">
+            <span>相关题目</span>
+            <span v-if="qLinks.length || qSugg.length" class="kb-links-count">{{ qLinks.length + qSugg.length }}</span>
+            <span class="kb-links-toggle">{{ qPanel ? '收起' : '展开' }}</span>
+          </div>
+          <div v-if="qPanel" class="kb-links-body">
+            <div v-if="!qLinks.length && !qSugg.length" class="kb-links-empty">暂无关联题目，可在下方搜索手动关联</div>
+            <div v-for="l in qLinks" :key="'l' + l.id" class="kb-lq">
+              <span class="kb-lq-stem" @click="openQ(l.question_id, l.stemPreview)">{{ l.stemPreview }}</span>
+              <button class="kb-lq-act" @click="unlinkQ(l.question_id)">解除</button>
+            </div>
+            <div v-for="s in qSugg" :key="'s' + s.id" class="kb-lq sug">
+              <span class="kb-lq-stem" @click="openQ(s.id, s.stem)">{{ s.stem }}</span>
+              <span class="kb-lq-reason">{{ s.reason }}</span>
+              <button class="kb-lq-act" @click="linkQ(s.id)">关联</button>
+            </div>
+            <div class="kb-lq-search">
+              <input v-model="mKw" class="input" placeholder="搜题手动关联（如：TCP 三次握手）…" @input="onMInput" />
+            </div>
+            <div v-if="mLoading" class="kb-links-empty">搜索中…</div>
+            <div v-for="q in mRes" :key="'m' + q.id" class="kb-lq">
+              <span class="kb-lq-stem" @click="openQ(q.id, q.stem)">{{ q.stem }}</span>
+              <button class="kb-lq-act" @click="linkQ(q.id)">关联</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+
+    <SimpleQuestion :show="sq.show" :q="sq.q" @close="sq.show = false" />
   </div>
 </template>
 
@@ -184,4 +271,59 @@ onBeforeUnmount(cleanupPdf)
 }
 .kb-err { color: #e85f3d; text-align: center; padding: 40px 0; }
 .kb-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+.kb-links {
+  margin: 22px auto 0;
+  max-width: 760px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.kb-links-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--brand);
+  background: rgba(42, 245, 255, 0.05);
+  user-select: none;
+}
+.kb-links-count {
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(42, 245, 255, 0.1);
+  border-radius: 10px;
+  padding: 0 8px;
+}
+.kb-links-toggle { margin-left: auto; font-size: 12px; color: var(--muted); }
+.kb-links-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.kb-links-empty { font-size: 12px; color: var(--muted); }
+.kb-lq { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.kb-lq.sug { opacity: .9; }
+.kb-lq-stem {
+  flex: 1;
+  color: var(--text);
+  line-height: 1.5;
+  cursor: pointer;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.kb-lq-stem:hover { color: var(--brand); }
+.kb-lq-reason { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+.kb-lq-act {
+  font-size: 11px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.kb-lq-act:hover { color: var(--brand); }
+.kb-lq-search { margin-top: 4px; }
+.kb-lq-search .input { width: 100%; font-size: 13px; }
 </style>

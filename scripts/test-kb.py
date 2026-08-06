@@ -57,6 +57,8 @@ CREATE INDEX IF NOT EXISTS idx_kb_links_q ON kb_links(question_id);
 CREATE INDEX IF NOT EXISTS idx_kb_docs_deleted ON kb_docs(deleted);
 -- 题库最小表（只验证 stemPreview 联动查询，非 KB 本身）
 CREATE TABLE questions (id INTEGER PRIMARY KEY, stem TEXT, deleted INTEGER DEFAULT 0);
+-- 题目标签最小表（L2 推荐「共享标签」路径）
+CREATE TABLE question_tags (question_id INTEGER NOT NULL, tag TEXT NOT NULL, PRIMARY KEY (question_id, tag));
 """
 
 def new_conn():
@@ -183,6 +185,108 @@ def delete_kb_doc(c, doc_id):
     c.execute('DELETE FROM kb_docs WHERE id=?', (doc_id,))
     return True
 
+# ---- L2 推荐镜像（electron/db.js extractKeywords / getSuggestedDocs*）----
+import re
+
+STOP = set(['下列', '关于', '正确', '错误', '说法', '描述', '属于', '不是', '什么', '为什么', '如何',
+            '以下', '哪个', '哪些', '情况', '中的', '一种', '可以', '需要', '应该', '必须', '可能',
+            '进行', '表示', '包括', '具有', '以及', '对于', '一个', '没有', '说明', '判断', '选择',
+            '的是', '是的', '时候', '过程', '方式', '方法', '特点', '主要'])
+
+def extract_keywords(text, max_=6):
+    t = str(text or '')
+    tokens = re.findall(r'[\u4e00-\u9fa5]{2,}', t) + re.findall(r'[A-Za-z]{3,}', t)
+    seen, out = set(), []
+    for tok in tokens:
+        if tok in STOP or len(tok) < 2:
+            continue
+        k = tok.lower()
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(k)
+    return out[:max_]
+
+def suggest_docs_for_question(c, question_id, limit=5):
+    q = c.execute('SELECT stem FROM questions WHERE id=? AND deleted=0', (question_id,)).fetchone()
+    if not q:
+        return []
+    out, seen = [], set()
+
+    def push(r, reason):
+        if r['id'] in seen:
+            return
+        seen.add(r['id'])
+        out.append({'id': r['id'], 'title': r['title'], 'type': r['type'], 'reason': reason})
+
+    by_tag = c.execute(
+        'SELECT DISTINCT d.id, d.title, d.type FROM kb_docs d '
+        'JOIN kb_tags kt ON kt.doc_id=d.id JOIN question_tags qt ON qt.tag=kt.tag '
+        'WHERE qt.question_id=? AND d.deleted=0 '
+        'AND d.id NOT IN (SELECT doc_id FROM kb_links WHERE question_id=?)',
+        (question_id, question_id)).fetchall()
+    for r in by_tag:
+        push(dict(r), '标签匹配')
+    if len(out) < limit:
+        kws = extract_keywords(q['stem'], 6)
+        hit = {}
+        for kw in kws:
+            if len(out) + len(hit) >= limit:
+                break
+            like = '%' + kw.replace('%', '\\%').replace('_', '\\_') + '%'
+            rows = c.execute(
+                "SELECT d.id, d.title, d.type FROM kb_blocks b JOIN kb_docs d ON d.id=b.doc_id "
+                "WHERE d.deleted=0 AND d.id NOT IN (SELECT doc_id FROM kb_links WHERE question_id=?) "
+                "AND b.content LIKE ? ESCAPE '\\'", (question_id, like)).fetchall()
+            for r in rows:
+                hit.setdefault(r['id'], r)
+        for r in hit.values():
+            push(dict(r), '关键词命中')
+    return out[:limit]
+
+def suggest_questions_for_doc(c, doc_id, limit=5):
+    doc = c.execute('SELECT id FROM kb_docs WHERE id=? AND deleted=0', (doc_id,)).fetchone()
+    if not doc:
+        return []
+    out, seen = [], set()
+
+    def push(r, reason):
+        if r['id'] in seen:
+            return
+        seen.add(r['id'])
+        out.append({'id': r['id'], 'stem': r['stem'], 'reason': reason})
+
+    by_tag = c.execute(
+        'SELECT DISTINCT q.id, q.stem FROM questions q '
+        'JOIN question_tags qt ON qt.question_id=q.id JOIN kb_tags kt ON kt.tag=qt.tag '
+        'WHERE kt.doc_id=? AND q.deleted=0 '
+        'AND q.id NOT IN (SELECT question_id FROM kb_links WHERE doc_id=?)',
+        (doc_id, doc_id)).fetchall()
+    for r in by_tag:
+        push(dict(r), '标签匹配')
+    if len(out) < limit:
+        blocks = c.execute('SELECT content FROM kb_blocks WHERE doc_id=? ORDER BY seq LIMIT 30', (doc_id,)).fetchall()
+        seen_kw, kws = set(), []
+        for b in blocks:
+            for k in extract_keywords(b['content'], 8):
+                if k not in seen_kw:
+                    seen_kw.add(k)
+                    kws.append(k)
+        hit = {}
+        for kw in kws[:10]:
+            if len(hit) >= limit:
+                break
+            like = '%' + kw.replace('%', '\\%').replace('_', '\\_') + '%'
+            rows = c.execute(
+                "SELECT id, stem FROM questions WHERE deleted=0 "
+                "AND id NOT IN (SELECT question_id FROM kb_links WHERE doc_id=?) "
+                "AND stem LIKE ? ESCAPE '\\'", (doc_id, like)).fetchall()
+            for r in rows:
+                hit.setdefault(r['id'], r)
+        for r in hit.values():
+            push(dict(r), '关键词命中')
+    return out[:limit]
+
 def main():
     conn = new_conn()
     c = conn.cursor()
@@ -258,7 +362,41 @@ def main():
     sn = snippet(long_t, '三次握手', 80)
     check('snippet 命中且首尾省略号', sn.startswith('…') and sn.endswith('…') and sn.find('三次握手') >= 0)
 
-    # 12. deleteKbDoc 级联删除
+    # 12. L2 关键词提取（零 ML 分词 + 停用词 + 去重）
+    # 注：无标点长中文会被贪婪并成一个 token（零 ML 方案的固有边界，靠标签路径兜底），
+    # 因此用例用带分隔的文本验证分词、停用词与去重逻辑本身。
+    kws = extract_keywords('TCP 三次握手 需要 四次挥手', 8)
+    check('extractKeywords 中文词提取', '三次握手' in kws and '四次挥手' in kws)
+    check('extractKeywords 英文词提取', 'tcp' in extract_keywords('TCP 连接建立', 6))
+    check('extractKeywords 停用词过滤', '为什么' not in kws and '需要' not in kws)
+    check('extractKeywords 去重', len(kws) == len(set(kws)))
+
+    # 13. L2 推荐：题目→文档（共享标签 + 关键词路径，排除已关联）
+    c.execute('INSERT INTO question_tags (question_id, tag) VALUES (?,?)', (12, '写作'))
+    c.execute('INSERT INTO question_tags (question_id, tag) VALUES (?,?)', (12, '雅思'))
+    c.execute('INSERT INTO questions (id, stem) VALUES (?,?)', (13, 'TCP 连接建立的过程是什么？'))
+    c.execute('INSERT INTO question_tags (question_id, tag) VALUES (?,?)', (13, '网络'))
+    c.execute('INSERT INTO questions (id, stem) VALUES (?,?)', (15, 'TCP 三次握手：为什么需要四次挥手？'))
+    sd13 = suggest_docs_for_question(c, 13)
+    check('题目→文档: 共享标签命中(网络)', any(x['id'] == 1 and x['reason'] == '标签匹配' for x in sd13))
+    sd12 = suggest_docs_for_question(c, 12)
+    check('题目→文档: 共享标签命中(写作/雅思)', any(x['id'] == 2 and x['reason'] == '标签匹配' for x in sd12))
+    sd15 = suggest_docs_for_question(c, 15)
+    check('题目→文档: 无标签靠关键词命中', any(x['id'] == 1 and x['reason'] == '关键词命中' for x in sd15))
+
+    # 14. L2 推荐：文档→题目（反向）
+    sq2 = suggest_questions_for_doc(c, 2)
+    check('文档→题目: 共享标签命中(写作/雅思)', any(x['id'] == 12 and x['reason'] == '标签匹配' for x in sq2))
+    sq1 = suggest_questions_for_doc(c, 1)
+    check('文档→题目: 共享标签命中(网络)', any(x['id'] == 13 and x['reason'] == '标签匹配' for x in sq1))
+    check('文档→题目: 关键词路径命中', any(x['id'] == 15 and x['reason'] == '关键词命中' for x in sq1))
+    check('文档→题目: 上限 5 条', len(sq1) <= 5)
+
+    # 15. 已关联排除：q13 关联 d1 后不再被推荐
+    link_kb_doc(c, 1, 13)
+    check('已关联排除: 关联后不再推荐', not any(x['id'] == 1 for x in suggest_docs_for_question(c, 13)))
+
+    # 16. deleteKbDoc 级联删除
     ok = delete_kb_doc(c, d1)
     check('deleteKbDoc 返回 ok', ok)
     check('级联: 文档删除', c.execute('SELECT COUNT(*) FROM kb_docs WHERE id=?', (d1,)).fetchone()[0] == 0)

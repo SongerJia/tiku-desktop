@@ -160,6 +160,7 @@ ipcMain.handle('getImage', (e, name) => db.getImage(name))
 // ---- 标签 / 薄弱分析 / 相似题 / 批量操作 / 设置 ----
 ipcMain.handle('setQuestionTags', (e, questionId, tags) => db.setQuestionTags(questionId, tags))
 ipcMain.handle('getQuestionTags', (e, questionId) => db.getQuestionTags(questionId))
+ipcMain.handle('getQuestionById', (e, id) => db.getQuestionById(id))
 ipcMain.handle('listTags', () => db.listTags())
 ipcMain.handle('getWeakChapters', (e, subjectId, limit) => db.getWeakChapters(subjectId, limit))
 ipcMain.handle('getSimilarQuestions', (e, questionId, limit) => db.getSimilarQuestions(questionId, limit))
@@ -239,6 +240,8 @@ ipcMain.handle('kbLinksForDoc', (e, docId) => db.getKbLinksForDoc(docId))
 ipcMain.handle('kbSearch', (e, query, limit) => db.searchKb(query, limit))
 ipcMain.handle('kbStats', () => db.kbStats())
 ipcMain.handle('kbRead', (e, id) => db.readKbFile(id))
+ipcMain.handle('kbSuggestDocs', (e, questionId, limit) => db.getSuggestedDocsForQuestion(questionId, limit))
+ipcMain.handle('kbSuggestQuestions', (e, docId, limit) => db.getSuggestedQuestionsForDoc(docId, limit))
 // 用系统默认程序打开 KB 原件（扫描版 PDF 等无法内嵌预览的场景兜底）
 ipcMain.handle('kbOpen', (e, id) => {
   const doc = db.getKbDoc(id)

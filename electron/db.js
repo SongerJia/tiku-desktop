@@ -353,6 +353,20 @@ const api = {
     return { ok: true }
   },
 
+  // 按 id 取单题（含解析后的选项/答案/标签），联动面板点开题目速览用
+  getQuestionById(id) {
+    const r = sqlite.prepare('SELECT * FROM questions WHERE id=? AND deleted=0').get(id)
+    if (!r) return null
+    return {
+      ...r,
+      options: JSON.parse(r.options_json || '[]'),
+      answer: JSON.parse(r.answer_json || '[]'),
+      keywords: r.keywords_json ? JSON.parse(r.keywords_json) : [],
+      images: r.images_json ? JSON.parse(r.images_json) : [],
+      tags: sqlite.prepare('SELECT tag FROM question_tags WHERE question_id=? ORDER BY tag').all(id).map(x => x.tag)
+    }
+  },
+
   getQuestions({ subjectId, categoryId, mode, limit, keyword, tags } = {}) {
     // 弱点强化：按错题数/正确率加权返回最弱的题，不走普通筛选
     if (mode === 'weak') {
@@ -1524,6 +1538,110 @@ const api = {
     if (i < 0) return t.slice(0, len)
     const start = Math.max(0, i - 40)
     return (start > 0 ? '…' : '') + t.slice(start, start + len) + (start + len < t.length ? '…' : '')
+  },
+
+  // ---- L2 联动推荐（零 ML：共享标签 + 关键词 LIKE，排除已关联）----
+  // 从文本里提取关键词：连续中文（≥2 字）+ 英文词（≥3 字母），去停用词与重复。
+  extractKeywords(text, max = 6) {
+    const t = String(text || '')
+    const stop = new Set([
+      '下列', '关于', '正确', '错误', '说法', '描述', '属于', '不是', '什么', '为什么', '如何',
+      '以下', '哪个', '哪些', '情况', '中的', '一种', '可以', '需要', '应该', '必须', '可能',
+      '进行', '表示', '包括', '具有', '以及', '对于', '一个', '没有', '说明', '判断', '选择',
+      '的是', '的是', '是的', '时候', '过程', '方式', '方法', '特点', '主要', '的是的'
+    ])
+    const tokens = (t.match(/[\u4e00-\u9fa5]{2,}/g) || []).concat(t.match(/[A-Za-z]{3,}/g) || [])
+    const seen = new Set()
+    const out = []
+    tokens.forEach(tok => {
+      if (stop.has(tok) || tok.length < 2) return
+      const k = tok.toLowerCase()
+      if (seen.has(k)) return
+      seen.add(k)
+      out.push(k)
+    })
+    return out.slice(0, max)
+  },
+
+  // 题目 → 推荐文档（共享标签优先，题干关键词命中块其次）
+  getSuggestedDocsForQuestion(questionId, limit = 5) {
+    const q = sqlite.prepare('SELECT stem FROM questions WHERE id=? AND deleted=0').get(questionId)
+    if (!q) return []
+    const out = []
+    const seen = new Set()
+    const push = (r, reason) => {
+      if (seen.has(r.id)) return
+      seen.add(r.id)
+      out.push({ id: r.id, title: r.title, type: r.type, rel_path: r.rel_path, updated_at: r.updated_at, heading: r.heading || null, reason })
+    }
+    const byTag = sqlite.prepare(
+      `SELECT DISTINCT d.id, d.title, d.type, d.rel_path, d.updated_at FROM kb_docs d
+       JOIN kb_tags kt ON kt.doc_id=d.id
+       JOIN question_tags qt ON qt.tag=kt.tag
+       WHERE qt.question_id=? AND d.deleted=0
+       AND d.id NOT IN (SELECT doc_id FROM kb_links WHERE question_id=?)`
+    ).all(questionId, questionId)
+    byTag.forEach(r => push(r, '标签匹配'))
+    if (out.length < limit) {
+      const kws = this.extractKeywords(q.stem, 6)
+      const hit = new Map()
+      const rowStmt = sqlite.prepare(
+        `SELECT d.id, d.title, d.type, d.rel_path, d.updated_at, b.heading FROM kb_blocks b
+         JOIN kb_docs d ON d.id=b.doc_id
+         WHERE d.deleted=0 AND d.id NOT IN (SELECT doc_id FROM kb_links WHERE question_id=?) AND b.content LIKE ? ESCAPE '\\'`
+      )
+      kws.forEach(kw => {
+        if (out.length + hit.size >= limit) return
+        rowStmt.all(questionId, '%' + kw.replace(/[%_\\]/g, m => '\\' + m) + '%').forEach(r => {
+          if (!hit.has(r.id)) hit.set(r.id, r)
+        })
+      })
+      hit.forEach(r => push(r, '关键词命中'))
+    }
+    return out.slice(0, limit)
+  },
+
+  // 文档 → 推荐题目（共享标签反向优先，文档块关键词命中题干其次）
+  getSuggestedQuestionsForDoc(docId, limit = 5) {
+    const doc = sqlite.prepare('SELECT id FROM kb_docs WHERE id=? AND deleted=0').get(docId)
+    if (!doc) return []
+    const out = []
+    const seen = new Set()
+    const catStmt = sqlite.prepare('SELECT name FROM categories WHERE id=?')
+    const push = (r, reason) => {
+      if (seen.has(r.id)) return
+      seen.add(r.id)
+      out.push({ id: r.id, stem: r.stem, type: r.type, category_id: r.category_id, categoryName: catStmt.get(r.category_id) ? catStmt.get(r.category_id).name : '', reason })
+    }
+    const byTag = sqlite.prepare(
+      `SELECT DISTINCT q.id, q.stem, q.type, q.category_id FROM questions q
+       JOIN question_tags qt ON qt.question_id=q.id
+       JOIN kb_tags kt ON kt.tag=qt.tag
+       WHERE kt.doc_id=? AND q.deleted=0
+       AND q.id NOT IN (SELECT question_id FROM kb_links WHERE doc_id=?)`
+    ).all(docId, docId)
+    byTag.forEach(r => push(r, '标签匹配'))
+    if (out.length < limit) {
+      const blocks = sqlite.prepare('SELECT content FROM kb_blocks WHERE doc_id=? ORDER BY seq LIMIT 30').all(docId)
+      const seenKw = new Set()
+      const kws = []
+      blocks.forEach(b => this.extractKeywords(b.content, 8).forEach(k => {
+        if (!seenKw.has(k)) { seenKw.add(k); kws.push(k) }
+      }))
+      const hit = new Map()
+      const rowStmt = sqlite.prepare(
+        `SELECT id, stem, type, category_id FROM questions
+         WHERE deleted=0 AND id NOT IN (SELECT question_id FROM kb_links WHERE doc_id=?) AND stem LIKE ? ESCAPE '\\'`
+      )
+      kws.slice(0, 10).forEach(kw => {
+        if (hit.size >= limit) return
+        rowStmt.all(docId, '%' + kw.replace(/[%_\\]/g, m => '\\' + m) + '%').forEach(r => {
+          if (!hit.has(r.id)) hit.set(r.id, r)
+        })
+      })
+      hit.forEach(r => push(r, '关键词命中'))
+    }
+    return out.slice(0, limit)
   }
 }
 

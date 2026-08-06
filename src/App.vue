@@ -10,6 +10,7 @@ import Quiz from './components/Quiz.vue'
 import PracticeSetup from './components/PracticeSetup.vue'
 import BankManager from './components/BankManager.vue'
 import MockExamSetup from './components/MockExamSetup.vue'
+import UnifiedSearch from './components/UnifiedSearch.vue'
 import { tiku } from './api/tiku.js'
 import { useResponsive } from './composables/useResponsive.js'
 import { applyAppearance } from './utils/appearance.js'
@@ -34,6 +35,8 @@ const setup = ref({ active: false, categoryId: null, subjectId: null, presetMode
 const showBank = ref(false)
 // 模拟卷组卷 / 我的试卷
 const mock = ref({ active: false })
+// 统一搜索（题目 + 知识文档）
+const showSearch = ref(false)
 
 onMounted(async () => {
   currentSubject.value = await tiku.getCurrentSubject()
@@ -152,6 +155,9 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
           <span class="sb-name">{{ currentSubject.name }}</span>
           <span class="arrow">▾</span>
         </button>
+        <button class="top-search" title="统一搜索（题目 + 知识文档）" @click="showSearch = true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        </button>
       </header>
 
       <main class="page-content">
@@ -228,6 +234,8 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
       @confirm="onMockConfirm"
       @cancel="mock.active = false"
     />
+
+    <UnifiedSearch :show="showSearch" @close="showSearch = false" />
   </div>
 </template>
 
@@ -250,4 +258,19 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
 .subject-btn:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow); }
 .subject-btn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 8px var(--brand); }
 .subject-btn .arrow { font-size: 11px; color: var(--muted); }
+.top-search {
+  margin-left: auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(42, 245, 255, 0.06);
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color .2s, box-shadow .2s, color .2s;
+}
+.top-search:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow-soft); }
 </style>
