@@ -1369,6 +1369,19 @@ const api = {
     return { docs, blocks, links, tags }
   },
 
+  // 阅读页取文档原件内容（base64；MD 由渲染层解码为文本，PDF 交给 pdfjs）
+  readKbFile(id) {
+    const doc = sqlite.prepare('SELECT rel_path FROM kb_docs WHERE id=? AND deleted=0').get(id)
+    if (!doc) return { ok: false, error: '文档不存在' }
+    try {
+      const full = path.join(this.kbDir(), doc.rel_path)
+      if (!fs.existsSync(full)) return { ok: false, error: '文件缺失（副本可能被手动移动）' }
+      return { ok: true, base64: fs.readFileSync(full).toString('base64') }
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) }
+    }
+  },
+
   findKbDocByHash(hash) {
     if (!hash) return null
     return sqlite.prepare('SELECT id, title, type FROM kb_docs WHERE hash=? AND deleted=0 LIMIT 1').get(hash) || null

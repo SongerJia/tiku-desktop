@@ -75,5 +75,7 @@ export const tiku = {
   kbLinksForQuestion: (questionId) => window.electronAPI.kbLinksForQuestion(questionId),
   kbLinksForDoc: (docId) => window.electronAPI.kbLinksForDoc(docId),
   kbSearch: (query, limit) => window.electronAPI.kbSearch(query, limit),
-  kbStats: () => window.electronAPI.kbStats()
+  kbStats: () => window.electronAPI.kbStats(),
+  kbRead: (id) => window.electronAPI.kbRead(id),
+  kbOpen: (id) => window.electronAPI.kbOpen(id)
 }

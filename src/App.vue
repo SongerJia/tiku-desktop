@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import Home from './components/Home.vue'
 import Knowledge from './components/Knowledge.vue'
+import KbLibrary from './components/KbLibrary.vue'
 import Stats from './components/Stats.vue'
 import Profile from './components/Profile.vue'
 import SubjectSelector from './components/SubjectSelector.vue'
@@ -17,7 +18,8 @@ const { isWide } = useResponsive()
 
 const tabs = [
   { key: 'home', label: '首页', icon: 'home' },
-  { key: 'knowledge', label: '知识库', icon: 'book' },
+  { key: 'bank', label: '题库', icon: 'bank' },
+  { key: 'kb', label: '知识库', icon: 'doc' },
   { key: 'stats', label: '学习统计', icon: 'stats' },
   { key: 'profile', label: '我的', icon: 'me' }
 ]
@@ -111,10 +113,11 @@ function onMockConfirm(cfg) {
 }
 
 const iconHome = `<svg viewBox="0 0 24 24"><path d="M12 3l-9 8h3v10h5v-6h4v6h5V11h3z"/></svg>`
-const iconBook = `<svg viewBox="0 0 24 24"><path d="M18 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>`
+const iconBank = `<svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zM4 11h16v2H4zM4 16h16v2H4zM6 3h12l1 2H5z"/></svg>`
+const iconDoc = `<svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6zM14 3v5h5l-5-5zM9 12h8v1.5H9zM9 15.5h8V17H9zM9 9h3v1.5H9z"/></svg>`
 const iconStats = `<svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>`
 const iconMe = `<svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`
-const icons = { home: iconHome, book: iconBook, stats: iconStats, me: iconMe }
+const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, me: iconMe }
 </script>
 
 <template>
@@ -168,7 +171,8 @@ const icons = { home: iconHome, book: iconBook, stats: iconStats, me: iconMe }
         />
         <template v-else>
           <Home v-if="currentTab === 'home'" :subject="currentSubject" @start="onStart" @start-mock="onStartMock" />
-          <Knowledge v-else-if="currentTab === 'knowledge'" :subject="currentSubject" @start="onStart" />
+          <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" @start="onStart" />
+          <KbLibrary v-else-if="currentTab === 'kb'" />
           <Stats v-else-if="currentTab === 'stats'" />
           <Profile
             v-else-if="currentTab === 'profile'"

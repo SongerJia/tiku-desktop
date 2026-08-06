@@ -76,5 +76,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   kbLinksForQuestion: (questionId) => ipcRenderer.invoke('kbLinksForQuestion', questionId),
   kbLinksForDoc: (docId) => ipcRenderer.invoke('kbLinksForDoc', docId),
   kbSearch: (query, limit) => ipcRenderer.invoke('kbSearch', query, limit),
-  kbStats: () => ipcRenderer.invoke('kbStats')
+  kbStats: () => ipcRenderer.invoke('kbStats'),
+  kbRead: (id) => ipcRenderer.invoke('kbRead', id),
+  kbOpen: (id) => ipcRenderer.invoke('kbOpen', id)
 })

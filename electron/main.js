@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, safeStorage, dialog } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu, safeStorage, dialog, shell } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
@@ -238,6 +238,16 @@ ipcMain.handle('kbLinksForQuestion', (e, questionId) => db.getKbLinksForQuestion
 ipcMain.handle('kbLinksForDoc', (e, docId) => db.getKbLinksForDoc(docId))
 ipcMain.handle('kbSearch', (e, query, limit) => db.searchKb(query, limit))
 ipcMain.handle('kbStats', () => db.kbStats())
+ipcMain.handle('kbRead', (e, id) => db.readKbFile(id))
+// 用系统默认程序打开 KB 原件（扫描版 PDF 等无法内嵌预览的场景兜底）
+ipcMain.handle('kbOpen', (e, id) => {
+  const doc = db.getKbDoc(id)
+  if (!doc) return { ok: false, error: '文档不存在' }
+  const full = path.join(db.kbDir(), doc.rel_path)
+  if (!fs.existsSync(full)) return { ok: false, error: '文件缺失' }
+  shell.openPath(full)
+  return { ok: true }
+})
 
 // Excel 解析放主进程（Node 侧）：渲染层把文件读成 Uint8Array 传过来。
 // 用零依赖的 xlsx-lite（Node 内置 zlib + 手写 zip/CRC32）解析，不再依赖 xlsx 包。
