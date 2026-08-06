@@ -3,6 +3,8 @@ import { ref, watch, onBeforeUnmount } from 'vue'
 import MarkdownIt from 'markdown-it'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
+import { showConfirm } from '../utils/confirm.js'
+import { useEsc } from '../utils/useEsc.js'
 import SimpleQuestion from './SimpleQuestion.vue'
 
 const props = defineProps({ show: Boolean, doc: Object })
@@ -53,6 +55,15 @@ async function saveEdit() {
 
 function cancelEdit() {
   editMode.value = false
+}
+
+// 关闭拦截：MD 编辑未保存时先确认，防丢数据
+async function onClose() {
+  if (editMode.value) {
+    const ok = await showConfirm('有未保存的编辑内容，确定关闭？编辑内容将丢失。')
+    if (!ok) return
+  }
+  emit('close')
 }
 
 // 高亮批注 + 文档双链
@@ -230,6 +241,7 @@ onBeforeUnmount(() => {
   cleanupPdf()
   clearTimeout(mTimer)
 })
+useEsc(() => emit('close'))
 </script>
 
 <template>
@@ -248,7 +260,7 @@ onBeforeUnmount(() => {
           <button class="btn btn-primary" @click="saveEdit">保存</button>
           <button class="btn" @click="cancelEdit">取消</button>
         </template>
-        <button class="btn kb-close" @click="emit('close')">关闭</button>
+        <button class="btn kb-close" @click="onClose">关闭</button>
       </div>
       <div class="kb-reader-body">
         <textarea

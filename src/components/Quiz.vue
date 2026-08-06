@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
+import { showConfirm } from '../utils/confirm.js'
 import KbReader from './KbReader.vue'
 
 const props = defineProps({
@@ -254,6 +255,17 @@ function prev() {
   resetPerQuestion()
 }
 
+// 考试模式：手动提前交卷（带确认，当前题未提交会先提交再结束）
+async function manualFinish() {
+  const answered = result.value || (selected.value.length || (isEssay.value && essayText.value.trim()))
+  const ok = await showConfirm(
+    `当前已完成 ${idx.value + 1}/${questions.value.length} 题${answered ? '，本题已作答' : '，本题未作答'}。确定交卷？`,
+    { title: '提前交卷', danger: true }
+  )
+  if (!ok) return
+  finishExam()
+}
+
 async function finishExam() {
   // 时间到：先提交当前题目（若有作答），再结束本场
   if (q.value && !result.value) {
@@ -329,6 +341,7 @@ function optionClass(key) {
         <span v-if="isRecite" class="recite-tag">背题</span>
       </span>
       <span v-if="isExam && !isDone" class="timer" :class="{ warn: timeLeft <= 60 }">⏱ {{ timeText }}</span>
+      <button v-if="isExam && !isDone" class="fav submit-exam" @click="manualFinish">交卷</button>
       <button class="fav" :class="{ on: q && favSet.has(q.id) }" @click="toggleFav" :disabled="!q">★ 收藏</button>
       <button class="fav note-btn" :class="{ on: hasNote }" @click="noteOpen = !noteOpen" :disabled="!q">✎ 笔记</button>
     </div>
@@ -569,6 +582,13 @@ function optionClass(key) {
   cursor: pointer;
   transition: all .2s;
 }
+.submit-exam {
+  border-color: var(--bad);
+  color: var(--bad);
+  background: rgba(255, 77, 109, 0.08);
+  font-weight: 600;
+}
+.submit-exam:hover { background: rgba(255, 77, 109, 0.18); box-shadow: 0 0 10px rgba(255, 77, 109, 0.2); }
 .back:hover, .fav:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow-soft); }
 .fav.on { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
 .progress { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }

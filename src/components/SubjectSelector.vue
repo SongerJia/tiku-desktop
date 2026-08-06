@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
+import { useEsc } from '../utils/useEsc.js'
 
 const props = defineProps({ show: Boolean, currentId: [Number, String], wide: Boolean })
 const emit = defineEmits(['update:show', 'select'])
@@ -50,6 +51,7 @@ function findNode(nodes, id) {
 function isExpanded(node) {
   return expanded.value.has(node.id)
 }
+useEsc(() => emit('close'))
 </script>
 
 <template>

@@ -77,6 +77,7 @@ async function stopFocus(completed = false) {
   focusRunning.value = false
   if (completed) {
     await tiku.addFocusSession(focusMinutes.value)
+    showToast(`专注 ${focusMinutes.value} 分钟完成，+${focusMinutes.value * 2} XP`, 'ok')
     const fs = await tiku.focusStats()
     focusToday.value = fs.today
   }
@@ -112,6 +113,12 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
         <span class="num"><CountUp :value="summary.total" /></span>
         <span class="unit">张</span>
       </div>
+    </div>
+
+    <!-- 空题库引导 -->
+    <div v-if="!loading && summary.total === 0" class="card empty-guide">
+      <p class="eg-title">题库还是空的，先导入一批题开始吧</p>
+      <p class="eg-sub">支持 CSV / Excel / JSON 批量导入（我的 → 题库管理），或用内置样题直接体验</p>
     </div>
 
     <!-- 今日目标进度 -->
@@ -240,6 +247,10 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
 .goal-bar { height: 8px; background: rgba(255,255,255,.06); border-radius: 6px; overflow: hidden; }
 .goal-fill { height: 100%; background: linear-gradient(90deg, var(--brand), var(--brand2, #7b46c4)); border-radius: 6px; transition: width .4s; box-shadow: var(--glow-soft); }
 .goal-sub { font-size: 12px; color: var(--muted); }
+
+.empty-guide { border-color: var(--warn); background: rgba(255, 180, 84, 0.06); display: flex; flex-direction: column; gap: 6px; }
+.eg-title { font-size: 14px; font-weight: 600; color: var(--warn); margin: 0; }
+.eg-sub { font-size: 12px; color: var(--muted); margin: 0; }
 
 /* 每日任务 */
 .quest-xp { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }

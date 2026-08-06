@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
+import { useEsc } from '../utils/useEsc.js'
 
 const props = defineProps({ show: Boolean })
 const emit = defineEmits(['close'])
@@ -54,6 +55,7 @@ function fmt(q) {
   const parts = String(q.front || '').split('\n')
   return parts.slice(0, 6).join('\n')
 }
+useEsc(() => emit('close'))
 </script>
 
 <template>

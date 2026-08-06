@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onBeforeUnmount } from 'vue'
 import { tiku } from '../api/tiku.js'
+import { useEsc } from '../utils/useEsc.js'
 import KbReader from './KbReader.vue'
 import SimpleQuestion from './SimpleQuestion.vue'
 
@@ -62,6 +63,7 @@ function typeLabel(t) {
 }
 
 onBeforeUnmount(() => clearTimeout(timer))
+useEsc(() => emit('close'))
 </script>
 
 <template>
