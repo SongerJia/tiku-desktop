@@ -1,0 +1,182 @@
+<script setup>
+import { ref, watch } from 'vue'
+import { tiku } from '../api/tiku.js'
+
+const props = defineProps({
+  show: Boolean,
+  wide: Boolean
+})
+const emit = defineEmits(['close'])
+
+const list = ref([])
+const toast = ref('')
+
+function showToast(m) {
+  toast.value = m
+  setTimeout(() => { toast.value = '' }, 2000)
+}
+
+function fmt(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+async function load() {
+  try { list.value = await tiku.listNotes() }
+  catch (e) { list.value = [] }
+}
+
+watch(() => props.show, (v) => { if (v) load() })
+
+async function delNote(item) {
+  await tiku.saveNote({ questionId: item.question_id, content: '' })
+  showToast('已删除该笔记')
+  await load()
+}
+</script>
+
+<template>
+  <transition name="fade">
+    <div v-if="show" class="nl-mask" :class="{ 'is-wide': wide }" @click.self="emit('close')">
+      <div class="nl-panel" :class="{ 'is-wide': wide }">
+        <div class="nl-header">
+          <span class="close" @click="emit('close')">×</span>
+          <span class="title">我的笔记</span>
+          <span class="count">{{ list.length }} 条</span>
+        </div>
+
+        <div class="nl-body">
+          <div v-if="!list.length" class="empty">
+            <div class="empty-icon">✎</div>
+            <div>还没有笔记</div>
+            <div class="empty-sub">在答题页点「✎ 笔记」写下你的理解</div>
+          </div>
+
+          <div v-else class="nl-list">
+            <div v-for="n in list" :key="n.question_id" class="nl-item">
+              <div class="nl-top">
+                <span class="nl-cat">{{ n.category_name || '未分类' }}</span>
+                <span class="nl-date">{{ fmt(n.updated_at) }}</span>
+              </div>
+              <div class="nl-stem">{{ n.stem }}</div>
+              <div class="nl-content">{{ n.content }}</div>
+              <div class="nl-foot">
+                <button class="mini danger" @click="delNote(n)">删除笔记</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="toast" class="nl-toast">{{ toast }}</div>
+      </div>
+    </div>
+  </transition>
+</template>
+
+<style scoped>
+.nl-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 6, 14, 0.78);
+  backdrop-filter: blur(6px);
+  z-index: 190;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.nl-mask.is-wide { align-items: center; }
+
+.nl-panel {
+  position: relative;
+  width: 100%;
+  height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: var(--shadow), var(--glow-soft);
+}
+.nl-panel.is-wide {
+  width: 620px;
+  max-width: 94vw;
+  height: 80vh;
+  border-radius: var(--radius);
+}
+
+.nl-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.nl-header .title { flex: 1; font-size: 16px; font-weight: 700; color: var(--text); }
+.nl-header .close { font-size: 22px; color: var(--muted); cursor: pointer; line-height: 1; }
+.nl-header .close:hover { color: var(--brand); }
+.nl-header .count { font-size: 12px; color: #ffc154; }
+
+.nl-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+
+.empty { text-align: center; color: var(--muted); font-size: 13px; padding: 40px 0; line-height: 2; }
+.empty-icon { font-size: 30px; color: #ffc154; opacity: 0.6; }
+.empty-sub { font-size: 12px; opacity: 0.75; }
+
+.nl-list { display: flex; flex-direction: column; gap: 10px; }
+.nl-item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 11px 12px;
+  background: rgba(255, 193, 84, 0.04);
+}
+.nl-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.nl-cat { font-size: 11px; color: var(--brand); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; }
+.nl-date { font-size: 11px; color: var(--muted); margin-left: auto; }
+.nl-stem { font-size: 13px; color: var(--text); line-height: 1.6; margin-bottom: 6px; }
+.nl-content {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 8px 10px;
+  background: rgba(5, 8, 15, 0.5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.nl-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
+
+.mini {
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 3px 9px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.mini:hover { color: var(--brand); border-color: var(--brand); }
+.mini.danger:hover { color: var(--bad); border-color: var(--bad); }
+
+.nl-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: rgba(8, 14, 28, 0.95);
+  color: var(--text);
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  box-shadow: var(--glow-soft);
+  z-index: 5;
+}
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.18s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+</style>

@@ -63,7 +63,36 @@ async function loadList() {
 async function refreshAll() {
   await loadMeta()
   await loadList()
+  await loadNoted()
 }
+
+// 题库页内联笔记：从题库直接看/写某题笔记，与答题页共用同一张 notes 表
+const notedIds = ref(new Set())
+async function loadNoted() {
+  try { notedIds.value = new Set(await tiku.getNotedQuestionIds()) }
+  catch (e) { notedIds.value = new Set() }
+}
+
+const noteQ = ref(null)
+const noteText = ref('')
+const noteHint = ref('')
+async function openNote(q) {
+  noteQ.value = q
+  noteText.value = ''
+  noteHint.value = ''
+  try {
+    const n = await tiku.getNote(q.id)
+    noteText.value = n.content || ''
+  } catch (e) {}
+}
+async function saveNoteHere() {
+  if (!noteQ.value) return
+  await tiku.saveNote({ questionId: noteQ.value.id, content: noteText.value })
+  noteHint.value = noteText.value.trim() ? '已保存' : '已清空'
+  setTimeout(() => { noteHint.value = '' }, 1500)
+  loadNoted()
+}
+function closeNote() { noteQ.value = null; noteText.value = '' }
 
 watch(() => props.show, (v) => { if (v) refreshAll() })
 onMounted(() => { if (props.show) refreshAll() })
@@ -215,6 +244,17 @@ function keywordText(q) {
               <div class="q-top">
                 <span class="q-type">{{ TYPE_LABEL[q.type] || q.type }}</span>
                 <span class="q-cat">{{ q.category_name || '未分类' }}</span>
+                <span
+                  v-if="notedIds.has(q.id)"
+                  class="q-note"
+                  title="有笔记，点击查看/编辑"
+                  @click.stop="openNote(q)"
+                >✎</span>
+                <span
+                  v-if="q.images && q.images.length"
+                  class="q-img-badge"
+                  title="含题干配图"
+                >图</span>
                 <span class="q-spacer"></span>
                 <button class="mini" @click="openEdit(q)">编辑</button>
                 <button
@@ -263,6 +303,29 @@ function keywordText(q) {
         @close="showEditor = false"
         @saved="onSaved"
       />
+
+      <!-- 题库内联笔记面板 -->
+      <div v-if="noteQ" class="note-mask" @click.self="closeNote">
+        <div class="note-box">
+          <div class="note-head">
+            <span class="note-title">笔记 · {{ noteQ.category_name || '未分类' }}</span>
+            <span v-if="noteHint" class="note-hint">{{ noteHint }}</span>
+            <span class="note-close" @click="closeNote">×</span>
+          </div>
+          <div class="note-stem">{{ noteQ.stem }}</div>
+          <textarea
+            v-model="noteText"
+            class="note-input"
+            rows="6"
+            placeholder="写下你对这道题的理解、易错点…（失焦自动保存）"
+            @blur="saveNoteHere"
+          ></textarea>
+          <div class="note-foot">
+            <span class="note-tip">失焦自动保存 · 清空即删除</span>
+            <button class="note-save" @click="saveNoteHere">保存</button>
+          </div>
+        </div>
+      </div>
     </div>
   </transition>
 </template>
@@ -365,6 +428,25 @@ function keywordText(q) {
   padding: 1px 6px;
 }
 .q-cat { font-size: 11px; color: var(--muted); }
+.q-note {
+  font-size: 13px;
+  color: #ffc154;
+  cursor: pointer;
+  padding: 1px 5px;
+  border: 1px solid rgba(255, 193, 84, 0.45);
+  border-radius: 4px;
+  background: rgba(255, 193, 84, 0.12);
+}
+.q-note:hover { background: rgba(255, 193, 84, 0.22); }
+.q-img-badge {
+  font-size: 11px;
+  color: var(--brand);
+  cursor: default;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: rgba(42, 245, 255, 0.10);
+}
 .q-spacer { flex: 1; }
 .q-stem { font-size: 13px; color: var(--text); line-height: 1.65; }
 .q-bottom { display: flex; gap: 12px; margin-top: 7px; font-size: 11px; color: var(--muted); }
@@ -418,4 +500,70 @@ function keywordText(q) {
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.18s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* 题库内联笔记 */
+.note-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 6, 14, 0.6);
+  z-index: 210;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.note-box {
+  width: 520px;
+  max-width: 92vw;
+  background: var(--card-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), var(--glow-soft);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.note-head { display: flex; align-items: center; gap: 10px; }
+.note-title { flex: 1; font-size: 13px; color: var(--muted); }
+.note-hint { font-size: 12px; color: var(--ok); }
+.note-close { font-size: 20px; color: var(--muted); cursor: pointer; line-height: 1; }
+.note-close:hover { color: var(--brand); }
+.note-stem {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.6;
+  max-height: 96px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  background: rgba(5, 8, 15, 0.6);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.note-input {
+  background: rgba(5, 8, 15, 0.8);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.note-input:focus { border-color: var(--brand); box-shadow: var(--glow-soft); }
+.note-foot { display: flex; align-items: center; justify-content: space-between; }
+.note-tip { font-size: 11px; color: var(--muted); }
+.note-save {
+  border: 1px solid var(--brand);
+  background: none;
+  color: var(--brand);
+  border-radius: 6px;
+  padding: 5px 16px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.note-save:hover { background: rgba(42, 245, 255, 0.12); box-shadow: var(--glow-soft); }
 </style>

@@ -23,6 +23,19 @@ const source = ref('手动录入')
 const categoryId = ref('')
 const error = ref('')
 const saving = ref(false)
+// 题干配图：文件名数组（原文件存 userData/images，库里只存文件名）
+const images = ref([])
+const uploading = ref(false)
+// 题干配图的预览 dataURL（getImage 是异步的，模板里不能直接 :src=Promise）
+const thumbUrls = ref([])
+watch(images, async (list) => {
+  thumbUrls.value = []
+  if (!list || !list.length) return
+  try {
+    const urls = await Promise.all(list.map(name => tiku.getImage(name)))
+    thumbUrls.value = urls.filter(Boolean)
+  } catch (e) { thumbUrls.value = [] }
+}, { immediate: true })
 
 const isEdit = computed(() => !!(props.question && props.question.id))
 const isJudge = computed(() => type.value === 'judge')
@@ -53,6 +66,7 @@ function loadFromProps() {
     difficulty.value = q.difficulty || 3
     source.value = q.source || '手动录入'
     categoryId.value = q.category_id || ''
+    images.value = (q.images || []).slice()
   } else {
     type.value = 'single'
     stem.value = ''
@@ -63,7 +77,32 @@ function loadFromProps() {
     difficulty.value = 3
     source.value = '手动录入'
     categoryId.value = props.defaultCategoryId || ''
+    images.value = []
   }
+}
+
+function onPickImage(e) {
+  const file = e.target.files && e.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = async () => {
+    try {
+      uploading.value = true
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase()
+      const name = await tiku.saveImage(reader.result, ext)
+      images.value.push(name)
+    } catch (err) {
+      error.value = '图片保存失败：' + (err.message || String(err))
+    } finally {
+      uploading.value = false
+    }
+  }
+  reader.readAsArrayBuffer(file)
+  e.target.value = '' // 允许再次选中同一文件
+}
+
+function removeImage(i) {
+  images.value.splice(i, 1)
 }
 
 watch(() => props.show, (v) => { if (v) loadFromProps() }, { immediate: true })
@@ -139,7 +178,8 @@ async function save() {
       keywords: isEssayQ ? splitKeywords(keywords.value) : [],
       analysis: analysis.value.trim(),
       difficulty: Number(difficulty.value) || 3,
-      source: source.value.trim() || '手动录入'
+      source: source.value.trim() || '手动录入',
+      images: images.value.slice()
     }
     if (isEdit.value) await tiku.updateQuestion(payload)
     else await tiku.addQuestion(payload)
@@ -224,6 +264,21 @@ async function save() {
             <label>得分关键词 / 采分点（选填，用 ；或换行分隔）</label>
             <textarea v-model="keywords" class="input area" rows="3" placeholder="如：收集资料；划分施工过程；计算工程量；确定持续时间；绘制网络图；优化关键线路"></textarea>
             <span class="hint-sm">作答时会实时高亮你写到的关键词，帮你判断是否答全；最终对错由你自评。</span>
+          </div>
+
+          <div class="field">
+            <label>题干配图（选填，支持多张）</label>
+            <div class="img-thumbs">
+              <div v-for="(img, i) in images" :key="i" class="img-thumb">
+                <img :src="thumbUrls[i]" :alt="img" />
+                <button class="img-del" @click="removeImage(i)">×</button>
+              </div>
+              <label class="img-add">
+                <input type="file" accept="image/*" hidden @change="onPickImage" />
+                <span>{{ uploading ? '上传中…' : '+ 添加图片' }}</span>
+              </label>
+            </div>
+            <span class="hint-sm">图片保存在本机「userData/images」，同步时会随题库 JSON 一起备份</span>
           </div>
 
           <div class="field">
@@ -318,6 +373,19 @@ async function save() {
 .input:focus { border-color: var(--brand); box-shadow: var(--glow-soft); }
 .area { resize: vertical; line-height: 1.6; }
 .hint-sm { font-size: 11px; color: var(--muted); opacity: 0.8; line-height: 1.5; }
+
+/* 题干配图 */
+.img-thumbs { display: flex; flex-wrap: wrap; gap: 10px; }
+.img-thumb { position: relative; width: 92px; height: 92px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: rgba(5,8,15,.6); }
+.img-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.img-del { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; border: none; background: rgba(2,6,16,.7); color: #ffb3c1; font-size: 13px; line-height: 1; cursor: pointer; }
+.img-del:hover { background: var(--bad); color: #fff; }
+.img-add {
+  width: 92px; height: 92px; display: flex; align-items: center; justify-content: center;
+  border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 12px;
+  cursor: pointer; text-align: center; transition: all .15s; padding: 4px;
+}
+.img-add:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow-soft); }
 
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip {

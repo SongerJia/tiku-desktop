@@ -10,6 +10,10 @@ export const tiku = {
   getWrongBook: () => window.electronAPI.getWrongBook(),
   getFavorites: () => window.electronAPI.getFavorites(),
   toggleFavorite: (questionId) => window.electronAPI.toggleFavorite(questionId),
+  getNote: (questionId) => window.electronAPI.getNote(questionId),
+  saveNote: (payload) => window.electronAPI.saveNote(payload),
+  listNotes: () => window.electronAPI.listNotes(),
+  getNotedQuestionIds: () => window.electronAPI.getNotedQuestionIds(),
   getStats: () => window.electronAPI.getStats(),
   getSummary: () => window.electronAPI.getSummary(),
   getChapterProgress: (subjectId) => window.electronAPI.getChapterProgress(subjectId),
@@ -19,6 +23,12 @@ export const tiku = {
   clearUserData: () => window.electronAPI.clearUserData(),
   exportData: () => window.electronAPI.exportData(),
   importData: (json) => window.electronAPI.importData(json),
+
+  // 云同步（GitHub Gist）
+  syncGetConfig: () => window.electronAPI.syncGetConfig(),
+  syncConnect: (token) => window.electronAPI.syncConnect(token),
+  syncDisconnect: () => window.electronAPI.syncDisconnect(),
+  syncNow: () => window.electronAPI.syncNow(),
 
   // ---- 题库管理 ----
   listQuestions: (opts) => window.electronAPI.listQuestions(opts),
@@ -33,5 +43,12 @@ export const tiku = {
   addCategory: (payload) => window.electronAPI.addCategory(payload),
   renameCategory: (payload) => window.electronAPI.renameCategory(payload),
   deleteCategory: (id) => window.electronAPI.deleteCategory(id),
+  // 模拟卷组卷 / 题目图片
+  generatePaper: (payload) => window.electronAPI.generatePaper(payload),
+  listPapers: () => window.electronAPI.listPapers(),
+  getPaper: (id) => window.electronAPI.getPaper(id),
+  deletePaper: (id) => window.electronAPI.deletePaper(id),
+  saveImage: (buf, ext) => window.electronAPI.saveImage(buf, ext),
+  getImage: (name) => window.electronAPI.getImage(name),
   parseSheet: (buf) => window.electronAPI.parseSheet(buf)
 }

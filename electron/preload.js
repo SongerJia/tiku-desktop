@@ -11,6 +11,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getWrongBook: () => ipcRenderer.invoke('getWrongBook'),
   getFavorites: () => ipcRenderer.invoke('getFavorites'),
   toggleFavorite: (questionId) => ipcRenderer.invoke('toggleFavorite', questionId),
+  getNote: (questionId) => ipcRenderer.invoke('getNote', questionId),
+  saveNote: (payload) => ipcRenderer.invoke('saveNote', payload),
+  listNotes: () => ipcRenderer.invoke('listNotes'),
+  getNotedQuestionIds: () => ipcRenderer.invoke('getNotedQuestionIds'),
   getStats: () => ipcRenderer.invoke('getStats'),
   getSummary: () => ipcRenderer.invoke('getSummary'),
   getChapterProgress: (subjectId) => ipcRenderer.invoke('getChapterProgress', subjectId),
@@ -20,6 +24,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clearUserData: () => ipcRenderer.invoke('clearUserData'),
   exportData: () => ipcRenderer.invoke('exportData'),
   importData: (json) => ipcRenderer.invoke('importData', json),
+
+  // 云同步（GitHub Gist）
+  syncGetConfig: () => ipcRenderer.invoke('syncGetConfig'),
+  syncConnect: (token) => ipcRenderer.invoke('syncConnect', token),
+  syncDisconnect: () => ipcRenderer.invoke('syncDisconnect'),
+  syncNow: () => ipcRenderer.invoke('syncNow'),
 
   // 题库管理
   listQuestions: (opts) => ipcRenderer.invoke('listQuestions', opts),
@@ -34,5 +44,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   addCategory: (payload) => ipcRenderer.invoke('addCategory', payload),
   renameCategory: (payload) => ipcRenderer.invoke('renameCategory', payload),
   deleteCategory: (id) => ipcRenderer.invoke('deleteCategory', id),
+  // 模拟卷组卷 / 题目图片
+  generatePaper: (payload) => ipcRenderer.invoke('generatePaper', payload),
+  listPapers: () => ipcRenderer.invoke('listPapers'),
+  getPaper: (id) => ipcRenderer.invoke('getPaper', id),
+  deletePaper: (id) => ipcRenderer.invoke('deletePaper', id),
+  saveImage: (buf, ext) => ipcRenderer.invoke('saveImage', buf, ext),
+  getImage: (name) => ipcRenderer.invoke('getImage', name),
   parseSheet: (buf) => ipcRenderer.invoke('parseSheet', buf)
 })

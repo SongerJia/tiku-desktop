@@ -8,6 +8,7 @@ import SubjectSelector from './components/SubjectSelector.vue'
 import Quiz from './components/Quiz.vue'
 import PracticeSetup from './components/PracticeSetup.vue'
 import BankManager from './components/BankManager.vue'
+import MockExamSetup from './components/MockExamSetup.vue'
 import { tiku } from './api/tiku.js'
 import { useResponsive } from './composables/useResponsive.js'
 
@@ -23,11 +24,13 @@ const tabs = [
 const currentTab = ref('home')
 const currentSubject = ref({ id: null, name: '请选择科目' })
 const showSubjectPicker = ref(false)
-const quiz = ref({ active: false, categoryId: null, subjectId: null, mode: 'practice', order: 'sequential', limit: null, durationMin: null })
+const quiz = ref({ active: false, categoryId: null, subjectId: null, mode: 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null })
 // 练习设置弹层：所有「开始刷题」入口先到这里配置范围/方式/考试参数
 const setup = ref({ active: false, categoryId: null, subjectId: null, presetMode: 'practice', scopeLabel: '' })
 // 题库管理（导入/录题/编辑/删除）
 const showBank = ref(false)
+// 模拟卷组卷 / 我的试卷
+const mock = ref({ active: false })
 
 onMounted(async () => {
   currentSubject.value = await tiku.getCurrentSubject()
@@ -71,16 +74,37 @@ function onSetupConfirm(cfg) {
     mode: cfg.mode,
     order: cfg.order || 'sequential',
     limit: cfg.limit ?? null,
-    durationMin: cfg.durationMin ?? null
+    durationMin: cfg.durationMin ?? null,
+    recite: !!cfg.recite,
+    paperId: null
   }
   setup.value.active = false
 }
 
 function startQuiz({ categoryId, mode }) {
-  quiz.value = { active: true, categoryId, subjectId: null, mode: mode || 'practice', order: 'sequential', limit: null, durationMin: null }
+  quiz.value = { active: true, categoryId, subjectId: null, mode: mode || 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null }
 }
 function exitQuiz() {
-  quiz.value = { active: false, categoryId: null, subjectId: null, mode: 'practice', order: 'sequential', limit: null, durationMin: null }
+  quiz.value = { active: false, categoryId: null, subjectId: null, mode: 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null }
+}
+
+// 模拟卷：组卷生成后直接用 paperId 进入考试模式
+function onStartMock() {
+  mock.value.active = true
+}
+function onMockConfirm(cfg) {
+  quiz.value = {
+    active: true,
+    categoryId: null,
+    subjectId: null,
+    mode: 'exam',
+    order: 'sequential',
+    limit: null,
+    durationMin: cfg.durationMin ?? 90,
+    recite: false,
+    paperId: cfg.paperId
+  }
+  mock.value.active = false
 }
 
 const iconHome = `<svg viewBox="0 0 24 24"><path d="M12 3l-9 8h3v10h5v-6h4v6h5V11h3z"/></svg>`
@@ -134,10 +158,12 @@ const icons = { home: iconHome, book: iconBook, stats: iconStats, me: iconMe }
           :order="quiz.order"
           :limit="quiz.limit"
           :durationMin="quiz.durationMin"
+          :recite="quiz.recite"
+          :paperId="quiz.paperId"
           @exit="exitQuiz"
         />
         <template v-else>
-          <Home v-if="currentTab === 'home'" :subject="currentSubject" @start="onStart" />
+          <Home v-if="currentTab === 'home'" :subject="currentSubject" @start="onStart" @start-mock="onStartMock" />
           <Knowledge v-else-if="currentTab === 'knowledge'" :subject="currentSubject" @start="onStart" />
           <Stats v-else-if="currentTab === 'stats'" />
           <Profile
@@ -184,6 +210,15 @@ const icons = { home: iconHome, book: iconBook, stats: iconStats, me: iconMe }
       :wide="isWide"
       @close="showBank = false"
       @changed="onBankChanged"
+    />
+
+    <MockExamSetup
+      v-if="mock.active"
+      :show="mock.active"
+      :wide="isWide"
+      :subject="currentSubject"
+      @confirm="onMockConfirm"
+      @cancel="mock.active = false"
     />
   </div>
 </template>

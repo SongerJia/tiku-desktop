@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 
 const props = defineProps({
@@ -9,6 +9,10 @@ const props = defineProps({
   order: { default: 'sequential' },
   limit: { default: null },
   durationMin: { default: null },
+  // 背题模式：直接展示答案与解析，不判分、不写答题记录、不动错题本
+  recite: { default: false },
+  // 模拟卷：传入卷 id 时按卷面题目与分值计分（与 getQuestions 随机抽题互斥）
+  paperId: { default: null },
   wide: { default: false }
 })
 const emit = defineEmits(['exit'])
@@ -23,12 +27,21 @@ const sessionCorrect = ref(0)
 const favSet = ref(new Set())
 const loading = ref(true)
 const timeUp = ref(false)
+// 模拟卷：卷面总分与已得分数（仅 paperId 时有意义）
+const paperScore = ref(0)
+const earnedScore = ref(0)
+// 题目图片（题干图）：文件名 → base64 dataURL
+const imageUrls = ref([])
 
 const isExam = computed(() => props.mode === 'exam')
+const isRecite = computed(() => !!props.recite && !isExam.value)  // 考试与背题互斥，双保险
 const q = computed(() => questions.value[idx.value] || null)
 const isMultiple = computed(() => q.value && q.value.type === 'multiple')
 const isEssay = computed(() => q.value && q.value.type === 'essay')
 const isDone = computed(() => idx.value >= questions.value.length)
+
+// 背题模式下直接从题目本身取答案，不经过 submitAnswer（那会写记录）
+const reciteAnswer = computed(() => (q.value && q.value.answer) || [])
 
 // 问答题：实时计算作答文本对「得分关键词」的命中情况（不区分大小写）
 const keywordHits = computed(() => {
@@ -70,13 +83,21 @@ function shuffle(arr) {
 }
 
 onMounted(async () => {
-  let list = await tiku.getQuestions({
-    categoryId: props.categoryId,
-    subjectId: props.subjectId,
-    mode: props.mode
-  })
-  if (props.order === 'random') list = shuffle(list)
-  if (props.limit) list = list.slice(0, Number(props.limit))
+  let list
+  if (props.paperId) {
+    // 模拟卷：题目与分值来自已保存的卷，顺序固定，不随机、不限量
+    const paper = await tiku.getPaper(props.paperId)
+    list = (paper.questions || []).map(p => ({ ...p, id: p.questionId, paperScore: p.score }))
+    paperScore.value = paper.totalScore || 0
+  } else {
+    list = await tiku.getQuestions({
+      categoryId: props.categoryId,
+      subjectId: props.subjectId,
+      mode: props.mode
+    })
+    if (props.order === 'random') list = shuffle(list)
+    if (props.limit) list = list.slice(0, Number(props.limit))
+  }
   questions.value = list
   const favs = await tiku.getFavorites()
   favSet.value = new Set(favs.map(f => f.question_id))
@@ -96,7 +117,7 @@ onMounted(async () => {
 onUnmounted(() => { if (timer) clearInterval(timer) })
 
 function select(key) {
-  if (result.value || timeUp.value || isEssay.value) return
+  if (isRecite.value || result.value || timeUp.value || isEssay.value) return
   if (isMultiple.value) {
     const i = selected.value.indexOf(key)
     if (i >= 0) selected.value.splice(i, 1)
@@ -123,7 +144,10 @@ async function submitEssay(grade) {
     selfGrade: grade
   })
   result.value = res
-  if (res.isCorrect) sessionCorrect.value++
+  if (res.isCorrect) {
+    sessionCorrect.value++
+    if (props.paperId && q.value.paperScore) earnedScore.value += q.value.paperScore
+  }
 }
 
 async function submit() {
@@ -135,15 +159,29 @@ async function submit() {
     mode: props.mode
   })
   result.value = res
-  if (res.isCorrect) sessionCorrect.value++
+  if (res.isCorrect) {
+    sessionCorrect.value++
+    if (props.paperId && q.value.paperScore) earnedScore.value += q.value.paperScore
+  }
 }
 
-function next() {
-  idx.value++
+function resetPerQuestion() {
   selected.value = []
   essayText.value = ''
   essayReviewing.value = false
   result.value = null
+}
+
+function next() {
+  idx.value++
+  resetPerQuestion()
+}
+
+// 只在背题模式下开放回看上一题（答题模式回退会让判分记录变得含糊）
+function prev() {
+  if (!isRecite.value || idx.value <= 0) return
+  idx.value--
+  resetPerQuestion()
 }
 
 async function finishExam() {
@@ -159,6 +197,37 @@ async function finishExam() {
   idx.value = questions.value.length
 }
 
+// ---- 题目笔记 ----
+// 跟着当前题走：切题自动载入，收起面板；保存即写库（清空内容=删除笔记）。
+const noteOpen = ref(false)
+const noteText = ref('')
+const noteHint = ref('')
+const hasNote = computed(() => !!noteText.value.trim())
+
+watch(() => (q.value ? q.value.id : null), async (id) => {
+  noteOpen.value = false
+  noteHint.value = ''
+  noteText.value = ''
+  imageUrls.value = []
+  if (!id) return
+  const n = await tiku.getNote(id)
+  noteText.value = n.content || ''
+  // 题目图片：文件名 → base64，主进程从 userData/images 读回
+  if (q.value.images && q.value.images.length) {
+    try {
+      const urls = await Promise.all(q.value.images.map(name => tiku.getImage(name)))
+      imageUrls.value = urls.filter(Boolean)
+    } catch (e) { imageUrls.value = [] }
+  }
+})
+
+async function saveNote() {
+  if (!q.value) return
+  await tiku.saveNote({ questionId: q.value.id, content: noteText.value })
+  noteHint.value = noteText.value.trim() ? '已保存' : '已清空'
+  setTimeout(() => { noteHint.value = '' }, 1500)
+}
+
 async function toggleFav() {
   if (!q.value) return
   const r = await tiku.toggleFavorite(q.value.id)
@@ -168,6 +237,8 @@ async function toggleFav() {
 }
 
 function optionClass(key) {
+  // 背题模式：直接把正确项标绿，不存在“选错”状态
+  if (isRecite.value) return { right: reciteAnswer.value.includes(key) }
   if (!result.value) return { sel: selected.value.includes(key) }
   const correct = result.value.answer.includes(key)
   const chosen = selected.value.includes(key)
@@ -183,17 +254,23 @@ function optionClass(key) {
     <div class="bar">
       <button class="back" @click="emit('exit')">← 返回</button>
       <span v-if="!loading && !isDone" class="progress">
-        第 {{ idx + 1 }} / {{ questions.length }} 题 · 对 {{ sessionCorrect }}
+        第 {{ idx + 1 }} / {{ questions.length }} 题<template v-if="!isRecite"> · 对 {{ sessionCorrect }}</template>
         <span class="mode-tag">{{ modeLabel(mode) }}·{{ orderLabel(order) }}</span>
+        <span v-if="isRecite" class="recite-tag">背题</span>
       </span>
       <span v-if="isExam && !isDone" class="timer" :class="{ warn: timeLeft <= 60 }">⏱ {{ timeText }}</span>
       <button class="fav" :class="{ on: q && favSet.has(q.id) }" @click="toggleFav" :disabled="!q">★ 收藏</button>
+      <button class="fav note-btn" :class="{ on: hasNote }" @click="noteOpen = !noteOpen" :disabled="!q">✎ 笔记</button>
     </div>
 
     <div v-if="loading" class="hint">加载中…</div>
     <div v-else-if="isDone" class="done card">
-      <h2>本场结束</h2>
-      <p>共 {{ questions.length }} 题，答对 {{ sessionCorrect }} 题，正确率
+      <h2>{{ isRecite ? '已过完本轮' : (props.paperId ? '模拟卷完成' : '本场结束') }}</h2>
+      <p v-if="props.paperId">共 {{ questions.length }} 题，答对 {{ sessionCorrect }} 题，得分
+        <b class="score">{{ Math.round(earnedScore * 10) / 10 }}</b> / {{ paperScore }} 分
+        （正确率 {{ questions.length ? Math.round(sessionCorrect / questions.length * 100) : 0 }}%）</p>
+      <p v-else-if="isRecite">共浏览 {{ questions.length }} 题。背题不判分、不计入统计，想检验效果就切回「答题」再来一遍。</p>
+      <p v-else>共 {{ questions.length }} 题，答对 {{ sessionCorrect }} 题，正确率
         {{ questions.length ? Math.round(sessionCorrect / questions.length * 100) : 0 }}%</p>
       <button @click="emit('exit')">回到首页</button>
     </div>
@@ -203,6 +280,11 @@ function optionClass(key) {
       <div class="meta">
         <span class="tag">{{ typeLabel(q.type) }}</span>
         <span class="stem">{{ q.stem }}</span>
+      </div>
+
+      <!-- 题目图片（题干图） -->
+      <div v-if="imageUrls.length" class="q-images">
+        <img v-for="(src, i) in imageUrls" :key="i" :src="src" class="q-img" alt="题干图" />
       </div>
 
       <!-- 选择题 / 判断题：选项作答 -->
@@ -219,8 +301,8 @@ function optionClass(key) {
         </div>
       </div>
 
-      <!-- 问答题：文本作答 + 采分点对照 -->
-      <div v-else class="essay">
+      <!-- 问答题：文本作答 + 采分点对照（背题模式不作答，见下方背题面板） -->
+      <div v-else-if="!isRecite" class="essay">
         <textarea
           v-model="essayText"
           class="essay-input"
@@ -256,8 +338,25 @@ function optionClass(key) {
         </div>
       </div>
 
+      <!-- 背题模式：不作答，直接摊开答案 / 采分点 / 解析，只管翻页 -->
+      <div v-if="isRecite" class="recite-panel">
+        <div class="recite-ans">
+          <b>{{ isEssay ? '参考答案' : '正确答案' }}：</b>
+          <span v-if="reciteAnswer.length" class="ans-val">{{ reciteAnswer.join(isEssay ? '\n' : '、') }}</span>
+          <span v-else class="ans-none">（本题未录入答案）</span>
+        </div>
+        <div v-if="q.keywords && q.keywords.length" class="kw-list">
+          <span class="kw-hit" v-for="k in q.keywords" :key="k">采分点：{{ k }}</span>
+        </div>
+        <div v-if="q.analysis" class="analysis"><b>解析：</b>{{ q.analysis }}</div>
+        <div class="actions">
+          <button class="nav-prev" :disabled="idx === 0" @click="prev">← 上一题</button>
+          <button class="next" @click="next">{{ idx + 1 >= questions.length ? '完成' : '下一题 →' }}</button>
+        </div>
+      </div>
+
       <!-- 选择题：提交 + 结果 -->
-      <template v-if="!isEssay">
+      <template v-if="!isEssay && !isRecite">
         <div v-if="!result" class="actions">
           <button class="submit" :disabled="!selected.length" @click="submit">提交答案</button>
         </div>
@@ -283,6 +382,25 @@ function optionClass(key) {
         </div>
         <div class="analysis"><b>参考解析：</b>{{ result.analysis }}</div>
         <button class="next" @click="next">下一题 →</button>
+      </div>
+
+      <!-- 本题笔记：答题 / 背题 / 考试都可写，随题切换自动载入 -->
+      <div v-if="noteOpen" class="note-panel">
+        <div class="note-head">
+          <span class="note-title">我的笔记</span>
+          <span v-if="noteHint" class="note-hint">{{ noteHint }}</span>
+        </div>
+        <textarea
+          v-model="noteText"
+          class="note-input"
+          rows="3"
+          placeholder="记下你的理解、易错点、记忆口诀…（清空内容并保存即删除本题笔记）"
+          @blur="saveNote"
+        ></textarea>
+        <div class="note-foot">
+          <span class="note-tip">失焦自动保存</span>
+          <button class="note-save" @click="saveNote">保存</button>
+        </div>
       </div>
     </div>
   </div>
@@ -340,6 +458,7 @@ function optionClass(key) {
 .fav.on { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
 .progress { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
 .mode-tag { background: var(--brand-light); color: var(--brand); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; font-size: 11px; }
+.recite-tag { background: rgba(255, 193, 84, 0.14); color: #ffc154; border: 1px solid rgba(255, 193, 84, 0.45); border-radius: 6px; padding: 1px 7px; font-size: 11px; }
 .timer { color: var(--brand); font-size: 13px; font-weight: 600; margin-left: auto; text-shadow: var(--glow-soft); }
 .timer.warn { color: var(--bad); text-shadow: 0 0 8px rgba(255, 77, 109, 0.5); animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: .4; } }
@@ -348,6 +467,9 @@ function optionClass(key) {
 .meta { margin-bottom: 14px; }
 .tag { display: inline-block; background: var(--brand-light); color: var(--brand); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; font-size: 12px; margin-right: 8px; }
 .stem { font-size: 15px; font-weight: 500; line-height: 1.5; }
+
+.q-images { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.q-img { max-width: 100%; max-height: 220px; border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--glow-soft); }
 
 .timeup { background: rgba(255, 77, 109, 0.12); border: 1px solid var(--bad); color: var(--bad); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; }
 
@@ -401,6 +523,75 @@ function optionClass(key) {
 .kw-miss { background: rgba(255, 77, 109, 0.10); border: 1px solid var(--bad); color: var(--bad); border-radius: 6px; padding: 2px 8px; font-size: 12px; }
 .kw-tip { color: var(--muted); font-size: 12px; margin: 8px 0 4px; }
 
+/* 笔记 */
+.note-btn.on { background: rgba(255, 193, 84, 0.14); border-color: rgba(255, 193, 84, 0.5); color: #ffc154; }
+.note-panel {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.note-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.note-title { font-size: 13px; color: var(--muted); }
+.note-hint { font-size: 12px; color: var(--ok); }
+.note-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  transition: all .15s;
+}
+.note-input:focus { border-color: var(--brand); box-shadow: var(--glow-soft); }
+.note-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.note-tip { font-size: 11px; color: var(--muted); }
+.note-save {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 5px 16px;
+  border-radius: 16px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.note-save:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow-soft); }
+
+/* 背题面板 */
+.recite-panel {
+  margin-top: 14px;
+  border: 1px solid rgba(255, 193, 84, 0.35);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: rgba(255, 193, 84, 0.05);
+}
+.recite-ans { font-size: 14px; line-height: 1.6; }
+.recite-ans b { color: #ffc154; }
+.ans-val { color: var(--ok); font-weight: 600; white-space: pre-wrap; }
+.ans-none { color: var(--muted); }
+.nav-prev {
+  flex: 0 0 auto;
+  min-width: 100px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 11px 18px;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+}
+.nav-prev:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow-soft); }
+.nav-prev:disabled { opacity: .35; cursor: not-allowed; }
+
 .actions { margin-top: 14px; display: flex; gap: 10px; }
 .submit, .next, .grade-yes, .grade-no {
   flex: 1;
@@ -433,6 +624,7 @@ function optionClass(key) {
 
 .done { text-align: center; }
 .done h2 { color: var(--brand); text-shadow: var(--glow-soft); }
+.done .score { color: var(--brand); font-size: 18px; }
 .done p { color: var(--muted); margin: 8px 0 16px; }
 .done button {
   background: var(--brand);

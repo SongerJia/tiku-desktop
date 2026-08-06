@@ -1,7 +1,39 @@
-const { app, BrowserWindow, ipcMain, Menu } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu, safeStorage } = require('electron')
 const path = require('path')
+const fs = require('fs')
+const crypto = require('crypto')
 const db = require('./db')
 const { readXlsx, writeXlsx } = require('./xlsx-lite')
+const syncGithub = require('./sync-github')
+
+// ---- 云同步 token 安全存储（加密落盘，不进 settings 表，避免明文） ----
+const TOKEN_PATH = path.join(app.getPath('userData'), 'sync-token.enc')
+
+function loadToken() {
+  try {
+    if (!fs.existsSync(TOKEN_PATH)) return null
+    const buf = fs.readFileSync(TOKEN_PATH)
+    if (safeStorage && safeStorage.isEncryptionAvailable()) return safeStorage.decryptString(buf)
+    return buf.toString('utf8') // 无加密环境降级（沙箱/老系统），明文存储，仅本机
+  } catch (e) {
+    return null
+  }
+}
+
+function saveToken(token) {
+  try {
+    if (!token) {
+      if (fs.existsSync(TOKEN_PATH)) fs.unlinkSync(TOKEN_PATH)
+      return
+    }
+    const data = (safeStorage && safeStorage.isEncryptionAvailable())
+      ? safeStorage.encryptString(token)
+      : Buffer.from(token, 'utf8')
+    fs.writeFileSync(TOKEN_PATH, data)
+  } catch (e) {
+    throw new Error('保存 token 失败：' + (e.message || String(e)))
+  }
+}
 
 // 题库扁平行 → 导出用的二维数组（表头顺序与 bankParser.bankToMatrix 严格一致，
 // 多端/导回导入都能对上列）。主进程是 CommonJS，bankParser 是 ESM，这里内联一份。
@@ -87,6 +119,10 @@ ipcMain.handle('submitAnswer', (e, payload) => db.submitAnswer(payload))
 ipcMain.handle('getWrongBook', () => db.getWrongBook())
 ipcMain.handle('getFavorites', () => db.getFavorites())
 ipcMain.handle('toggleFavorite', (e, questionId) => db.toggleFavorite(questionId))
+ipcMain.handle('getNote', (e, questionId) => db.getNote(questionId))
+ipcMain.handle('saveNote', (e, payload) => db.saveNote(payload))
+ipcMain.handle('listNotes', () => db.listNotes())
+ipcMain.handle('getNotedQuestionIds', () => db.getNotedQuestionIds())
 ipcMain.handle('getStats', () => db.getStats())
 ipcMain.handle('getSummary', () => db.getSummary())
 ipcMain.handle('getChapterProgress', (e, subjectId) => db.getChapterProgress(subjectId))
@@ -108,6 +144,17 @@ ipcMain.handle('exportBank', (e, subjectId) => db.exportBank(subjectId))
 ipcMain.handle('addCategory', (e, payload) => db.addCategory(payload))
 ipcMain.handle('renameCategory', (e, payload) => db.renameCategory(payload))
 ipcMain.handle('deleteCategory', (e, id) => db.deleteCategory(id))
+
+// ---- 模拟卷组卷 / 题目图片 ----
+ipcMain.handle('generatePaper', (e, payload) => db.generatePaper(payload))
+ipcMain.handle('listPapers', () => db.listPapers())
+ipcMain.handle('getPaper', (e, id) => db.getPaper(id))
+ipcMain.handle('deletePaper', (e, id) => db.deletePaper(id))
+ipcMain.handle('saveImage', (e, buf, ext) => {
+  const buffer = Buffer.isBuffer(buf) ? buf : Buffer.from(buf)
+  return db.saveImage(buffer, ext)
+})
+ipcMain.handle('getImage', (e, name) => db.getImage(name))
 
 // Excel 解析放主进程（Node 侧）：渲染层把文件读成 Uint8Array 传过来。
 // 用零依赖的 xlsx-lite（Node 内置 zlib + 手写 zip/CRC32）解析，不再依赖 xlsx 包。
@@ -153,4 +200,60 @@ const TEMPLATE_SAMPLE_ROWS = [
 ipcMain.handle('exportExcelTemplate', () => {
   const buf = writeXlsx(TEMPLATE_SAMPLE_ROWS, { sheetName: '题库导入模板' })
   return Buffer.from(buf).toString('base64')
+})
+
+// ---- 云同步（GitHub Gist，零后端） ----
+// 安全原则：token 只存本机加密文件，绝不回传渲染层；配置只读不回写 token。
+ipcMain.handle('syncGetConfig', () => {
+  const token = loadToken()
+  return {
+    connected: !!token,
+    login: db.getSetting('sync_login') || '',
+    gistId: db.getSetting('sync_gist_id') || '',
+    lastSync: Number(db.getSetting('sync_last_sync') || 0)
+  }
+})
+
+ipcMain.handle('syncConnect', async (e, token) => {
+  const t = (token || '').trim()
+  if (!t) throw new Error('请输入 GitHub Token')
+  const u = await syncGithub.validateToken(t) // 不通会抛错，连接失败不存 token
+  saveToken(t)
+  db.setSetting('sync_login', u.login)
+  return { login: u.login, name: u.name }
+})
+
+ipcMain.handle('syncDisconnect', () => {
+  saveToken(null)
+  db.setSetting('sync_gist_id', '')
+  db.setSetting('sync_login', '')
+  db.setSetting('sync_last_sync', '')
+  return { ok: true }
+})
+
+// 同步编排：pull 合并 → push 全量（收敛模型，保证多设备最终一致）
+ipcMain.handle('syncNow', async () => {
+  const token = loadToken()
+  if (!token) throw new Error('未连接 GitHub，请先在「云同步」中连接')
+  let gistId = db.getSetting('sync_gist_id')
+
+  // 1) 拉远端并合并进本地（若无 gistId 说明还没建过，跳过 pull）
+  if (gistId) {
+    const g = await syncGithub.getGist(token, gistId)
+    if (g.content) db.mergeRemote(g.content)
+  }
+
+  // 2) 导出本地全量快照并推送
+  const local = db.exportSync()
+  if (!gistId) {
+    const r = await syncGithub.createGist(token, local)
+    gistId = r.gistId
+    db.setSetting('sync_gist_id', gistId)
+  } else {
+    await syncGithub.updateGist(token, gistId, local)
+  }
+
+  const now = Date.now()
+  db.setSetting('sync_last_sync', String(now))
+  return { ok: true, lastSync: now, gistId }
 })

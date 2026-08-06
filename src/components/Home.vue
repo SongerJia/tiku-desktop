@@ -3,7 +3,7 @@ import { ref, onMounted, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 
 const props = defineProps({ subject: Object })
-const emit = defineEmits(['start'])
+const emit = defineEmits(['start', 'start-mock'])
 
 const summary = ref({ total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0 })
 const loading = ref(true)
@@ -74,6 +74,15 @@ async function load() {
       </div>
     </div>
 
+    <!-- 模拟考试入口 -->
+    <div class="card mock-entry">
+      <div class="me-text">
+        <div class="me-title">模拟考试</div>
+        <div class="me-sub">按题型 / 难度组卷，限时实战，考后看得分与逐题解析</div>
+      </div>
+      <button class="btn btn-primary" @click="$emit('start-mock')">去组卷</button>
+    </div>
+
     <div v-if="loading" class="empty">加载中…</div>
   </div>
 </template>
@@ -136,4 +145,19 @@ async function load() {
 .s-count { font-size: 11px; color: var(--muted); }
 .shortcut.no-click { cursor: default; }
 .shortcut.no-click:hover { background: rgba(255, 255, 255, 0.02); border-color: var(--line); box-shadow: none; }
+
+.mock-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background:
+    radial-gradient(circle at 12% 50%, rgba(255, 193, 84, 0.16), transparent 55%),
+    linear-gradient(135deg, rgba(42, 245, 255, 0.08), rgba(255, 193, 84, 0.06));
+  border-color: rgba(255, 193, 84, 0.30);
+}
+.mock-entry .me-text { flex: 1; }
+.me-title { font-size: 16px; font-weight: 700; color: var(--text); }
+.me-sub { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+.mock-entry .btn { flex: 0 0 auto; }
 </style>

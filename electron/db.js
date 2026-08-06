@@ -1,10 +1,15 @@
 const Database = require('better-sqlite3')
 const path = require('path')
+const crypto = require('crypto')
+const fs = require('fs')
 const { app } = require('electron')
 const sample = require('./sampleData')
+const { lwwMerge, applyFk } = require('./sync-merge')
 
-// 本地用户固定为 id=1（纯本地单用户；Phase2 多端同步时再扩展账号表）。
+// 本地用户固定为 id=1（纯本地单用户；云同步只同步"学习数据"，不区分账号行）。
 const LOCAL_USER = 1
+
+const uuid = () => crypto.randomUUID()
 
 let sqlite
 
@@ -38,6 +43,16 @@ function scheduleNextReview(reviewedCount) {
   return Date.now() + days * 86400000
 }
 
+// 取某题/某分类的 client_id（外键 cid 解析用）
+function questionCid(id) {
+  const r = sqlite.prepare('SELECT client_id FROM questions WHERE id=?').get(id)
+  return r ? r.client_id : null
+}
+function categoryCid(id) {
+  const r = sqlite.prepare('SELECT client_id FROM categories WHERE id=?').get(id)
+  return r ? r.client_id : null
+}
+
 const api = {
   init() {
     sqlite = new Database(dbPath())
@@ -46,6 +61,8 @@ const api = {
     this.migrateSchema()
     this.ensureUser()
     this.seedIfEmpty()
+    this.backfillClientIds() // 老库/样例数据补齐 client_id 与 *_cid，保证可同步
+    return this
   },
 
   close() {
@@ -60,7 +77,8 @@ const api = {
         total_answered INTEGER DEFAULT 0,
         correct_count INTEGER DEFAULT 0,
         created_at INTEGER,
-        updated_at INTEGER
+        updated_at INTEGER,
+        client_id TEXT
       );
       CREATE TABLE IF NOT EXISTS categories (
         id INTEGER PRIMARY KEY,
@@ -70,7 +88,9 @@ const api = {
         stage TEXT,
         sort INTEGER DEFAULT 0,
         updated_at INTEGER,
-        deleted INTEGER DEFAULT 0
+        deleted INTEGER DEFAULT 0,
+        client_id TEXT,
+        parent_cid TEXT
       );
       CREATE TABLE IF NOT EXISTS questions (
         id INTEGER PRIMARY KEY,
@@ -83,7 +103,9 @@ const api = {
         difficulty INTEGER,
         source TEXT,
         updated_at INTEGER,
-        deleted INTEGER DEFAULT 0
+        deleted INTEGER DEFAULT 0,
+        client_id TEXT,
+        category_cid TEXT
       );
       CREATE TABLE IF NOT EXISTS answer_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,7 +117,9 @@ const api = {
         mode TEXT,
         created_at INTEGER,
         updated_at INTEGER,
-        deleted INTEGER DEFAULT 0
+        deleted INTEGER DEFAULT 0,
+        client_id TEXT,
+        question_cid TEXT
       );
       CREATE TABLE IF NOT EXISTS wrong_books (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,7 +132,8 @@ const api = {
         status TEXT DEFAULT 'wrong',
         updated_at INTEGER,
         deleted INTEGER DEFAULT 0,
-        UNIQUE(user_id, question_id)
+        client_id TEXT,
+        question_cid TEXT
       );
       CREATE TABLE IF NOT EXISTS favorites (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -117,11 +142,46 @@ const api = {
         created_at INTEGER,
         updated_at INTEGER,
         deleted INTEGER DEFAULT 0,
-        UNIQUE(user_id, question_id)
+        client_id TEXT,
+        question_cid TEXT
+      );
+      CREATE TABLE IF NOT EXISTS notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        question_id INTEGER,
+        content TEXT,
+        created_at INTEGER,
+        updated_at INTEGER,
+        deleted INTEGER DEFAULT 0,
+        client_id TEXT,
+        question_cid TEXT
       );
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT
+      );
+      CREATE TABLE IF NOT EXISTS papers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        title TEXT,
+        subject_id INTEGER,
+        duration_minutes INTEGER,
+        total_score REAL,
+        rules_json TEXT,
+        created_at INTEGER,
+        updated_at INTEGER,
+        deleted INTEGER DEFAULT 0,
+        client_id TEXT
+      );
+      CREATE TABLE IF NOT EXISTS paper_questions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        paper_id INTEGER,
+        seq INTEGER,
+        question_id INTEGER,
+        score REAL,
+        deleted INTEGER DEFAULT 0,
+        client_id TEXT,
+        question_cid TEXT
       );
     `)
   },
@@ -137,17 +197,54 @@ const api = {
       }
       return false
     }
-    // 问答题的「得分关键词」：JSON 数组，客观题为空
+    // 问答题的「得分关键词」
     addColumn('questions', 'keywords_json', 'keywords_json TEXT')
-    // 问答题自评标记：1=用户自评，用于统计里区分主观题
+    // 问答题自评标记
     addColumn('answer_records', 'self_graded', 'self_graded INTEGER DEFAULT 0')
+    // 云同步身份列 + 外键 cid
+    addColumn('users', 'client_id', 'client_id TEXT')
+    addColumn('categories', 'client_id', 'client_id TEXT')
+    addColumn('categories', 'parent_cid', 'parent_cid TEXT')
+    addColumn('questions', 'client_id', 'client_id TEXT')
+    addColumn('questions', 'category_cid', 'category_cid TEXT')
+    addColumn('questions', 'images_json', 'images_json TEXT')
+    addColumn('answer_records', 'client_id', 'client_id TEXT')
+    addColumn('answer_records', 'question_cid', 'question_cid TEXT')
+    addColumn('wrong_books', 'client_id', 'client_id TEXT')
+    addColumn('wrong_books', 'question_cid', 'question_cid TEXT')
+    addColumn('favorites', 'client_id', 'client_id TEXT')
+    addColumn('favorites', 'question_cid', 'question_cid TEXT')
+    addColumn('notes', 'client_id', 'client_id TEXT')
+    addColumn('notes', 'question_cid', 'question_cid TEXT')
+  },
+
+  // 给历史数据/样例数据补齐 client_id 与 *_cid（按 client_id 做跨设备身份，否则无法匹配）。
+  backfillClientIds() {
+    const setCid = (table) => {
+      const rows = sqlite.prepare(`SELECT id FROM ${table} WHERE client_id IS NULL OR client_id=''`).all()
+      if (!rows.length) return
+      const upd = sqlite.prepare(`UPDATE ${table} SET client_id=? WHERE id=?`)
+      const tx = sqlite.transaction(() => rows.forEach(r => upd.run(uuid(), r.id)))
+      tx()
+    }
+    ;['users', 'categories', 'questions', 'answer_records', 'wrong_books', 'favorites', 'notes', 'papers'].forEach(setCid)
+
+    const fix = (table, fkCol, refTable, refCol) =>
+      sqlite.prepare(`UPDATE ${table} SET ${fkCol}=(SELECT client_id FROM ${refTable} r WHERE r.id=${table}.${refCol})
+                      WHERE ${fkCol} IS NULL AND ${refCol} IS NOT NULL`).run()
+    fix('questions', 'category_cid', 'categories', 'category_id')
+    fix('answer_records', 'question_cid', 'questions', 'question_id')
+    fix('wrong_books', 'question_cid', 'questions', 'question_id')
+    fix('favorites', 'question_cid', 'questions', 'question_id')
+    fix('notes', 'question_cid', 'questions', 'question_id')
+    fix('categories', 'parent_cid', 'categories', 'parent_id')
   },
 
   ensureUser() {
     const u = sqlite.prepare('SELECT id FROM users WHERE id=?').get(LOCAL_USER)
     if (!u) {
-      sqlite.prepare('INSERT INTO users (id, name, created_at, updated_at) VALUES (?,?,?,?)')
-        .run(LOCAL_USER, '本地用户', Date.now(), Date.now())
+      sqlite.prepare('INSERT INTO users (id, name, created_at, updated_at, client_id) VALUES (?,?,?,?,?)')
+        .run(LOCAL_USER, '本地用户', Date.now(), Date.now(), uuid())
     }
   },
 
@@ -156,19 +253,29 @@ const api = {
     const count = sqlite.prepare('SELECT COUNT(*) AS n FROM categories').get().n
     if (count > 0) return
     const now = Date.now()
-    const insC = sqlite.prepare('INSERT INTO categories (id,name,parent_id,level,stage,sort,updated_at) VALUES (?,?,?,?,?,?,?)')
-    const insQ = sqlite.prepare('INSERT INTO questions (id,category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
+    const insC = sqlite.prepare('INSERT INTO categories (id,name,parent_id,level,stage,sort,updated_at,client_id) VALUES (?,?,?,?,?,?,?,?)')
+    const insQ = sqlite.prepare('INSERT INTO questions (id,category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,updated_at,client_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
     const tx = sqlite.transaction(() => {
       for (const c of sample.categories) {
-        insC.run(c.id, c.name, c.parent_id ?? null, c.level, c.stage ?? null, c.sort ?? 0, now)
+        insC.run(c.id, c.name, c.parent_id ?? null, c.level, c.stage ?? null, c.sort ?? 0, now, uuid())
       }
       for (const q of sample.questions) {
         insQ.run(q.id, q.category_id, q.type, q.stem, JSON.stringify(q.options || []),
           JSON.stringify(q.answer || []), JSON.stringify(q.keywords || []),
-          q.analysis, q.difficulty ?? 3, q.source ?? '样题', now)
+          q.analysis, q.difficulty ?? 3, q.source ?? '样题', now, uuid())
       }
     })
     tx()
+  },
+
+  // 设置项（同步配置等轻量 KV）
+  getSetting(key) {
+    const r = sqlite.prepare('SELECT value FROM settings WHERE key=?').get(key)
+    return r ? r.value : null
+  },
+  setSetting(key, value) {
+    sqlite.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)').run(key, String(value))
+    return { ok: true }
   },
 
   // 返回两级分类树（科目 → 章节）
@@ -185,7 +292,6 @@ const api = {
   },
 
   getSubjects() {
-    // 一级分类视为“科目”，用于选择科目弹层
     return sqlite.prepare('SELECT id, name, level, stage, sort FROM categories WHERE deleted=0 AND (parent_id IS NULL OR parent_id=0) ORDER BY sort, id').all()
   },
 
@@ -204,12 +310,6 @@ const api = {
     return { ok: true }
   },
 
-  // 拉题。支持：
-  //  - categoryId：指定某个章节
-  //  - subjectId：指定科目（取其下所有章节）
-  //  - mode：practice(全部) / wrong(错题) / favorite(收藏) / unattempted(未做) / review-due(智能复习到期)
-  //  - keyword：题干搜索
-  //  - limit：截断（考试抽题用，顺序由调用方控制随机/顺序）
   getQuestions({ subjectId, categoryId, mode, limit, keyword } = {}) {
     let sql = 'SELECT * FROM questions WHERE deleted=0'
     const params = []
@@ -237,11 +337,9 @@ const api = {
       sql += ' AND id IN (' + ids.map(() => '?').join(',') + ')'
       params.push(...ids)
     } else if (mode === 'unattempted') {
-      // 从未在该用户答题记录中出现过的题目
       sql += ' AND id NOT IN (SELECT question_id FROM answer_records WHERE user_id=? AND deleted=0)'
       params.push(LOCAL_USER)
     } else if (mode === 'review-due') {
-      // 艾宾浩斯：状态仍为 wrong 且已到（或从未排过）下次复习时间的错题
       const ids = sqlite.prepare("SELECT question_id FROM wrong_books WHERE user_id=? AND status='wrong' AND deleted=0 AND (next_review_at IS NULL OR next_review_at<=?)")
         .all(LOCAL_USER, Date.now()).map(w => w.question_id)
       if (!ids.length) return []
@@ -258,12 +356,11 @@ const api = {
       ...r,
       options: JSON.parse(r.options_json || '[]'),
       answer: JSON.parse(r.answer_json || '[]'),
-      keywords: r.keywords_json ? JSON.parse(r.keywords_json) : []
+      keywords: r.keywords_json ? JSON.parse(r.keywords_json) : [],
+      images: r.images_json ? JSON.parse(r.images_json) : []
     }))
   },
 
-  // 判分 + 写答题记录 + 更新错题本与用户统计（等价于之前云函数 submitAnswer 的逻辑）
-  // selfGrade：问答题（essay）没有唯一解，无法机器判分，由用户自评 true/false。
   submitAnswer({ questionId, selected, durationMs, mode, selfGrade }) {
     const q = sqlite.prepare('SELECT * FROM questions WHERE id=?').get(questionId)
     if (!q) return { error: 'question not found' }
@@ -271,34 +368,32 @@ const api = {
     const isEssay = q.type === 'essay'
     let correct
     if (isEssay) {
-      // 主观题以自评为准；没传自评时保守按「未掌握」处理，免得空作答被算成对
       correct = selfGrade === true
     } else {
       correct = JSON.stringify([...selected].sort()) === JSON.stringify([...JSON.parse(q.answer_json || '[]')].sort())
     }
     const now = Date.now()
+    const qCid = q.client_id
 
     sqlite.prepare(`INSERT INTO answer_records
-      (user_id, question_id, selected_json, is_correct, duration_ms, mode, self_graded, created_at, updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?)`)
-      .run(LOCAL_USER, questionId, JSON.stringify(selected), correct ? 1 : 0, durationMs || 0, mode || 'practice', isEssay ? 1 : 0, now, now)
+      (user_id, question_id, selected_json, is_correct, duration_ms, mode, self_graded, created_at, updated_at, client_id, question_cid)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(LOCAL_USER, questionId, JSON.stringify(selected), correct ? 1 : 0, durationMs || 0, mode || 'practice', isEssay ? 1 : 0, now, now, uuid(), qCid)
 
     sqlite.prepare('UPDATE users SET total_answered=total_answered+1, correct_count=correct_count+?, updated_at=? WHERE id=?')
       .run(correct ? 1 : 0, now, LOCAL_USER)
 
     if (!correct) {
-      // 答错：错题本 +1，复习进度清零，安排 1 天后复习
-      sqlite.prepare(`INSERT INTO wrong_books (user_id, question_id, wrong_count, reviewed_count, status, next_review_at, updated_at)
-        VALUES (?,?,1,0,?,?,?)
+      sqlite.prepare(`INSERT INTO wrong_books (user_id, question_id, wrong_count, reviewed_count, status, next_review_at, updated_at, client_id, question_cid)
+        VALUES (?,?,1,0,?,?,?,?,?)
         ON CONFLICT(user_id, question_id) DO UPDATE SET
-          wrong_count=wrong_count+1,
+          wrong_count=wrong_books.wrong_count+1,
           reviewed_count=0,
           status='wrong',
           next_review_at=excluded.next_review_at,
           updated_at=?`)
-        .run(LOCAL_USER, questionId, 'wrong', scheduleNextReview(0), now, now)
+        .run(LOCAL_USER, questionId, 'wrong', scheduleNextReview(0), now, uuid(), qCid, now)
     } else {
-      // 答对：若已在错题本中，则推进间隔复习进度；连续答对 3 次毕业
       const wb = sqlite.prepare('SELECT id, reviewed_count FROM wrong_books WHERE user_id=? AND question_id=?').get(LOCAL_USER, questionId)
       if (wb) {
         const rc = (wb.reviewed_count || 0) + 1
@@ -327,7 +422,8 @@ const api = {
     return rows.map(r => ({
       ...r,
       options: JSON.parse(r.options_json),
-      answer: JSON.parse(r.answer_json)
+      answer: JSON.parse(r.answer_json),
+      images: r.images_json ? JSON.parse(r.images_json) : []
     }))
   },
 
@@ -338,7 +434,8 @@ const api = {
     return rows.map(r => ({
       ...r,
       options: JSON.parse(r.options_json),
-      answer: JSON.parse(r.answer_json)
+      answer: JSON.parse(r.answer_json),
+      images: r.images_json ? JSON.parse(r.images_json) : []
     }))
   },
 
@@ -348,9 +445,186 @@ const api = {
       sqlite.prepare('UPDATE favorites SET deleted=1, updated_at=? WHERE id=?').run(Date.now(), ex.id)
       return { favorited: false }
     }
-    sqlite.prepare('INSERT INTO favorites (user_id, question_id, created_at, updated_at) VALUES (?,?,?,?)')
-      .run(LOCAL_USER, questionId, Date.now(), Date.now())
+    sqlite.prepare('INSERT INTO favorites (user_id, question_id, created_at, updated_at, client_id, question_cid) VALUES (?,?,?,?,?,?)')
+      .run(LOCAL_USER, questionId, Date.now(), Date.now(), uuid(), questionCid(questionId))
     return { favorited: true }
+  },
+
+  // ============ 题目笔记 ============
+  getNote(questionId) {
+    const r = sqlite.prepare('SELECT content, updated_at FROM notes WHERE user_id=? AND question_id=? AND deleted=0')
+      .get(LOCAL_USER, questionId)
+    return r ? { content: r.content || '', updatedAt: r.updated_at } : { content: '', updatedAt: null }
+  },
+
+  saveNote({ questionId, content }) {
+    const text = String(content == null ? '' : content).trim()
+    const now = Date.now()
+    if (!text) {
+      sqlite.prepare('UPDATE notes SET content=?, deleted=1, updated_at=? WHERE user_id=? AND question_id=?')
+        .run('', now, LOCAL_USER, questionId)
+      return { ok: true, content: '', deleted: true }
+    }
+    sqlite.prepare(`INSERT INTO notes (user_id, question_id, content, created_at, updated_at, deleted, client_id, question_cid)
+      VALUES (?,?,?,?,?,0,?,?)
+      ON CONFLICT(user_id, question_id) DO UPDATE SET
+        content=excluded.content,
+        deleted=0,
+        updated_at=excluded.updated_at`)
+      .run(LOCAL_USER, questionId, text, now, now, uuid(), questionCid(questionId))
+    return { ok: true, content: text, deleted: false }
+  },
+
+  listNotes() {
+    return sqlite.prepare(`SELECT n.question_id, n.content, n.updated_at,
+        q.stem, q.type, c.name AS category
+      FROM notes n
+      JOIN questions q ON q.id=n.question_id AND q.deleted=0
+      LEFT JOIN categories c ON c.id=q.category_id
+      WHERE n.user_id=? AND n.deleted=0 AND TRIM(IFNULL(n.content,''))<>''
+      ORDER BY n.updated_at DESC`).all(LOCAL_USER)
+  },
+
+  getNotedQuestionIds() {
+    return sqlite.prepare("SELECT question_id FROM notes WHERE user_id=? AND deleted=0 AND TRIM(IFNULL(content,''))<>''")
+      .all(LOCAL_USER).map(r => r.question_id)
+  },
+
+  // ============ 题目图片 ============
+  // 图片存 userData/images/，questions.images_json 存相对文件名数组（如 ["a.png","b.png"]）。
+  ensureImageDir() {
+    const dir = path.join(app.getPath('userData'), 'images')
+    try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }) } catch (e) {}
+    return dir
+  },
+  saveImage(buffer, ext = 'png') {
+    const dir = this.ensureImageDir()
+    const safeExt = String(ext || 'png').replace(/[^\w]/g, '').slice(0, 6) || 'png'
+    const name = uuid() + '.' + safeExt
+    fs.writeFileSync(path.join(dir, name), Buffer.from(buffer))
+    return name
+  },
+  getImage(name) {
+    if (!name) return null
+    const dir = path.join(app.getPath('userData'), 'images')
+    const full = path.join(dir, path.basename(String(name)))
+    try {
+      if (!fs.existsSync(full)) return null
+      const b64 = fs.readFileSync(full).toString('base64')
+      const ext = path.extname(name).slice(1).toLowerCase() || 'png'
+      return `data:image/${ext};base64,${b64}`
+    } catch (e) { return null }
+  },
+
+  // ============ 模拟卷组卷 ============
+  // rules: [{ type, count, difficulty?, score? }]；按题型+可选难度从指定范围随机抽题，
+  // 每题分值默认 100/总题数，rule.score 指定则用指定值。返回 paperId。
+  generatePaper({ title, subjectId = null, chapterIds = [], rules = [], durationMinutes = 90 } = {}) {
+    const now = Date.now()
+    if (!rules || !rules.length) throw new Error('请至少设置一道题')
+    const totalCount = rules.reduce((s, r) => s + (Number(r.count) || 0), 0)
+    if (!totalCount) throw new Error('请至少设置一道题')
+
+    let scopeIds = []
+    if (Array.isArray(chapterIds) && chapterIds.length) scopeIds = chapterIds.map(Number)
+    else if (subjectId) scopeIds = descendantCategoryIds(Number(subjectId))
+
+    const picked = []
+    for (const rule of rules) {
+      const t = rule.type
+      const cnt = Number(rule.count) || 0
+      if (!cnt) continue
+      let sql = 'SELECT id, type FROM questions WHERE deleted=0 AND type=?'
+      const params = [t]
+      if (scopeIds.length) {
+        sql += ' AND category_id IN (' + scopeIds.map(() => '?').join(',') + ')'
+        params.push(...scopeIds)
+      }
+      if (rule.difficulty) { sql += ' AND difficulty=?'; params.push(rule.difficulty) }
+      const pool = sqlite.prepare(sql).all(...params)
+      if (pool.length < cnt) throw new Error(`「${t}」题型题目不足：库内仅 ${pool.length} 道，需要 ${cnt} 道`)
+      const shuffled = pool.slice()
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+      }
+      picked.push(...shuffled.slice(0, cnt))
+    }
+
+    const insPaper = sqlite.prepare('INSERT INTO papers (user_id,title,subject_id,duration_minutes,total_score,rules_json,created_at,updated_at,deleted,client_id) VALUES (?,?,?,?,?,?,?,?,0,?)')
+    const insPQ = sqlite.prepare('INSERT INTO paper_questions (paper_id,seq,question_id,score,client_id,question_cid) VALUES (?,?,?,?,?,?)')
+
+    // 计分：手动分值优先；未设分值的题（自动题）均摊到剩余分值 (100 - 手动总分)。
+    // 最后把四舍五入误差抹平到最后一个自动题，保证卷面总分恰好为整数/小数无漂移。
+    const manualScoreOf = (rule) => (rule.score && rule.score > 0) ? Number(rule.score) : null
+    let manualTotal = 0
+    const perTypeManual = {}
+    for (const r of rules) {
+      const sc = manualScoreOf(r)
+      if (sc != null) { perTypeManual[r.type] = sc; manualTotal += sc * (Number(r.count) || 0) }
+    }
+    const autoCount = rules.filter(r => manualScoreOf(r) == null).reduce((s, r) => s + (Number(r.count) || 0), 0)
+    const autoTotal = Math.max(0, Math.round((100 - manualTotal) * 10) / 10)
+    const autoEach = autoCount ? Math.round((autoTotal / autoCount) * 10) / 10 : 0
+
+    const scores = picked.map(p => (perTypeManual[p.type] != null ? perTypeManual[p.type] : autoEach))
+    const target = Math.round((manualTotal + autoTotal) * 10) / 10
+    const sum0 = Math.round(scores.reduce((s, x) => s + x, 0) * 10) / 10
+    const lastAutoIdx = scores.length - 1 - [...scores].reverse().findIndex(s => s === autoEach)
+    if (lastAutoIdx >= 0 && scores[lastAutoIdx] === autoEach) {
+      scores[lastAutoIdx] = Math.round((scores[lastAutoIdx] + (target - sum0)) * 10) / 10
+    }
+
+    const tx = sqlite.transaction(() => {
+      let totalScore = 0
+      const info = insPaper.run(LOCAL_USER, String(title || `模拟卷 ${new Date().toLocaleString('zh-CN')}`).slice(0, 80), subjectId ? Number(subjectId) : null, Number(durationMinutes) || 90, 0, JSON.stringify(rules), now, now, uuid())
+      const paperId = info.lastInsertRowid
+      picked.forEach((p, i) => {
+        const sc = scores[i]
+        totalScore += sc
+        insPQ.run(paperId, i + 1, p.id, sc, uuid(), questionCid(p.id))
+      })
+      sqlite.prepare('UPDATE papers SET total_score=? WHERE id=?').run(target, paperId)
+      return { paperId, totalScore: target }
+    })
+    const { paperId, totalScore } = tx()
+    return { ok: true, paperId, count: picked.length, totalScore }
+  },
+
+  listPapers() {
+    return sqlite.prepare(`SELECT p.id, p.title, p.subject_id, p.duration_minutes, p.total_score, p.created_at,
+      (SELECT name FROM categories WHERE id=p.subject_id) AS subject_name,
+      (SELECT COUNT(*) FROM paper_questions WHERE paper_id=p.id AND deleted=0) AS qCount
+      FROM papers p WHERE p.deleted=0 ORDER BY p.created_at DESC`).all()
+  },
+
+  getPaper(id) {
+    const p = sqlite.prepare('SELECT * FROM papers WHERE id=? AND deleted=0').get(id)
+    if (!p) return null
+    const pqs = sqlite.prepare(`SELECT pq.seq, pq.score, pq.question_id,
+      q.type, q.stem, q.options_json, q.answer_json, q.analysis, q.keywords_json, q.images_json, q.difficulty
+      FROM paper_questions pq JOIN questions q ON q.id=pq.question_id
+      WHERE pq.paper_id=? AND pq.deleted=0 ORDER BY pq.seq`).all(id)
+    return {
+      id: p.id, title: p.title, subjectId: p.subject_id, durationMinutes: p.duration_minutes,
+      totalScore: p.total_score, createdAt: p.created_at, rules: JSON.parse(p.rules_json || '[]'),
+      questions: pqs.map(r => ({
+        seq: r.seq, score: r.score, questionId: r.question_id,
+        type: r.type, stem: r.stem,
+        options: JSON.parse(r.options_json || '[]'),
+        answer: JSON.parse(r.answer_json || '[]'),
+        analysis: r.analysis,
+        keywords: r.keywords_json ? JSON.parse(r.keywords_json) : [],
+        images: r.images_json ? JSON.parse(r.images_json) : []
+      }))
+    }
+  },
+
+  deletePaper(id) {
+    const now = Date.now()
+    sqlite.prepare('UPDATE papers SET deleted=1, updated_at=? WHERE id=?').run(now, id)
+    sqlite.prepare('UPDATE paper_questions SET deleted=1 WHERE paper_id=?').run(id)
+    return { ok: true }
   },
 
   getStats() {
@@ -373,7 +647,6 @@ const api = {
     return { total, correct, rate, wrongCount, favCount, perCat }
   },
 
-  // 小程序风格首页/统计需要的聚合数据
   getSummary() {
     const total = sqlite.prepare('SELECT COUNT(*) AS n FROM questions WHERE deleted=0').get().n
     const learned = sqlite.prepare('SELECT COUNT(DISTINCT question_id) AS n FROM answer_records WHERE user_id=? AND deleted=0').get(LOCAL_USER).n
@@ -383,7 +656,6 @@ const api = {
     const today = sqlite.prepare('SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=?').get(LOCAL_USER, todayStart).n
     const wrongCount = sqlite.prepare("SELECT COUNT(*) AS n FROM wrong_books WHERE user_id=? AND status='wrong' AND deleted=0").get(LOCAL_USER).n
 
-    // 学习天数统计：累计学习天数 + 连续学习天数（学习习惯卡片用）
     const localDateKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     const dayRows = sqlite.prepare("SELECT DISTINCT DATE(created_at/1000, 'unixepoch', 'localtime') AS day FROM answer_records WHERE user_id=? AND deleted=0").all(LOCAL_USER)
     const daySet = new Set(dayRows.map(r => r.day))
@@ -391,7 +663,7 @@ const api = {
     let streak = 0
     const cursor = new Date()
     cursor.setHours(0, 0, 0, 0)
-    if (!daySet.has(localDateKey(cursor))) cursor.setDate(cursor.getDate() - 1) // 今天还没学则从昨天起算
+    if (!daySet.has(localDateKey(cursor))) cursor.setDate(cursor.getDate() - 1)
     for (let i = 0; ; i++) {
       const d = new Date(cursor)
       d.setDate(cursor.getDate() - i)
@@ -403,7 +675,6 @@ const api = {
   },
 
   getChapterProgress(subjectId) {
-    // 返回某科目下各章节的答题进度（正确率）
     const sql = subjectId
       ? 'SELECT id FROM categories WHERE deleted=0 AND parent_id=? ORDER BY sort, id'
       : 'SELECT id FROM categories WHERE deleted=0 AND parent_id IS NOT NULL AND parent_id!=0 ORDER BY sort, id'
@@ -428,7 +699,6 @@ const api = {
   },
 
   getWeeklyTrend() {
-    // 返回最近 7 天（含今天）每天答题数
     const days = []
     const now = new Date()
     for (let i = 6; i >= 0; i--) {
@@ -445,7 +715,6 @@ const api = {
   },
 
   getMonthlyCalendar(year, month) {
-    // month: 1-12
     const start = new Date(year, month - 1, 1).getTime()
     const end = new Date(year, month, 1).getTime()
     const rows = sqlite.prepare(`SELECT DATE(created_at/1000, 'unixepoch', 'localtime') AS day, COUNT(*) AS n
@@ -465,10 +734,10 @@ const api = {
   },
 
   clearUserData() {
-    // 仅用于"退出登录"演示：清空答题记录、错题本、收藏、用户统计，保留题库
     sqlite.prepare('DELETE FROM answer_records WHERE user_id=?').run(LOCAL_USER)
     sqlite.prepare('DELETE FROM wrong_books WHERE user_id=?').run(LOCAL_USER)
     sqlite.prepare('DELETE FROM favorites WHERE user_id=?').run(LOCAL_USER)
+    sqlite.prepare('DELETE FROM notes WHERE user_id=?').run(LOCAL_USER)
     sqlite.prepare('UPDATE users SET total_answered=0, correct_count=0, updated_at=? WHERE id=?').run(Date.now(), LOCAL_USER)
     sqlite.prepare("DELETE FROM settings WHERE key='current_subject_id'").run()
     return { ok: true }
@@ -476,7 +745,6 @@ const api = {
 
   // ============ 题库管理：录入 / 编辑 / 批量导入 ============
 
-  // 按名称查分类，没有就新建。Excel 里写「科目/章节」文字即可自动建树。
   upsertCategoryByName(name, parentId = null, level = 1) {
     const trimmed = String(name == null ? '' : name).trim()
     if (!trimmed) return null
@@ -487,8 +755,8 @@ const api = {
     const sortRow = parentId
       ? sqlite.prepare('SELECT COALESCE(MAX(sort),0) AS s FROM categories WHERE parent_id=?').get(parentId)
       : sqlite.prepare('SELECT COALESCE(MAX(sort),0) AS s FROM categories WHERE parent_id IS NULL OR parent_id=0').get()
-    const info = sqlite.prepare('INSERT INTO categories (name,parent_id,level,sort,updated_at) VALUES (?,?,?,?,?)')
-      .run(trimmed, parentId, level, (sortRow ? sortRow.s : 0) + 1, Date.now())
+    const info = sqlite.prepare('INSERT INTO categories (name,parent_id,level,sort,updated_at,client_id,parent_cid) VALUES (?,?,?,?,?,?,?)')
+      .run(trimmed, parentId, level, (sortRow ? sortRow.s : 0) + 1, Date.now(), uuid(), parentId ? categoryCid(parentId) : null)
     return info.lastInsertRowid
   },
 
@@ -502,7 +770,6 @@ const api = {
     return { ok: true }
   },
 
-  // 软删分类，连带软删其下所有子分类与题目（可通过导入备份恢复）
   deleteCategory(id) {
     const ids = descendantCategoryIds(id)
     const ph = ids.map(() => '?').join(',')
@@ -515,14 +782,12 @@ const api = {
     return { ok: true, removedCategories: ids.length }
   },
 
-  // 批量导入。rows 已在渲染层完成校验/归一化：
-  // { subject, chapter, type, stem, options[], answer[], analysis, difficulty, source }
   importQuestionBank(rows, opts = {}) {
     const { defaultSubjectId = null, skipDuplicate = true } = opts
     const now = Date.now()
     const insQ = sqlite.prepare(`INSERT INTO questions
-      (category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?)`)
+      (category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,updated_at,client_id,category_cid)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
     const dupStmt = sqlite.prepare('SELECT id FROM questions WHERE category_id=? AND stem=? AND deleted=0')
     let inserted = 0
     let duplicated = 0
@@ -530,7 +795,6 @@ const api = {
     const touched = new Set()
     const tx = sqlite.transaction(() => {
       for (const r of rows || []) {
-        // 优先用行内「科目」列，缺省回落到向导里选定的科目
         let subjectId = defaultSubjectId
         if (r.subject) subjectId = this.upsertCategoryByName(r.subject, null, 1)
         if (!subjectId) { skipped++; continue }
@@ -540,7 +804,8 @@ const api = {
           categoryId, r.type, r.stem,
           JSON.stringify(r.options || []), JSON.stringify(r.answer || []),
           JSON.stringify(r.keywords || []),
-          r.analysis || '', r.difficulty || 3, r.source || '导入', now
+          r.analysis || '', r.difficulty || 3, r.source || '导入', now,
+          uuid(), categoryCid(categoryId)
         )
         inserted++
         touched.add(subjectId)
@@ -550,7 +815,6 @@ const api = {
     return { ok: true, inserted, duplicated, skipped, subjects: Array.from(touched) }
   },
 
-  // 题库管理列表（分页 + 科目/章节/关键词筛选）
   listQuestions({ subjectId = null, categoryId = null, keyword = '', page = 1, pageSize = 20 } = {}) {
     let where = 'q.deleted=0'
     const params = []
@@ -583,33 +847,35 @@ const api = {
         ...r,
         options: JSON.parse(r.options_json || '[]'),
         answer: JSON.parse(r.answer_json || '[]'),
-        keywords: r.keywords_json ? JSON.parse(r.keywords_json) : []
+        keywords: r.keywords_json ? JSON.parse(r.keywords_json) : [],
+        images: r.images_json ? JSON.parse(r.images_json) : []
       }))
     }
   },
 
   addQuestion(q) {
     const info = sqlite.prepare(`INSERT INTO questions
-      (category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?)`)
+      (category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,images_json,updated_at,client_id,category_cid)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(q.categoryId, q.type, q.stem, JSON.stringify(q.options || []),
         JSON.stringify(q.answer || []), JSON.stringify(q.keywords || []),
         q.analysis || '', q.difficulty || 3,
-        q.source || '手动录入', Date.now())
+        q.source || '手动录入', JSON.stringify(q.images || []),
+        Date.now(), uuid(), categoryCid(q.categoryId))
     return { ok: true, id: info.lastInsertRowid }
   },
 
   updateQuestion(q) {
     sqlite.prepare(`UPDATE questions SET category_id=?,type=?,stem=?,options_json=?,
-      answer_json=?,keywords_json=?,analysis=?,difficulty=?,source=?,updated_at=? WHERE id=?`)
+      answer_json=?,keywords_json=?,analysis=?,difficulty=?,source=?,images_json=?,updated_at=?,category_cid=? WHERE id=?`)
       .run(q.categoryId, q.type, q.stem, JSON.stringify(q.options || []),
         JSON.stringify(q.answer || []), JSON.stringify(q.keywords || []),
         q.analysis || '', q.difficulty || 3,
-        q.source || '手动录入', Date.now(), q.id)
+        q.source || '手动录入', JSON.stringify(q.images || []),
+        Date.now(), categoryCid(q.categoryId), q.id)
     return { ok: true }
   },
 
-  // 软删，保留答题记录的外键指向，也方便日后同步/恢复
   deleteQuestion(id) {
     sqlite.prepare('UPDATE questions SET deleted=1, updated_at=? WHERE id=?').run(Date.now(), id)
     return { ok: true }
@@ -629,7 +895,6 @@ const api = {
     return { total, categories, byType, bySubject }
   },
 
-  // 导出题库为扁平行（渲染层转 CSV，便于在 Excel 里改完再导回来）
   exportBank(subjectId = null) {
     let where = 'q.deleted=0'
     const params = []
@@ -660,22 +925,141 @@ const api = {
     }))
   },
 
-  // 导出整库（非删除行）为 JSON，用于备份 / 迁移到别的机器
+  // 导出整库（仅未删除行）为 JSON，用于手动备份 / 迁移到别的机器。
+  // 含 client_id 与 *_cid，保证再导入时身份不丢。
   exportData() {
-    const dump = (table) => sqlite.prepare(`SELECT * FROM ${table} WHERE deleted=0`).all()
+    const dump = (table, cols) => {
+      const rows = sqlite.prepare(`SELECT ${cols.join(',')} FROM ${table} WHERE deleted=0`).all()
+      return rows
+    }
+    const COLS = {
+      categories: ['id', 'name', 'parent_id', 'level', 'stage', 'sort', 'client_id', 'parent_cid', 'updated_at', 'deleted'],
+      questions: ['id', 'category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'client_id', 'category_cid', 'updated_at', 'deleted'],
+      answerRecords: ['id', 'user_id', 'question_id', 'selected_json', 'is_correct', 'duration_ms', 'mode', 'self_graded', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'],
+      wrongBooks: ['id', 'user_id', 'question_id', 'wrong_count', 'reviewed_count', 'next_review_at', 'weak_point', 'status', 'client_id', 'question_cid', 'updated_at', 'deleted'],
+      favorites: ['id', 'user_id', 'question_id', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'],
+      notes: ['id', 'user_id', 'question_id', 'content', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'],
+      papers: ['id', 'user_id', 'title', 'subject_id', 'duration_minutes', 'total_score', 'rules_json', 'created_at', 'client_id', 'updated_at', 'deleted'],
+      paperQuestions: ['id', 'paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted']
+    }
     return JSON.stringify({
       version: 1,
+      exportedAt: Date.now(),
+      categories: dump('categories', COLS.categories),
+      questions: dump('questions', COLS.questions),
+      answerRecords: dump('answer_records', COLS.answerRecords),
+      wrongBooks: dump('wrong_books', COLS.wrongBooks),
+      favorites: dump('favorites', COLS.favorites),
+      notes: dump('notes', COLS.notes),
+      papers: dump('papers', COLS.papers),
+      paperQuestions: dump('paper_questions', COLS.paperQuestions)
+    }, null, 2)
+  },
+
+  // 导出供云同步用的全量快照（含软删行，否则删除操作无法跨设备传播）。
+  // users 表不入同步（本地单用户，不跨设备）。
+  exportSync() {
+    const dump = (table) => sqlite.prepare(`SELECT * FROM ${table}`).all()
+    return JSON.stringify({
+      version: 2,
+      kind: 'sync',
       exportedAt: Date.now(),
       categories: dump('categories'),
       questions: dump('questions'),
       answerRecords: dump('answer_records'),
       wrongBooks: dump('wrong_books'),
       favorites: dump('favorites'),
-      users: dump('users')
+      notes: dump('notes'),
+      papers: dump('papers'),
+      paperQuestions: dump('paper_questions')
     }, null, 2)
   },
 
-  // 导入 JSON（INSERT OR REPLACE，按 id 合并；同步预留 updated_at）
+  // 合并远端快照到本地：按 client_id upsert，updated_at 较新者胜（LWW），
+  // 外键（category_id / question_id / parent_id）按 client_id→本机id 重新解析。
+  // 返回合并后的行数摘要。
+  mergeRemote(jsonStr) {
+    const remote = JSON.parse(jsonStr)
+    // 各表写入列（client_id 是身份键，不参与 UPDATE 覆盖）
+    const cfg = [
+      { table: 'categories', cols: ['name', 'parent_id', 'level', 'stage', 'sort', 'client_id', 'parent_cid', 'updated_at', 'deleted'] },
+      { table: 'questions', cols: ['category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'client_id', 'category_cid', 'updated_at', 'deleted'] },
+      { table: 'answer_records', cols: ['user_id', 'question_id', 'selected_json', 'is_correct', 'duration_ms', 'mode', 'self_graded', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
+      { table: 'wrong_books', cols: ['user_id', 'question_id', 'wrong_count', 'reviewed_count', 'next_review_at', 'weak_point', 'status', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
+      { table: 'favorites', cols: ['user_id', 'question_id', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
+      { table: 'notes', cols: ['user_id', 'question_id', 'content', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
+      { table: 'papers', cols: ['title', 'subject_id', 'duration_minutes', 'total_score', 'rules_json', 'created_at', 'client_id', 'updated_at', 'deleted'] },
+      { table: 'paper_questions', cols: ['paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted'] }
+    ]
+
+    const makeUpsert = (table, cols) => {
+      const getByCid = sqlite.prepare(`SELECT id FROM ${table} WHERE client_id=?`)
+      const insCols = cols
+      const insPh = cols.map(() => '?').join(',')
+      const updCols = cols.filter(c => c !== 'client_id')
+      const updPh = updCols.map(c => `${c}=excluded.${c}`).join(',')
+      const insert = sqlite.prepare(`INSERT INTO ${table} (${insCols.join(',')}) VALUES (${insPh})`)
+      const update = sqlite.prepare(`UPDATE ${table} SET ${updPh} WHERE client_id=?`)
+      return (r) => {
+        if (!r.client_id) r.client_id = uuid() // 兜底：远端缺 client_id 时补一个
+        const ex = getByCid.get(r.client_id)
+        if (ex) {
+          update.run(...updCols.map(c => r[c]), r.client_id)
+          return ex.id
+        }
+        const info = insert.run(...cols.map(c => r[c]))
+        return info.lastInsertRowid
+      }
+    }
+
+    const readAll = (table) => sqlite.prepare(`SELECT * FROM ${table}`).all()
+
+    const tx = sqlite.transaction(() => {
+      // 1) categories
+      const catUpsert = makeUpsert('categories', cfg[0].cols)
+      const catMerged = lwwMerge(readAll('categories'), remote.categories || [])
+      const catCidToId = new Map()
+      for (const r of catMerged) catCidToId.set(r.client_id, catUpsert(r))
+
+      // 2) questions（依赖 categories）
+      const qUpsert = makeUpsert('questions', cfg[1].cols)
+      const qMerged = lwwMerge(readAll('questions'), remote.questions || [])
+      applyFk(qMerged, 'category_cid', 'category_id', catCidToId)
+      const qCidToId = new Map()
+      for (const r of qMerged) qCidToId.set(r.client_id, qUpsert(r))
+
+      // 2.5) papers（自身无外键依赖 questions，独立合并建 cid→id 映射）
+      const paperUpsert = makeUpsert('papers', cfg[6].cols)
+      const paperMerged = lwwMerge(readAll('papers'), remote.papers || [])
+      const paperCidToId = new Map()
+      for (const r of paperMerged) paperCidToId.set(r.client_id, paperUpsert(r))
+
+      // 3) 依赖 questions 的三张表
+      const depUpsert = (rows, c) => {
+        applyFk(rows, 'question_cid', 'question_id', qCidToId)
+        const up = makeUpsert(c.table, c.cols)
+        rows.forEach(r => up(r))
+        return rows.length
+      }
+      const arN = depUpsert(lwwMerge(readAll('answer_records'), remote.answerRecords || []), cfg[2])
+      const wbN = depUpsert(lwwMerge(readAll('wrong_books'), remote.wrongBooks || []), cfg[3])
+      const fvN = depUpsert(lwwMerge(readAll('favorites'), remote.favorites || []), cfg[4])
+      const ntN = depUpsert(lwwMerge(readAll('notes'), remote.notes || []), cfg[5])
+
+      // 4) paper_questions（依赖 papers + questions，两个外键都按 cid 解析）
+      const pqMerged = lwwMerge(readAll('paper_questions'), remote.paperQuestions || [])
+      applyFk(pqMerged, 'question_cid', 'question_id', qCidToId)
+      applyFk(pqMerged, 'paper_cid', 'paper_id', paperCidToId)
+      const pqUpsert = makeUpsert('paper_questions', cfg[7].cols)
+      pqMerged.forEach(r => pqUpsert(r))
+
+      return { categories: catMerged.length, questions: qMerged.length, answerRecords: arN, wrongBooks: wbN, favorites: fvN, notes: ntN, papers: paperMerged.length, paperQuestions: pqMerged.length }
+    })
+    return tx()
+  },
+
+  // 导入手动备份 JSON（INSERT OR REPLACE，按 id 覆盖；同步预留 updated_at）。
+  // 与 mergeRemote 不同：这里是"整机恢复"，不做 LWW 合并。
   importData(jsonStr) {
     const data = JSON.parse(jsonStr)
     const now = Date.now()
@@ -688,11 +1072,16 @@ const api = {
       })
       tx()
     }
-    replace('categories', data.categories, ['id', 'name', 'parent_id', 'level', 'stage', 'sort', 'updated_at', 'deleted'])
-    replace('questions', data.questions, ['id', 'category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'updated_at', 'deleted'])
-    replace('answer_records', data.answerRecords, ['id', 'user_id', 'question_id', 'selected_json', 'is_correct', 'duration_ms', 'mode', 'self_graded', 'created_at', 'updated_at', 'deleted'])
-    replace('wrong_books', data.wrongBooks, ['id', 'user_id', 'question_id', 'wrong_count', 'reviewed_count', 'next_review_at', 'weak_point', 'status', 'updated_at', 'deleted'])
-    replace('favorites', data.favorites, ['id', 'user_id', 'question_id', 'created_at', 'updated_at', 'deleted'])
+    replace('categories', data.categories, ['id', 'name', 'parent_id', 'level', 'stage', 'sort', 'client_id', 'parent_cid', 'updated_at', 'deleted'])
+    replace('questions', data.questions, ['id', 'category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'client_id', 'category_cid', 'updated_at', 'deleted'])
+    replace('answer_records', data.answerRecords, ['id', 'user_id', 'question_id', 'selected_json', 'is_correct', 'duration_ms', 'mode', 'self_graded', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])
+    replace('wrong_books', data.wrongBooks, ['id', 'user_id', 'question_id', 'wrong_count', 'reviewed_count', 'next_review_at', 'weak_point', 'status', 'client_id', 'question_cid', 'updated_at', 'deleted'])
+    replace('favorites', data.favorites, ['id', 'user_id', 'question_id', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])
+    replace('notes', data.notes, ['id', 'user_id', 'question_id', 'content', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])
+    replace('papers', data.papers, ['id', 'user_id', 'title', 'subject_id', 'duration_minutes', 'total_score', 'rules_json', 'created_at', 'client_id', 'updated_at', 'deleted'])
+    replace('paper_questions', data.paperQuestions, ['id', 'paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted'])
+    // 补齐可能缺失的 client_id（老备份无 cid 列）
+    this.backfillClientIds()
     return { ok: true, imported: (data.questions || []).length }
   }
 }

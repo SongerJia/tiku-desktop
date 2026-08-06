@@ -2,7 +2,7 @@
 
 一个**本地安装、离线可用**的刷题题库桌面软件。数据全存在你电脑上的一个 SQLite 文件里，不需要服务器、不需要联网、不需要备案。支持分类刷题、选择题自动判分、问答题自评、错题本、收藏、学习统计，以及 CSV / Excel / JSON 导入导出。
 
-> 当前版本：**v0.1.0 MVP（Phase 1 纯本地）**。已实现本地刷题全闭环；Phase 2 会在本地之上叠加账户同步层（Spring Boot + JWT）， Phase 3 用 Capacitor 出 Android APK。
+> 当前版本：**v0.3.0（Phase 1 本地 + Phase 2 轻量云同步 + 模拟卷/图片）**。已实现本地刷题全闭环、GitHub Gist 零后端多端同步、模拟卷组卷与题目图片；Phase 3 用 Capacitor 出 Android APK。
 
 ---
 
@@ -32,7 +32,7 @@
 |---|---|---|---|
 | **首页** | 欢迎卡片、今日已刷、错题/收藏/全部刷题快捷入口 | ✅ 完成 | |
 | **科目/章节** | 顶部科目选择器、两级分类树、章节筛选 | ✅ 完成 | 点顶部按钮弹出抽屉 |
-| **题库数据** | SQLite 建表、样例数据、分类 CRUD、题目 CRUD | ✅ 完成 | 七张表，含 `updated_at`/`deleted` 同步预留 |
+| **题库数据** | SQLite 建表、样例数据、分类 CRUD、题目 CRUD | ✅ 完成 | 七张表，已含 `client_id` + `updated_at`/`deleted`（云同步身份与软删） |
 | **刷题答题** | 单选 / 多选 / 判断自动判分、问答题自评 | ✅ 完成 | 问答有「得分关键词」高亮辅助自评 |
 | **练习模式** | 顺序/随机、错题重练、收藏复习、全部刷题 | ✅ 完成 | |
 | **考试模式** | 倒计时、到点自动交卷 | ✅ 完成 | 问答题到点未自评算未掌握 |
@@ -44,12 +44,19 @@
 | **整库备份** | JSON 导出/导入整库（含答题记录、错题、收藏） | ✅ 完成 | 用于换机迁移 |
 | **界面风格** | 科幻风暗色主题、响应式布局（窗口自适应） | ✅ 完成 | 支持宽屏/窄屏 |
 | **窗口菜单** | 隐藏系统默认 File/Edit/View/Window/Help 菜单 | ✅ 完成 | 更像独立 App |
-| **数据同步** | 账户登录、多端同步 | ⏳ 未开始 | Phase 2 |
-| **模拟卷组卷** | 按题型/难度/章节抽题组卷 | ⏳ 未开始 | 表已预留 `papers` |
+| **题库搜索** | 题库管理页关键词搜索（300ms 防抖）+ 科目筛选 + 分页 | ✅ 完成 | 走 `listQuestions` 的 `keyword` 参数 |
+| **数据同步** | 多端云同步（GitHub Gist，零后端） | ✅ 完成 | 用私有 Gist 存全量快照，「pull 合并→push 全量」收敛；client_id + LWW 冲突 |
+| **模拟卷组卷** | 按题型/难度/章节抽题组卷、存卷、限时考试、重考 | ✅ 完成 | `papers`/`paper_questions` 两表；`generatePaper` 按规则随机抽题+等分/手动计分；「我的试卷」可重考 |
+| **题目图片** | 题干配图（多图），录入/答题渲染，随题库备份 | ✅ 完成 | `questions.images_json` + `userData/images` 本地图床；`saveImage`/`getImage` |
+| **题目笔记** | 每题个人批注，答题页/题库页内联编辑，Profile「我的笔记」汇总 | ✅ 完成 | `notes` 表 + `getNote`/`saveNote`/`listNotes`/`getNotedQuestionIds` |
+| **背题模式** | 直接看答案不判分，可叠加任意范围（如背错题） | ✅ 完成 | 与题库范围正交的开关，与考试互斥 |
+| **智能复习** | 艾宾浩斯曲线安排错题重现（间隔 1/2/4/7/15/30/60 天，连对 3 次毕业） | ✅ 完成 | `wrong_books.next_review_at` 已实现，「复习」范围可用 |
 | **Android APK** | Capacitor 打包移动端 | ⏳ 未开始 | Phase 3 |
 
+> 「我的笔记」入口已从占位升级为真实功能（展示/删除全部笔记）；原「默写记录」「我的反馈」两个纯占位入口已移除。
+
 ### 当前阶段一句话
-Phase 1 本地 MVP 已完成并自测通过，代码可直接 `npm install && npm run dev` 跑起来；下一步先做 **Phase 2 账户云同步**。
+Phase 1 本地 MVP、Phase 2 轻量云同步（GitHub Gist）、模拟卷组卷与题目图片均已完成。代码可直接 `npm install && npm run dev` 跑起来；下一步可选 **Phase 3 安卓 APK**。
 
 ---
 
@@ -141,7 +148,7 @@ npm run build
 
 ## 6. 数据模型
 
-七张表，均含 `updated_at` / `deleted` 给 Phase 2 同步预留：
+七张表，均已含 `client_id` + `updated_at` / `deleted`（云同步身份与软删）：
 
 | 表 | 作用 |
 |---|---|
@@ -151,7 +158,9 @@ npm run build
 | `answer_records` | 每次答题流水 |
 | `wrong_books` | 错题本 |
 | `favorites` | 收藏 |
-| `papers` | （预留）模拟卷 / 组卷 |
+| `settings` | 键值配置（如当前科目 `current_subject`） |
+
+> 此外 `papers` / `paper_questions` 两表已建（模拟卷组卷），`questions.images_json` 已加（题目图片），均经 `migrateSchema` 的 `ALTER` 兜底老库升级。
 
 ### 判分逻辑
 - 选择/判断：`electron/db.js` 的 `submitAnswer` 对答案排序后比对，多选顺序无关。
@@ -214,14 +223,11 @@ node --check electron/main.js && node --check electron/preload.js
 
 ## 9. Phase 2 / Phase 3 规划
 
-### Phase 2：账户云同步（复用已有 Spring Boot）
-1. 激活七张表预留的 `updated_at` / `deleted`，做增量同步。
-2. 在 `../tiku-web` 的 Spring Boot 上加两个接口：
-   - `POST /sync/pull?since=` 拉取服务器增量/快照
-   - `POST /sync/push` 上传本地变更
-   - 登录用 JWT；账号表接管 `users`
-3. 桌面端「数据」页加"登录 / 同步"按钮：离线照刷，联网静默同步。
-   无需重写任何本地逻辑，只是把数据多复制一份到云端。
+### Phase 2：账户云同步 —— 已落地「轻量 GitHub Gist 方案」
+> 已**完成**并可用。选择零后端方案（不用部署 Spring Boot），详见仓库内 `SYNC.md`（GitHub Gist 同步方案）。
+1. 七张表已加 `client_id` 与 `*_cid` 外键列；`backfillClientIds` 给老数据补齐身份。
+2. `exportSync()` 导出全量快照（含软删行），`mergeRemote()` 按 `client_id` upsert + `updated_at` last-write-wins + 外键按 cid 解析。
+3. `electron/sync-github.js` 调 GitHub API 把快照存进私有 Gist；主进程用 `safeStorage` 加密存 token；Profile 页「云同步（GitHub）」卡片连接/同步/断开。
 
 ### Phase 3：Android APK（复用同一套 Vue 界面）
 Electron 只能出桌面端，出 APK 用 **Capacitor**：

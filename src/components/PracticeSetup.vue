@@ -26,6 +26,10 @@ const scope = ref(presetToScope(props.preset.presetMode))
 const order = ref(scope.value === 'exam' ? 'random' : 'sequential')
 const limit = ref(scope.value === 'exam' ? 50 : '')
 const durationMin = ref(60)
+// 练习方式：answer=正常作答判分 / recite=背题（直接看答案，不判分不记录）
+// 刻意做成与「题库范围」正交的开关——这样「背错题」「背收藏」都成立，
+// 而不是把背题硬塞进范围列表里变成互斥的第七个选项。
+const recite = ref(false)
 
 const isExam = computed(() => scope.value === 'exam')
 const scopeLabel = computed(() => props.preset.scopeLabel || '全部范围')
@@ -35,6 +39,7 @@ function pickScope(s) {
   if (s === 'exam') {
     if (order.value !== 'random') order.value = 'random'
     if (!limit.value) limit.value = 50
+    recite.value = false   // 考试不可能背题，互斥
   }
 }
 
@@ -45,7 +50,8 @@ function confirm() {
     mode: scope.value,
     order: order.value,
     limit: limit.value ? Number(limit.value) : (isExam.value ? 50 : null),
-    durationMin: isExam.value ? (durationMin.value ? Number(durationMin.value) : 60) : null
+    durationMin: isExam.value ? (durationMin.value ? Number(durationMin.value) : 60) : null,
+    recite: isExam.value ? false : recite.value
   }
   emit('confirm', cfg)
 }
@@ -76,6 +82,20 @@ function confirm() {
               <span class="chip-desc">{{ s.desc }}</span>
             </button>
           </div>
+        </div>
+
+        <!-- 练习方式：背题与作答互斥，但都可叠加在任意范围上 -->
+        <div class="section" v-if="!isExam">
+          <div class="sec-title">练习方式</div>
+          <div class="chips row">
+            <button class="chip sm" :class="{ active: !recite }" @click="recite = false">
+              <span>答题</span>
+            </button>
+            <button class="chip sm" :class="{ active: recite }" @click="recite = true">
+              <span>背题</span>
+            </button>
+          </div>
+          <div class="mode-tip">{{ recite ? '直接显示答案与解析，不判分、不计入统计与错题本' : '作答后判分，计入统计与错题本' }}</div>
         </div>
 
         <!-- 出题方式 -->
@@ -110,7 +130,7 @@ function confirm() {
 
         <div class="footer">
           <button class="btn btn-outline" @click="emit('cancel')">取消</button>
-          <button class="btn btn-primary" @click="confirm">开始练习</button>
+          <button class="btn btn-primary" @click="confirm">{{ recite && !isExam ? '开始背题' : '开始练习' }}</button>
         </div>
       </div>
     </div>
@@ -196,6 +216,8 @@ function confirm() {
 .exam-params { display: flex; flex-direction: column; gap: 12px; }
 .param { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--text, #d6e2f5); }
 .param .input { width: 120px; }
+
+.mode-tip { margin-top: 8px; font-size: 11px; color: var(--muted, #7c8aa5); line-height: 1.4; }
 
 .footer { display: flex; gap: 12px; padding: 16px 18px 22px; }
 .btn { flex: 1; padding: 11px; border-radius: 24px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
