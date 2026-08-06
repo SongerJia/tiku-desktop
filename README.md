@@ -2,7 +2,7 @@
 
 一个**本地安装、离线可用**的刷题题库桌面软件。数据全存在你电脑上的一个 SQLite 文件里，不需要服务器、不需要联网、不需要备案。支持分类刷题、选择题自动判分、问答题自评、错题本、收藏、学习统计、模拟卷组卷、题目图片与笔记，以及 CSV / Excel / JSON 导入导出。内置**个人知识库**（md / pdf 知识文档，与题库题目双向联动），升级为"刷题 + 资料库"all-in-one 学习工具。
 
-> 当前版本：**v0.6.0（Phase 1 本地 + Phase 2 轻量云同步 + 模拟卷/图片 + 增强体验 + 个人知识库全闭环）**。已实现本地刷题全闭环、GitHub Gist 零后端多端同步、模拟卷组卷、题目图片、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就、批量操作、浅色主题，以及**个人知识库**（md/pdf 文档导入、全文搜索、阅读、MD 在线编辑、文件夹分类、知识库同步、导出、与题库题目双向联动、学习统计）；Phase 3 用 Capacitor 出 Android APK。
+> 当前版本：**v0.6.0（Phase 1 本地 + Phase 2 轻量云同步 + 模拟卷/图片 + 增强体验 + 个人知识库全闭环 + 学习反馈层 + 全局打磨）**。已实现本地刷题全闭环、GitHub Gist 零后端多端同步、模拟卷组卷、题目图片、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就、批量操作、浅色主题，**个人知识库**（md/pdf 导入、全文搜索、阅读、MD 在线编辑、文件夹分类、同步、导出、与题目双向联动、统计），**学习反馈层**（XP 等级、每日任务、每日回顾、番茄钟、习惯打卡、错题原因、文档高亮/双链、周排行、学习周报），以及**全局体验打磨**（应用内 Toast/Confirm、骨架屏、计数动画、Tab 过渡、Esc 关闭、键盘可达、自动备份、首启引导、打包图标）；Phase 3 用 Capacitor 出 Android APK。
 
 ---
 
@@ -80,12 +80,16 @@
 | **文档双链** | 文档↔文档双向关联，阅读页搜索关联 + 跳转 | ✅ 完成 | `kb_doc_links`（UNIQUE，cid 引用解析随同步） |
 | **本地周排行** | 近 6 周 XP 对比（自己 vs 历史周），无社交 | ✅ 完成 | `xpStats.weeks` |
 | **学习周报** | 近 7 天刷题/正确率/XP/专注/回顾/习惯聚合 → 打印导出 PDF | ✅ 完成 | `getWeeklyReport` + `print.js`；学习统计页按钮 |
+| **全局体验打磨** | 应用内 Toast（替代原生 alert）/ Confirm 弹层（替代原生 confirm）/ 骨架屏加载 / 计数动画 / Tab 切换过渡 / Esc 统一关闭 / 键盘 focus 可达 / 卡片 hover 反馈 | ✅ 完成 | `utils/toast.js` + `AppToast.vue`、`utils/confirm.js` + `AppConfirm.vue`、`SkeletonCards.vue`、`CountUp.vue`、`useEsc.js`；原生弹窗清零 |
+| **数据安全** | 每次启动自动备份 `tiku.db`（按天去重，保留 5 份）+ 主进程全局错误日志 | ✅ 完成 | `db.autoBackup()` → `userData/backups/`；`error.log` |
+| **首启欢迎引导** | 首次启动 3 步引导（导入题库/知识库/设目标），看过后不再显示 | ✅ 完成 | `WelcomeGuide.vue` + `settings.seen_welcome` |
+| **打包发布** | electron-builder 配置（productName/appId/NSIS）+ 512×512 自定义图标 | ✅ 完成 | `npm run dist` → `release/`；`build/icon.png`（深空渐变+霓虹书） |
 | **Android APK** | Capacitor 打包移动端 | ⏳ 未开始 | Phase 3 |
 
 > 「我的笔记」入口已从占位升级为真实功能（展示/删除全部笔记）；原「默写记录」「我的反馈」两个纯占位入口已移除。
 
 ### 当前阶段一句话
-Phase 1 本地 MVP、Phase 2 轻量云同步（GitHub Gist）、模拟卷组卷、题目图片、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就、批量操作、浅色主题，以及**个人知识库全链路**（导入 → 全文搜索 → 阅读 → 题目↔文档双向联动）均已完成。代码可直接 `npm install && npm run dev` 跑起来；下一步可选：**知识库跨设备同步（阶段 E）** 或 **Phase 3 安卓 APK**。
+v0.6.0 全功能落地：题库闭环、模拟卷、标签、错题、笔记、知识库全链路、反馈层（XP/任务/回顾/番茄/习惯/高亮/双链/周报）、全局打磨与数据安全（备份/引导/图标/打包配置）均已完成，同步协议覆盖全部 15+ 表（LWW + OR IGNORE + cid 解析）。代码可直接 `npm install && npm run dev` 跑起来，`npm run dist` 可打包安装包；下一步可选：**Phase 3 安卓 APK** 或 **扫描版 PDF OCR**。
 
 ---
 
@@ -105,7 +109,7 @@ tiku-desktop/
 │  ├─ App.vue          # 5 Tab 导航 + 顶部科目选择器/统一搜索按钮 + 答题覆盖层
 │  ├─ main.js          # Vue 入口
 │  ├─ style.css        # 全局 CSS 变量 + 基础样式（科幻风暗色主题 + 浅色主题）
-│  ├─ api/tiku.js      # 渲染层 IPC 调用封装（含全部 kb_* 方法）
+│  ├─ api/tiku.js      # 渲染层 IPC 调用封装（Proxy 自动转发 window.electronAPI + 统一错误日志）
 │  ├─ utils/bankParser.js   # CSV/Excel/JSON 题库解析与校验
 │  ├─ utils/print.js        # 独立窗口打印/导出 PDF
 │  ├─ utils/appearance.js   # 主题/字号应用
@@ -116,10 +120,10 @@ tiku-desktop/
 └─ package.json
 ```
 
-### 3.2 新增 IPC 的标准三步
+### 3.2 新增 IPC 的标准两步（tiku.js 已 Proxy 化，无需维护方法列表）
 1. `electron/main.js`：`ipcMain.handle('foo', (e, arg) => db.foo(arg))`
 2. `electron/preload.js`：`foo: (arg) => ipcRenderer.invoke('foo', arg)`
-3. `src/api/tiku.js`：`foo: (arg) => window.electronAPI.foo(arg)`
+> `src/api/tiku.js` 是 Proxy 自动转发 `window.electronAPI` 全部方法并统一捕获错误日志——**preload 加新方法后组件直接 `tiku.foo()` 即可，无需改 api 层**。
 
 ### 3.3 新增题型的标准链路
 题库系统里有四种题型：`single`（单选）、`multiple`（多选）、`judge`（判断）、`essay`（问答）。如果要加第五种题型：
@@ -159,8 +163,14 @@ npm install
 # 2. 开发模式：自动起 Vite + 打开桌面窗口
 npm run dev
 
-# 3. 打包成安装包（输出在 dist-electron / release 目录）
-npm run build
+# 3. 自测（全部绿色再提交）：
+npm run verify      # 渲染层编译校验（不落盘）
+npm run test:kb     # 知识库数据层（Python 镜像）+ 抽取模块
+npm run test:sync   # 同步合并逻辑（LWW/去重/UNIQUE 语义）
+npm run test:parser && npm run test:xlsx   # 解析层 + Excel
+
+# 4. 打包成 Windows 安装包（输出在 release/ 目录，含自定义图标）
+npm run dist
 ```
 
 > 沙箱环境里没有 VS Build Tools，我没法在这里 `npm run dev` 实景跑起来；但工程是规范的，拉回去 `npm install && npm run dev` 即可。
@@ -170,13 +180,13 @@ npm run build
 ## 5. 界面结构
 
 5 个底部 Tab：
-- **首页**：欢迎卡 + 知识卡片总数 + 快捷入口（错题本 / 收藏 / 全部刷题 / 今日已刷）+ 今日目标进度。
+- **首页**：欢迎卡 + 知识卡片总数（计数动画）+ 快捷入口 + 今日目标进度 + **每日任务 Quest** + **习惯打卡** + **每日回顾/番茄钟** + 空题库引导。
 - **题库**（原「知识库」）：搜索框 + 章节筛选 chips + 知识点卡片列表，点卡片即进入答题。题库管理的入口在「我的」。
-- **知识库**（个人文档）：md / pdf 知识文档的导入、全文搜索、标签筛选、阅读（MD 用 markdown-it 渲染，PDF 用 pdfjs 逐页渲染）；阅读页含「相关题目」面板（已关联 + L2 推荐 + 手动搜题关联）。
-- **学习统计**：环形掌握进度 + 数字卡 + 学习趋势（周柱状）+ 学习习惯 + 当月学习日历。
-- **我的**：本地账号、数据管理（整库 JSON 导出/导入）、题库管理、章节进度、偏好设置（主题/字号/每日目标）、成就墙、云同步。
+- **知识库**（个人文档）：md / pdf 知识文档的导入、全文搜索、标签筛选、阅读（MD 用 markdown-it 渲染，PDF 用 pdfjs 逐页渲染）；阅读页含「相关题目」+「批注与关联」（高亮 + 文档双链）+ MD 在线编辑。
+- **学习统计**：环形掌握进度 + 数字卡 + 学习趋势（周柱状）+ 学习习惯 + 当月学习日历 + 学习周报导出。
+- **我的**：用户卡（右侧紧凑 XP 等级）+ 按类别折叠分组（学习成长：XP/知识库概览/成就墙；偏好设置；习惯管理；云同步与数据；错题与收藏）+ 菜单列表。
 
-顶部为**科目选择器**（点击弹出底部抽屉）与**统一搜索按钮**（🔍，一处搜题目 + 知识文档）。答题页（`Quiz.vue`）覆盖在 Tab 之上。
+顶部为**科目选择器**（点击弹出底部抽屉）与**统一搜索按钮**（🔍，一处搜题目 + 知识文档）。答题页（`Quiz.vue`）覆盖在 Tab 之上；考试模式支持「提前交卷」（确认后收卷）。
 
 ---
 
@@ -195,6 +205,17 @@ npm run build
 | `settings` | 键值配置（如当前科目 `current_subject`） |
 
 > 此外 `papers` / `paper_questions` 两表已建（模拟卷组卷），`questions.images_json` 已加（题目图片），`question_tags` 表已建（标签系统），均经 `migrateSchema` 的 `ALTER` 兜底老库升级。题图二进制在同步时由 `exportSync` 内嵌为 base64 一并随快照传播。
+
+### 学习反馈层（v0.6.0 新增，全部带 client_id 随同步）
+| 表 | 作用 |
+|---|---|
+| `xp_logs` | XP 事件流水（刷题/复习/阅读/专注/任务），**事件行按 client_id 去重，多端总量正确** |
+| `habits` / `habit_checks` | 多目标习惯 + 每日打卡（`UNIQUE(habit_id, check_date)`，跨设备同日合并不冲突） |
+| `review_logs` | 每日回顾记录（题目/知识块，答对/没想起） |
+| `focus_sessions` | 番茄钟专注 session |
+| `kb_highlights` | 文档高亮批注（doc 引用按 cid 解析） |
+| `kb_doc_links` | 文档↔文档双链（`UNIQUE(from, to)` + OR IGNORE） |
+| `wrong_books.reason` | 错题原因标签（migrate 加列） |
 
 ### 个人知识库（kb_*）四表
 | 表 | 作用 |
@@ -273,6 +294,7 @@ npm run build
 npm run test:parser      # 76 条断言：CSV 转义、GBK、题型推断、问答/关键词、脏数据
 npm run test:xlsx        # 43 条断言：xlsx-lite 读写往返、题库→Excel→重导回端到端
 npm run test:kb          # kb 数据层交叉验证（Python sqlite3 镜像）+ 抽取模块真实验证（pdfjs 抽 fixture.pdf）
+npm run test:sync        # 8 条断言：同步合并（LWW 冲突 / 事件行去重 / UNIQUE OR IGNORE / cid 解析 / 子表重建）
 node scripts/test-mock-paper.js   # 模拟卷组卷计分算法（等分=100 / 手动优先 / 无重复 / 超库存拦截）
 python scripts/test-tag-filter.py  # 标签筛选 SQL 的 AND 语义
 npm run verify           # 编译校验渲染层，不落盘（排查 SFC 语法错误）
