@@ -50,5 +50,17 @@ export const tiku = {
   deletePaper: (id) => window.electronAPI.deletePaper(id),
   saveImage: (buf, ext) => window.electronAPI.saveImage(buf, ext),
   getImage: (name) => window.electronAPI.getImage(name),
+  // 标签 / 薄弱分析 / 相似题 / 批量操作 / 设置
+  setQuestionTags: (questionId, tags) => window.electronAPI.setQuestionTags(questionId, tags),
+  getQuestionTags: (questionId) => window.electronAPI.getQuestionTags(questionId),
+  listTags: () => window.electronAPI.listTags(),
+  getWeakChapters: (subjectId, limit) => window.electronAPI.getWeakChapters(subjectId, limit),
+  getSimilarQuestions: (questionId, limit) => window.electronAPI.getSimilarQuestions(questionId, limit),
+  getWeakQuestions: (limit, subjectId, categoryId) => window.electronAPI.getWeakQuestions(limit, subjectId, categoryId),
+  batchUpdateQuestions: (ids, patch) => window.electronAPI.batchUpdateQuestions(ids, patch),
+  batchDeleteQuestions: (ids) => window.electronAPI.batchDeleteQuestions(ids),
+  getSetting: (key) => window.electronAPI.getSetting(key),
+  setSetting: (key, value) => window.electronAPI.setSetting(key, value),
+  getAchievements: () => window.electronAPI.getAchievements(),
   parseSheet: (buf) => window.electronAPI.parseSheet(buf)
 }

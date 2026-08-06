@@ -40,9 +40,10 @@ function showToast(msg) {
 }
 
 async function loadMeta() {
-  const [cats, st] = await Promise.all([tiku.getCategories(), tiku.getBankStats()])
+  const [cats, st, tags] = await Promise.all([tiku.getCategories(), tiku.getBankStats(), tiku.listTags().catch(() => [])])
   categories.value = cats
   stats.value = st
+  allTags.value = (tags || []).map(t => t.tag)
 }
 
 async function loadList() {
@@ -53,7 +54,8 @@ async function loadList() {
       categoryId: categoryId.value ? Number(categoryId.value) : null,
       keyword: keyword.value.trim(),
       page: page.value,
-      pageSize
+      pageSize,
+      tags: tagFilter.value.length ? tagFilter.value : null
     })
   } finally {
     loading.value = false
@@ -186,6 +188,95 @@ function answerText(q) {
 function keywordText(q) {
   return (q.keywords && q.keywords.length) ? '采分点：' + q.keywords.join('；') : ''
 }
+
+// ---- 标签系统 ----
+const allTags = ref([])
+const tagFilter = ref([])
+function toggleTagFilter(t) {
+  const i = tagFilter.value.indexOf(t)
+  if (i >= 0) tagFilter.value.splice(i, 1)
+  else tagFilter.value.push(t)
+  page.value = 1
+  loadList()
+}
+
+// 单题标签编辑
+const tagQ = ref(null)
+const tagDraft = ref([])
+const tagInput = ref('')
+function openTagEditor(q) {
+  tagQ.value = q
+  tagDraft.value = q.tags ? q.tags.slice() : []
+  tagInput.value = ''
+}
+function addTagFromInput() {
+  const t = tagInput.value.trim()
+  if (!t) return
+  if (!tagDraft.value.includes(t)) tagDraft.value.push(t)
+  tagInput.value = ''
+}
+function removeTagFromDraft(t) {
+  const i = tagDraft.value.indexOf(t)
+  if (i >= 0) tagDraft.value.splice(i, 1)
+}
+async function saveTags() {
+  if (!tagQ.value) return
+  await tiku.setQuestionTags(tagQ.value.id, tagDraft.value)
+  // 同步当前项显示，避免整表刷新
+  const it = list.value.items.find(x => x.id === tagQ.value.id)
+  if (it) it.tags = tagDraft.value.slice()
+  loadMeta()
+  tagQ.value = null
+}
+function closeTag() { tagQ.value = null; tagInput.value = '' }
+
+// ---- 批量操作 ----
+const batchMode = ref(false)
+const selectedIds = ref(new Set())
+const batchMoveCat = ref('')
+const batchTagInput = ref('')
+const batchDiff = ref('')
+function toggleBatch() {
+  batchMode.value = !batchMode.value
+  if (!batchMode.value) selectedIds.value = new Set()
+}
+function toggleSelect(q) {
+  const s = new Set(selectedIds.value)
+  if (s.has(q.id)) s.delete(q.id)
+  else s.add(q.id)
+  selectedIds.value = s
+}
+function selectAll() {
+  selectedIds.value = new Set(list.value.items.map(q => q.id))
+}
+function clearSel() { selectedIds.value = new Set() }
+const selCount = computed(() => selectedIds.value.size)
+
+async function applyBatchMove() {
+  if (!selCount.value || !batchMoveCat.value) { showToast('请选择目标章节'); return }
+  await tiku.batchUpdateQuestions([...selectedIds.value], { categoryId: Number(batchMoveCat.value) })
+  showToast(`已移动 ${selCount.value} 题`)
+  await refreshAll(); clearSel()
+}
+async function applyBatchTag() {
+  const t = batchTagInput.value.trim()
+  if (!selCount.value || !t) { showToast('请输入标签'); return }
+  await tiku.batchUpdateQuestions([...selectedIds.value], { addTags: [t] })
+  showToast(`已为 ${selCount.value} 题加标签 #${t}`)
+  batchTagInput.value = ''; await refreshAll(); clearSel()
+}
+async function applyBatchDiff() {
+  if (!selCount.value || !batchDiff.value) { showToast('请选择难度'); return }
+  await tiku.batchUpdateQuestions([...selectedIds.value], { difficulty: Number(batchDiff.value) })
+  showToast(`已调整 ${selCount.value} 题难度`)
+  await refreshAll(); clearSel()
+}
+async function batchDelete() {
+  if (!selCount.value) return
+  await tiku.batchDeleteQuestions([...selectedIds.value])
+  showToast(`已删除 ${selCount.value} 题`)
+  await refreshAll(); clearSel()
+}
 </script>
 
 <template>
@@ -216,6 +307,7 @@ function keywordText(q) {
             <button class="btn btn-outline sm" @click="openNew">＋ 新增题目</button>
             <button class="btn btn-outline sm" @click="exportCsv">导出 CSV</button>
             <button class="btn btn-outline sm" @click="exportExcel">导出 Excel</button>
+            <button class="btn btn-outline sm" :class="{ on: batchMode }" @click="toggleBatch">{{ batchMode ? '退出批量' : '批量操作' }}</button>
           </div>
 
           <!-- 筛选 -->
@@ -231,6 +323,19 @@ function keywordText(q) {
             <input v-model="keyword" class="input" placeholder="搜索题干关键词…" />
           </div>
 
+          <!-- 标签筛选 -->
+          <div v-if="allTags.length" class="tag-filter">
+            <span class="tf-label">标签：</span>
+            <button
+              v-for="t in allTags"
+              :key="t"
+              class="tag-chip"
+              :class="{ on: tagFilter.includes(t) }"
+              @click="toggleTagFilter(t)"
+            >#{{ t }}</button>
+            <button v-if="tagFilter.length" class="tag-clear" @click="tagFilter = []">清空筛选</button>
+          </div>
+
           <!-- 列表 -->
           <div v-if="loading" class="empty">加载中…</div>
           <div v-else-if="!list.items.length" class="empty">
@@ -240,7 +345,10 @@ function keywordText(q) {
           </div>
 
           <div v-else class="q-list">
-            <div v-for="q in list.items" :key="q.id" class="q-item">
+            <div v-for="q in list.items" :key="q.id" class="q-item" :class="{ sel: batchMode && selectedIds.has(q.id) }">
+              <label v-if="batchMode" class="q-check">
+                <input type="checkbox" :checked="selectedIds.has(q.id)" @change="toggleSelect(q)" />
+              </label>
               <div class="q-top">
                 <span class="q-type">{{ TYPE_LABEL[q.type] || q.type }}</span>
                 <span class="q-cat">{{ q.category_name || '未分类' }}</span>
@@ -255,12 +363,17 @@ function keywordText(q) {
                   class="q-img-badge"
                   title="含题干配图"
                 >图</span>
+                <button v-if="!batchMode" class="mini tag-btn" @click="openTagEditor(q)">🏷 标签</button>
                 <span class="q-spacer"></span>
-                <button class="mini" @click="openEdit(q)">编辑</button>
+                <button v-if="!batchMode" class="mini" @click="openEdit(q)">编辑</button>
                 <button
+                  v-if="!batchMode"
                   class="mini danger"
                   @click="confirmId = confirmId === q.id ? null : q.id"
                 >{{ confirmId === q.id ? '取消' : '删除' }}</button>
+              </div>
+              <div v-if="q.tags && q.tags.length" class="q-tags">
+                <span v-for="t in q.tags" :key="t" class="q-tag" @click="toggleTagFilter(t)">#{{ t }}</span>
               </div>
               <div class="q-stem">{{ q.stem }}</div>
               <div class="q-bottom">
@@ -324,6 +437,66 @@ function keywordText(q) {
             <span class="note-tip">失焦自动保存 · 清空即删除</span>
             <button class="note-save" @click="saveNoteHere">保存</button>
           </div>
+        </div>
+      </div>
+
+      <!-- 单题标签编辑 -->
+      <div v-if="tagQ" class="tag-mask" @click.self="closeTag">
+        <div class="tag-box">
+          <div class="tag-head">
+            <span class="tag-title">标签 · {{ tagQ.category_name || '未分类' }}</span>
+            <span class="tag-close" @click="closeTag">×</span>
+          </div>
+          <div class="tag-stem">{{ tagQ.stem }}</div>
+          <div class="tag-current">
+            <span v-for="t in tagDraft" :key="t" class="tag-pill" @click="removeTagFromDraft(t)">#{{ t }} ✕</span>
+            <span v-if="!tagDraft.length" class="tag-empty">暂无标签，输入后回车添加</span>
+          </div>
+          <input
+            v-model="tagInput"
+            class="tag-input"
+            placeholder="输入标签名，回车添加（如 高频 / 易错 / 必背）"
+            @keyup.enter="addTagFromInput"
+          />
+          <div class="tag-sug" v-if="allTags.length">
+            <span
+              v-for="t in allTags"
+              :key="t"
+              class="tag-sug-chip"
+              :class="{ on: tagDraft.includes(t) }"
+              @click="tagDraft.includes(t) ? removeTagFromDraft(t) : tagDraft.push(t)"
+            >#{{ t }}</span>
+          </div>
+          <div class="tag-foot">
+            <span class="tag-tip">点击标签可移除 · 同步随题目传播</span>
+            <button class="tag-save" @click="saveTags">保存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 批量操作条 -->
+      <div v-if="batchMode" class="batch-bar">
+        <div class="bb-top">
+          <span class="bb-count">已选 <b>{{ selCount }}</b> 题</span>
+          <span class="bb-ops">
+            <button class="bb-mini" @click="selectAll">全选本页</button>
+            <button class="bb-mini" @click="clearSel">清空</button>
+          </span>
+        </div>
+        <div class="bb-actions">
+          <select v-model="batchMoveCat" class="bb-input">
+            <option value="">移动至章节…</option>
+            <option v-for="c in chapters" :key="c.id" :value="c.id">{{ c.name }}</option>
+          </select>
+          <button class="bb-btn" @click="applyBatchMove">移动</button>
+          <input v-model="batchTagInput" class="bb-input" placeholder="加标签…" @keyup.enter="applyBatchTag" />
+          <button class="bb-btn" @click="applyBatchTag">打标签</button>
+          <select v-model="batchDiff" class="bb-input">
+            <option value="">改难度…</option>
+            <option v-for="d in [1,2,3,4,5]" :key="d" :value="d">{{ d }}星</option>
+          </select>
+          <button class="bb-btn" @click="applyBatchDiff">改难度</button>
+          <button class="bb-btn danger" @click="batchDelete">删除</button>
         </div>
       </div>
     </div>
@@ -566,4 +739,61 @@ function keywordText(q) {
   transition: all 0.15s;
 }
 .note-save:hover { background: rgba(42, 245, 255, 0.12); box-shadow: var(--glow-soft); }
+
+/* 标签筛选 */
+.tag-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.tf-label { font-size: 12px; color: var(--muted); }
+.tag-chip {
+  border: 1px solid var(--line); background: rgba(255,255,255,.03); color: var(--muted);
+  border-radius: 20px; padding: 3px 10px; font-size: 12px; cursor: pointer; transition: all .15s;
+}
+.tag-chip:hover { border-color: var(--brand); color: var(--brand); }
+.tag-chip.on { background: var(--brand); color: #021018; border-color: var(--brand); }
+.tag-clear { font-size: 11px; color: var(--muted); background: none; border: none; cursor: pointer; text-decoration: underline; }
+
+/* 题目项标签 */
+.q-check { display: flex; align-items: center; padding-right: 4px; }
+.q-check input { width: 18px; height: 18px; accent-color: var(--brand); }
+.q-item.sel { border-color: var(--brand); box-shadow: var(--glow-soft); }
+.q-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+.q-tag { font-size: 11px; color: var(--brand); border: 1px solid var(--line); border-radius: 12px; padding: 1px 8px; background: rgba(42,245,255,.08); cursor: pointer; }
+.q-tag:hover { border-color: var(--brand); }
+.tag-btn { color: var(--brand); border-color: rgba(42,245,255,.4); }
+
+/* 单题标签编辑弹层 */
+.tag-mask { position: fixed; inset: 0; background: rgba(3,6,14,.6); z-index: 210; display: flex; align-items: center; justify-content: center; }
+.tag-box { width: 520px; max-width: 92vw; background: var(--card-solid); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow), var(--glow-soft); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.tag-head { display: flex; align-items: center; justify-content: space-between; }
+.tag-title { flex: 1; font-size: 13px; color: var(--muted); }
+.tag-close { font-size: 20px; color: var(--muted); cursor: pointer; line-height: 1; }
+.tag-close:hover { color: var(--brand); }
+.tag-stem { font-size: 13px; color: var(--text); line-height: 1.6; max-height: 96px; overflow-y: auto; padding: 8px 10px; background: rgba(5,8,15,.6); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.tag-current { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; align-items: center; }
+.tag-pill { font-size: 12px; color: var(--brand); border: 1px solid var(--brand); border-radius: 14px; padding: 2px 10px; cursor: pointer; background: var(--brand-light); }
+.tag-empty { font-size: 12px; color: var(--muted); }
+.tag-input { background: rgba(5,8,15,.8); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); padding: 9px 12px; font-size: 13px; outline: none; font-family: inherit; box-sizing: border-box; }
+.tag-input:focus { border-color: var(--brand); box-shadow: var(--glow-soft); }
+.tag-sug { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-sug-chip { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 14px; padding: 2px 10px; cursor: pointer; }
+.tag-sug-chip.on { background: var(--brand); color: #021018; border-color: var(--brand); }
+.tag-foot { display: flex; align-items: center; justify-content: space-between; }
+.tag-tip { font-size: 11px; color: var(--muted); }
+.tag-save { border: 1px solid var(--brand); background: none; color: var(--brand); border-radius: 6px; padding: 5px 16px; font-size: 12px; cursor: pointer; transition: all .15s; }
+.tag-save:hover { background: var(--brand-light); box-shadow: var(--glow-soft); }
+
+/* 批量操作条 */
+.batch-bar { position: absolute; left: 0; right: 0; bottom: 0; background: var(--card-solid); border-top: 1px solid var(--brand); box-shadow: 0 -8px 24px rgba(0,0,0,.4); padding: 10px 16px; z-index: 6; display: flex; flex-direction: column; gap: 8px; }
+.bb-top { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+.bb-count b { color: var(--brand); }
+.bb-ops { display: flex; gap: 8px; }
+.bb-mini { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 6px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+.bb-mini:hover { border-color: var(--brand); color: var(--brand); }
+.bb-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bb-input { background: rgba(5,8,15,.8); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 7px 10px; font-size: 12px; outline: none; font-family: inherit; }
+.bb-input:focus { border-color: var(--brand); }
+.bb-btn { background: rgba(255,255,255,.05); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 7px 12px; font-size: 12px; cursor: pointer; transition: all .15s; }
+.bb-btn:hover { border-color: var(--brand); color: var(--brand); }
+.bb-btn.danger { color: var(--bad); border-color: rgba(255,77,109,.4); }
+.bb-btn.danger:hover { background: rgba(255,77,109,.12); }
+.btn-outline.sm.on { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
 </style>

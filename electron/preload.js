@@ -51,5 +51,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deletePaper: (id) => ipcRenderer.invoke('deletePaper', id),
   saveImage: (buf, ext) => ipcRenderer.invoke('saveImage', buf, ext),
   getImage: (name) => ipcRenderer.invoke('getImage', name),
+  // 标签 / 薄弱分析 / 相似题 / 批量操作 / 设置
+  setQuestionTags: (questionId, tags) => ipcRenderer.invoke('setQuestionTags', questionId, tags),
+  getQuestionTags: (questionId) => ipcRenderer.invoke('getQuestionTags', questionId),
+  listTags: () => ipcRenderer.invoke('listTags'),
+  getWeakChapters: (subjectId, limit) => ipcRenderer.invoke('getWeakChapters', subjectId, limit),
+  getSimilarQuestions: (questionId, limit) => ipcRenderer.invoke('getSimilarQuestions', questionId, limit),
+  getWeakQuestions: (limit, subjectId, categoryId) => ipcRenderer.invoke('getWeakQuestions', limit, subjectId, categoryId),
+  batchUpdateQuestions: (ids, patch) => ipcRenderer.invoke('batchUpdateQuestions', ids, patch),
+  batchDeleteQuestions: (ids) => ipcRenderer.invoke('batchDeleteQuestions', ids),
+  getSetting: (key) => ipcRenderer.invoke('getSetting', key),
+  setSetting: (key, value) => ipcRenderer.invoke('setSetting', key, value),
+  getAchievements: () => ipcRenderer.invoke('getAchievements'),
   parseSheet: (buf) => ipcRenderer.invoke('parseSheet', buf)
 })

@@ -11,6 +11,7 @@ import BankManager from './components/BankManager.vue'
 import MockExamSetup from './components/MockExamSetup.vue'
 import { tiku } from './api/tiku.js'
 import { useResponsive } from './composables/useResponsive.js'
+import { applyAppearance } from './utils/appearance.js'
 
 const { isWide } = useResponsive()
 
@@ -24,7 +25,7 @@ const tabs = [
 const currentTab = ref('home')
 const currentSubject = ref({ id: null, name: '请选择科目' })
 const showSubjectPicker = ref(false)
-const quiz = ref({ active: false, categoryId: null, subjectId: null, mode: 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null })
+const quiz = ref({ active: false, categoryId: null, subjectId: null, mode: 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null, tags: null })
 // 练习设置弹层：所有「开始刷题」入口先到这里配置范围/方式/考试参数
 const setup = ref({ active: false, categoryId: null, subjectId: null, presetMode: 'practice', scopeLabel: '' })
 // 题库管理（导入/录题/编辑/删除）
@@ -34,6 +35,7 @@ const mock = ref({ active: false })
 
 onMounted(async () => {
   currentSubject.value = await tiku.getCurrentSubject()
+  await applyAppearance() // 应用上次保存的主题与字号
 })
 
 // 导入或增删题目后，科目树可能变了（自动建了新科目），重取一次当前科目
@@ -76,16 +78,17 @@ function onSetupConfirm(cfg) {
     limit: cfg.limit ?? null,
     durationMin: cfg.durationMin ?? null,
     recite: !!cfg.recite,
-    paperId: null
+    paperId: null,
+    tags: cfg.tags && cfg.tags.length ? cfg.tags : null
   }
   setup.value.active = false
 }
 
 function startQuiz({ categoryId, mode }) {
-  quiz.value = { active: true, categoryId, subjectId: null, mode: mode || 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null }
+  quiz.value = { active: true, categoryId, subjectId: null, mode: mode || 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null, tags: null }
 }
 function exitQuiz() {
-  quiz.value = { active: false, categoryId: null, subjectId: null, mode: 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null }
+  quiz.value = { active: false, categoryId: null, subjectId: null, mode: 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null, tags: null }
 }
 
 // 模拟卷：组卷生成后直接用 paperId 进入考试模式
@@ -160,6 +163,7 @@ const icons = { home: iconHome, book: iconBook, stats: iconStats, me: iconMe }
           :durationMin="quiz.durationMin"
           :recite="quiz.recite"
           :paperId="quiz.paperId"
+          :tags="quiz.tags"
           @exit="exitQuiz"
         />
         <template v-else>

@@ -183,6 +183,11 @@ const api = {
         client_id TEXT,
         question_cid TEXT
       );
+      CREATE TABLE IF NOT EXISTS question_tags (
+        question_id INTEGER NOT NULL,
+        tag TEXT NOT NULL,
+        PRIMARY KEY (question_id, tag)
+      );
     `)
   },
 
@@ -310,7 +315,11 @@ const api = {
     return { ok: true }
   },
 
-  getQuestions({ subjectId, categoryId, mode, limit, keyword } = {}) {
+  getQuestions({ subjectId, categoryId, mode, limit, keyword, tags } = {}) {
+    // 弱点强化：按错题数/正确率加权返回最弱的题，不走普通筛选
+    if (mode === 'weak') {
+      return this.getWeakQuestions(limit ? Number(limit) : 30, subjectId, categoryId)
+    }
     let sql = 'SELECT * FROM questions WHERE deleted=0'
     const params = []
     if (categoryId) {
@@ -345,6 +354,13 @@ const api = {
       if (!ids.length) return []
       sql += ' AND id IN (' + ids.map(() => '?').join(',') + ')'
       params.push(...ids)
+    }
+    if (tags && tags.length) {
+      // 按标签筛选：题目须带全部所选标签（AND 语义），通过 question_tags 子查询解析
+      tags.forEach(t => {
+        sql += ' AND id IN (SELECT question_id FROM question_tags WHERE tag=?)'
+        params.push(t)
+      })
     }
     sql += ' ORDER BY id ASC'
     if (limit) {
@@ -627,6 +643,144 @@ const api = {
     return { ok: true }
   },
 
+  // ============ 标签系统 ============
+  // 轻量本地优先：question_tags(question_id, tag)。跨设备同步随题目行一并传播（见 exportSync/mergeRemote）。
+  setQuestionTags(questionId, tags) {
+    const clean = Array.from(new Set((tags || []).map(t => String(t).trim()).filter(Boolean))).slice(0, 20)
+    const del = sqlite.prepare('DELETE FROM question_tags WHERE question_id=?')
+    const ins = sqlite.prepare('INSERT OR IGNORE INTO question_tags (question_id, tag) VALUES (?,?)')
+    const tx = sqlite.transaction(() => {
+      del.run(questionId)
+      clean.forEach(t => ins.run(questionId, t))
+    })
+    tx()
+    return { ok: true, tags: clean }
+  },
+
+  getQuestionTags(questionId) {
+    return sqlite.prepare('SELECT tag FROM question_tags WHERE question_id=? ORDER BY tag').all(questionId).map(r => r.tag)
+  },
+
+  // 所有标签 + 各标签题数（用于筛选 chips / 输入建议）
+  listTags() {
+    return sqlite.prepare('SELECT tag, COUNT(*) AS n FROM question_tags GROUP BY tag ORDER BY n DESC, tag').all()
+  },
+
+  // ============ 薄弱分析 / 相似题 / 弱点抽题 ============
+  // 薄弱章节：正确率升序、错题数降序（用于错题页高亮最弱章节）
+  getWeakChapters(subjectId = null, limit = 5) {
+    const sql = subjectId
+      ? 'SELECT id FROM categories WHERE deleted=0 AND parent_id=? ORDER BY sort, id'
+      : 'SELECT id FROM categories WHERE deleted=0 AND parent_id IS NOT NULL AND parent_id!=0 ORDER BY sort, id'
+    const chapters = sqlite.prepare(sql).all(...(subjectId ? [subjectId] : []))
+    const result = []
+    for (const ch of chapters) {
+      const cat = sqlite.prepare('SELECT name FROM categories WHERE id=?').get(ch.id)
+      const stat = sqlite.prepare(`SELECT COUNT(*) AS n, SUM(is_correct) AS c
+        FROM answer_records ar JOIN questions q ON q.id=ar.question_id
+        WHERE ar.user_id=? AND ar.deleted=0 AND q.category_id=?`).get(LOCAL_USER, ch.id)
+      const totalQ = sqlite.prepare('SELECT COUNT(*) AS n FROM questions WHERE deleted=0 AND category_id=?').get(ch.id).n
+      const wrong = sqlite.prepare("SELECT COUNT(*) AS n FROM wrong_books WHERE user_id=? AND status='wrong' AND deleted=0 AND question_id IN (SELECT id FROM questions WHERE category_id=?)").get(LOCAL_USER, ch.id).n
+      const n = stat.n || 0
+      result.push({
+        id: ch.id, name: cat.name, totalQ: totalQ || 0, answered: n,
+        correct: stat.c || 0, rate: n ? Math.round(((stat.c || 0) / n) * 100) : 0, wrong
+      })
+    }
+    result.sort((a, b) => (a.rate - b.rate) || (b.wrong - a.wrong))
+    return result.slice(0, limit)
+  },
+
+  // 相似题：同章节、排除自身的其他题（弱关联：同知识点不同问法）
+  getSimilarQuestions(questionId, limit = 3) {
+    const q = sqlite.prepare('SELECT category_id, type FROM questions WHERE id=? AND deleted=0').get(questionId)
+    if (!q) return []
+    const rows = sqlite.prepare(`SELECT id, type, stem, options_json, answer_json, analysis, images_json
+      FROM questions WHERE deleted=0 AND category_id=? AND id<>? ORDER BY id DESC LIMIT ?`)
+      .all(q.category_id, questionId, limit)
+    return rows.map(r => ({
+      id: r.id, type: r.type, stem: r.stem,
+      options: JSON.parse(r.options_json || '[]'),
+      answer: JSON.parse(r.answer_json || '[]'),
+      analysis: r.analysis,
+      images: r.images_json ? JSON.parse(r.images_json) : []
+    }))
+  },
+
+  // 弱点抽题：错题数高 + 正确率低的题优先（(1-正确率)*错题数 加权；未做过的题给基础权重）
+  getWeakQuestions(limit = 30, subjectId = null, categoryId = null) {
+    let scope = 'q.deleted=0'
+    const params = []
+    if (categoryId) { scope += ' AND q.category_id=?'; params.push(categoryId) }
+    else if (subjectId) {
+      const ids = descendantCategoryIds(Number(subjectId))
+      if (!ids.length) return []
+      scope += ' AND q.category_id IN (' + ids.map(() => '?').join(',') + ')'
+      params.push(...ids)
+    }
+    const rows = sqlite.prepare(`SELECT q.*,
+        COALESCE((SELECT wrong_count FROM wrong_books w WHERE w.user_id=? AND w.question_id=q.id AND w.deleted=0 ORDER BY w.wrong_count DESC LIMIT 1),0) AS wc,
+        COALESCE((SELECT SUM(is_correct) FROM answer_records ar WHERE ar.user_id=? AND ar.question_id=q.id AND ar.deleted=0),0) AS cor,
+        COALESCE((SELECT COUNT(*) FROM answer_records ar WHERE ar.user_id=? AND ar.question_id=q.id AND ar.deleted=0),0) AS tot
+      FROM questions q WHERE ${scope}`).all(LOCAL_USER, LOCAL_USER, LOCAL_USER, ...params)
+    const scored = rows.map(r => {
+      const tot = r.tot || 0
+      const rate = tot ? (r.cor || 0) / tot : 0
+      const weakness = (1 - rate) * (Number(r.wc) || 0) + (tot === 0 ? 2 : 0)
+      return {
+        ...r,
+        options: JSON.parse(r.options_json || '[]'),
+        answer: JSON.parse(r.answer_json || '[]'),
+        keywords: r.keywords_json ? JSON.parse(r.keywords_json) : [],
+        images: r.images_json ? JSON.parse(r.images_json) : [],
+        _weak: weakness
+      }
+    })
+    scored.sort((a, b) => b._weak - a._weak)
+    return scored.slice(0, limit)
+  },
+
+  // ============ 题目批量操作 ============
+  // patch: { categoryId, difficulty, addTags:[], setTags:[] }；软删兼容同步
+  batchUpdateQuestions(ids, patch = {}) {
+    const list = (ids || []).map(Number).filter(Boolean)
+    if (!list.length) return { ok: true, updated: 0 }
+    const now = Date.now()
+    const tx = sqlite.transaction(() => {
+      for (const id of list) {
+        if (patch.categoryId != null) {
+          sqlite.prepare('UPDATE questions SET category_id=?, category_cid=?, updated_at=? WHERE id=?')
+            .run(Number(patch.categoryId), categoryCid(Number(patch.categoryId)), now, id)
+        }
+        if (patch.difficulty != null) {
+          sqlite.prepare('UPDATE questions SET difficulty=?, updated_at=? WHERE id=?')
+            .run(Number(patch.difficulty), now, id)
+        }
+        if (Array.isArray(patch.setTags)) {
+          this.setQuestionTags(id, patch.setTags)
+        } else if (Array.isArray(patch.addTags) && patch.addTags.length) {
+          const cur = this.getQuestionTags(id)
+          this.setQuestionTags(id, cur.concat(patch.addTags))
+        }
+      }
+    })
+    tx()
+    return { ok: true, updated: list.length }
+  },
+
+  batchDeleteQuestions(ids) {
+    const list = (ids || []).map(Number).filter(Boolean)
+    if (!list.length) return { ok: true, deleted: 0 }
+    const now = Date.now()
+    const tx = sqlite.transaction(() => {
+      for (const id of list) {
+        sqlite.prepare('UPDATE questions SET deleted=1, updated_at=? WHERE id=?').run(now, id)
+      }
+    })
+    tx()
+    return { ok: true, deleted: list.length }
+  },
+
   getStats() {
     const overall = sqlite.prepare('SELECT COUNT(*) AS n, SUM(is_correct) AS c FROM answer_records WHERE user_id=? AND deleted=0').get(LOCAL_USER)
     const total = overall.n || 0
@@ -645,6 +799,22 @@ const api = {
     const favCount = sqlite.prepare('SELECT COUNT(*) AS n FROM favorites WHERE user_id=? AND deleted=0').get(LOCAL_USER).n
 
     return { total, correct, rate, wrongCount, favCount, perCat }
+  },
+
+  // 游戏化成就所需的全部原始指标（成就定义在前端，按阈值派生「已解锁」状态）
+  getAchievements() {
+    const s = this.getSummary()
+    const totalAnswered = sqlite.prepare('SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0').get(LOCAL_USER).n
+    const papersCount = sqlite.prepare('SELECT COUNT(*) AS n FROM papers WHERE deleted=0').get().n
+    const notesCount = sqlite.prepare("SELECT COUNT(*) AS n FROM notes WHERE user_id=? AND deleted=0 AND TRIM(IFNULL(content,''))<>''").get(LOCAL_USER).n
+    const tagsUsed = sqlite.prepare('SELECT COUNT(DISTINCT tag) AS n FROM question_tags').get().n
+    const favCount = sqlite.prepare('SELECT COUNT(*) AS n FROM favorites WHERE user_id=? AND deleted=0').get(LOCAL_USER).n
+    return {
+      streak: s.streak, today: s.today, activeDays: s.activeDays,
+      totalAnswered, mastered: s.mastered, wrongCount: s.wrongCount,
+      papersCount, notesCount, tagsUsed, favCount,
+      dailyGoal: Number(this.getSetting('daily_goal') || 0)
+    }
   },
 
   getSummary() {
@@ -815,7 +985,7 @@ const api = {
     return { ok: true, inserted, duplicated, skipped, subjects: Array.from(touched) }
   },
 
-  listQuestions({ subjectId = null, categoryId = null, keyword = '', page = 1, pageSize = 20 } = {}) {
+  listQuestions({ subjectId = null, categoryId = null, keyword = '', page = 1, pageSize = 20, tags = null } = {}) {
     let where = 'q.deleted=0'
     const params = []
     if (categoryId) {
@@ -830,6 +1000,13 @@ const api = {
     if (keyword) {
       where += ' AND q.stem LIKE ?'
       params.push(`%${keyword}%`)
+    }
+    if (tags && tags.length) {
+      // 标签筛选：题目须带全部所选标签（AND 语义）
+      tags.forEach(t => {
+        where += ' AND q.id IN (SELECT question_id FROM question_tags WHERE tag=?)'
+        params.push(t)
+      })
     }
     const total = sqlite.prepare(`SELECT COUNT(*) AS n FROM questions q WHERE ${where}`).get(...params).n
     const size = Math.max(1, pageSize)
@@ -848,7 +1025,8 @@ const api = {
         options: JSON.parse(r.options_json || '[]'),
         answer: JSON.parse(r.answer_json || '[]'),
         keywords: r.keywords_json ? JSON.parse(r.keywords_json) : [],
-        images: r.images_json ? JSON.parse(r.images_json) : []
+        images: r.images_json ? JSON.parse(r.images_json) : [],
+        tags: sqlite.prepare('SELECT tag FROM question_tags WHERE question_id=? ORDER BY tag').all(r.id).map(x => x.tag)
       }))
     }
   },
@@ -958,8 +1136,37 @@ const api = {
 
   // 导出供云同步用的全量快照（含软删行，否则删除操作无法跨设备传播）。
   // users 表不入同步（本地单用户，不跨设备）。
+  // 注：题目图片二进制内嵌 base64，保证换设备后 getImage 不裂图；
+  // 个人题库图片体积是主要代价，超大图床建议改用分离上传方案。
   exportSync() {
     const dump = (table) => sqlite.prepare(`SELECT * FROM ${table}`).all()
+
+    // 标签：按题目 client_id 携带（question_tags 本身无 client_id）
+    const questionTags = sqlite.prepare(
+      `SELECT qt.tag AS tag, q.client_id AS question_cid
+       FROM question_tags qt JOIN questions q ON q.id=qt.question_id
+       WHERE q.deleted=0`
+    ).all()
+
+    // 图片：收集所有在用图片文件名 → base64，内嵌进快照
+    const imgRows = sqlite.prepare(
+      "SELECT images_json FROM questions WHERE deleted=0 AND images_json IS NOT NULL AND images_json<>'[]'"
+    ).all()
+    const imageSet = new Map()
+    const imgDir = path.join(app.getPath('userData'), 'images')
+    imgRows.forEach(r => {
+      let names = []
+      try { names = JSON.parse(r.images_json || '[]') } catch (e) {}
+      names.forEach(n => {
+        if (imageSet.has(n)) return
+        const full = path.join(imgDir, path.basename(String(n)))
+        try {
+          if (fs.existsSync(full)) imageSet.set(n, fs.readFileSync(full).toString('base64'))
+        } catch (e) {}
+      })
+    })
+    const images = Array.from(imageSet.entries()).map(([name, b64]) => ({ name, b64 }))
+
     return JSON.stringify({
       version: 2,
       kind: 'sync',
@@ -971,7 +1178,9 @@ const api = {
       favorites: dump('favorites'),
       notes: dump('notes'),
       papers: dump('papers'),
-      paperQuestions: dump('paper_questions')
+      paperQuestions: dump('paper_questions'),
+      questionTags,
+      images
     }, null, 2)
   },
 
@@ -1053,9 +1262,29 @@ const api = {
       const pqUpsert = makeUpsert('paper_questions', cfg[7].cols)
       pqMerged.forEach(r => pqUpsert(r))
 
+      // question_tags：按题目 client_id 解析成本机 question_id
+      const qtMerged = remote.questionTags || []
+      const qtIns = sqlite.prepare('INSERT OR IGNORE INTO question_tags (question_id, tag) VALUES (?,?)')
+      qtMerged.forEach(r => {
+        const qid = qCidToId.get(r.question_cid)
+        if (qid) qtIns.run(qid, r.tag)
+      })
+
       return { categories: catMerged.length, questions: qMerged.length, answerRecords: arN, wrongBooks: wbN, favorites: fvN, notes: ntN, papers: paperMerged.length, paperQuestions: pqMerged.length }
     })
-    return tx()
+    const result = tx()
+    // 还原图片二进制到本地图床（换设备后 getImage 不裂图）
+    const imgDir = path.join(app.getPath('userData'), 'images')
+    try { if (!fs.existsSync(imgDir)) fs.mkdirSync(imgDir, { recursive: true }) } catch (e) {}
+    const images = remote.images || []
+    images.forEach(im => {
+      if (!im || !im.name) return
+      const full = path.join(imgDir, path.basename(String(im.name)))
+      try {
+        if (!fs.existsSync(full) && im.b64) fs.writeFileSync(full, Buffer.from(im.b64, 'base64'))
+      } catch (e) {}
+    })
+    return result
   },
 
   // 导入手动备份 JSON（INSERT OR REPLACE，按 id 覆盖；同步预留 updated_at）。

@@ -13,6 +13,8 @@ const props = defineProps({
   recite: { default: false },
   // 模拟卷：传入卷 id 时按卷面题目与分值计分（与 getQuestions 随机抽题互斥）
   paperId: { default: null },
+  // 标签筛选：仅练习带指定标签的题（AND 语义，由 db 层解析）
+  tags: { default: null },
   wide: { default: false }
 })
 const emit = defineEmits(['exit'])
@@ -39,6 +41,9 @@ const q = computed(() => questions.value[idx.value] || null)
 const isMultiple = computed(() => q.value && q.value.type === 'multiple')
 const isEssay = computed(() => q.value && q.value.type === 'essay')
 const isDone = computed(() => idx.value >= questions.value.length)
+// 交卷后的「逐题解析」：每题记录你的作答 vs 正确答案 + 解析，供复盘
+const reviews = ref([])
+const showReview = ref(false)
 
 // 背题模式下直接从题目本身取答案，不经过 submitAnswer（那会写记录）
 const reciteAnswer = computed(() => (q.value && q.value.answer) || [])
@@ -72,6 +77,16 @@ const modeLabel = (m) => ({
 }[m] || m)
 const orderLabel = (o) => (o === 'random' ? '随机' : '顺序')
 const typeLabel = (t) => ({ single: '单选', multiple: '多选', judge: '判断', essay: '问答' }[t] || t)
+// 把选项 key 列表转成「A. 文本」的可读串（用于逐题解析页展示作答）
+function optText(options, keys) {
+  if (!options || !options.length) return (keys && keys.length ? keys.join('、') : '（未作答）')
+  const arr = Array.isArray(keys) ? keys : [keys]
+  if (!arr.length) return '（未作答）'
+  return arr.map(k => {
+    const o = options.find(x => x.key === k)
+    return o ? `${k}. ${o.text}` : k
+  }).join('；')
+}
 
 function shuffle(arr) {
   const a = arr.slice()
@@ -93,12 +108,15 @@ onMounted(async () => {
     list = await tiku.getQuestions({
       categoryId: props.categoryId,
       subjectId: props.subjectId,
-      mode: props.mode
+      mode: props.mode,
+      tags: props.tags
     })
     if (props.order === 'random') list = shuffle(list)
     if (props.limit) list = list.slice(0, Number(props.limit))
   }
   questions.value = list
+  reviews.value = []
+  showReview.value = false
   const favs = await tiku.getFavorites()
   favSet.value = new Set(favs.map(f => f.question_id))
   loading.value = false
@@ -148,6 +166,12 @@ async function submitEssay(grade) {
     sessionCorrect.value++
     if (props.paperId && q.value.paperScore) earnedScore.value += q.value.paperScore
   }
+  reviews.value.push({
+    qid: q.value.id, type: q.value.type, stem: q.value.stem,
+    options: q.value.options, your: essayText.value,
+    answer: q.value.answer, correct: res.isCorrect, analysis: res.analysis,
+    images: imageUrls.value.slice()
+  })
 }
 
 async function submit() {
@@ -163,6 +187,12 @@ async function submit() {
     sessionCorrect.value++
     if (props.paperId && q.value.paperScore) earnedScore.value += q.value.paperScore
   }
+  reviews.value.push({
+    qid: q.value.id, type: q.value.type, stem: q.value.stem,
+    options: q.value.options, your: selected.value.slice(),
+    answer: res.answer, correct: res.isCorrect, analysis: res.analysis,
+    images: imageUrls.value.slice()
+  })
 }
 
 function resetPerQuestion() {
@@ -264,6 +294,29 @@ function optionClass(key) {
     </div>
 
     <div v-if="loading" class="hint">加载中…</div>
+    <div v-else-if="showReview" class="review card">
+      <div class="rv-head">
+        <h2>逐题解析</h2>
+        <button class="back" @click="showReview = false">← 返回</button>
+      </div>
+      <div class="rv-list">
+        <div v-for="(r, i) in reviews" :key="r.qid" class="rv-item" :class="r.correct ? 'ok' : 'no'">
+          <div class="rv-top">
+            <span class="rv-no">第 {{ i + 1 }} 题</span>
+            <span class="rv-type">{{ typeLabel(r.type) }}</span>
+            <span class="rv-badge">{{ r.correct ? '✓ 正确' : '✗ 错误' }}</span>
+          </div>
+          <div class="rv-stem">{{ r.stem }}</div>
+          <div v-if="r.images && r.images.length" class="rv-imgs">
+            <img v-for="(s, k) in r.images" :key="k" :src="s" class="rv-img" alt="题干图" />
+          </div>
+          <div class="rv-row"><span class="rv-k">你的答案</span><span class="rv-v">{{ r.type === 'essay' ? (r.your || '（未作答）') : optText(r.options, r.your) }}</span></div>
+          <div class="rv-row"><span class="rv-k">正确答案</span><span class="rv-v ans">{{ r.type === 'essay' ? ((r.answer && r.answer.length) ? r.answer.join('；') : '（主观题·自评）') : optText(r.options, r.answer) }}</span></div>
+          <div v-if="r.analysis" class="rv-analysis"><b>解析：</b>{{ r.analysis }}</div>
+        </div>
+      </div>
+      <button class="rv-done" @click="emit('exit')">回到首页</button>
+    </div>
     <div v-else-if="isDone" class="done card">
       <h2>{{ isRecite ? '已过完本轮' : (props.paperId ? '模拟卷完成' : '本场结束') }}</h2>
       <p v-if="props.paperId">共 {{ questions.length }} 题，答对 {{ sessionCorrect }} 题，得分
@@ -272,6 +325,7 @@ function optionClass(key) {
       <p v-else-if="isRecite">共浏览 {{ questions.length }} 题。背题不判分、不计入统计，想检验效果就切回「答题」再来一遍。</p>
       <p v-else>共 {{ questions.length }} 题，答对 {{ sessionCorrect }} 题，正确率
         {{ questions.length ? Math.round(sessionCorrect / questions.length * 100) : 0 }}%</p>
+      <button v-if="reviews.length && !isRecite" class="btn-review" @click="showReview = true">查看逐题解析</button>
       <button @click="emit('exit')">回到首页</button>
     </div>
 
@@ -638,4 +692,33 @@ function optionClass(key) {
   box-shadow: var(--glow);
 }
 .done button:hover { box-shadow: 0 0 20px rgba(42, 245, 255, 0.6); }
+
+/* 逐题解析页 */
+.review { display: flex; flex-direction: column; gap: 12px; }
+.rv-head { display: flex; align-items: center; justify-content: space-between; }
+.rv-head h2 { color: var(--brand); text-shadow: var(--glow-soft); }
+.rv-list { display: flex; flex-direction: column; gap: 12px; max-height: 60vh; overflow-y: auto; }
+.rv-item { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: rgba(255, 255, 255, 0.02); }
+.rv-item.ok { border-color: rgba(44, 229, 168, 0.4); }
+.rv-item.no { border-color: rgba(255, 77, 109, 0.4); }
+.rv-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.rv-no { font-size: 13px; color: var(--muted); }
+.rv-type { font-size: 11px; color: var(--brand); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; }
+.rv-badge { margin-left: auto; font-size: 12px; font-weight: 600; }
+.rv-item.ok .rv-badge { color: var(--ok); }
+.rv-item.no .rv-badge { color: var(--bad); }
+.rv-stem { font-size: 14px; font-weight: 500; line-height: 1.5; margin-bottom: 8px; }
+.rv-imgs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.rv-img { max-width: 100%; max-height: 180px; border: 1px solid var(--line); border-radius: 8px; }
+.rv-row { display: flex; gap: 10px; font-size: 13px; margin: 4px 0; }
+.rv-k { flex: 0 0 64px; color: var(--muted); }
+.rv-v { flex: 1; line-height: 1.6; }
+.rv-v.ans { color: var(--ok); font-weight: 600; }
+.rv-analysis { margin-top: 6px; color: var(--text); opacity: .85; line-height: 1.6; font-size: 13px; }
+.btn-review {
+  width: 100%; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--brand);
+  color: var(--brand); padding: 10px 24px; border-radius: 24px; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all .2s; margin-bottom: 2px;
+}
+.btn-review:hover { box-shadow: var(--glow-soft); background: var(--brand-light); }
 </style>

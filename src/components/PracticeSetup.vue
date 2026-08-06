@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { tiku } from '../api/tiku.js'
 
 const props = defineProps({
   show: Boolean,
@@ -14,12 +15,25 @@ const scopes = [
   { key: 'wrong', label: '错题重练', desc: '错题本活跃题目' },
   { key: 'favorite', label: '收藏复习', desc: '我收藏的题目' },
   { key: 'unattempted', label: '未做专项', desc: '只练没答过的题' },
+  { key: 'weak', label: '弱点强化', desc: '按正确率加权只练最弱的题' },
   { key: 'review-due', label: '智能复习', desc: '艾宾浩斯到期题' },
   { key: 'exam', label: '模拟考试', desc: '限时随机抽取' }
 ]
 
+// 标签筛选：题库打过的标签，多选（AND 语义，题目须带全部所选标签）
+const allTags = ref([])
+const selTags = ref([])
+onMounted(async () => {
+  try { allTags.value = (await tiku.listTags()).map(t => t.tag) } catch (e) { allTags.value = [] }
+})
+function toggleTag(t) {
+  const i = selTags.value.indexOf(t)
+  if (i >= 0) selTags.value.splice(i, 1)
+  else selTags.value.push(t)
+}
+
 function presetToScope(m) {
-  return ['practice', 'wrong', 'favorite', 'unattempted', 'review-due', 'exam'].includes(m) ? m : 'practice'
+  return ['practice', 'wrong', 'favorite', 'unattempted', 'weak', 'review-due', 'exam'].includes(m) ? m : 'practice'
 }
 
 const scope = ref(presetToScope(props.preset.presetMode))
@@ -51,7 +65,8 @@ function confirm() {
     order: order.value,
     limit: limit.value ? Number(limit.value) : (isExam.value ? 50 : null),
     durationMin: isExam.value ? (durationMin.value ? Number(durationMin.value) : 60) : null,
-    recite: isExam.value ? false : recite.value
+    recite: isExam.value ? false : recite.value,
+    tags: selTags.value.slice()
   }
   emit('confirm', cfg)
 }
@@ -80,6 +95,22 @@ function confirm() {
             >
               <span class="chip-label">{{ s.label }}</span>
               <span class="chip-desc">{{ s.desc }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 标签筛选（可选）：多标签 AND 语义 -->
+        <div class="section" v-if="allTags.length">
+          <div class="sec-title">标签筛选（可选 · 题目须带全部所选标签）</div>
+          <div class="chips">
+            <button
+              v-for="t in allTags"
+              :key="t"
+              class="chip"
+              :class="{ active: selTags.includes(t) }"
+              @click="toggleTag(t)"
+            >
+              <span class="chip-label">#{{ t }}</span>
             </button>
           </div>
         </div>

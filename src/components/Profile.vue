@@ -1,6 +1,7 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { tiku } from '../api/tiku.js'
+import { applyAppearance } from '../utils/appearance.js'
 import WrongBook from './WrongBook.vue'
 import Favorites from './Favorites.vue'
 import NotesList from './NotesList.vue'
@@ -119,6 +120,55 @@ function importData(event) {
   reader.readAsText(file)
   event.target.value = ''
 }
+
+// ---- 外观 / 偏好 ----
+const theme = ref('dark')
+const fontScale = ref('1')
+const dailyGoal = ref(0)
+async function setTheme(t) {
+  theme.value = t
+  await tiku.setSetting('theme', t)
+  await applyAppearance()
+}
+async function setFontScale(v) {
+  fontScale.value = v
+  await tiku.setSetting('font_scale', String(v))
+  await applyAppearance()
+}
+async function setDailyGoal(v) {
+  dailyGoal.value = Number(v) || 0
+  await tiku.setSetting('daily_goal', String(dailyGoal.value))
+}
+
+// ---- 游戏化成就（指标来自 getAchievements，成就定义在前端派生）----
+const metrics = ref(null)
+const ACH_DEFS = [
+  { key: 'first', name: '初次启程', icon: '🌟', desc: '完成第一题', test: m => m.totalAnswered >= 1 },
+  { key: 'streak7', name: '七日打卡', icon: '🔥', desc: '连续学习 7 天', test: m => m.streak >= 7 },
+  { key: 'hundred', name: '百题斩', icon: '💯', desc: '累计刷题 100 题', test: m => m.totalAnswered >= 100 },
+  { key: 'mastered', name: '渐入佳境', icon: '🎯', desc: '掌握 50 道题', test: m => m.mastered >= 50 },
+  { key: 'paper', name: '出卷人', icon: '📝', desc: '组卷至少 1 套', test: m => m.papersCount >= 1 },
+  { key: 'notes', name: '好学笔记', icon: '📒', desc: '写满 10 条笔记', test: m => m.notesCount >= 10 },
+  { key: 'tags', name: '井井有条', icon: '🏷️', desc: '使用至少 5 个标签', test: m => m.tagsUsed >= 5 },
+  { key: 'fav', name: '收藏家', icon: '⭐', desc: '收藏至少 20 题', test: m => m.favCount >= 20 },
+  { key: 'active30', name: '月度学霸', icon: '🏆', desc: '累计学习 30 天', test: m => m.activeDays >= 30 },
+  { key: 'goal', name: '自律克己', icon: '🎯', desc: '设定每日目标', test: m => m.dailyGoal > 0 }
+]
+const achievements = computed(() => ACH_DEFS.map(a => ({ ...a, got: metrics.value ? a.test(metrics.value) : false })))
+const unlockedCount = computed(() => achievements.value.filter(a => a.got).length)
+
+onMounted(async () => {
+  try {
+    const [t, f, g, ach] = await Promise.all([
+      tiku.getSetting('theme'), tiku.getSetting('font_scale'),
+      tiku.getSetting('daily_goal'), tiku.getAchievements()
+    ])
+    theme.value = t || 'dark'
+    fontScale.value = f || '1'
+    dailyGoal.value = Number(g) || 0
+    metrics.value = ach
+  } catch (e) { /* 成就读取失败不阻塞 */ }
+})
 </script>
 
 <template>
@@ -129,6 +179,40 @@ function importData(event) {
       <div class="user-info">
         <div class="user-name">{{ userName }}</div>
         <div class="user-sub">本地账号 · 数据离线存储</div>
+      </div>
+    </div>
+
+    <!-- 偏好设置 -->
+    <div class="card">
+      <div class="card-title">偏好设置</div>
+      <div class="pref-row">
+        <span class="pref-label">主题</span>
+        <div class="seg">
+          <button :class="{ on: theme === 'dark' }" @click="setTheme('dark')">暗色</button>
+          <button :class="{ on: theme === 'light' }" @click="setTheme('light')">浅色</button>
+        </div>
+      </div>
+      <div class="pref-row">
+        <span class="pref-label">字号 {{ Math.round(fontScale * 100) }}%</span>
+        <input class="pref-range" type="range" min="0.8" max="1.4" step="0.05" :value="fontScale" @input="setFontScale($event.target.value)" />
+      </div>
+      <div class="pref-row">
+        <span class="pref-label">每日目标</span>
+        <input class="pref-input" type="number" min="0" :value="dailyGoal" @change="setDailyGoal($event.target.value)" placeholder="0=不限" />
+        <span class="pref-unit">题/天</span>
+      </div>
+    </div>
+
+    <!-- 游戏化成就 -->
+    <div class="card">
+      <div class="card-title">我的成就（{{ unlockedCount }}/{{ achievements.length }}）</div>
+      <div class="ach-grid">
+        <div v-for="a in achievements" :key="a.key" class="ach" :class="{ got: a.got }">
+          <span class="ach-icon">{{ a.icon }}</span>
+          <span class="ach-name">{{ a.name }}</span>
+          <span class="ach-desc">{{ a.desc }}</span>
+          <span class="ach-state">{{ a.got ? '✓ 已达成' : '未达成' }}</span>
+        </div>
       </div>
     </div>
 
@@ -308,4 +392,25 @@ function importData(event) {
   border: 1px solid var(--line);
   box-shadow: var(--glow-soft);
 }
+
+/* 偏好设置 */
+.pref-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; font-size: 13px; }
+.pref-label { flex: 0 0 88px; color: var(--muted); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { background: none; border: none; color: var(--muted); padding: 6px 16px; font-size: 13px; cursor: pointer; }
+.seg button.on { background: var(--brand); color: #021018; font-weight: 600; }
+.pref-range { flex: 1; accent-color: var(--brand); }
+.pref-input { width: 80px; background: rgba(5,8,15,.8); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 6px 10px; font-size: 13px; outline: none; font-family: inherit; }
+.pref-input:focus { border-color: var(--brand); }
+.pref-unit { color: var(--muted); font-size: 12px; }
+
+/* 成就墙 */
+.ach-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.ach { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: rgba(255,255,255,.02); opacity: .55; transition: all .2s; }
+.ach.got { opacity: 1; border-color: var(--brand); background: var(--brand-light); box-shadow: var(--glow-soft); }
+.ach-icon { font-size: 22px; }
+.ach-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.ach-desc { font-size: 11px; color: var(--muted); }
+.ach-state { font-size: 11px; margin-top: 2px; color: var(--muted); }
+.ach.got .ach-state { color: var(--brand); font-weight: 600; }
 </style>

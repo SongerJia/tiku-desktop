@@ -156,6 +156,19 @@ ipcMain.handle('saveImage', (e, buf, ext) => {
 })
 ipcMain.handle('getImage', (e, name) => db.getImage(name))
 
+// ---- 标签 / 薄弱分析 / 相似题 / 批量操作 / 设置 ----
+ipcMain.handle('setQuestionTags', (e, questionId, tags) => db.setQuestionTags(questionId, tags))
+ipcMain.handle('getQuestionTags', (e, questionId) => db.getQuestionTags(questionId))
+ipcMain.handle('listTags', () => db.listTags())
+ipcMain.handle('getWeakChapters', (e, subjectId, limit) => db.getWeakChapters(subjectId, limit))
+ipcMain.handle('getSimilarQuestions', (e, questionId, limit) => db.getSimilarQuestions(questionId, limit))
+ipcMain.handle('getWeakQuestions', (e, limit, subjectId, categoryId) => db.getWeakQuestions(limit, subjectId, categoryId))
+ipcMain.handle('batchUpdateQuestions', (e, ids, patch) => db.batchUpdateQuestions(ids, patch))
+ipcMain.handle('batchDeleteQuestions', (e, ids) => db.batchDeleteQuestions(ids))
+ipcMain.handle('getSetting', (e, key) => db.getSetting(key))
+ipcMain.handle('setSetting', (e, key, value) => db.setSetting(key, value))
+ipcMain.handle('getAchievements', () => db.getAchievements())
+
 // Excel 解析放主进程（Node 侧）：渲染层把文件读成 Uint8Array 传过来。
 // 用零依赖的 xlsx-lite（Node 内置 zlib + 手写 zip/CRC32）解析，不再依赖 xlsx 包。
 ipcMain.handle('parseSheet', (e, buf) => {

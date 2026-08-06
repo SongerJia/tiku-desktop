@@ -1,19 +1,23 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 
 const props = defineProps({ subject: Object })
 const emit = defineEmits(['start', 'start-mock'])
 
 const summary = ref({ total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0 })
+const dailyGoal = ref(0)
 const loading = ref(true)
 
 onMounted(load)
 watch(() => props.subject.id, load)
 
+const goalPct = computed(() => dailyGoal.value ? Math.min(100, Math.round((summary.value.today / dailyGoal.value) * 100)) : 0)
+
 async function load() {
   loading.value = true
   summary.value = await tiku.getSummary()
+  try { dailyGoal.value = Number(await tiku.getSetting('daily_goal')) || 0 } catch (e) { dailyGoal.value = 0 }
   loading.value = false
 }
 </script>
@@ -45,6 +49,16 @@ async function load() {
         <span class="num">{{ summary.total }}</span>
         <span class="unit">张</span>
       </div>
+    </div>
+
+    <!-- 今日目标进度 -->
+    <div class="card goal-card" v-if="dailyGoal">
+      <div class="goal-top">
+        <span class="goal-label">🎯 今日目标</span>
+        <span class="goal-num">{{ Math.min(summary.today, dailyGoal) }} / {{ dailyGoal }} 题</span>
+      </div>
+      <div class="goal-bar"><div class="goal-fill" :style="{ width: goalPct + '%' }"></div></div>
+      <div class="goal-sub">{{ goalPct >= 100 ? '🎉 今日目标已达成！' : '还差 ' + Math.max(0, dailyGoal - summary.today) + ' 题，去刷几道吧' }}</div>
     </div>
 
     <!-- 快捷入口 -->
@@ -108,6 +122,14 @@ async function load() {
 .stat-number { display: flex; align-items: baseline; gap: 6px; }
 .stat-number .num { font-size: 40px; font-weight: 700; color: var(--brand); line-height: 1; text-shadow: var(--glow); }
 .stat-number .unit { font-size: 14px; color: var(--muted); }
+
+.goal-card { display: flex; flex-direction: column; gap: 8px; }
+.goal-top { display: flex; align-items: center; justify-content: space-between; }
+.goal-label { font-size: 14px; font-weight: 600; color: var(--text); }
+.goal-num { font-size: 13px; color: var(--brand); font-weight: 600; }
+.goal-bar { height: 8px; background: rgba(255,255,255,.06); border-radius: 6px; overflow: hidden; }
+.goal-fill { height: 100%; background: linear-gradient(90deg, var(--brand), var(--brand2, #7b46c4)); border-radius: 6px; transition: width .4s; box-shadow: var(--glow-soft); }
+.goal-sub { font-size: 12px; color: var(--muted); }
 
 .shortcuts .shortcut-grid {
   display: grid;

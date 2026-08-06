@@ -2,7 +2,7 @@
 
 一个**本地安装、离线可用**的刷题题库桌面软件。数据全存在你电脑上的一个 SQLite 文件里，不需要服务器、不需要联网、不需要备案。支持分类刷题、选择题自动判分、问答题自评、错题本、收藏、学习统计，以及 CSV / Excel / JSON 导入导出。
 
-> 当前版本：**v0.3.0（Phase 1 本地 + Phase 2 轻量云同步 + 模拟卷/图片）**。已实现本地刷题全闭环、GitHub Gist 零后端多端同步、模拟卷组卷与题目图片；Phase 3 用 Capacitor 出 Android APK。
+> 当前版本：**v0.4.0（Phase 1 本地 + Phase 2 轻量云同步 + 模拟卷/图片 + 增强体验）**。已实现本地刷题全闭环、GitHub Gist 零后端多端同步、模拟卷组卷、题目图片、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就、批量操作、浅色主题；Phase 3 用 Capacitor 出 Android APK。
 
 ---
 
@@ -51,12 +51,20 @@
 | **题目笔记** | 每题个人批注，答题页/题库页内联编辑，Profile「我的笔记」汇总 | ✅ 完成 | `notes` 表 + `getNote`/`saveNote`/`listNotes`/`getNotedQuestionIds` |
 | **背题模式** | 直接看答案不判分，可叠加任意范围（如背错题） | ✅ 完成 | 与题库范围正交的开关，与考试互斥 |
 | **智能复习** | 艾宾浩斯曲线安排错题重现（间隔 1/2/4/7/15/30/60 天，连对 3 次毕业） | ✅ 完成 | `wrong_books.next_review_at` 已实现，「复习」范围可用 |
+| **标签系统** | 题目打标签（高频/易错/必背…），题库按标签筛选、练习按标签范围 | ✅ 完成 | `question_tags` 表 + `setQuestionTags`/`listTags`/`getQuestionTags`；标签随同步传播 |
+| **弱点强化** | 按正确率/错题数加权自动抽取最薄弱的题练习 | ✅ 完成 | `getWeakQuestions`；练习设置新增「弱点强化」范围 |
+| **错题深度分析** | 薄弱章节自动识别（正确率升序）+ 相似题推荐 + 交卷逐题解析页 | ✅ 完成 | `getWeakChapters`/`getSimilarQuestions`；Quiz 交卷后可看「你的答案 vs 正确答案 + 解析」 |
+| **模拟卷/错题 导出 PDF** | 打印/导出为 PDF（答题卷 + 答案键 / 错题解析） | ✅ 完成 | `src/utils/print.js` 独立窗口调起系统打印；题干图内联 base64 |
+| **游戏化成就** | 成就墙（10 项）+ 每日目标进度 + 首页今日进度卡 | ✅ 完成 | `getAchievements`；成就阈值在前端派生；目标存 `settings.daily_goal` |
+| **题目批量操作** | 多选题目批量移动章节/打标签/改难度/删除 | ✅ 完成 | `batchUpdateQuestions`/`batchDeleteQuestions`；软删兼容同步 |
+| **浅色主题 + 字号** | 护眼浅色主题、字号 80%–140% 全局缩放 | ✅ 完成 | `data-theme="light"` 覆盖 CSS 变量 + `documentElement.zoom`；存 `settings.theme/font_scale` |
+| **图片跨设备同步** | 修复：题图随 Gist 快照一并跨设备（原仅传文件名会裂图） | ✅ 完成 | `exportSync` 内嵌图片 base64、`mergeRemote` 还原到 `userData/images` |
 | **Android APK** | Capacitor 打包移动端 | ⏳ 未开始 | Phase 3 |
 
 > 「我的笔记」入口已从占位升级为真实功能（展示/删除全部笔记）；原「默写记录」「我的反馈」两个纯占位入口已移除。
 
 ### 当前阶段一句话
-Phase 1 本地 MVP、Phase 2 轻量云同步（GitHub Gist）、模拟卷组卷与题目图片均已完成。代码可直接 `npm install && npm run dev` 跑起来；下一步可选 **Phase 3 安卓 APK**。
+Phase 1 本地 MVP、Phase 2 轻量云同步（GitHub Gist）、模拟卷组卷、题目图片、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就、批量操作、浅色主题均已完成。代码可直接 `npm install && npm run dev` 跑起来；下一步可选 **Phase 3 安卓 APK**。
 
 ---
 
@@ -160,7 +168,7 @@ npm run build
 | `favorites` | 收藏 |
 | `settings` | 键值配置（如当前科目 `current_subject`） |
 
-> 此外 `papers` / `paper_questions` 两表已建（模拟卷组卷），`questions.images_json` 已加（题目图片），均经 `migrateSchema` 的 `ALTER` 兜底老库升级。
+> 此外 `papers` / `paper_questions` 两表已建（模拟卷组卷），`questions.images_json` 已加（题目图片），`question_tags` 表已建（标签系统），均经 `migrateSchema` 的 `ALTER` 兜底老库升级。题图二进制在同步时由 `exportSync` 内嵌为 base64 一并随快照传播。
 
 ### 判分逻辑
 - 选择/判断：`electron/db.js` 的 `submitAnswer` 对答案排序后比对，多选顺序无关。
@@ -215,6 +223,8 @@ npm run build
 ```bash
 npm run test:parser      # 76 条断言：CSV 转义、GBK、题型推断、问答/关键词、脏数据
 npm run test:xlsx        # 43 条断言：xlsx-lite 读写往返、题库→Excel→重导回端到端
+node scripts/test-mock-paper.js   # 模拟卷组卷计分算法（等分=100 / 手动优先 / 无重复 / 超库存拦截）
+python scripts/test-tag-filter.py  # 标签筛选 SQL 的 AND 语义
 npm run verify           # 编译校验渲染层，不落盘（排查 SFC 语法错误）
 node --check electron/main.js && node --check electron/preload.js
 ```

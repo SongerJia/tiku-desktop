@@ -273,3 +273,38 @@ html, body, #app {
   align-items: start;
 }
 .app.is-wide .stats-grid > .card { margin-bottom: 0; }
+
+/* ===== 浅色主题（护眼模式）===== */
+/* 仅覆盖 CSS 变量；暗色仍是主舞台，浅色为长时间刷题的舒适选项。 */
+[data-theme="light"] {
+  --brand: #0891b2;
+  --brand2: #7c3aed;
+  --brand-light: rgba(8, 145, 178, 0.12);
+  --brand-dark: #0e7490;
+  --bg: #eaeef4;
+  --card: rgba(255, 255, 255, 0.9);
+  --card-solid: #ffffff;
+  --text: #15212e;
+  --muted: #5b7187;
+  --line: rgba(8, 145, 178, 0.22);
+  --ok: #0f9d6b;
+  --bad: #e11d48;
+  --warn: #d97706;
+  --glow: 0 0 14px rgba(8, 145, 178, 0.26);
+  --glow-soft: 0 0 10px rgba(8, 145, 178, 0.14);
+  --shadow: 0 8px 30px rgba(20, 40, 70, 0.12);
+}
+[data-theme="light"] .app {
+  background-image:
+    radial-gradient(circle at 16% 10%, rgba(8, 145, 178, 0.06), transparent 40%),
+    radial-gradient(circle at 84% 90%, rgba(124, 58, 237, 0.06), transparent 44%);
+}
+[data-theme="light"] .input { background: rgba(255, 255, 255, 0.7); }
+[data-theme="light"] .sync-input { background: #fff; }
+
+/* 字号调节：通过 JS 设置 documentElement.style.zoom，故此处无需额外规则 */
+
+/* ===== 打印（模拟卷/错题导出 PDF）===== */
+@media print {
+  body { background: #fff; }
+}

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
+import { printHtml } from '../utils/print.js'
 
 const props = defineProps({
   show: Boolean,
@@ -115,6 +116,41 @@ function fmtDate(ts) {
   const d = new Date(ts)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
+
+// 导出模拟卷为 PDF（打印）：上半部分为答题卷（无答案），下半部分为参考答案与解析
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+async function exportPaperPdf(p) {
+  const paper = await tiku.getPaper(p.id)
+  if (!paper || !paper.questions.length) return
+  const optText = (o) => (o && o.length ? o.map(x => `${x.key}. ${x.text}`).join('；') : '')
+  // 题干图转 base64，打印离线可见
+  const imgCache = {}
+  for (const q of paper.questions) {
+    if (q.images && q.images.length) {
+      const urls = await Promise.all(q.images.map(n => tiku.getImage(n)))
+      imgCache[q.seq] = urls.filter(Boolean)
+    }
+  }
+  let body = `<h1>${escapeHtml(paper.title)}</h1>`
+  body += `<p class="doc-sub">${escapeHtml(paper.subject_name || '全部科目')} · 共 ${paper.questions.length} 题 · 总分 ${paper.totalScore} 分 · ${paper.durationMinutes} 分钟</p>`
+  body += `<div class="section-title">试卷（答题区）</div>`
+  paper.questions.forEach((q, i) => {
+    body += `<div class="q"><span class="q-no">${i + 1}.</span><span class="q-type">[${typeLabel(q.type)} ${q.score}分]</span> <span class="q-stem">${escapeHtml(q.stem)}</span>`
+    if (imgCache[q.seq] && imgCache[q.seq].length) body += imgCache[q.seq].map(u => `<img class="q-img" src="${u}"/>`).join('')
+    if (q.options && q.options.length) body += '<ul class="opts">' + q.options.map(o => `<li>${escapeHtml(o.key)}. ${escapeHtml(o.text)}</li>`).join('') + '</ul>'
+    body += `</div>`
+  })
+  body += `<div class="section-title">参考答案与解析</div>`
+  paper.questions.forEach((q, i) => {
+    body += `<div class="q"><span class="q-no">${i + 1}.</span> <span class="ans-key">答案：${escapeHtml(q.answer.join('、'))}</span>`
+    if (q.analysis) body += `<div class="analysis">解析：${escapeHtml(q.analysis)}</div>`
+    body += `</div>`
+  })
+  printHtml(paper.title + ' · 模拟卷', body)
+}
 </script>
 
 <template>
@@ -217,6 +253,7 @@ function fmtDate(ts) {
                 </div>
                 <div class="pc-actions">
                   <button class="btn-primary sm" @click="reexam(p)">重考</button>
+                  <button class="btn-outline sm" @click="exportPaperPdf(p)">导出PDF</button>
                   <button class="btn-outline sm danger" @click="delPaper(p)">删除</button>
                 </div>
               </div>
