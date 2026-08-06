@@ -1,110 +1,23 @@
 // 渲染层（Vue）通过 preload 暴露的 window.electronAPI 与主进程通信。
-// 这里包一层，组件里直接 import { tiku } 调用即可。
-export const tiku = {
-  getCategories: () => window.electronAPI.getCategories(),
-  getSubjects: () => window.electronAPI.getSubjects(),
-  getCurrentSubject: () => window.electronAPI.getCurrentSubject(),
-  setCurrentSubject: (id) => window.electronAPI.setCurrentSubject(id),
-  getQuestions: (opts) => window.electronAPI.getQuestions(opts),
-  submitAnswer: (payload) => window.electronAPI.submitAnswer(payload),
-  getWrongBook: () => window.electronAPI.getWrongBook(),
-  getFavorites: () => window.electronAPI.getFavorites(),
-  toggleFavorite: (questionId) => window.electronAPI.toggleFavorite(questionId),
-  getNote: (questionId) => window.electronAPI.getNote(questionId),
-  saveNote: (payload) => window.electronAPI.saveNote(payload),
-  listNotes: () => window.electronAPI.listNotes(),
-  getNotedQuestionIds: () => window.electronAPI.getNotedQuestionIds(),
-  getStats: () => window.electronAPI.getStats(),
-  getSummary: () => window.electronAPI.getSummary(),
-  getChapterProgress: (subjectId) => window.electronAPI.getChapterProgress(subjectId),
-  getWeeklyTrend: () => window.electronAPI.getWeeklyTrend(),
-  getMonthlyCalendar: (year, month) => window.electronAPI.getMonthlyCalendar(year, month),
-  getRecentRecords: (limit) => window.electronAPI.getRecentRecords(limit),
-  clearUserData: () => window.electronAPI.clearUserData(),
-  exportData: () => window.electronAPI.exportData(),
-  importData: (json) => window.electronAPI.importData(json),
+// 用 Proxy 转发所有方法并统一捕获错误日志（异常会传到主进程 error.log 便于排错）。
+const raw = window.electronAPI || {}
 
-  // 云同步（GitHub Gist）
-  syncGetConfig: () => window.electronAPI.syncGetConfig(),
-  syncConnect: (token) => window.electronAPI.syncConnect(token),
-  syncDisconnect: () => window.electronAPI.syncDisconnect(),
-  syncNow: () => window.electronAPI.syncNow(),
-
-  // ---- 题库管理 ----
-  listQuestions: (opts) => window.electronAPI.listQuestions(opts),
-  addQuestion: (q) => window.electronAPI.addQuestion(q),
-  updateQuestion: (q) => window.electronAPI.updateQuestion(q),
-  deleteQuestion: (id) => window.electronAPI.deleteQuestion(id),
-  importQuestionBank: (rows, opts) => window.electronAPI.importQuestionBank(rows, opts),
-  getBankStats: () => window.electronAPI.getBankStats(),
-  exportBank: (subjectId) => window.electronAPI.exportBank(subjectId),
-  exportExcel: (subjectId) => window.electronAPI.exportExcel(subjectId),
-  exportExcelTemplate: () => window.electronAPI.exportExcelTemplate(),
-  addCategory: (payload) => window.electronAPI.addCategory(payload),
-  renameCategory: (payload) => window.electronAPI.renameCategory(payload),
-  deleteCategory: (id) => window.electronAPI.deleteCategory(id),
-  // 模拟卷组卷 / 题目图片
-  generatePaper: (payload) => window.electronAPI.generatePaper(payload),
-  listPapers: () => window.electronAPI.listPapers(),
-  getPaper: (id) => window.electronAPI.getPaper(id),
-  deletePaper: (id) => window.electronAPI.deletePaper(id),
-  saveImage: (buf, ext) => window.electronAPI.saveImage(buf, ext),
-  getImage: (name) => window.electronAPI.getImage(name),
-  // 标签 / 薄弱分析 / 相似题 / 批量操作 / 设置
-  setQuestionTags: (questionId, tags) => window.electronAPI.setQuestionTags(questionId, tags),
-  getQuestionTags: (questionId) => window.electronAPI.getQuestionTags(questionId),
-  getQuestionById: (id) => window.electronAPI.getQuestionById(id),
-  listTags: () => window.electronAPI.listTags(),
-  getWeakChapters: (subjectId, limit) => window.electronAPI.getWeakChapters(subjectId, limit),
-  getSimilarQuestions: (questionId, limit) => window.electronAPI.getSimilarQuestions(questionId, limit),
-  getWeakQuestions: (limit, subjectId, categoryId) => window.electronAPI.getWeakQuestions(limit, subjectId, categoryId),
-  batchUpdateQuestions: (ids, patch) => window.electronAPI.batchUpdateQuestions(ids, patch),
-  batchDeleteQuestions: (ids) => window.electronAPI.batchDeleteQuestions(ids),
-  getSetting: (key) => window.electronAPI.getSetting(key),
-  setSetting: (key, value) => window.electronAPI.setSetting(key, value),
-  getAchievements: () => window.electronAPI.getAchievements(),
-  parseSheet: (buf) => window.electronAPI.parseSheet(buf),
-  kbImportFiles: (paths) => window.electronAPI.kbImportFiles(paths),
-  kbList: () => window.electronAPI.kbList(),
-  kbGet: (id) => window.electronAPI.kbGet(id),
-  kbUpdate: (id, patch) => window.electronAPI.kbUpdate(id, patch),
-  kbDelete: (id) => window.electronAPI.kbDelete(id),
-  kbSetTags: (docId, tags) => window.electronAPI.kbSetTags(docId, tags),
-  kbTags: () => window.electronAPI.kbTags(),
-  kbLink: (payload) => window.electronAPI.kbLink(payload),
-  kbUnlink: (docId, questionId) => window.electronAPI.kbUnlink(docId, questionId),
-  kbLinksForQuestion: (questionId) => window.electronAPI.kbLinksForQuestion(questionId),
-  kbLinksForDoc: (docId) => window.electronAPI.kbLinksForDoc(docId),
-  kbSearch: (query, limit) => window.electronAPI.kbSearch(query, limit),
-  kbStats: () => window.electronAPI.kbStats(),
-  kbRead: (id) => window.electronAPI.kbRead(id),
-  kbOpen: (id) => window.electronAPI.kbOpen(id),
-  kbSuggestDocs: (questionId, limit) => window.electronAPI.kbSuggestDocs(questionId, limit),
-  kbSuggestQuestions: (docId, limit) => window.electronAPI.kbSuggestQuestions(docId, limit),
-  kbFolders: () => window.electronAPI.kbFolders(),
-  kbMove: (docId, folder) => window.electronAPI.kbMove(docId, folder),
-  kbBumpRead: (id) => window.electronAPI.kbBumpRead(id),
-  kbSaveMd: (id, content) => window.electronAPI.kbSaveMd(id, content),
-  kbExport: () => window.electronAPI.kbExport(),
-  xpStats: () => window.electronAPI.xpStats(),
-  checkQuests: () => window.electronAPI.checkQuests(),
-  todayCounts: () => window.electronAPI.todayCounts(),
-  getDailyReview: (limit) => window.electronAPI.getDailyReview(limit),
-  logReview: (itemType, itemId, result) => window.electronAPI.logReview(itemType, itemId, result),
-  addFocusSession: (minutes) => window.electronAPI.addFocusSession(minutes),
-  focusStats: () => window.electronAPI.focusStats(),
-  listHabits: () => window.electronAPI.listHabits(),
-  addHabit: (name, icon) => window.electronAPI.addHabit(name, icon),
-  updateHabit: (id, patch) => window.electronAPI.updateHabit(id, patch),
-  deleteHabit: (id) => window.electronAPI.deleteHabit(id),
-  checkHabit: (habitId, dateStr) => window.electronAPI.checkHabit(habitId, dateStr),
-  uncheckHabit: (habitId, dateStr) => window.electronAPI.uncheckHabit(habitId, dateStr),
-  getHighlightsForDoc: (docId) => window.electronAPI.getHighlightsForDoc(docId),
-  addHighlight: (payload) => window.electronAPI.addHighlight(payload),
-  removeHighlight: (id) => window.electronAPI.removeHighlight(id),
-  getDocLinks: (docId) => window.electronAPI.getDocLinks(docId),
-  linkDocs: (fromDocId, toDocId) => window.electronAPI.linkDocs(fromDocId, toDocId),
-  unlinkDocs: (fromDocId, toDocId) => window.electronAPI.unlinkDocs(fromDocId, toDocId),
-  setWrongReason: (questionId, reason) => window.electronAPI.setWrongReason(questionId, reason),
-  getWeeklyReport: () => window.electronAPI.getWeeklyReport()
-}
+export const tiku = new Proxy({}, {
+  get(_, key) {
+    if (key === 'then') return undefined // 配合 Promise.resolve 兼容性
+    const fn = raw[key]
+    if (typeof fn !== 'function') return undefined
+    return (...args) => {
+      try {
+        const r = fn(...args)
+        if (r && typeof r.then === 'function') {
+          return r.catch(e => { console.error('[tiku]', key, e); throw e })
+        }
+        return r
+      } catch (e) {
+        console.error('[tiku]', key, e)
+        throw e
+      }
+    }
+  }
+})

@@ -76,6 +76,7 @@ function createWindow() {
     minWidth: 760,
     minHeight: 600,
     resizable: true,
+    title: '知识记忆小助手',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -140,6 +141,14 @@ app.on('window-all-closed', () => {
     db.close()
     app.quit()
   }
+})
+
+// 主进程全局错误日志（排错用，不弹出干扰）
+process.on('uncaughtException', (e) => {
+  try { fs.appendFileSync(path.join(app.getPath('userData'), 'error.log'), `[${new Date().toISOString()}] uncaught: ${(e && e.stack) || e}\n`) } catch (err) {}
+})
+process.on('unhandledRejection', (reason) => {
+  try { fs.appendFileSync(path.join(app.getPath('userData'), 'error.log'), `[${new Date().toISOString()}] rejection: ${(reason && reason.stack) || reason}\n`) } catch (err) {}
 })
 
 // ---- 主进程 ↔ 渲染层 的 IPC 通道 ----

@@ -13,6 +13,7 @@ import MockExamSetup from './components/MockExamSetup.vue'
 import UnifiedSearch from './components/UnifiedSearch.vue'
 import AppToast from './components/AppToast.vue'
 import AppConfirm from './components/AppConfirm.vue'
+import WelcomeGuide from './components/WelcomeGuide.vue'
 import { tiku } from './api/tiku.js'
 import { useResponsive } from './composables/useResponsive.js'
 import { applyAppearance } from './utils/appearance.js'
@@ -41,6 +42,8 @@ const mock = ref({ active: false })
 const showSearch = ref(false)
 // 切回首页时的刷新计数（驱动 Home 重新加载实时数据）
 const homeRefresh = ref(0)
+// 首启欢迎引导（settings 无 seen_welcome 时显示一次）
+const showWelcome = ref(false)
 
 // PC 侧栏宽度：可拖动右边缘调整，本地持久化
 const SIDEBAR_MIN = 180
@@ -76,6 +79,10 @@ onMounted(async () => {
   } catch (e) { /* 忽略 */ }
   currentSubject.value = await tiku.getCurrentSubject()
   await applyAppearance() // 应用上次保存的主题与字号
+  try {
+    const seen = await tiku.getSetting('seen_welcome')
+    showWelcome.value = !seen
+  } catch (e) { /* 忽略 */ }
 })
 
 // 卸载时清理 resize 全局监听，避免泄漏
@@ -287,6 +294,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
     <UnifiedSearch :show="showSearch" @close="showSearch = false" />
     <AppToast />
     <AppConfirm />
+    <WelcomeGuide :show="showWelcome" @close="showWelcome = false" />
   </div>
 </template>
 

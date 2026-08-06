@@ -63,6 +63,26 @@ const api = {
     this.ensureUser()
     this.seedIfEmpty()
     this.backfillClientIds() // 老库/样例数据补齐 client_id 与 *_cid，保证可同步
+    this.autoBackup()
+  },
+
+  // 自动备份：每次启动把 tiku.db 复制到 backups/（按天去重），保留最近 5 份
+  autoBackup() {
+    try {
+      const src = dbPath()
+      if (!fs.existsSync(src)) return
+      const dir = path.join(app.getPath('userData'), 'backups')
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+      const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+      const dst = path.join(dir, `tiku-${stamp}.db`)
+      if (fs.existsSync(dst)) return // 当天已备份过
+      fs.copyFileSync(src, dst)
+      const list = fs.readdirSync(dir).filter(f => f.endsWith('.db')).sort()
+      while (list.length > 5) {
+        fs.unlinkSync(path.join(dir, list.shift()))
+      }
+    } catch (e) { /* 备份失败不影响启动 */ }
+  },
     return this
   },
 
