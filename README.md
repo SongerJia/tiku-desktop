@@ -1,8 +1,8 @@
 # 知识记忆小助手（刷题题库）— Electron 本地版
 
-一个**本地安装、离线可用**的刷题题库桌面软件。数据全存在你电脑上的一个 SQLite 文件里，不需要服务器、不需要联网、不需要备案。支持分类刷题、选择题自动判分、问答题自评、错题本、收藏、学习统计，以及 CSV / Excel / JSON 导入导出。
+一个**本地安装、离线可用**的刷题题库桌面软件。数据全存在你电脑上的一个 SQLite 文件里，不需要服务器、不需要联网、不需要备案。支持分类刷题、选择题自动判分、问答题自评、错题本、收藏、学习统计、模拟卷组卷、题目图片与笔记，以及 CSV / Excel / JSON 导入导出。内置**个人知识库**（md / pdf 知识文档，与题库题目双向联动），升级为"刷题 + 资料库"all-in-one 学习工具。
 
-> 当前版本：**v0.4.0（Phase 1 本地 + Phase 2 轻量云同步 + 模拟卷/图片 + 增强体验）**。已实现本地刷题全闭环、GitHub Gist 零后端多端同步、模拟卷组卷、题目图片、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就、批量操作、浅色主题；Phase 3 用 Capacitor 出 Android APK。
+> 当前版本：**v0.5.0（Phase 1 本地 + Phase 2 轻量云同步 + 模拟卷/图片 + 增强体验 + 个人知识库）**。已实现本地刷题全闭环、GitHub Gist 零后端多端同步、模拟卷组卷、题目图片、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就、批量操作、浅色主题，以及**个人知识库**（md/pdf 文档导入、全文搜索、阅读、与题库题目双向联动）；Phase 3 用 Capacitor 出 Android APK。
 
 ---
 
@@ -17,6 +17,8 @@
 | 本地数据库 | better-sqlite3 | ^11.3.0 | 单个 `tiku.db` SQLite 文件，存在系统用户目录 |
 | Excel 读写 | 自研 `electron/xlsx-lite.js` | — | 零依赖，Node 内置 `zlib` + 手写 zip/CRC32，不装 `xlsx` npm 包 |
 | CSV 解析 | 自研 `src/utils/bankParser.js` | — | RFC4180 + GBK 自动回落 + 题型/答案归一化 |
+| MD 渲染 | markdown-it | ^15.0.0 | 纯 JS，知识库阅读页渲染 Markdown（`html:false` 防注入） |
+| PDF 抽取/渲染 | pdfjs-dist | ^6.2.108 | 纯 JS：主进程抽文本（`extractPdf`）、渲染进程逐页 canvas 渲染（`disableWorker` 主线程模式） |
 
 ### 核心约定
 - **主进程**：`electron/main.js`（CommonJS），负责窗口、IPC、SQLite、better-sqlite3、xlsx-lite。
@@ -32,7 +34,7 @@
 |---|---|---|---|
 | **首页** | 欢迎卡片、今日已刷、错题/收藏/全部刷题快捷入口 | ✅ 完成 | |
 | **科目/章节** | 顶部科目选择器、两级分类树、章节筛选 | ✅ 完成 | 点顶部按钮弹出抽屉 |
-| **题库数据** | SQLite 建表、样例数据、分类 CRUD、题目 CRUD | ✅ 完成 | 七张表，已含 `client_id` + `updated_at`/`deleted`（云同步身份与软删） |
+| **题库数据** | SQLite 建表、样例数据、分类 CRUD、题目 CRUD | ✅ 完成 | 核心七张表，已含 `client_id` + `updated_at`/`deleted`（云同步身份与软删） |
 | **刷题答题** | 单选 / 多选 / 判断自动判分、问答题自评 | ✅ 完成 | 问答有「得分关键词」高亮辅助自评 |
 | **练习模式** | 顺序/随机、错题重练、收藏复习、全部刷题 | ✅ 完成 | |
 | **考试模式** | 倒计时、到点自动交卷 | ✅ 完成 | 问答题到点未自评算未掌握 |
@@ -61,12 +63,13 @@
 | **图片跨设备同步** | 修复：题图随 Gist 快照一并跨设备（原仅传文件名会裂图） | ✅ 完成 | `exportSync` 内嵌图片 base64、`mergeRemote` 还原到 `userData/images` |
 | **个人知识库** | 知识文档（md/pdf）入库、MD 按标题切块 / PDF 逐页抽文本、全文检索、知识库 Tab（列表/搜索/标签/阅读：markdown-it + pdfjs 渲染）、**题目↔文档双向联动**（解析页「相关文档」+ 文档页「相关题目」+ L2 自动推荐） | ✅ 完成 | `kb_docs`/`kb_blocks`/`kb_tags`/`kb_links` 四表 + `electron/kbExtract.js` + LIKE 检索 + `getSuggestedDocsForQuestion`/`getSuggestedQuestionsForDoc`（共享标签 + 题干/块关键词，零 ML） |
 | **统一搜索** | 顶部搜索按钮一处搜题目 + 知识文档（双组结果，题目速览 / 文档阅读直达） | ✅ 完成 | `UnifiedSearch.vue` + `SimpleQuestion.vue`；并行 `listQuestions(keyword)` + `kbSearch` |
+| **知识库跨设备同步** | 知识库文档随 Gist 快照同步（MD 文本进快照；PDF 二进制只同步元数据+文件名，换设备重导原件） | ⏳ 待做（阶段 E） | 与现有同步协议衔接；PDF 因 Gist 不适合大二进制文件，仅同步元数据 |
 | **Android APK** | Capacitor 打包移动端 | ⏳ 未开始 | Phase 3 |
 
 > 「我的笔记」入口已从占位升级为真实功能（展示/删除全部笔记）；原「默写记录」「我的反馈」两个纯占位入口已移除。
 
 ### 当前阶段一句话
-Phase 1 本地 MVP、Phase 2 轻量云同步（GitHub Gist）、模拟卷组卷、题目图片、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就、批量操作、浅色主题均已完成。代码可直接 `npm install && npm run dev` 跑起来；下一步可选 **Phase 3 安卓 APK**。
+Phase 1 本地 MVP、Phase 2 轻量云同步（GitHub Gist）、模拟卷组卷、题目图片、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就、批量操作、浅色主题，以及**个人知识库全链路**（导入 → 全文搜索 → 阅读 → 题目↔文档双向联动）均已完成。代码可直接 `npm install && npm run dev` 跑起来；下一步可选：**知识库跨设备同步（阶段 E）** 或 **Phase 3 安卓 APK**。
 
 ---
 
@@ -76,19 +79,22 @@ Phase 1 本地 MVP、Phase 2 轻量云同步（GitHub Gist）、模拟卷组卷�
 ```
 tiku-desktop/
 ├─ electron/
-│  ├─ main.js          # 主进程入口：窗口、IPC、菜单隐藏
+│  ├─ main.js          # 主进程入口：窗口、IPC、菜单隐藏、知识库导入编排
 │  ├─ preload.js       # 渲染层白名单 API（contextIsolation 安全）
-│  ├─ db.js            # SQLite 数据层：建表/判分/统计/导入导出/迁移
+│  ├─ db.js            # SQLite 数据层：建表/判分/统计/导入导出/迁移/kb_* 四表与联动
+│  ├─ kbExtract.js     # 知识库抽取：MD 按标题切块、PDF pdfjs 逐页抽文本、文件名去重
 │  ├─ xlsx-lite.js     # 零依赖 Excel 读写器
 │  └─ sampleData.js    # 首启样例数据（二级建造师）
 ├─ src/
-│  ├─ App.vue          # 4 Tab 导航 + 顶部科目选择器 + 答题覆盖层
+│  ├─ App.vue          # 5 Tab 导航 + 顶部科目选择器/统一搜索按钮 + 答题覆盖层
 │  ├─ main.js          # Vue 入口
-│  ├─ style.css        # 全局 CSS 变量 + 基础样式（科幻风暗色主题）
-│  ├─ api/tiku.js      # 渲染层 IPC 调用封装
+│  ├─ style.css        # 全局 CSS 变量 + 基础样式（科幻风暗色主题 + 浅色主题）
+│  ├─ api/tiku.js      # 渲染层 IPC 调用封装（含全部 kb_* 方法）
 │  ├─ utils/bankParser.js   # CSV/Excel/JSON 题库解析与校验
-│  └─ components/      # 页面与业务组件
-├─ scripts/            # 独立测试脚本（不依赖 Electron）
+│  ├─ utils/print.js        # 独立窗口打印/导出 PDF
+│  ├─ utils/appearance.js   # 主题/字号应用
+│  └─ components/      # 页面与业务组件（KbLibrary/KbReader/UnifiedSearch/SimpleQuestion 为知识库新增）
+├─ scripts/            # 独立测试脚本（test-kb.py / test-kb-extract.mjs / test-parser.mjs / test-xlsx.mjs / test-mock-paper.js / test-tag-filter.py）
 ├─ vite.config.js
 ├─ vite.verify.config.js   # 纯编译校验（不落盘产物）
 └─ package.json
@@ -121,6 +127,7 @@ tiku-desktop/
 ### 3.6 测试规范
 - 解析层测试：`npm run test:parser`（覆盖 CSV 转义、GBK、题型推断、答案归一化、问答/关键词、脏数据）。
 - Excel 测试：`npm run test:xlsx`（覆盖 xlsx-lite 读写往返、题库→Excel→重导回端到端）。
+- 知识库测试：`npm run test:kb`（`test-kb.py` 用 Python sqlite3 镜像 db.js 的 kb 四表/CRUD/搜索/L2 推荐 SQL，`test-kb-extract.mjs` 真实跑 pdfjs 抽 `fixture.pdf` 文本）。
 - 编译校验：`npm run verify`（排查 SFC 语法错误，不落盘产物）。
 - 主进程语法：`node --check electron/main.js && node --check electron/preload.js`。
 
@@ -153,7 +160,7 @@ npm run build
 - **学习统计**：环形掌握进度 + 数字卡 + 学习趋势（周柱状）+ 学习习惯 + 当月学习日历。
 - **我的**：本地账号、数据管理（整库 JSON 导出/导入）、题库管理、章节进度、偏好设置（主题/字号/每日目标）、成就墙、云同步。
 
-顶部为**科目选择器**（点击弹出底部抽屉）。答题页（`Quiz.vue`）覆盖在 Tab 之上。
+顶部为**科目选择器**（点击弹出底部抽屉）与**统一搜索按钮**（🔍，一处搜题目 + 知识文档）。答题页（`Quiz.vue`）覆盖在 Tab 之上。
 
 ---
 
@@ -182,6 +189,19 @@ npm run build
 | `kb_links` | **题目 ↔ 文档 双向关联**（`UNIQUE(doc_id, question_id)`），联动层核心 |
 
 > 文件原件复制进 `userData/kb/`（不改动用户原文件）；检索用 `LIKE` 中英文子串匹配（SQLite FTS5 的 unicode61 分词器不做中文分词，LIKE 对个人库量级足够且对中文正确）。扫描版 PDF（无文本层）抽取返回空块 + 错误标记，靠文件名/标签兜底。
+
+### 知识库能力与使用
+入口：底部 **知识库** Tab（原「知识库」Tab 已改名「题库」，语义归位为章节浏览）。
+
+| 能力 | 说明 |
+|---|---|
+| **导入** | 「导入文档」多选或下次拖拽；仅收 `md` / `pdf`。原件**复制**进 `userData/kb/`（绝不改动原文件），同 hash 自动去重跳过，同名文件自动加后缀。**零格式门槛**：任意排版直接可用，MD 的 `#` 标题、PDF 的文本层只是「切块更精细」的加分项 |
+| **搜索** | 列表页搜索框 300ms 防抖全文检索（标题 + 文本块，`LIKE` 中英文子串，`%`/`_` 已转义）；标签筛选 chips |
+| **阅读** | MD 用 markdown-it 渲染（`html:false` 防注入）；PDF 用 pdfjs-dist 逐页 canvas 渲染（`disableWorker` 主线程，绕开 workerSrc 打包坑）。**扫描版 PDF 无法内嵌预览** → 提示 + 「系统阅读器打开」兜底（`shell.openPath`） |
+| **联动（L1 手动）** | 文档阅读页「相关题目」面板可**搜题手动关联/解除**；Quiz 交卷解析页每题「相关文档」面板显示已关联列表（可解除）。关联存 `kb_links`，双向可见 |
+| **联动（L2 推荐）** | 零 ML：共享标签（`question_tags ∩ kb_tags`）+ 题干/块关键词 `LIKE` 命中，按「标签匹配 → 关键词命中」排序，**自动排除已关联**。`getSuggestedDocsForQuestion` / `getSuggestedQuestionsForDoc` |
+| **边界** | ① 无标点长中文串被零 ML 分词器贪婪并成一个词，关键词推荐可能 miss——靠标签路径兜底；② 扫描版 PDF 全文搜不到，靠文件名/标签兜底 |
+| **跨设备同步** | ⏳ **阶段 E 待做**：MD 文本可随 Gist 快照同步；PDF 二进制不适合 Gist，仅同步元数据 + 文件名（换设备重导原件）。当前知识库为纯本地功能 |
 
 ### 判分逻辑
 - 选择/判断：`electron/db.js` 的 `submitAnswer` 对答案排序后比对，多选顺序无关。
@@ -253,6 +273,11 @@ node --check electron/main.js && node --check electron/preload.js
 2. `exportSync()` 导出全量快照（含软删行），`mergeRemote()` 按 `client_id` upsert + `updated_at` last-write-wins + 外键按 cid 解析。
 3. `electron/sync-github.js` 调 GitHub API 把快照存进私有 Gist；主进程用 `safeStorage` 加密存 token；Profile 页「云同步（GitHub）」卡片连接/同步/断开。
 
+### 知识库跨设备同步（阶段 E，待做）
+个人知识库目前是纯本地功能。接入现有 Gist 同步的取舍：
+1. **MD 文档**：纯文本，把 `kb_docs`/`kb_blocks`/`kb_tags`/`kb_links` 四表 + 文档内容并入 `exportSync` 快照，随现有同步链路跨设备（与题图 base64 同机制）。
+2. **PDF 原件**：二进制大文件不适合塞 Gist 快照 → 只同步元数据 + 文件名，换设备时提示「重新导入原件」；远期可扩展 WebDAV / 网盘文件夹同步。
+
 ### Phase 3：Android APK（复用同一套 Vue 界面）
 Electron 只能出桌面端，出 APK 用 **Capacitor**：
 1. `npm run build` 产出纯 Web 产物到 `dist/`。
@@ -278,3 +303,8 @@ npx electron-rebuild
 ### 首启没数据 / 想换自己的题
 首次启动会自动建库并灌入「二级建造师」样题，库文件在系统用户目录（如 `~/tiku.db`）。
 换成自己的题走「我的 → 题库管理 → 批量导入」。
+
+### 知识库常见问题
+- **导入 PDF 后搜索不到**：该 PDF 是扫描版（无文本层）。靠文件名 + 手动打标签检索，或「系统阅读器打开」原件；有文字层的 PDF（复制出文字的那种）才能全文检索。
+- **换设备后知识库文档没了**：知识库跨设备同步（阶段 E）尚未实现；当前文档只在本机 `userData/kb/`，同步的是题库学习数据。
+- **搜索中文词没结果**：确认关键词在文档正文/标题里确实存在；`LIKE` 是子串匹配，个别长句分词边界（见「知识库能力与使用」）可能导致推荐 miss，可给文档打标签后按标签筛选。
