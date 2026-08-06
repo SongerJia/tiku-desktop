@@ -19,6 +19,10 @@
   --radius-sm: 10px;
   --shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
   --safe-bottom: 20px;
+  /* 侧栏 / 顶栏 / 选中态（暗色默认；浅色主题覆盖下方） */
+  --sidebar-bg: rgba(10, 18, 34, 0.78);
+  --topbar-bg: rgba(10, 18, 34, 0.55);
+  --side-active-bg: rgba(42, 245, 255, 0.14);
 }
 
 * { box-sizing: border-box; }
@@ -62,13 +66,15 @@ html, body, #app {
   width: 236px;
   flex-shrink: 0;
   height: 100%;
-  background: rgba(10, 18, 34, 0.78);
+  position: relative;
+  background: var(--sidebar-bg);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   padding: 20px 14px;
+  transition: width .15s ease;
 }
 .side-brand { display: flex; align-items: center; gap: 8px; padding: 4px 8px 18px; }
 .side-logo { font-size: 22px; filter: drop-shadow(var(--glow-soft)); }
@@ -91,7 +97,7 @@ html, body, #app {
 }
 .side-item:hover { background: var(--brand-light); color: var(--brand); border-color: var(--line); }
 .side-item.active {
-  background: rgba(42, 245, 255, 0.14);
+  background: var(--side-active-bg);
   color: var(--brand);
   border-color: var(--brand);
   box-shadow: var(--glow-soft);
@@ -99,6 +105,20 @@ html, body, #app {
 .side-item.active .side-icon { fill: var(--brand); }
 .side-icon { width: 22px; height: 22px; fill: currentColor; flex-shrink: 0; }
 .side-foot { font-size: 11px; color: var(--muted); text-align: center; padding: 10px 0 2px; letter-spacing: .5px; }
+
+/* 侧栏拖动把手：右边缘 6px 区域可拖拽改宽度 */
+.sidebar-resize {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+.sidebar-resize:hover,
+.app.is-resizing .sidebar-resize { background: var(--brand); opacity: .5; }
+.is-resizing { cursor: col-resize !important; user-select: none; }
 
 /* 主列：顶部栏 + 内容 + (窄屏)底部 Tab */
 .main-col { flex: 1; display: flex; flex-direction: column; min-width: 0; height: 100%; }
@@ -110,7 +130,7 @@ html, body, #app {
   display: flex;
   align-items: center;
   padding: 0 16px;
-  background: rgba(10, 18, 34, 0.55);
+  background: var(--topbar-bg);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
@@ -293,6 +313,10 @@ html, body, #app {
   --glow: 0 0 14px rgba(8, 145, 178, 0.26);
   --glow-soft: 0 0 10px rgba(8, 145, 178, 0.14);
   --shadow: 0 8px 30px rgba(20, 40, 70, 0.12);
+  /* 浅色主题：侧栏/顶栏用白底玻璃，active 用品牌蓝低饱和 */
+  --sidebar-bg: rgba(255, 255, 255, 0.92);
+  --topbar-bg: rgba(255, 255, 255, 0.78);
+  --side-active-bg: rgba(8, 145, 178, 0.14);
 }
 [data-theme="light"] .app {
   background-image:

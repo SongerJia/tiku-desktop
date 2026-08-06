@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import Home from './components/Home.vue'
 import Knowledge from './components/Knowledge.vue'
 import KbLibrary from './components/KbLibrary.vue'
@@ -38,10 +38,44 @@ const mock = ref({ active: false })
 // 统一搜索（题目 + 知识文档）
 const showSearch = ref(false)
 
+// PC 侧栏宽度：可拖动右边缘调整，本地持久化
+const SIDEBAR_MIN = 180
+const SIDEBAR_MAX = 360
+const SIDEBAR_DEFAULT = 236
+const SIDEBAR_KEY = 'sidebar-width'
+const sidebarWidth = ref(SIDEBAR_DEFAULT)
+let resizeStartX = 0
+let resizeStartW = SIDEBAR_DEFAULT
+function startResize(e) {
+  resizeStartX = e.clientX
+  resizeStartW = sidebarWidth.value
+  document.body.classList.add('is-resizing')
+  window.addEventListener('mousemove', onResize)
+  window.addEventListener('mouseup', stopResize)
+  e.preventDefault()
+}
+function onResize(e) {
+  const delta = e.clientX - resizeStartX
+  sidebarWidth.value = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, resizeStartW + delta))
+}
+function stopResize() {
+  document.body.classList.remove('is-resizing')
+  window.removeEventListener('mousemove', onResize)
+  window.removeEventListener('mouseup', stopResize)
+  try { localStorage.setItem(SIDEBAR_KEY, String(sidebarWidth.value)) } catch (e) { /* 隐私模式可能抛错，忽略 */ }
+}
+
 onMounted(async () => {
+  try {
+    const saved = Number(localStorage.getItem(SIDEBAR_KEY))
+    if (saved >= SIDEBAR_MIN && saved <= SIDEBAR_MAX) sidebarWidth.value = saved
+  } catch (e) { /* 忽略 */ }
   currentSubject.value = await tiku.getCurrentSubject()
   await applyAppearance() // 应用上次保存的主题与字号
 })
+
+// 卸载时清理 resize 全局监听，避免泄漏
+onBeforeUnmount(stopResize)
 
 // 导入或增删题目后，科目树可能变了（自动建了新科目），重取一次当前科目
 async function onBankChanged() {
@@ -127,7 +161,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
   <!-- 容器：宽屏走 PC 布局，窄屏走手机布局 -->
   <div class="app" :class="isWide ? 'is-wide' : 'is-mobile'">
     <!-- PC 侧边导航 -->
-    <aside v-if="isWide" class="sidebar">
+    <aside v-if="isWide" class="sidebar" :style="{ width: sidebarWidth + 'px' }">
       <div class="side-brand">
         <span class="side-logo">📚</span>
         <span class="side-name">知识记忆小助手</span>
@@ -145,6 +179,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
         </button>
       </nav>
       <div class="side-foot">本地数据 · 离线可用</div>
+      <div class="sidebar-resize" title="拖动调整侧栏宽度" @mousedown="startResize"></div>
     </aside>
 
     <!-- 主列：顶部栏 + 内容 +（窄屏）底部 Tab -->
