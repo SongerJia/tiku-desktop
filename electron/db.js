@@ -5,6 +5,7 @@ const fs = require('fs')
 const { app } = require('electron')
 const sample = require('./sampleData')
 const { lwwMerge, applyFk } = require('./sync-merge')
+const { extractMd } = require('./kbExtract')
 
 // 本地用户固定为 id=1（纯本地单用户；云同步只同步"学习数据"，不区分账号行）。
 const LOCAL_USER = 1
@@ -195,6 +196,8 @@ const api = {
         rel_path TEXT NOT NULL UNIQUE,
         size INTEGER DEFAULT 0,
         hash TEXT,
+        folder TEXT DEFAULT '',
+        read_count INTEGER DEFAULT 0,
         created_at INTEGER,
         updated_at INTEGER,
         deleted INTEGER DEFAULT 0,
@@ -259,6 +262,9 @@ const api = {
     addColumn('favorites', 'question_cid', 'question_cid TEXT')
     addColumn('notes', 'client_id', 'client_id TEXT')
     addColumn('notes', 'question_cid', 'question_cid TEXT')
+    // 知识库：文件夹分类 + 阅读次数统计
+    addColumn('kb_docs', 'folder', 'folder TEXT DEFAULT \'\'')
+    addColumn('kb_docs', 'read_count', 'read_count INTEGER DEFAULT 0')
   },
 
   // 给历史数据/样例数据补齐 client_id 与 *_cid（按 client_id 做跨设备身份，否则无法匹配）。
@@ -1170,10 +1176,16 @@ const api = {
       favorites: ['id', 'user_id', 'question_id', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'],
       notes: ['id', 'user_id', 'question_id', 'content', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'],
       papers: ['id', 'user_id', 'title', 'subject_id', 'duration_minutes', 'total_score', 'rules_json', 'created_at', 'client_id', 'updated_at', 'deleted'],
-      paperQuestions: ['id', 'paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted']
+      paperQuestions: ['id', 'paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted'],
+      kbDocs: ['id', 'title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'created_at', 'updated_at', 'deleted', 'client_id'],
+      kbBlocks: ['id', 'doc_id', 'seq', 'heading', 'content', 'char_start', 'char_end'],
+      kbTags: ['doc_id', 'tag'],
+      kbLinks: ['id', 'doc_id', 'block_id', 'question_id', 'note', 'created_at']
     }
+    // 知识库原件文件：全部 base64 内嵌（md/pdf 都随备份走，保证换机完整迁移）
+    const kbFiles = this.listKbFiles()
     return JSON.stringify({
-      version: 1,
+      version: 2,
       exportedAt: Date.now(),
       categories: dump('categories', COLS.categories),
       questions: dump('questions', COLS.questions),
@@ -1182,8 +1194,44 @@ const api = {
       favorites: dump('favorites', COLS.favorites),
       notes: dump('notes', COLS.notes),
       papers: dump('papers', COLS.papers),
-      paperQuestions: dump('paper_questions', COLS.paperQuestions)
+      paperQuestions: dump('paper_questions', COLS.paperQuestions),
+      kbDocs: dump('kb_docs', COLS.kbDocs),
+      kbBlocks: dump('kb_blocks', COLS.kbBlocks),
+      kbTags: dump('kb_tags', COLS.kbTags),
+      kbLinks: dump('kb_links', COLS.kbLinks),
+      kbFiles
     }, null, 2)
+  },
+
+  // 列出 userData/kb/ 下全部文件（base64），供备份导出
+  listKbFiles() {
+    const dir = this.kbDir()
+    if (!fs.existsSync(dir)) return []
+    const out = []
+    for (const name of fs.readdirSync(dir)) {
+      const full = path.join(dir, name)
+      if (!fs.statSync(full).isFile()) continue
+      try { out.push({ relPath: name, base64: fs.readFileSync(full).toString('base64') }) } catch (e) { /* 跳过 */ }
+    }
+    return out
+  },
+
+  // 写回知识库文件（供备份导入 / 同步还原）
+  restoreKbFiles(files) {
+    const dir = this.kbDir()
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    let n = 0
+    for (const f of files || []) {
+      if (!f || !f.relPath) continue
+      try {
+        const full = path.join(dir, path.basename(String(f.relPath)))
+        if (!fs.existsSync(full) && f.base64) {
+          fs.writeFileSync(full, Buffer.from(f.base64, 'base64'))
+          n++
+        }
+      } catch (e) { /* 单个失败不影响整体 */ }
+    }
+    return n
   },
 
   // 导出供云同步用的全量快照（含软删行，否则删除操作无法跨设备传播）。
@@ -1219,8 +1267,39 @@ const api = {
     })
     const images = Array.from(imageSet.entries()).map(([name, b64]) => ({ name, b64 }))
 
+    // 知识库：kb_docs 全行（含 client_id）+ 子表按 doc client_id 分组（子表无 client_id，
+    // 跨设备 id 会错位，必须挂在 doc 的 client_id 下）+ MD 文件 base64（PDF 只带 rel_path）
+    const kbDocs = dump('kb_docs')
+    const kbBlocksByCid = {}
+    const kbTagsByCid = {}
+    const kbLinksByCid = {}
+    sqlite.prepare(
+      'SELECT b.*, d.client_id AS doc_cid FROM kb_blocks b JOIN kb_docs d ON d.id=b.doc_id'
+    ).all().forEach(r => {
+      const cid = r.doc_cid
+      delete r.doc_cid
+      delete r.id
+      ;(kbBlocksByCid[cid] = kbBlocksByCid[cid] || []).push(r)
+    })
+    sqlite.prepare(
+      'SELECT t.tag, d.client_id AS doc_cid FROM kb_tags t JOIN kb_docs d ON d.id=t.doc_id'
+    ).all().forEach(r => {
+      const cid = r.doc_cid
+      delete r.doc_cid
+      ;(kbTagsByCid[cid] = kbTagsByCid[cid] || []).push(r)
+    })
+    sqlite.prepare(
+      'SELECT l.block_id, l.note, l.created_at, d.client_id AS doc_cid, q.client_id AS question_cid ' +
+      'FROM kb_links l JOIN kb_docs d ON d.id=l.doc_id JOIN questions q ON q.id=l.question_id'
+    ).all().forEach(r => {
+      const cid = r.doc_cid
+      delete r.doc_cid
+      ;(kbLinksByCid[cid] = kbLinksByCid[cid] || []).push(r)
+    })
+    const kbFiles = this.listKbFiles().filter(f => /\.md$/i.test(f.relPath)) // MD 文本内嵌；PDF 二进制不进快照
+
     return JSON.stringify({
-      version: 2,
+      version: 3,
       kind: 'sync',
       exportedAt: Date.now(),
       categories: dump('categories'),
@@ -1232,7 +1311,12 @@ const api = {
       papers: dump('papers'),
       paperQuestions: dump('paper_questions'),
       questionTags,
-      images
+      images,
+      kbDocs,
+      kbBlocksByCid,
+      kbTagsByCid,
+      kbLinksByCid,
+      kbFiles
     }, null, 2)
   },
 
@@ -1241,6 +1325,7 @@ const api = {
   // 返回合并后的行数摘要。
   mergeRemote(jsonStr) {
     const remote = JSON.parse(jsonStr)
+    const kbFilesToRestore = [] // 远端胜出的 MD 文件，tx 后统一写回
     // 各表写入列（client_id 是身份键，不参与 UPDATE 覆盖）
     const cfg = [
       { table: 'categories', cols: ['name', 'parent_id', 'level', 'stage', 'sort', 'client_id', 'parent_cid', 'updated_at', 'deleted'] },
@@ -1250,7 +1335,8 @@ const api = {
       { table: 'favorites', cols: ['user_id', 'question_id', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
       { table: 'notes', cols: ['user_id', 'question_id', 'content', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
       { table: 'papers', cols: ['title', 'subject_id', 'duration_minutes', 'total_score', 'rules_json', 'created_at', 'client_id', 'updated_at', 'deleted'] },
-      { table: 'paper_questions', cols: ['paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted'] }
+      { table: 'paper_questions', cols: ['paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted'] },
+      { table: 'kb_docs', cols: ['title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'created_at', 'updated_at', 'deleted', 'client_id'] }
     ]
 
     const makeUpsert = (table, cols) => {
@@ -1322,7 +1408,60 @@ const api = {
         if (qid) qtIns.run(qid, r.tag)
       })
 
-      return { categories: catMerged.length, questions: qMerged.length, answerRecords: arN, wrongBooks: wbN, favorites: fvN, notes: ntN, papers: paperMerged.length, paperQuestions: pqMerged.length }
+      // 5) 知识库：kb_docs 走 LWW（身份=client_id）；子表（blocks/tags/links）无 client_id，
+      // 跨设备 id 错位，跟随「远端胜出的文档」整体重建；MD 文件随快照还原（PDF 仅 rel_path）。
+      const kbUpsert = makeUpsert('kb_docs', cfg[8].cols)
+      const kbLocalAll = readAll('kb_docs')
+      const kbRemoteAll = remote.kbDocs || []
+      const kbMerged = lwwMerge(kbLocalAll, kbRemoteAll)
+      const kbLocalMap = new Map(kbLocalAll.map(r => [r.client_id, r]))
+      const kbRemoteMap = new Map(kbRemoteAll.map(r => [r.client_id, r]))
+      const relPathUsed = new Map(kbLocalAll.map(r => [r.rel_path, r.client_id]))
+      let kbDocsN = 0
+      let kbBlocksN = 0
+      let kbTagsN = 0
+      let kbLinksN = 0
+      for (const r of kbMerged) {
+        if (!r.client_id) r.client_id = uuid()
+        const localRow = kbLocalMap.get(r.client_id)
+        const remoteRow = kbRemoteMap.get(r.client_id)
+        const remoteWin = !!remoteRow && (!localRow || Number(remoteRow.updated_at || 0) >= Number(localRow.updated_at || 0))
+        // rel_path 冲突（对端文件与本地其他 doc 重名）：INSERT 场景换后缀，保证 UNIQUE 不炸
+        if (!localRow && r.rel_path && relPathUsed.has(r.rel_path)) {
+          const ext = r.type === 'pdf' ? 'pdf' : 'md'
+          r.rel_path = r.rel_path.replace(/\.(md|pdf)$/i, '') + '-' + Date.now() + '.' + ext
+        }
+        relPathUsed.set(r.rel_path, r.client_id)
+        const docId = kbUpsert(r)
+        kbDocsN++
+        if (remoteWin) {
+          sqlite.prepare('DELETE FROM kb_blocks WHERE doc_id=?').run(docId)
+          sqlite.prepare('DELETE FROM kb_tags WHERE doc_id=?').run(docId)
+          sqlite.prepare('DELETE FROM kb_links WHERE doc_id=?').run(docId)
+          const insB = sqlite.prepare('INSERT INTO kb_blocks (doc_id, seq, heading, content, char_start, char_end) VALUES (?,?,?,?,?,?)')
+          for (const b of (remote.kbBlocksByCid && remote.kbBlocksByCid[r.client_id]) || []) {
+            insB.run(docId, b.seq || 0, b.heading ?? null, String(b.content || ''), b.char_start ?? null, b.char_end ?? null)
+            kbBlocksN++
+          }
+          const insT = sqlite.prepare('INSERT OR IGNORE INTO kb_tags (doc_id, tag) VALUES (?,?)')
+          for (const t of (remote.kbTagsByCid && remote.kbTagsByCid[r.client_id]) || []) {
+            insT.run(docId, t.tag)
+            kbTagsN++
+          }
+          const insL = sqlite.prepare('INSERT INTO kb_links (doc_id, block_id, question_id, note, created_at) VALUES (?,?,?,?,?)')
+          for (const l of (remote.kbLinksByCid && remote.kbLinksByCid[r.client_id]) || []) {
+            const qid = qCidToId.get(l.question_cid)
+            if (qid) {
+              insL.run(docId, l.block_id ?? null, qid, l.note || '', l.created_at ?? Date.now())
+              kbLinksN++
+            }
+          }
+          const rf = (remote.kbFiles || []).find(f => f && f.relPath === r.rel_path)
+          if (rf && rf.base64) kbFilesToRestore.push(rf)
+        }
+      }
+
+      return { categories: catMerged.length, questions: qMerged.length, answerRecords: arN, wrongBooks: wbN, favorites: fvN, notes: ntN, papers: paperMerged.length, paperQuestions: pqMerged.length, kbDocs: kbDocsN, kbBlocks: kbBlocksN, kbTags: kbTagsN, kbLinks: kbLinksN }
     })
     const result = tx()
     // 还原图片二进制到本地图床（换设备后 getImage 不裂图）
@@ -1336,6 +1475,8 @@ const api = {
         if (!fs.existsSync(full) && im.b64) fs.writeFileSync(full, Buffer.from(im.b64, 'base64'))
       } catch (e) {}
     })
+    // 还原知识库 MD 文件（PDF 二进制不进快照，靠 rel_path 提示重导）
+    this.restoreKbFiles(kbFilesToRestore)
     return result
   },
 
@@ -1361,9 +1502,15 @@ const api = {
     replace('notes', data.notes, ['id', 'user_id', 'question_id', 'content', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])
     replace('papers', data.papers, ['id', 'user_id', 'title', 'subject_id', 'duration_minutes', 'total_score', 'rules_json', 'created_at', 'client_id', 'updated_at', 'deleted'])
     replace('paper_questions', data.paperQuestions, ['id', 'paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted'])
+    // 知识库（老备份无 kb 字段时 replace 自动跳过；文件按需写回）
+    replace('kb_docs', data.kbDocs, ['id', 'title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'created_at', 'updated_at', 'deleted', 'client_id'])
+    replace('kb_blocks', data.kbBlocks, ['id', 'doc_id', 'seq', 'heading', 'content', 'char_start', 'char_end'])
+    replace('kb_tags', data.kbTags, ['doc_id', 'tag'])
+    replace('kb_links', data.kbLinks, ['id', 'doc_id', 'block_id', 'question_id', 'note', 'created_at'])
+    this.restoreKbFiles(data.kbFiles)
     // 补齐可能缺失的 client_id（老备份无 cid 列）
     this.backfillClientIds()
-    return { ok: true, imported: (data.questions || []).length }
+    return { ok: true, imported: (data.questions || []).length, kbDocs: (data.kbDocs || []).length }
   },
 
   // ================= 个人知识库（kb_*） =================
@@ -1380,7 +1527,56 @@ const api = {
     const blocks = sqlite.prepare('SELECT COUNT(*) AS n FROM kb_blocks').get().n
     const links = sqlite.prepare('SELECT COUNT(*) AS n FROM kb_links').get().n
     const tags = sqlite.prepare('SELECT COUNT(DISTINCT tag) AS n FROM kb_tags').get().n
-    return { docs, blocks, links, tags }
+    const readCount = sqlite.prepare('SELECT COALESCE(SUM(read_count),0) AS n FROM kb_docs WHERE deleted=0').get().n
+    const folders = sqlite.prepare("SELECT COUNT(DISTINCT folder) AS n FROM kb_docs WHERE deleted=0 AND folder<>''").get().n
+    return { docs, blocks, links, tags, readCount, folders }
+  },
+
+  // 文件夹：全部文件夹及其文档数（含"未分类"）
+  getKbFolders() {
+    const rows = sqlite.prepare(
+      "SELECT folder, COUNT(*) AS n FROM kb_docs WHERE deleted=0 GROUP BY folder ORDER BY folder"
+    ).all()
+    return rows.map(r => ({ folder: r.folder || '未分类', n: r.n }))
+  },
+
+  // 移动文档到文件夹（folder 为空串=未分类）
+  moveKbDoc(id, folder) {
+    sqlite.prepare('UPDATE kb_docs SET folder=?, updated_at=? WHERE id=? AND deleted=0')
+      .run(String(folder || '').trim(), Date.now(), id)
+    return this.getKbDoc(id)
+  },
+
+  // 阅读埋点：打开阅读页 +1
+  bumpKbRead(id) {
+    sqlite.prepare('UPDATE kb_docs SET read_count=read_count+1 WHERE id=? AND deleted=0').run(id)
+    return { ok: true }
+  },
+
+  // MD 在线编辑保存：写回副本文件 + 重新切块 + 更新 hash/size/updated_at
+  kbSaveMd(id, content) {
+    const doc = sqlite.prepare('SELECT * FROM kb_docs WHERE id=? AND deleted=0').get(id)
+    if (!doc) return { ok: false, error: '文档不存在' }
+    if (doc.type !== 'md') return { ok: false, error: '仅 MD 文档支持在线编辑' }
+    try {
+      const text = String(content || '')
+      const full = path.join(this.kbDir(), doc.rel_path)
+      const buf = Buffer.from(text, 'utf8')
+      fs.writeFileSync(full, buf)
+      const blocks = extractMd(text)
+      const now = Date.now()
+      const hash = crypto.createHash('sha1').update(buf).digest('hex')
+      const tx = sqlite.transaction(() => {
+        sqlite.prepare('DELETE FROM kb_blocks WHERE doc_id=?').run(id)
+        const ins = sqlite.prepare('INSERT INTO kb_blocks (doc_id, seq, heading, content, char_start, char_end) VALUES (?,?,?,?,?,?)')
+        blocks.forEach((b, i) => ins.run(id, i, b.heading || null, b.content, b.charStart ?? null, b.charEnd ?? null))
+        sqlite.prepare('UPDATE kb_docs SET size=?, hash=?, updated_at=? WHERE id=?').run(buf.length, hash, now, id)
+      })
+      tx()
+      return { ok: true, blocks: blocks.length }
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) }
+    }
   },
 
   // 阅读页取文档原件内容（base64；MD 由渲染层解码为文本，PDF 交给 pdfjs）

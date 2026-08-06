@@ -125,6 +125,8 @@ function importData(event) {
 const theme = ref('dark')
 const fontScale = ref('1')
 const dailyGoal = ref(0)
+const remindEnabled = ref(false)
+const remindTime = ref('21:00')
 async function setTheme(t) {
   theme.value = t
   await tiku.setSetting('theme', t)
@@ -138,6 +140,14 @@ async function setFontScale(v) {
 async function setDailyGoal(v) {
   dailyGoal.value = Number(v) || 0
   await tiku.setSetting('daily_goal', String(dailyGoal.value))
+}
+async function setRemindEnabled(v) {
+  remindEnabled.value = !!v
+  await tiku.setSetting('remind_enabled', remindEnabled.value ? '1' : '0')
+}
+async function setRemindTime(v) {
+  remindTime.value = v || '21:00'
+  await tiku.setSetting('remind_time', remindTime.value)
 }
 
 // ---- 游戏化成就（指标来自 getAchievements，成就定义在前端派生）----
@@ -157,16 +167,24 @@ const ACH_DEFS = [
 const achievements = computed(() => ACH_DEFS.map(a => ({ ...a, got: metrics.value ? a.test(metrics.value) : false })))
 const unlockedCount = computed(() => achievements.value.filter(a => a.got).length)
 
+// ---- 知识库概览（kbStats）----
+const kbStats = ref(null)
+
 onMounted(async () => {
   try {
-    const [t, f, g, ach] = await Promise.all([
+    const [t, f, g, ach, re, rt, kb] = await Promise.all([
       tiku.getSetting('theme'), tiku.getSetting('font_scale'),
-      tiku.getSetting('daily_goal'), tiku.getAchievements()
+      tiku.getSetting('daily_goal'), tiku.getAchievements(),
+      tiku.getSetting('remind_enabled'), tiku.getSetting('remind_time'),
+      tiku.kbStats()
     ])
     theme.value = t || 'dark'
     fontScale.value = f || '1'
     dailyGoal.value = Number(g) || 0
     metrics.value = ach
+    remindEnabled.value = re === '1'
+    remindTime.value = rt || '21:00'
+    kbStats.value = kb
   } catch (e) { /* 成就读取失败不阻塞 */ }
 })
 </script>
@@ -200,6 +218,27 @@ onMounted(async () => {
         <span class="pref-label">每日目标</span>
         <input class="pref-input" type="number" min="0" :value="dailyGoal" @change="setDailyGoal($event.target.value)" placeholder="0=不限" />
         <span class="pref-unit">题/天</span>
+      </div>
+      <div class="pref-row">
+        <span class="pref-label">学习提醒</span>
+        <input class="pref-input pref-time" type="time" :value="remindTime" @change="setRemindTime($event.target.value)" />
+        <label class="pref-switch">
+          <input type="checkbox" :checked="remindEnabled" @change="setRemindEnabled($event.target.checked)" />
+          <span class="pref-switch-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- 知识库概览 -->
+    <div v-if="kbStats" class="card">
+      <div class="card-title">知识库概览</div>
+      <div class="kb-stats">
+        <div class="kb-stat"><b>{{ kbStats.docs }}</b><span>文档</span></div>
+        <div class="kb-stat"><b>{{ kbStats.blocks }}</b><span>文本块</span></div>
+        <div class="kb-stat"><b>{{ kbStats.links }}</b><span>题目联动</span></div>
+        <div class="kb-stat"><b>{{ kbStats.readCount }}</b><span>阅读次数</span></div>
+        <div class="kb-stat"><b>{{ kbStats.tags }}</b><span>标签</span></div>
+        <div class="kb-stat"><b>{{ kbStats.folders }}</b><span>文件夹</span></div>
       </div>
     </div>
 
@@ -402,7 +441,43 @@ onMounted(async () => {
 .pref-range { flex: 1; accent-color: var(--brand); }
 .pref-input { width: 80px; background: var(--input-solid-bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 6px 10px; font-size: 13px; outline: none; font-family: inherit; }
 .pref-input:focus { border-color: var(--brand); }
-/* 浅色主题下设置类小输入框背景跟随主题（变量在 style.css :root/[data-theme="light"] 统一覆盖） */
+.pref-time { width: auto; }
+.pref-switch { display: inline-flex; align-items: center; margin-left: auto; cursor: pointer; }
+.pref-switch input { display: none; }
+.pref-switch-slider {
+  width: 38px;
+  height: 20px;
+  border-radius: 12px;
+  background: var(--line);
+  position: relative;
+  transition: background .2s;
+}
+.pref-switch-slider::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: all .2s;
+}
+.pref-switch input:checked + .pref-switch-slider { background: var(--brand); }
+.pref-switch input:checked + .pref-switch-slider::after { left: 20px; background: #021018; }
+.kb-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.kb-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 6px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.kb-stat b { font-size: 18px; color: var(--brand); }
+.kb-stat span { font-size: 11px; color: var(--muted); }
 .pref-unit { color: var(--muted); font-size: 12px; }
 
 /* 成就墙 */

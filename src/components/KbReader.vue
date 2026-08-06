@@ -24,6 +24,28 @@ const mLoading = ref(false)
 const sq = ref({ show: false, q: null })
 let mTimer = null
 
+// MD 在线编辑
+const editMode = ref(false)
+const editText = ref('')
+
+async function startEdit() {
+  const r = await tiku.kbRead(props.doc.id)
+  if (!r.ok) { alert('读取失败：' + r.error); return }
+  editText.value = new TextDecoder('utf-8').decode(b64ToUint8(r.base64))
+  editMode.value = true
+}
+
+async function saveEdit() {
+  const r = await tiku.kbSaveMd(props.doc.id, editText.value)
+  if (!r.ok) { alert('保存失败：' + r.error); return }
+  editMode.value = false
+  await renderMd()
+}
+
+function cancelEdit() {
+  editMode.value = false
+}
+
 async function loadQPanel() {
   if (!props.doc) return
   const [links, sugg] = await Promise.all([
@@ -42,10 +64,12 @@ watch(() => props.show, async (v) => {
   qSugg.value = []
   mKw.value = ''
   mRes.value = []
+  editMode.value = false
   cleanupPdf()
   if (props.doc.type === 'md') await renderMd()
   else await renderPdf()
   await loadQPanel()
+  await tiku.kbBumpRead(props.doc.id) // 阅读埋点（计入学习统计）
 })
 
 async function linkQ(qid) {
@@ -157,9 +181,24 @@ onBeforeUnmount(() => {
         <span class="kb-reader-title">{{ props.doc?.title }}</span>
         <div class="kb-reader-spacer"></div>
         <span v-if="pdfState.pages" class="kb-pdf-prog">{{ pdfState.done }}/{{ pdfState.pages }}</span>
+        <template v-if="props.doc?.type === 'md' && !editMode">
+          <button class="btn kb-edit-btn" @click="startEdit">编辑</button>
+        </template>
+        <template v-if="editMode">
+          <button class="btn btn-primary" @click="saveEdit">保存</button>
+          <button class="btn" @click="cancelEdit">取消</button>
+        </template>
         <button class="btn kb-close" @click="emit('close')">关闭</button>
       </div>
       <div class="kb-reader-body">
+        <textarea
+          v-if="editMode"
+          v-model="editText"
+          class="kb-edit-area"
+          spellcheck="false"
+          placeholder="编辑 Markdown 内容，保存后自动重新切块并更新全文检索索引"
+        ></textarea>
+        <template v-else>
         <div v-if="pdfState.error" class="kb-err">
           <p>{{ pdfState.error }}</p>
           <p class="kb-hint">扫描版 PDF 没有文本层无法内嵌预览，可用系统阅读器打开原件</p>
@@ -197,6 +236,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </div>
+        </template>
       </div>
     </div>
 
@@ -240,7 +280,24 @@ onBeforeUnmount(() => {
 .kb-type.pdf { background: rgba(232, 95, 61, 0.15); color: #e85f3d; }
 .kb-type.md { background: rgba(42, 245, 255, 0.12); color: var(--brand); }
 .kb-pdf-prog { font-size: 12px; color: var(--muted); }
+.kb-edit-btn { padding: 4px 12px; }
 .kb-close { padding: 4px 14px; }
+.kb-edit-area {
+  width: 100%;
+  height: 100%;
+  min-height: 60vh;
+  background: var(--input-solid-bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.7;
+  font-family: Consolas, 'Courier New', monospace;
+  outline: none;
+  resize: none;
+}
+.kb-edit-area:focus { border-color: var(--brand); box-shadow: var(--glow-soft); }
 .kb-reader-body {
   flex: 1;
   overflow-y: auto;

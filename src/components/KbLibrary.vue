@@ -9,7 +9,7 @@ const tagFilter = ref(null) // null=全部
 const keyword = ref('')
 const loading = ref(true)
 const reader = ref({ show: false, doc: null })
-const editor = ref({ show: false, doc: null, tags: [], title: '' })
+const editor = ref({ show: false, doc: null, tags: [], title: '', folder: '' })
 
 let debounceTimer = null
 
@@ -43,6 +43,22 @@ const filteredDocs = computed(() => {
   return docs.value.filter(d => (d.tags || []).includes(tagFilter.value))
 })
 
+// 文件夹分组：未分类在前，其余按名称
+const groupedDocs = computed(() => {
+  const groups = new Map()
+  for (const d of filteredDocs.value) {
+    const k = d.folder || ''
+    if (!groups.has(k)) groups.set(k, [])
+    groups.get(k).push(d)
+  }
+  const out = []
+  if (groups.has('')) { out.push({ folder: '', label: '未分类', docs: groups.get('') }) }
+  for (const [k, list] of groups) {
+    if (k !== '') out.push({ folder: k, label: k, docs: list })
+  }
+  return out
+})
+
 async function onImport() {
   const res = (await tiku.kbImportFiles()) || []
   const ok = res.filter(r => r.ok)
@@ -59,6 +75,12 @@ async function onImport() {
   if (msgs.length) alert(msgs.join('；'))
 }
 
+async function onExport() {
+  const r = await tiku.kbExport()
+  if (r && r.ok) alert(`已导出 ${r.files} 个文件 / ${r.docs} 篇文档到：\n${r.target}\n（含 manifest.json 元数据清单）`)
+  else if (r && !r.canceled) alert('导出失败')
+}
+
 function openReader(doc) {
   reader.value = { show: true, doc }
 }
@@ -71,7 +93,7 @@ async function onDelete(doc) {
 }
 
 function openEditor(doc) {
-  editor.value = { show: true, doc, tags: [...(doc.tags || [])], title: doc.title }
+  editor.value = { show: true, doc, tags: [...(doc.tags || [])], title: doc.title, folder: doc.folder || '' }
 }
 
 function addEditorTag() {
@@ -87,6 +109,7 @@ function removeEditorTag(t) {
 async function saveEditor() {
   const title = editor.value.title.trim()
   if (title && title !== editor.value.doc.title) await tiku.kbUpdate(editor.value.doc.id, { title })
+  if ((editor.value.folder || '') !== (editor.value.doc.folder || '')) await tiku.kbMove(editor.value.doc.id, editor.value.folder)
   await tiku.kbSetTags(editor.value.doc.id, editor.value.tags)
   editor.value.show = false
   await loadTags()
@@ -110,6 +133,7 @@ function fmtTime(ts) {
           placeholder="搜索文档全文（中英文均可）"
           @input="onSearchInput"
         />
+        <button class="btn" @click="onExport">导出</button>
         <button class="btn btn-primary" @click="onImport">导入文档</button>
       </div>
       <div v-if="allTags.length" class="kb-tag-row">
@@ -135,37 +159,48 @@ function fmtTime(ts) {
       <button class="btn btn-primary" @click="onImport">立即导入</button>
     </div>
     <div v-else-if="!filteredDocs.length" class="empty card">没有匹配的文档</div>
-    <div v-else class="kb-grid">
-      <div
-        v-for="d in filteredDocs"
-        :key="d.id"
-        class="card kb-card"
-        @click="openReader(d)"
-      >
-        <div class="kb-head">
-          <span class="badge kb-type" :class="d.type">{{ d.type === 'pdf' ? 'PDF' : 'MD' }}</span>
-          <span class="kb-title">{{ d.title }}</span>
+    <div v-else class="kb-groups">
+      <div v-for="g in groupedDocs" :key="g.folder" class="kb-group">
+        <div class="kb-group-head">
+          <span class="kb-group-name">{{ g.label }}</span>
+          <span class="kb-group-n">{{ g.docs.length }} 篇</span>
         </div>
-        <div v-if="d.tags && d.tags.length" class="kb-tags">
-          <span v-for="t in d.tags" :key="t" class="q-tag">{{ t }}</span>
-        </div>
-        <div class="kb-meta">
-          <span>{{ fmtTime(d.updated_at) }}</span>
-          <span v-if="d.linkCount">· {{ d.linkCount }} 题关联</span>
-        </div>
-        <div class="kb-actions">
-          <button class="kb-act" @click.stop="openEditor(d)">标签/改名</button>
-          <button class="kb-act kb-act-del" @click.stop="onDelete(d)">删除</button>
+        <div class="kb-grid">
+          <div
+            v-for="d in g.docs"
+            :key="d.id"
+            class="card kb-card"
+            @click="openReader(d)"
+          >
+            <div class="kb-head">
+              <span class="badge kb-type" :class="d.type">{{ d.type === 'pdf' ? 'PDF' : 'MD' }}</span>
+              <span class="kb-title">{{ d.title }}</span>
+            </div>
+            <div v-if="d.tags && d.tags.length" class="kb-tags">
+              <span v-for="t in d.tags" :key="t" class="q-tag">{{ t }}</span>
+            </div>
+            <div class="kb-meta">
+              <span>{{ fmtTime(d.updated_at) }}</span>
+              <span v-if="d.read_count">· 读过 {{ d.read_count }} 次</span>
+              <span v-if="d.linkCount">· {{ d.linkCount }} 题关联</span>
+            </div>
+            <div class="kb-actions">
+              <button class="kb-act" @click.stop="openEditor(d)">标签/改名/移动</button>
+              <button class="kb-act kb-act-del" @click.stop="onDelete(d)">删除</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- 标签/改名弹层 -->
+    <!-- 标签/改名/移动弹层 -->
     <div v-if="editor.show" class="kb-mask" @click.self="editor.show = false">
       <div class="card kb-modal">
         <h3>文档信息</h3>
         <label class="kb-lab">标题</label>
         <input v-model="editor.title" class="input" />
+        <label class="kb-lab">文件夹</label>
+        <input v-model="editor.folder" class="input" placeholder="留空=未分类（输入新名字即创建文件夹）" />
         <label class="kb-lab">标签</label>
         <div class="kb-edit-tags">
           <span v-for="t in editor.tags" :key="t" class="q-tag" @click="removeEditorTag(t)">{{ t }} ✕</span>
@@ -197,6 +232,17 @@ function fmtTime(ts) {
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 12px;
 }
+.kb-groups { display: flex; flex-direction: column; gap: 20px; }
+.kb-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.kb-group-name { font-size: 13px; font-weight: 500; color: var(--brand); }
+.kb-group-n { font-size: 11px; color: var(--muted); }
 .kb-card {
   padding: 14px;
   cursor: pointer;

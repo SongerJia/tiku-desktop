@@ -80,5 +80,10 @@ export const tiku = {
   kbRead: (id) => window.electronAPI.kbRead(id),
   kbOpen: (id) => window.electronAPI.kbOpen(id),
   kbSuggestDocs: (questionId, limit) => window.electronAPI.kbSuggestDocs(questionId, limit),
-  kbSuggestQuestions: (docId, limit) => window.electronAPI.kbSuggestQuestions(docId, limit)
+  kbSuggestQuestions: (docId, limit) => window.electronAPI.kbSuggestQuestions(docId, limit),
+  kbFolders: () => window.electronAPI.kbFolders(),
+  kbMove: (docId, folder) => window.electronAPI.kbMove(docId, folder),
+  kbBumpRead: (id) => window.electronAPI.kbBumpRead(id),
+  kbSaveMd: (id, content) => window.electronAPI.kbSaveMd(id, content),
+  kbExport: () => window.electronAPI.kbExport()
 }

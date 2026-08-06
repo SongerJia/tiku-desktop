@@ -81,5 +81,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   kbRead: (id) => ipcRenderer.invoke('kbRead', id),
   kbOpen: (id) => ipcRenderer.invoke('kbOpen', id),
   kbSuggestDocs: (questionId, limit) => ipcRenderer.invoke('kbSuggestDocs', questionId, limit),
-  kbSuggestQuestions: (docId, limit) => ipcRenderer.invoke('kbSuggestQuestions', docId, limit)
+  kbSuggestQuestions: (docId, limit) => ipcRenderer.invoke('kbSuggestQuestions', docId, limit),
+  kbFolders: () => ipcRenderer.invoke('kbFolders'),
+  kbMove: (docId, folder) => ipcRenderer.invoke('kbMove', docId, folder),
+  kbBumpRead: (id) => ipcRenderer.invoke('kbBumpRead', id),
+  kbSaveMd: (id, content) => ipcRenderer.invoke('kbSaveMd', id, content),
+  kbExport: () => ipcRenderer.invoke('kbExport')
 })

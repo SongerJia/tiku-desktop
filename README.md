@@ -2,7 +2,7 @@
 
 一个**本地安装、离线可用**的刷题题库桌面软件。数据全存在你电脑上的一个 SQLite 文件里，不需要服务器、不需要联网、不需要备案。支持分类刷题、选择题自动判分、问答题自评、错题本、收藏、学习统计、模拟卷组卷、题目图片与笔记，以及 CSV / Excel / JSON 导入导出。内置**个人知识库**（md / pdf 知识文档，与题库题目双向联动），升级为"刷题 + 资料库"all-in-one 学习工具。
 
-> 当前版本：**v0.5.0（Phase 1 本地 + Phase 2 轻量云同步 + 模拟卷/图片 + 增强体验 + 个人知识库）**。已实现本地刷题全闭环、GitHub Gist 零后端多端同步、模拟卷组卷、题目图片、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就、批量操作、浅色主题，以及**个人知识库**（md/pdf 文档导入、全文搜索、阅读、与题库题目双向联动）；Phase 3 用 Capacitor 出 Android APK。
+> 当前版本：**v0.6.0（Phase 1 本地 + Phase 2 轻量云同步 + 模拟卷/图片 + 增强体验 + 个人知识库全闭环）**。已实现本地刷题全闭环、GitHub Gist 零后端多端同步、模拟卷组卷、题目图片、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就、批量操作、浅色主题，以及**个人知识库**（md/pdf 文档导入、全文搜索、阅读、MD 在线编辑、文件夹分类、知识库同步、导出、与题库题目双向联动、学习统计）；Phase 3 用 Capacitor 出 Android APK。
 
 ---
 
@@ -63,7 +63,13 @@
 | **图片跨设备同步** | 修复：题图随 Gist 快照一并跨设备（原仅传文件名会裂图） | ✅ 完成 | `exportSync` 内嵌图片 base64、`mergeRemote` 还原到 `userData/images` |
 | **个人知识库** | 知识文档（md/pdf）入库、MD 按标题切块 / PDF 逐页抽文本、全文检索、知识库 Tab（列表/搜索/标签/阅读：markdown-it + pdfjs 渲染）、**题目↔文档双向联动**（解析页「相关文档」+ 文档页「相关题目」+ L2 自动推荐） | ✅ 完成 | `kb_docs`/`kb_blocks`/`kb_tags`/`kb_links` 四表 + `electron/kbExtract.js` + LIKE 检索 + `getSuggestedDocsForQuestion`/`getSuggestedQuestionsForDoc`（共享标签 + 题干/块关键词，零 ML） |
 | **统一搜索** | 顶部搜索按钮一处搜题目 + 知识文档（双组结果，题目速览 / 文档阅读直达） | ✅ 完成 | `UnifiedSearch.vue` + `SimpleQuestion.vue`；并行 `listQuestions(keyword)` + `kbSearch` |
-| **知识库跨设备同步** | 知识库文档随 Gist 快照同步（MD 文本进快照；PDF 二进制只同步元数据+文件名，换设备重导原件） | ⏳ 待做（阶段 E） | 与现有同步协议衔接；PDF 因 Gist 不适合大二进制文件，仅同步元数据 |
+| **知识库跨设备同步** | 知识库随 Gist 快照同步：MD 文本 base64 内嵌跨设备还原；PDF 仅同步元数据+文件名（换设备重导原件）；子表/文件跟随远端胜出的文档重建 | ✅ 完成（阶段 E） | `exportSync` 加 `kbDocs/kbBlocksByCid/kbTagsByCid/kbLinksByCid/kbFiles`；`mergeRemote` LWW + rel_path 冲突换名兜底 |
+| **整库备份含知识库** | JSON 备份/恢复含 kb 四表 + 全部原件文件（md/pdf base64 内嵌） | ✅ 完成 | `exportData` 加 kb 表与 `listKbFiles`；`importData` 还原 `restoreKbFiles`；老备份无 kb 字段自动跳过 |
+| **知识库文件夹** | 文档按文件夹分组展示（未分类置顶）、编辑弹层设置/移动文件夹 | ✅ 完成 | `kb_docs.folder` 列（ALTER 兜底）+ `getKbFolders`/`moveKbDoc` |
+| **知识库统计** | 「我的」新增知识库概览（文档/文本块/题目联动/阅读次数/标签/文件夹）+ 阅读埋点 | ✅ 完成 | `kb_docs.read_count` + `bumpKbRead`；`kbStats` 扩展 |
+| **MD 在线编辑** | 知识库阅读页 MD 文档直接编辑保存，自动重新切块并更新检索索引 | ✅ 完成 | `kbSaveMd` 写回副本 + `extractMd` 重建块 + 更新 hash/size |
+| **系统通知提醒** | 每日定时学习提醒（今日已刷/错题待复习），主进程 Notification + 每分钟检查，当天只提醒一次 | ✅ 完成 | settings `remind_enabled/remind_time/last_remind_date`；「我的」偏好设置开关 + 时间选择 |
+| **知识库导出** | 一键导出知识库到指定目录（全部原件副本 + manifest.json 元数据/标签/联动摘要） | ✅ 完成 | `kbExport` 选目录复制 + 写 manifest |
 | **Android APK** | Capacitor 打包移动端 | ⏳ 未开始 | Phase 3 |
 
 > 「我的笔记」入口已从占位升级为真实功能（展示/删除全部笔记）；原「默写记录」「我的反馈」两个纯占位入口已移除。
@@ -201,7 +207,7 @@ npm run build
 | **联动（L1 手动）** | 文档阅读页「相关题目」面板可**搜题手动关联/解除**；Quiz 交卷解析页每题「相关文档」面板显示已关联列表（可解除）。关联存 `kb_links`，双向可见 |
 | **联动（L2 推荐）** | 零 ML：共享标签（`question_tags ∩ kb_tags`）+ 题干/块关键词 `LIKE` 命中，按「标签匹配 → 关键词命中」排序，**自动排除已关联**。`getSuggestedDocsForQuestion` / `getSuggestedQuestionsForDoc` |
 | **边界** | ① 无标点长中文串被零 ML 分词器贪婪并成一个词，关键词推荐可能 miss——靠标签路径兜底；② 扫描版 PDF 全文搜不到，靠文件名/标签兜底 |
-| **跨设备同步** | ⏳ **阶段 E 待做**：MD 文本可随 Gist 快照同步；PDF 二进制不适合 Gist，仅同步元数据 + 文件名（换设备重导原件）。当前知识库为纯本地功能 |
+| **跨设备同步** | ✅ 随 Gist 快照同步：MD 文本 base64 内嵌跨设备还原；PDF 二进制不进快照，仅同步元数据 + 文件名（换设备重导原件）；子表（块/标签/联动）跟随「远端胜出」的文档整体重建 |
 
 ### 判分逻辑
 - 选择/判断：`electron/db.js` 的 `submitAnswer` 对答案排序后比对，多选顺序无关。
@@ -273,10 +279,10 @@ node --check electron/main.js && node --check electron/preload.js
 2. `exportSync()` 导出全量快照（含软删行），`mergeRemote()` 按 `client_id` upsert + `updated_at` last-write-wins + 外键按 cid 解析。
 3. `electron/sync-github.js` 调 GitHub API 把快照存进私有 Gist；主进程用 `safeStorage` 加密存 token；Profile 页「云同步（GitHub）」卡片连接/同步/断开。
 
-### 知识库跨设备同步（阶段 E，待做）
-个人知识库目前是纯本地功能。接入现有 Gist 同步的取舍：
-1. **MD 文档**：纯文本，把 `kb_docs`/`kb_blocks`/`kb_tags`/`kb_links` 四表 + 文档内容并入 `exportSync` 快照，随现有同步链路跨设备（与题图 base64 同机制）。
+### 知识库跨设备同步（阶段 E，已完成）
+1. **MD 文档**：纯文本，`exportSync` 把 `kb_docs` 四表 + MD 文件 base64 并入快照，随现有同步链路跨设备还原（与题图同机制）。
 2. **PDF 原件**：二进制大文件不适合塞 Gist 快照 → 只同步元数据 + 文件名，换设备时提示「重新导入原件」；远期可扩展 WebDAV / 网盘文件夹同步。
+3. **合并策略**：`kb_docs` 走 client_id + LWW；子表（`kb_blocks`/`kb_tags`/`kb_links`）无 client_id，按 doc 的 client_id 分组随快照携带，跟随「远端胜出」的文档整体重建；rel_path 冲突自动换名兜底。
 
 ### Phase 3：Android APK（复用同一套 Vue 界面）
 Electron 只能出桌面端，出 APK 用 **Capacitor**：

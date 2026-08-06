@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, safeStorage, dialog, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu, safeStorage, dialog, shell, Notification } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
@@ -96,12 +96,44 @@ function createWindow() {
 
 app.whenReady().then(() => {
   db.init() // 打开 SQLite、建表、灌样例数据（仅首次）
+  // Windows 通知需 AppUserModelID（打包后生效；开发模式走 Electron 默认）
+  try { app.setAppUserModelId('com.songerjia.tiku-desktop') } catch (e) { /* 忽略 */ }
   createWindow()
+  startReminderLoop()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
+
+// ---- 学习提醒（系统通知）：每天 remind_time 到点提醒一次 ----
+const pad2 = n => String(n).padStart(2, '0')
+const dateStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
+
+function checkReminder() {
+  try {
+    if (db.getSetting('remind_enabled') !== '1') return
+    const time = db.getSetting('remind_time') || '21:00'
+    const now = new Date()
+    const hm = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
+    if (hm !== time) return
+    if (db.getSetting('last_remind_date') === dateStr()) return
+    const s = db.getSummary() || {}
+    const goal = Number(db.getSetting('daily_goal') || 0)
+    const body = `今日已刷 ${s.today || 0} 题${goal ? `，目标 ${goal} 题` : ''}；错题本待复习 ${s.wrongCount || 0} 题。`
+    if (Notification.isSupported()) {
+      new Notification({ title: '学习提醒 📚', body }).show()
+      db.setSetting('last_remind_date', dateStr())
+    }
+  } catch (e) { /* 提醒失败静默，不影响主流程 */ }
+}
+
+function startReminderLoop() {
+  try {
+    checkReminder() // 启动即查一次（刚好到点也能触发）
+    setInterval(checkReminder, 60 * 1000)
+  } catch (e) { /* 忽略 */ }
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -242,6 +274,40 @@ ipcMain.handle('kbStats', () => db.kbStats())
 ipcMain.handle('kbRead', (e, id) => db.readKbFile(id))
 ipcMain.handle('kbSuggestDocs', (e, questionId, limit) => db.getSuggestedDocsForQuestion(questionId, limit))
 ipcMain.handle('kbSuggestQuestions', (e, docId, limit) => db.getSuggestedQuestionsForDoc(docId, limit))
+ipcMain.handle('kbFolders', () => db.getKbFolders())
+ipcMain.handle('kbMove', (e, docId, folder) => db.moveKbDoc(docId, folder))
+ipcMain.handle('kbBumpRead', (e, id) => db.bumpKbRead(id))
+ipcMain.handle('kbSaveMd', (e, id, content) => db.kbSaveMd(id, content))
+// 知识库导出：选目录 → 复制全部原件 + 写 manifest.json（元数据/标签/联动摘要）
+ipcMain.handle('kbExport', async () => {
+  const win = BrowserWindow.getFocusedWindow()
+  const res = await dialog.showOpenDialog(win, {
+    title: '选择知识库导出目录',
+    properties: ['openDirectory', 'createDirectory']
+  })
+  if (res.canceled || !res.filePaths.length) return { ok: false, canceled: true }
+  const target = res.filePaths[0]
+  const srcDir = db.kbDir()
+  const docCount = db.getKbDocs().length
+  let files = 0
+  if (fs.existsSync(srcDir)) {
+    for (const name of fs.readdirSync(srcDir)) {
+      const full = path.join(srcDir, name)
+      if (!fs.statSync(full).isFile()) continue
+      fs.copyFileSync(full, path.join(target, name))
+      files++
+    }
+  }
+  const manifest = {
+    exportedAt: Date.now(),
+    docs: db.getKbDocs(),
+    tags: db.listKbTags(),
+    stats: db.kbStats(),
+    note: '本目录为知识库文档导出：文件为原件副本，manifest.json 含元数据/标签/联动摘要，可直接导入知识库或手动归档'
+  }
+  fs.writeFileSync(path.join(target, 'manifest.json'), JSON.stringify(manifest, null, 2))
+  return { ok: true, files, docs: docCount, target }
+})
 // 用系统默认程序打开 KB 原件（扫描版 PDF 等无法内嵌预览的场景兜底）
 ipcMain.handle('kbOpen', (e, id) => {
   const doc = db.getKbDoc(id)
