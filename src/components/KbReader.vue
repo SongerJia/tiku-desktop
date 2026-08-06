@@ -2,6 +2,7 @@
 import { ref, watch, onBeforeUnmount } from 'vue'
 import MarkdownIt from 'markdown-it'
 import { tiku } from '../api/tiku.js'
+import { showToast } from '../utils/toast.js'
 import SimpleQuestion from './SimpleQuestion.vue'
 
 const props = defineProps({ show: Boolean, doc: Object })
@@ -38,14 +39,14 @@ const editText = ref('')
 
 async function startEdit() {
   const r = await tiku.kbRead(props.doc.id)
-  if (!r.ok) { alert('读取失败：' + r.error); return }
+  if (!r.ok) { showToast('读取失败：' + r.error, 'err'); return }
   editText.value = new TextDecoder('utf-8').decode(b64ToUint8(r.base64))
   editMode.value = true
 }
 
 async function saveEdit() {
   const r = await tiku.kbSaveMd(props.doc.id, editText.value)
-  if (!r.ok) { alert('保存失败：' + r.error); return }
+  if (!r.ok) { showToast('保存失败：' + r.error, 'err'); return }
   editMode.value = false
   await renderMd()
 }
@@ -72,7 +73,7 @@ async function loadHlAndLinks() {
 async function addHlFromSelection() {
   const sel = window.getSelection()
   const text = sel ? sel.toString().trim() : ''
-  if (!text) { alert('先在文档正文里选中文字，再点「高亮」'); return }
+  if (!text) { showToast('先在文档正文里选中文字，再点「高亮」'); return }
   await tiku.addHighlight({ docId: props.doc.id, text })
   try { sel.removeAllRanges() } catch (e) { /* 忽略 */ }
   await loadHlAndLinks()

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { tiku } from '../api/tiku.js'
+import { showToast } from '../utils/toast.js'
 import KbReader from './KbReader.vue'
 
 const docs = ref([])
@@ -72,13 +73,13 @@ async function onImport() {
   if (ok.length) msgs.push(`导入 ${ok.length} 篇`)
   if (dup.length) msgs.push(`已存在跳过 ${dup.length} 篇`)
   if (failed.length) msgs.push(`失败 ${failed.length} 篇（${failed[0].error || '仅支持 md/pdf'}）`)
-  if (msgs.length) alert(msgs.join('；'))
+  if (msgs.length) showToast(msgs.join('；'), failed.length ? 'err' : 'ok')
 }
 
 async function onExport() {
   const r = await tiku.kbExport()
-  if (r && r.ok) alert(`已导出 ${r.files} 个文件 / ${r.docs} 篇文档到：\n${r.target}\n（含 manifest.json 元数据清单）`)
-  else if (r && !r.canceled) alert('导出失败')
+  if (r && r.ok) showToast(`已导出 ${r.files} 个文件 / ${r.docs} 篇文档到：${r.target}`, 'ok')
+  else if (r && !r.canceled) showToast('导出失败', 'err')
 }
 
 function openReader(doc) {

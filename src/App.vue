@@ -11,6 +11,7 @@ import PracticeSetup from './components/PracticeSetup.vue'
 import BankManager from './components/BankManager.vue'
 import MockExamSetup from './components/MockExamSetup.vue'
 import UnifiedSearch from './components/UnifiedSearch.vue'
+import AppToast from './components/AppToast.vue'
 import { tiku } from './api/tiku.js'
 import { useResponsive } from './composables/useResponsive.js'
 import { applyAppearance } from './utils/appearance.js'
@@ -37,6 +38,8 @@ const showBank = ref(false)
 const mock = ref({ active: false })
 // 统一搜索（题目 + 知识文档）
 const showSearch = ref(false)
+// 切回首页时的刷新计数（驱动 Home 重新加载实时数据）
+const homeRefresh = ref(0)
 
 // PC 侧栏宽度：可拖动右边缘调整，本地持久化
 const SIDEBAR_MIN = 180
@@ -85,6 +88,12 @@ async function onBankChanged() {
 function switchTab(key) {
   currentTab.value = key
   quiz.value.active = false
+  // 切回首页时刷新（每日任务/习惯/专注数据是实时的）
+  if (key === 'home') homeRefresh.value++
+}
+// 子组件请求跳转（如每日任务「阅读」→ 知识库 Tab）
+function onGoto(tab) {
+  switchTab(tab)
 }
 
 async function onSubjectSelected(subject) {
@@ -211,16 +220,20 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
           @exit="exitQuiz"
         />
         <template v-else>
-          <Home v-if="currentTab === 'home'" :subject="currentSubject" @start="onStart" @start-mock="onStartMock" />
-          <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" @start="onStart" />
-          <KbLibrary v-else-if="currentTab === 'kb'" />
-          <Stats v-else-if="currentTab === 'stats'" />
-          <Profile
+          <Transition name="fade" mode="out-in">
+            <div :key="currentTab" class="tab-page">
+              <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" />
+              <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" @start="onStart" />
+              <KbLibrary v-else-if="currentTab === 'kb'" />
+              <Stats v-else-if="currentTab === 'stats'" />
+              <Profile
             v-else-if="currentTab === 'profile'"
             @reset="currentTab = 'home'"
             @start="onStart"
             @open-bank="showBank = true"
           />
+            </div>
+          </Transition>
         </template>
       </main>
 
@@ -271,6 +284,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
     />
 
     <UnifiedSearch :show="showSearch" @close="showSearch = false" />
+    <AppToast />
   </div>
 </template>
 
@@ -308,4 +322,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
   transition: border-color .2s, box-shadow .2s, color .2s;
 }
 .top-search:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow-soft); }
+.tab-page { height: 100%; }
+.fade-enter-active, .fade-leave-active { transition: opacity .18s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>

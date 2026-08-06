@@ -1,10 +1,11 @@
 <script setup>
 import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import { tiku } from '../api/tiku.js'
+import { showToast } from '../utils/toast.js'
 import ReviewPanel from './ReviewPanel.vue'
 
-const props = defineProps({ subject: Object })
-const emit = defineEmits(['start', 'start-mock'])
+const props = defineProps({ subject: Object, refreshKey: { default: 0 } })
+const emit = defineEmits(['start', 'start-mock', 'goto'])
 
 const summary = ref({ total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0 })
 const dailyGoal = ref(0)
@@ -12,6 +13,7 @@ const loading = ref(true)
 
 onMounted(load)
 watch(() => props.subject.id, load)
+watch(() => props.refreshKey, load) // 切回首页时刷新实时数据
 
 const goalPct = computed(() => dailyGoal.value ? Math.min(100, Math.round((summary.value.today / dailyGoal.value) * 100)) : 0)
 
@@ -49,7 +51,7 @@ async function toggleHabit(h) {
 function onTaskClick(t) {
   if (t.key === 'quiz20') emit('start', { mode: 'practice' })
   else if (t.key === 'review5') reviewOpen.value = true
-  else alert('去「知识库」Tab 打开任意一篇文档阅读，即算完成')
+  else emit('goto', 'kb') // 阅读任务：直接跳知识库
 }
 
 // 番茄钟
