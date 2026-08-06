@@ -63,5 +63,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSetting: (key) => ipcRenderer.invoke('getSetting', key),
   setSetting: (key, value) => ipcRenderer.invoke('setSetting', key, value),
   getAchievements: () => ipcRenderer.invoke('getAchievements'),
-  parseSheet: (buf) => ipcRenderer.invoke('parseSheet', buf)
+  parseSheet: (buf) => ipcRenderer.invoke('parseSheet', buf),
+  kbImportFiles: (paths) => ipcRenderer.invoke('kbImportFiles', paths),
+  kbList: () => ipcRenderer.invoke('kbList'),
+  kbGet: (id) => ipcRenderer.invoke('kbGet', id),
+  kbUpdate: (id, patch) => ipcRenderer.invoke('kbUpdate', id, patch),
+  kbDelete: (id) => ipcRenderer.invoke('kbDelete', id),
+  kbSetTags: (docId, tags) => ipcRenderer.invoke('kbSetTags', docId, tags),
+  kbTags: () => ipcRenderer.invoke('kbTags'),
+  kbLink: (payload) => ipcRenderer.invoke('kbLink', payload),
+  kbUnlink: (docId, questionId) => ipcRenderer.invoke('kbUnlink', docId, questionId),
+  kbLinksForQuestion: (questionId) => ipcRenderer.invoke('kbLinksForQuestion', questionId),
+  kbLinksForDoc: (docId) => ipcRenderer.invoke('kbLinksForDoc', docId),
+  kbSearch: (query, limit) => ipcRenderer.invoke('kbSearch', query, limit),
+  kbStats: () => ipcRenderer.invoke('kbStats')
 })

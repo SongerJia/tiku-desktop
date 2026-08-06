@@ -13,10 +13,12 @@
     "postinstall": "electron-rebuild",
     "test:parser": "node scripts/test-parser.mjs",
     "test:xlsx": "node scripts/test-xlsx.mjs",
+    "test:kb": "python scripts/test-kb.py && node scripts/test-kb-extract.mjs",
     "verify": "vite build --config vite.verify.config.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",
+    "pdfjs-dist": "^6.2.108",
     "vue": "^3.4.0"
   },
   "devDependencies": {

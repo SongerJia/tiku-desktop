@@ -1,10 +1,11 @@
-const { app, BrowserWindow, ipcMain, Menu, safeStorage } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu, safeStorage, dialog } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
 const db = require('./db')
 const { readXlsx, writeXlsx } = require('./xlsx-lite')
 const syncGithub = require('./sync-github')
+const { extractMd, extractPdf, uniqueRelPath } = require('./kbExtract')
 
 // ---- 云同步 token 安全存储（加密落盘，不进 settings 表，避免明文） ----
 const TOKEN_PATH = path.join(app.getPath('userData'), 'sync-token.enc')
@@ -168,6 +169,75 @@ ipcMain.handle('batchDeleteQuestions', (e, ids) => db.batchDeleteQuestions(ids))
 ipcMain.handle('getSetting', (e, key) => db.getSetting(key))
 ipcMain.handle('setSetting', (e, key, value) => db.setSetting(key, value))
 ipcMain.handle('getAchievements', () => db.getAchievements())
+
+// ---- 个人知识库（kb_*）：导入编排 + IPC ----
+// 导入策略：原件复制进 userData/kb/（副本，绝不改原件）；同 hash 去重；
+// MD 按标题切块；PDF 用 pdfjs 抽文本，无文本层时降级（空块 + error，靠文件名/标签兜底）。
+async function importKbPaths(filePaths) {
+  const dir = path.join(app.getPath('userData'), 'kb')
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  const results = []
+  for (const src of filePaths || []) {
+    try {
+      const ext = (path.extname(src) || '').toLowerCase().replace('.', '')
+      if (ext !== 'md' && ext !== 'pdf') {
+        results.push({ ok: false, file: src, error: '仅支持 md / pdf 文档' })
+        continue
+      }
+      const title = path.basename(src, path.extname(src))
+      const raw = fs.readFileSync(src)
+      const hash = crypto.createHash('sha1').update(raw).digest('hex')
+      const dup = db.findKbDocByHash(hash)
+      if (dup) {
+        results.push({ ok: true, duplicated: true, docId: dup.id, title: dup.title, type: dup.type })
+        continue
+      }
+      const rel = uniqueRelPath(dir, title, ext)
+      fs.copyFileSync(src, path.join(dir, rel))
+      let blocks = []
+      let error = null
+      if (ext === 'md') {
+        blocks = extractMd(raw.toString('utf8'))
+      } else {
+        const r = await extractPdf(src)
+        blocks = r.blocks || []
+        error = r.error
+      }
+      const docId = db.addKbDoc({ title, type: ext, relPath: rel, size: raw.length, hash, blocks })
+      results.push({ ok: true, docId, title, type: ext, blocks: blocks.length, error })
+    } catch (e) {
+      results.push({ ok: false, file: src, error: String((e && e.message) || e) })
+    }
+  }
+  return results
+}
+
+ipcMain.handle('kbImportFiles', async (e, paths) => {
+  let filePaths = paths && paths.length ? paths : null
+  if (!filePaths) {
+    const win = BrowserWindow.getFocusedWindow()
+    const res = await dialog.showOpenDialog(win, {
+      title: '导入知识文档',
+      filters: [{ name: '知识文档', extensions: ['md', 'pdf'] }],
+      properties: ['openFile', 'multiSelections']
+    })
+    if (res.canceled || !res.filePaths.length) return []
+    filePaths = res.filePaths
+  }
+  return importKbPaths(filePaths)
+})
+ipcMain.handle('kbList', () => db.getKbDocs())
+ipcMain.handle('kbGet', (e, id) => db.getKbDoc(id))
+ipcMain.handle('kbUpdate', (e, id, patch) => db.updateKbDoc(id, patch))
+ipcMain.handle('kbDelete', (e, id) => db.deleteKbDoc(id))
+ipcMain.handle('kbSetTags', (e, docId, tags) => db.setKbTags(docId, tags))
+ipcMain.handle('kbTags', () => db.listKbTags())
+ipcMain.handle('kbLink', (e, payload) => db.linkKbDoc(payload))
+ipcMain.handle('kbUnlink', (e, docId, questionId) => db.unlinkKbDoc(docId, questionId))
+ipcMain.handle('kbLinksForQuestion', (e, questionId) => db.getKbLinksForQuestion(questionId))
+ipcMain.handle('kbLinksForDoc', (e, docId) => db.getKbLinksForDoc(docId))
+ipcMain.handle('kbSearch', (e, query, limit) => db.searchKb(query, limit))
+ipcMain.handle('kbStats', () => db.kbStats())
 
 // Excel 解析放主进程（Node 侧）：渲染层把文件读成 Uint8Array 传过来。
 // 用零依赖的 xlsx-lite（Node 内置 zlib + 手写 zip/CRC32）解析，不再依赖 xlsx 包。

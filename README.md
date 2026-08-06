@@ -59,6 +59,7 @@
 | **题目批量操作** | 多选题目批量移动章节/打标签/改难度/删除 | ✅ 完成 | `batchUpdateQuestions`/`batchDeleteQuestions`；软删兼容同步 |
 | **浅色主题 + 字号** | 护眼浅色主题、字号 80%–140% 全局缩放 | ✅ 完成 | `data-theme="light"` 覆盖 CSS 变量 + `documentElement.zoom`；存 `settings.theme/font_scale` |
 | **图片跨设备同步** | 修复：题图随 Gist 快照一并跨设备（原仅传文件名会裂图） | ✅ 完成 | `exportSync` 内嵌图片 base64、`mergeRemote` 还原到 `userData/images` |
+| **个人知识库** | 知识文档（md/pdf）入库、MD 按标题切块 / PDF 逐页抽文本、全文检索、文档↔题目关联（数据层） | ✅ 数据层（阶段A） | `kb_docs`/`kb_blocks`/`kb_tags`/`kb_links` 四表 + `electron/kbExtract.js`（pdfjs-dist 抽文本）+ LIKE 中英文子串检索；阅读页 UI 阶段 B 待做 |
 | **Android APK** | Capacitor 打包移动端 | ⏳ 未开始 | Phase 3 |
 
 > 「我的笔记」入口已从占位升级为真实功能（展示/删除全部笔记）；原「默写记录」「我的反馈」两个纯占位入口已移除。
@@ -156,7 +157,7 @@ npm run build
 
 ## 6. 数据模型
 
-七张表，均已含 `client_id` + `updated_at` / `deleted`（云同步身份与软删）：
+题库侧七张核心表，均已含 `client_id` + `updated_at` / `deleted`（云同步身份与软删）：
 
 | 表 | 作用 |
 |---|---|
@@ -169,6 +170,16 @@ npm run build
 | `settings` | 键值配置（如当前科目 `current_subject`） |
 
 > 此外 `papers` / `paper_questions` 两表已建（模拟卷组卷），`questions.images_json` 已加（题目图片），`question_tags` 表已建（标签系统），均经 `migrateSchema` 的 `ALTER` 兜底老库升级。题图二进制在同步时由 `exportSync` 内嵌为 base64 一并随快照传播。
+
+### 个人知识库（kb_*）四表
+| 表 | 作用 |
+|---|---|
+| `kb_docs` | 文档元数据（标题/类型/相对路径/大小/hash 去重/时间戳） |
+| `kb_blocks` | 文档文本块：MD 按 `#` 标题切块、PDF 按页切块，供全文检索与块级联动 |
+| `kb_tags` | 文档标签（与题目标签 `question_tags` 同构，联动推荐时取交集） |
+| `kb_links` | **题目 ↔ 文档 双向关联**（`UNIQUE(doc_id, question_id)`），联动层核心 |
+
+> 文件原件复制进 `userData/kb/`（不改动用户原文件）；检索用 `LIKE` 中英文子串匹配（SQLite FTS5 的 unicode61 分词器不做中文分词，LIKE 对个人库量级足够且对中文正确）。扫描版 PDF（无文本层）抽取返回空块 + 错误标记，靠文件名/标签兜底。
 
 ### 判分逻辑
 - 选择/判断：`electron/db.js` 的 `submitAnswer` 对答案排序后比对，多选顺序无关。
@@ -223,6 +234,7 @@ npm run build
 ```bash
 npm run test:parser      # 76 条断言：CSV 转义、GBK、题型推断、问答/关键词、脏数据
 npm run test:xlsx        # 43 条断言：xlsx-lite 读写往返、题库→Excel→重导回端到端
+npm run test:kb          # kb 数据层交叉验证（Python sqlite3 镜像）+ 抽取模块真实验证（pdfjs 抽 fixture.pdf）
 node scripts/test-mock-paper.js   # 模拟卷组卷计分算法（等分=100 / 手动优先 / 无重复 / 超库存拦截）
 python scripts/test-tag-filter.py  # 标签筛选 SQL 的 AND 语义
 npm run verify           # 编译校验渲染层，不落盘（排查 SFC 语法错误）

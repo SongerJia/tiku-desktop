@@ -188,6 +188,44 @@ const api = {
         tag TEXT NOT NULL,
         PRIMARY KEY (question_id, tag)
       );
+      CREATE TABLE IF NOT EXISTS kb_docs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'md',
+        rel_path TEXT NOT NULL UNIQUE,
+        size INTEGER DEFAULT 0,
+        hash TEXT,
+        created_at INTEGER,
+        updated_at INTEGER,
+        deleted INTEGER DEFAULT 0,
+        client_id TEXT
+      );
+      CREATE TABLE IF NOT EXISTS kb_blocks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        doc_id INTEGER NOT NULL,
+        seq INTEGER NOT NULL,
+        heading TEXT,
+        content TEXT NOT NULL,
+        char_start INTEGER,
+        char_end INTEGER
+      );
+      CREATE TABLE IF NOT EXISTS kb_tags (
+        doc_id INTEGER NOT NULL,
+        tag TEXT NOT NULL,
+        PRIMARY KEY (doc_id, tag)
+      );
+      CREATE TABLE IF NOT EXISTS kb_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        doc_id INTEGER NOT NULL,
+        block_id INTEGER,
+        question_id INTEGER NOT NULL,
+        note TEXT,
+        created_at INTEGER,
+        UNIQUE (doc_id, question_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_kb_blocks_doc ON kb_blocks(doc_id);
+      CREATE INDEX IF NOT EXISTS idx_kb_links_q ON kb_links(question_id);
+      CREATE INDEX IF NOT EXISTS idx_kb_docs_deleted ON kb_docs(deleted);
     `)
   },
 
@@ -1312,6 +1350,167 @@ const api = {
     // 补齐可能缺失的 client_id（老备份无 cid 列）
     this.backfillClientIds()
     return { ok: true, imported: (data.questions || []).length }
+  },
+
+  // ================= 个人知识库（kb_*） =================
+  // 搜索统一用 LIKE：SQLite FTS5 的 unicode61 分词器不做中文分词，中文会被整段
+  // 当成一个 token 而搜不到；LIKE 子串匹配对中英文都正确。个人知识库量级（千级
+  // 文档 × 几十块）下毫秒级返回，FTS5(trigram) 留作远期优化。
+
+  kbDir() {
+    return path.join(app.getPath('userData'), 'kb')
+  },
+
+  kbStats() {
+    const docs = sqlite.prepare('SELECT COUNT(*) AS n FROM kb_docs WHERE deleted=0').get().n
+    const blocks = sqlite.prepare('SELECT COUNT(*) AS n FROM kb_blocks').get().n
+    const links = sqlite.prepare('SELECT COUNT(*) AS n FROM kb_links').get().n
+    const tags = sqlite.prepare('SELECT COUNT(DISTINCT tag) AS n FROM kb_tags').get().n
+    return { docs, blocks, links, tags }
+  },
+
+  findKbDocByHash(hash) {
+    if (!hash) return null
+    return sqlite.prepare('SELECT id, title, type FROM kb_docs WHERE hash=? AND deleted=0 LIMIT 1').get(hash) || null
+  },
+
+  addKbDoc({ title, type = 'md', relPath, size = 0, hash, blocks = [] }) {
+    const now = Date.now()
+    const tx = sqlite.transaction(() => {
+      const info = sqlite.prepare(
+        'INSERT INTO kb_docs (title, type, rel_path, size, hash, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,0,?)'
+      ).run(title, type, relPath, size, hash || null, now, now, uuid())
+      const docId = info.lastInsertRowid
+      const ins = sqlite.prepare(
+        'INSERT INTO kb_blocks (doc_id, seq, heading, content, char_start, char_end) VALUES (?,?,?,?,?,?)'
+      )
+      ;(blocks || []).forEach((b, i) => {
+        ins.run(docId, i, b.heading || null, String(b.content || ''), b.charStart ?? null, b.charEnd ?? null)
+      })
+      return docId
+    })
+    return tx()
+  },
+
+  getKbDocs() {
+    const rows = sqlite.prepare('SELECT * FROM kb_docs WHERE deleted=0 ORDER BY updated_at DESC').all()
+    const tagStmt = sqlite.prepare('SELECT tag FROM kb_tags WHERE doc_id=? ORDER BY tag')
+    const linkStmt = sqlite.prepare('SELECT COUNT(*) AS n FROM kb_links WHERE doc_id=?')
+    return rows.map(r => ({
+      ...r,
+      tags: tagStmt.all(r.id).map(t => t.tag),
+      linkCount: linkStmt.get(r.id).n
+    }))
+  },
+
+  getKbDoc(id) {
+    const doc = sqlite.prepare('SELECT * FROM kb_docs WHERE id=? AND deleted=0').get(id)
+    if (!doc) return null
+    doc.tags = sqlite.prepare('SELECT tag FROM kb_tags WHERE doc_id=? ORDER BY tag').all(id).map(t => t.tag)
+    doc.blocks = sqlite.prepare('SELECT id, seq, heading, content FROM kb_blocks WHERE doc_id=? ORDER BY seq').all(id)
+    doc.links = this.getKbLinksForDoc(id)
+    return doc
+  },
+
+  updateKbDoc(id, patch = {}) {
+    const cur = sqlite.prepare('SELECT * FROM kb_docs WHERE id=? AND deleted=0').get(id)
+    if (!cur) return null
+    const title = patch.title != null ? String(patch.title) : cur.title
+    const hash = patch.hash != null ? String(patch.hash) : cur.hash
+    const size = patch.size != null ? Number(patch.size) : cur.size
+    sqlite.prepare('UPDATE kb_docs SET title=?, hash=?, size=?, updated_at=? WHERE id=?')
+      .run(title, hash, size, Date.now(), id)
+    return this.getKbDoc(id)
+  },
+
+  deleteKbDoc(id) {
+    const doc = sqlite.prepare('SELECT * FROM kb_docs WHERE id=?').get(id)
+    if (!doc) return { ok: false }
+    const tx = sqlite.transaction(() => {
+      sqlite.prepare('DELETE FROM kb_links WHERE doc_id=?').run(id)
+      sqlite.prepare('DELETE FROM kb_tags WHERE doc_id=?').run(id)
+      sqlite.prepare('DELETE FROM kb_blocks WHERE doc_id=?').run(id)
+      sqlite.prepare('DELETE FROM kb_docs WHERE id=?').run(id)
+    })
+    tx()
+    try {
+      if (doc.rel_path) fs.unlinkSync(path.join(this.kbDir(), doc.rel_path))
+    } catch (e) { /* 副本文件可能已被手动删除，忽略 */ }
+    return { ok: true }
+  },
+
+  setKbTags(docId, tags = []) {
+    const tx = sqlite.transaction(() => {
+      sqlite.prepare('DELETE FROM kb_tags WHERE doc_id=?').run(docId)
+      const ins = sqlite.prepare('INSERT OR IGNORE INTO kb_tags (doc_id, tag) VALUES (?,?)')
+      tags.map(t => String(t).trim()).filter(Boolean).forEach(t => ins.run(docId, t))
+    })
+    tx()
+    return this.getKbDoc(docId)
+  },
+
+  listKbTags() {
+    return sqlite.prepare('SELECT tag, COUNT(*) AS n FROM kb_tags GROUP BY tag ORDER BY tag').all()
+  },
+
+  // ---- 题目 ↔ 文档 联动（kb_links）----
+  linkKbDoc({ docId, questionId, blockId = null, note = '' }) {
+    sqlite.prepare('INSERT OR IGNORE INTO kb_links (doc_id, block_id, question_id, note, created_at) VALUES (?,?,?,?,?)')
+      .run(docId, blockId, questionId, note || '', Date.now())
+    return { ok: true }
+  },
+
+  unlinkKbDoc(docId, questionId) {
+    sqlite.prepare('DELETE FROM kb_links WHERE doc_id=? AND question_id=?').run(docId, questionId)
+    return { ok: true }
+  },
+
+  getKbLinksForQuestion(questionId) {
+    return sqlite.prepare(
+      `SELECT l.id, l.doc_id, l.block_id, l.note, l.created_at, d.title, d.type, d.rel_path
+       FROM kb_links l JOIN kb_docs d ON d.id=l.doc_id
+       WHERE l.question_id=? AND d.deleted=0 ORDER BY l.created_at DESC`
+    ).all(questionId)
+  },
+
+  getKbLinksForDoc(docId) {
+    const rows = sqlite.prepare('SELECT id, question_id, block_id, note, created_at FROM kb_links WHERE doc_id=? ORDER BY created_at DESC').all(docId)
+    const qStmt = sqlite.prepare('SELECT stem FROM questions WHERE id=? AND deleted=0')
+    return rows.map(r => {
+      const q = qStmt.get(r.question_id)
+      return { ...r, stemPreview: q ? String(q.stem || '').slice(0, 60) : '' }
+    })
+  },
+
+  // ---- 全文搜索（LIKE，中英文子串）----
+  searchKb(query, limit = 20) {
+    const kw = String(query || '').trim()
+    if (!kw) return []
+    const like = '%' + kw.replace(/[%_\\]/g, m => '\\' + m) + '%'
+    const docs = sqlite.prepare(
+      `SELECT id, title, type, rel_path, updated_at FROM kb_docs
+       WHERE deleted=0 AND (title LIKE ? ESCAPE '\\' OR id IN (SELECT doc_id FROM kb_blocks WHERE content LIKE ? ESCAPE '\\'))
+       ORDER BY updated_at DESC LIMIT ?`
+    ).all(like, like, limit)
+    const blockStmt = sqlite.prepare(
+      `SELECT id, seq, heading, content FROM kb_blocks WHERE doc_id=? AND content LIKE ? ESCAPE '\\' ORDER BY seq LIMIT 3`
+    )
+    return docs.map(d => ({
+      ...d,
+      matchedBlocks: blockStmt.all(d.id, like).map(b => ({
+        blockId: b.id,
+        heading: b.heading,
+        snippet: this.snippet(b.content, kw, 80)
+      }))
+    }))
+  },
+
+  snippet(text, kw, len = 80) {
+    const t = String(text || '')
+    const i = t.toLowerCase().indexOf(String(kw).toLowerCase())
+    if (i < 0) return t.slice(0, len)
+    const start = Math.max(0, i - 40)
+    return (start > 0 ? '…' : '') + t.slice(start, start + len) + (start + len < t.length ? '…' : '')
   }
 }
 
