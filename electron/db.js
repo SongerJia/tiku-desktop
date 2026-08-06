@@ -863,14 +863,21 @@ const api = {
   getAchievements() {
     const s = this.getSummary()
     const totalAnswered = sqlite.prepare('SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0').get(LOCAL_USER).n
+    const correctCount = sqlite.prepare('SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND is_correct=1').get(LOCAL_USER).n
+    const essayCount = sqlite.prepare(
+      "SELECT COUNT(*) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.type='essay'"
+    ).get(LOCAL_USER).n
     const papersCount = sqlite.prepare('SELECT COUNT(*) AS n FROM papers WHERE deleted=0').get().n
     const notesCount = sqlite.prepare("SELECT COUNT(*) AS n FROM notes WHERE user_id=? AND deleted=0 AND TRIM(IFNULL(content,''))<>''").get(LOCAL_USER).n
     const tagsUsed = sqlite.prepare('SELECT COUNT(DISTINCT tag) AS n FROM question_tags').get().n
     const favCount = sqlite.prepare('SELECT COUNT(*) AS n FROM favorites WHERE user_id=? AND deleted=0').get(LOCAL_USER).n
+    const kb = this.kbStats()
     return {
       streak: s.streak, today: s.today, activeDays: s.activeDays,
       totalAnswered, mastered: s.mastered, wrongCount: s.wrongCount,
+      correctCount, essayCount,
       papersCount, notesCount, tagsUsed, favCount,
+      kbDocs: kb.docs, kbBlocks: kb.blocks, kbLinks: kb.links, kbReadCount: kb.readCount,
       dailyGoal: Number(this.getSetting('daily_goal') || 0)
     }
   },
