@@ -197,6 +197,12 @@ const xp = ref(null)
 // ---- 习惯管理 ----
 const habits = ref([])
 const newHabitName = ref('')
+
+// 页面分组折叠：学习成长默认展开，其余收起（避免平铺过长）
+const secOpen = ref({ learn: true, habits: false, prefs: false, sync: false, misc: false })
+function toggleSec(k) {
+  secOpen.value[k] = !secOpen.value[k]
+}
 async function loadHabits() {
   habits.value = await tiku.listHabits()
 }
@@ -245,52 +251,14 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- 偏好设置 -->
-    <div class="card">
-      <div class="card-title">偏好设置</div>
-      <div class="pref-row">
-        <span class="pref-label">主题</span>
-        <div class="seg">
-          <button :class="{ on: theme === 'dark' }" @click="setTheme('dark')">暗色</button>
-          <button :class="{ on: theme === 'light' }" @click="setTheme('light')">浅色</button>
-        </div>
-      </div>
-      <div class="pref-row">
-        <span class="pref-label">字号 {{ Math.round(fontScale * 100) }}%</span>
-        <input class="pref-range" type="range" min="0.8" max="1.4" step="0.05" :value="fontScale" @input="setFontScale($event.target.value)" />
-      </div>
-      <div class="pref-row">
-        <span class="pref-label">每日目标</span>
-        <input class="pref-input" type="number" min="0" :value="dailyGoal" @change="setDailyGoal($event.target.value)" placeholder="0=不限" />
-        <span class="pref-unit">题/天</span>
-      </div>
-      <div class="pref-row">
-        <span class="pref-label">学习提醒</span>
-        <input class="pref-input pref-time" type="time" :value="remindTime" @change="setRemindTime($event.target.value)" />
-        <label class="pref-switch">
-          <input type="checkbox" :checked="remindEnabled" @change="setRemindEnabled($event.target.checked)" />
-          <span class="pref-switch-slider"></span>
-        </label>
-      </div>
-    </div>
 
-    <!-- 习惯管理 -->
-    <div class="card">
-      <div class="card-title">习惯管理</div>
-      <div class="habit-mgr">
-        <div v-for="h in habits" :key="h.id" class="habit-mgr-item">
-          <span class="habit-mgr-icon">{{ h.icon }}</span>
-          <span class="habit-mgr-name">{{ h.name }}</span>
-          <span class="habit-mgr-streak">🔥 {{ h.streak }} 天</span>
-          <button class="habit-mgr-del" @click="removeHabit(h)">删除</button>
-        </div>
-        <div v-if="!habits.length" class="habit-mgr-empty">还没有习惯，加一个吧（如：雅思刷题 / 健身 / 阅读）</div>
-        <div class="habit-mgr-add">
-          <input v-model="newHabitName" class="input" placeholder="新习惯名称，回车或点添加" @keyup.enter="addHabit" />
-          <button class="btn btn-primary" @click="addHabit">添加</button>
-        </div>
+    <!-- 学习成长（XP等级 + 知识库概览 + 成就） -->
+    <div class="sec">
+      <div class="sec-head" @click="toggleSec('learn')">
+        <span class="sec-title">📈 学习成长</span>
+        <span class="sec-arrow" :class="{ open: secOpen.learn }">▾</span>
       </div>
-    </div>
+      <div v-show="secOpen.learn" class="sec-body">
 
     <!-- XP 等级 -->
     <div v-if="xp" class="card xp-card">
@@ -344,6 +312,88 @@ onMounted(async () => {
         </div>
       </div>
     </div>
+      </div>
+    </div>
+
+
+    <!-- ⚙️ 偏好设置 -->
+    <div class="sec">
+      <div class="sec-head" @click="toggleSec('prefs')">
+        <span class="sec-title">⚙️ 偏好设置</span>
+        <span class="sec-arrow" :class="{ open: secOpen.prefs }">▾</span>
+      </div>
+      <div v-show="secOpen.prefs" class="sec-body">
+
+    <!-- 偏好设置 -->
+    <div class="card">
+      <div class="card-title">偏好设置</div>
+      <div class="pref-row">
+        <span class="pref-label">主题</span>
+        <div class="seg">
+          <button :class="{ on: theme === 'dark' }" @click="setTheme('dark')">暗色</button>
+          <button :class="{ on: theme === 'light' }" @click="setTheme('light')">浅色</button>
+        </div>
+      </div>
+      <div class="pref-row">
+        <span class="pref-label">字号 {{ Math.round(fontScale * 100) }}%</span>
+        <input class="pref-range" type="range" min="0.8" max="1.4" step="0.05" :value="fontScale" @input="setFontScale($event.target.value)" />
+      </div>
+      <div class="pref-row">
+        <span class="pref-label">每日目标</span>
+        <input class="pref-input" type="number" min="0" :value="dailyGoal" @change="setDailyGoal($event.target.value)" placeholder="0=不限" />
+        <span class="pref-unit">题/天</span>
+      </div>
+      <div class="pref-row">
+        <span class="pref-label">学习提醒</span>
+        <input class="pref-input pref-time" type="time" :value="remindTime" @change="setRemindTime($event.target.value)" />
+        <label class="pref-switch">
+          <input type="checkbox" :checked="remindEnabled" @change="setRemindEnabled($event.target.checked)" />
+          <span class="pref-switch-slider"></span>
+        </label>
+      </div>
+    </div>
+
+      </div>
+    </div>
+
+
+    <!-- 🔁 习惯管理 -->
+    <div class="sec">
+      <div class="sec-head" @click="toggleSec('habits')">
+        <span class="sec-title">🔁 习惯管理</span> <span class="sec-badge">{{ habits.length }} 个</span>
+        <span class="sec-arrow" :class="{ open: secOpen.habits }">▾</span>
+      </div>
+      <div v-show="secOpen.habits" class="sec-body">
+
+    <!-- 习惯管理 -->
+    <div class="card">
+      <div class="card-title">习惯管理</div>
+      <div class="habit-mgr">
+        <div v-for="h in habits" :key="h.id" class="habit-mgr-item">
+          <span class="habit-mgr-icon">{{ h.icon }}</span>
+          <span class="habit-mgr-name">{{ h.name }}</span>
+          <span class="habit-mgr-streak">🔥 {{ h.streak }} 天</span>
+          <button class="habit-mgr-del" @click="removeHabit(h)">删除</button>
+        </div>
+        <div v-if="!habits.length" class="habit-mgr-empty">还没有习惯，加一个吧（如：雅思刷题 / 健身 / 阅读）</div>
+        <div class="habit-mgr-add">
+          <input v-model="newHabitName" class="input" placeholder="新习惯名称，回车或点添加" @keyup.enter="addHabit" />
+          <button class="btn btn-primary" @click="addHabit">添加</button>
+        </div>
+      </div>
+    </div>
+
+      </div>
+    </div>
+
+
+    <!-- ☁️ 云同步与数据 -->
+    <div class="sec">
+      <div class="sec-head" @click="toggleSec('sync')">
+        <span class="sec-title">☁️ 云同步与数据</span> <span class="sec-badge">{{ syncConnected ? '已连接' : '未连接' }}</span>
+        <span class="sec-arrow" :class="{ open: secOpen.sync }">▾</span>
+      </div>
+      <div v-show="secOpen.sync" class="sec-body">
 
     <!-- 云同步（GitHub Gist，零后端） -->
     <div class="card">
@@ -382,6 +432,7 @@ onMounted(async () => {
       </div>
     </div>
 
+
     <!-- 题库管理 -->
     <div class="card">
       <div class="card-title">题库</div>
@@ -391,6 +442,7 @@ onMounted(async () => {
         <span class="arrow">›</span>
       </div>
     </div>
+
 
     <!-- 数据导入导出 -->
     <div class="card">
@@ -410,12 +462,30 @@ onMounted(async () => {
       </div>
     </div>
 
+
+      </div>
+    </div>
+
+
+    <!-- 📒 错题与收藏 -->
+    <div class="sec">
+      <div class="sec-head" @click="toggleSec('misc')">
+        <span class="sec-title">📒 错题与收藏</span>
+        <span class="sec-arrow" :class="{ open: secOpen.misc }">▾</span>
+      </div>
+      <div v-show="secOpen.misc" class="sec-body">
+
     <!-- 错题本 / 收藏 -->
     <div class="card">
       <div class="card-title">我的错题与收藏</div>
       <WrongBook @start="forwardStart" />
       <Favorites @start="forwardStart" />
     </div>
+
+
+      </div>
+    </div>
+
 
     <!-- 菜单列表 -->
     <div class="card menu-card">
@@ -442,6 +512,38 @@ onMounted(async () => {
   align-items: center;
   gap: 14px;
 }
+/* 分组折叠 */
+.sec { display: flex; flex-direction: column; }
+.sec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .2s;
+}
+.sec-head:hover { border-color: var(--brand); }
+.sec-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.sec-badge {
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(42, 245, 255, 0.08);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 8px;
+}
+.sec-arrow {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+  transition: transform .2s;
+}
+.sec-arrow.open { transform: rotate(180deg); }
+.sec-body { display: flex; flex-direction: column; gap: 12px; padding: 12px 0 4px; }
 .avatar {
   width: 56px;
   height: 56px;
