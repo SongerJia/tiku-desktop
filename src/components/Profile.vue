@@ -192,14 +192,34 @@ const unlockedCount = computed(() => achievements.value.filter(a => a.got).lengt
 
 // ---- 知识库概览（kbStats）----
 const kbStats = ref(null)
+// ---- XP 等级 ----
+const xp = ref(null)
+// ---- 习惯管理 ----
+const habits = ref([])
+const newHabitName = ref('')
+async function loadHabits() {
+  habits.value = await tiku.listHabits()
+}
+async function addHabit() {
+  const name = newHabitName.value.trim()
+  if (!name) return
+  await tiku.addHabit(name)
+  newHabitName.value = ''
+  await loadHabits()
+}
+async function removeHabit(h) {
+  if (!confirm(`删除习惯「${h.name}」？其打卡记录一并删除。`)) return
+  await tiku.deleteHabit(h.id)
+  await loadHabits()
+}
 
 onMounted(async () => {
   try {
-    const [t, f, g, ach, re, rt, kb] = await Promise.all([
+    const [t, f, g, ach, re, rt, kb, x] = await Promise.all([
       tiku.getSetting('theme'), tiku.getSetting('font_scale'),
       tiku.getSetting('daily_goal'), tiku.getAchievements(),
       tiku.getSetting('remind_enabled'), tiku.getSetting('remind_time'),
-      tiku.kbStats()
+      tiku.kbStats(), tiku.xpStats()
     ])
     theme.value = t || 'dark'
     fontScale.value = f || '1'
@@ -208,6 +228,8 @@ onMounted(async () => {
     remindEnabled.value = re === '1'
     remindTime.value = rt || '21:00'
     kbStats.value = kb
+    xp.value = x
+    await loadHabits()
   } catch (e) { /* 成就读取失败不阻塞 */ }
 })
 </script>
@@ -249,6 +271,46 @@ onMounted(async () => {
           <input type="checkbox" :checked="remindEnabled" @change="setRemindEnabled($event.target.checked)" />
           <span class="pref-switch-slider"></span>
         </label>
+      </div>
+    </div>
+
+    <!-- 习惯管理 -->
+    <div class="card">
+      <div class="card-title">习惯管理</div>
+      <div class="habit-mgr">
+        <div v-for="h in habits" :key="h.id" class="habit-mgr-item">
+          <span class="habit-mgr-icon">{{ h.icon }}</span>
+          <span class="habit-mgr-name">{{ h.name }}</span>
+          <span class="habit-mgr-streak">🔥 {{ h.streak }} 天</span>
+          <button class="habit-mgr-del" @click="removeHabit(h)">删除</button>
+        </div>
+        <div v-if="!habits.length" class="habit-mgr-empty">还没有习惯，加一个吧（如：雅思刷题 / 健身 / 阅读）</div>
+        <div class="habit-mgr-add">
+          <input v-model="newHabitName" class="input" placeholder="新习惯名称，回车或点添加" @keyup.enter="addHabit" />
+          <button class="btn btn-primary" @click="addHabit">添加</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- XP 等级 -->
+    <div v-if="xp" class="card xp-card">
+      <div class="xp-head">
+        <span class="xp-level">Lv.{{ xp.level }}</span>
+        <span class="xp-total">累计 {{ xp.total }} XP</span>
+      </div>
+      <div class="xp-bar">
+        <div class="xp-fill" :style="{ width: xp.levelPct + '%' }"></div>
+      </div>
+      <div class="xp-sub">
+        <span>距离 Lv.{{ xp.level + 1 }} 还差 {{ Math.max(0, xp.nextLevelXp - xp.curLevelXp) }} XP</span>
+        <span class="xp-today">今日 +{{ xp.today }} · 本周 +{{ xp.week }}</span>
+      </div>
+      <div v-if="xp.weeks && xp.weeks.length" class="xp-weeks">
+        <div v-for="w in xp.weeks.slice(0, 6)" :key="w.wk" class="xp-week">
+          <span class="xp-week-wk">{{ w.wk }}</span>
+          <div class="xp-week-bar"><div class="xp-week-fill" :style="{ width: Math.min(100, Math.round(w.xp / Math.max(1, xp.weeks[0].xp) * 100)) + '%' }"></div></div>
+          <span class="xp-week-n">{{ w.xp }}</span>
+        </div>
       </div>
     </div>
 
@@ -506,6 +568,47 @@ onMounted(async () => {
 }
 .kb-stat b { font-size: 18px; color: var(--brand); }
 .kb-stat span { font-size: 11px; color: var(--muted); }
+
+/* XP 等级 */
+.xp-card { display: flex; flex-direction: column; gap: 8px; }
+.xp-head { display: flex; align-items: baseline; justify-content: space-between; }
+.xp-level { font-size: 24px; font-weight: 600; color: var(--brand); text-shadow: var(--glow-soft); }
+.xp-total { font-size: 12px; color: var(--muted); }
+.xp-bar { height: 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
+.xp-fill {
+  height: 100%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--brand), var(--brand2, #b06bff));
+  box-shadow: var(--glow-soft);
+  transition: width .4s;
+}
+.xp-sub { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.xp-today { color: var(--brand); }
+.xp-weeks { display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
+.xp-week { display: flex; align-items: center; gap: 8px; }
+.xp-week-wk { font-size: 11px; color: var(--muted); width: 54px; flex-shrink: 0; }
+.xp-week-bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
+.xp-week-fill { height: 100%; border-radius: 3px; background: var(--brand2, #b06bff); opacity: .8; }
+.xp-week-n { font-size: 11px; color: var(--text); width: 34px; text-align: right; }
+
+/* 习惯管理 */
+.habit-mgr { display: flex; flex-direction: column; gap: 8px; }
+.habit-mgr-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+.habit-mgr-icon { font-size: 16px; }
+.habit-mgr-name { flex: 1; font-size: 13px; color: var(--text); }
+.habit-mgr-streak { font-size: 11px; color: var(--warn); }
+.habit-mgr-del { font-size: 12px; color: var(--muted); background: none; border: none; cursor: pointer; }
+.habit-mgr-del:hover { color: var(--bad); }
+.habit-mgr-empty { font-size: 12px; color: var(--muted); }
+.habit-mgr-add { display: flex; gap: 8px; }
+.habit-mgr-add .input { flex: 1; }
 .pref-unit { color: var(--muted); font-size: 12px; }
 
 /* 成就墙 */

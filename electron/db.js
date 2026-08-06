@@ -229,6 +229,78 @@ const api = {
       CREATE INDEX IF NOT EXISTS idx_kb_blocks_doc ON kb_blocks(doc_id);
       CREATE INDEX IF NOT EXISTS idx_kb_links_q ON kb_links(question_id);
       CREATE INDEX IF NOT EXISTS idx_kb_docs_deleted ON kb_docs(deleted);
+      -- 反馈层：XP / 习惯 / 每日回顾 / 专注 / 高亮 / 文档双链（全部带 client_id 走 LWW 同步）
+      CREATE TABLE IF NOT EXISTS xp_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        xp INTEGER NOT NULL,
+        source TEXT,
+        note TEXT,
+        created_at INTEGER,
+        deleted INTEGER DEFAULT 0,
+        client_id TEXT
+      );
+      CREATE TABLE IF NOT EXISTS habits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        icon TEXT DEFAULT '✅',
+        sort INTEGER DEFAULT 0,
+        created_at INTEGER,
+        updated_at INTEGER,
+        deleted INTEGER DEFAULT 0,
+        client_id TEXT
+      );
+      CREATE TABLE IF NOT EXISTS habit_checks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        habit_id INTEGER NOT NULL,
+        check_date TEXT NOT NULL,
+        created_at INTEGER,
+        client_id TEXT,
+        UNIQUE (habit_id, check_date)
+      );
+      CREATE TABLE IF NOT EXISTS review_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        item_type TEXT NOT NULL,
+        item_id INTEGER NOT NULL,
+        result INTEGER DEFAULT 1,
+        created_at INTEGER,
+        client_id TEXT
+      );
+      CREATE TABLE IF NOT EXISTS focus_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        minutes INTEGER NOT NULL,
+        started_at INTEGER,
+        created_at INTEGER,
+        deleted INTEGER DEFAULT 0,
+        client_id TEXT
+      );
+      CREATE TABLE IF NOT EXISTS kb_highlights (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        doc_id INTEGER NOT NULL,
+        block_id INTEGER,
+        text TEXT,
+        note TEXT,
+        color TEXT DEFAULT 'yellow',
+        created_at INTEGER,
+        updated_at INTEGER,
+        deleted INTEGER DEFAULT 0,
+        client_id TEXT
+      );
+      CREATE TABLE IF NOT EXISTS kb_doc_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        from_doc_id INTEGER NOT NULL,
+        to_doc_id INTEGER NOT NULL,
+        note TEXT,
+        created_at INTEGER,
+        client_id TEXT,
+        UNIQUE (from_doc_id, to_doc_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_xp_created ON xp_logs(created_at);
+      CREATE INDEX IF NOT EXISTS idx_habit_checks_date ON habit_checks(check_date);
+      CREATE INDEX IF NOT EXISTS idx_review_created ON review_logs(created_at);
+      CREATE INDEX IF NOT EXISTS idx_focus_created ON focus_sessions(created_at);
+      CREATE INDEX IF NOT EXISTS idx_kb_highlights_doc ON kb_highlights(doc_id);
+      CREATE INDEX IF NOT EXISTS idx_kb_doc_links_from ON kb_doc_links(from_doc_id);
     `)
   },
 
@@ -265,6 +337,8 @@ const api = {
     // 知识库：文件夹分类 + 阅读次数统计
     addColumn('kb_docs', 'folder', 'folder TEXT DEFAULT \'\'')
     addColumn('kb_docs', 'read_count', 'read_count INTEGER DEFAULT 0')
+    // 错题原因标签（粗心/知识点不懂/时间不够…）
+    addColumn('wrong_books', 'reason', 'reason TEXT DEFAULT \'\'')
   },
 
   // 给历史数据/样例数据补齐 client_id 与 *_cid（按 client_id 做跨设备身份，否则无法匹配）。
@@ -456,6 +530,9 @@ const api = {
 
     sqlite.prepare('UPDATE users SET total_answered=total_answered+1, correct_count=correct_count+?, updated_at=? WHERE id=?')
       .run(correct ? 1 : 0, now, LOCAL_USER)
+
+    // XP 埋点：答对 +10，答错 +2（事件行带 client_id，多端同步总量正确）
+    this.logXp(correct ? 10 : 2, 'quiz', q.type)
 
     if (!correct) {
       sqlite.prepare(`INSERT INTO wrong_books (user_id, question_id, wrong_count, reviewed_count, status, next_review_at, updated_at, client_id, question_cid)
@@ -1305,8 +1382,17 @@ const api = {
     })
     const kbFiles = this.listKbFiles().filter(f => /\.md$/i.test(f.relPath)) // MD 文本内嵌；PDF 二进制不进快照
 
+    // 反馈层：高亮/文档双链的 doc 引用转 client_id 携带（多端 id 会错位）
+    const kbHighlights = sqlite.prepare(
+      'SELECT h.*, d.client_id AS doc_cid FROM kb_highlights h JOIN kb_docs d ON d.id=h.doc_id'
+    ).all().map(r => { delete r.doc_id; return r })
+    const kbDocLinks = sqlite.prepare(
+      'SELECT l.note, l.created_at, l.client_id, a.client_id AS from_cid, b.client_id AS to_cid FROM kb_doc_links l ' +
+      'JOIN kb_docs a ON a.id=l.from_doc_id JOIN kb_docs b ON b.id=l.to_doc_id'
+    ).all()
+
     return JSON.stringify({
-      version: 3,
+      version: 4,
       kind: 'sync',
       exportedAt: Date.now(),
       categories: dump('categories'),
@@ -1323,7 +1409,14 @@ const api = {
       kbBlocksByCid,
       kbTagsByCid,
       kbLinksByCid,
-      kbFiles
+      kbFiles,
+      xpLogs: dump('xp_logs'),
+      habits: dump('habits'),
+      habitChecks: dump('habit_checks'),
+      reviewLogs: dump('review_logs'),
+      focusSessions: dump('focus_sessions'),
+      kbHighlights,
+      kbDocLinks
     }, null, 2)
   },
 
@@ -1338,21 +1431,29 @@ const api = {
       { table: 'categories', cols: ['name', 'parent_id', 'level', 'stage', 'sort', 'client_id', 'parent_cid', 'updated_at', 'deleted'] },
       { table: 'questions', cols: ['category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'client_id', 'category_cid', 'updated_at', 'deleted'] },
       { table: 'answer_records', cols: ['user_id', 'question_id', 'selected_json', 'is_correct', 'duration_ms', 'mode', 'self_graded', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
-      { table: 'wrong_books', cols: ['user_id', 'question_id', 'wrong_count', 'reviewed_count', 'next_review_at', 'weak_point', 'status', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
+      { table: 'wrong_books', cols: ['user_id', 'question_id', 'wrong_count', 'reviewed_count', 'next_review_at', 'weak_point', 'reason', 'status', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
       { table: 'favorites', cols: ['user_id', 'question_id', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
       { table: 'notes', cols: ['user_id', 'question_id', 'content', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
       { table: 'papers', cols: ['title', 'subject_id', 'duration_minutes', 'total_score', 'rules_json', 'created_at', 'client_id', 'updated_at', 'deleted'] },
       { table: 'paper_questions', cols: ['paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted'] },
-      { table: 'kb_docs', cols: ['title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'created_at', 'updated_at', 'deleted', 'client_id'] }
+      { table: 'kb_docs', cols: ['title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'created_at', 'updated_at', 'deleted', 'client_id'] },
+      // 反馈层（批次功能新增，全部 LWW）
+      { table: 'xp_logs', cols: ['user_id', 'xp', 'source', 'note', 'created_at', 'deleted', 'client_id'] },
+      { table: 'habits', cols: ['name', 'icon', 'sort', 'created_at', 'updated_at', 'deleted', 'client_id'] },
+      { table: 'habit_checks', cols: ['habit_id', 'check_date', 'created_at', 'client_id'], orIgnore: true },
+      { table: 'review_logs', cols: ['item_type', 'item_id', 'result', 'created_at', 'client_id'] },
+      { table: 'focus_sessions', cols: ['minutes', 'started_at', 'created_at', 'deleted', 'client_id'] },
+      { table: 'kb_highlights', cols: ['doc_id', 'block_id', 'text', 'note', 'color', 'created_at', 'updated_at', 'deleted', 'client_id'] },
+      { table: 'kb_doc_links', cols: ['from_doc_id', 'to_doc_id', 'note', 'created_at', 'client_id'], orIgnore: true }
     ]
 
-    const makeUpsert = (table, cols) => {
+    const makeUpsert = (table, cols, orIgnore = false) => {
       const getByCid = sqlite.prepare(`SELECT id FROM ${table} WHERE client_id=?`)
       const insCols = cols
       const insPh = cols.map(() => '?').join(',')
       const updCols = cols.filter(c => c !== 'client_id')
       const updPh = updCols.map(c => `${c}=excluded.${c}`).join(',')
-      const insert = sqlite.prepare(`INSERT INTO ${table} (${insCols.join(',')}) VALUES (${insPh})`)
+      const insert = sqlite.prepare(`INSERT ${orIgnore ? 'OR IGNORE' : ''} INTO ${table} (${insCols.join(',')}) VALUES (${insPh})`)
       const update = sqlite.prepare(`UPDATE ${table} SET ${updPh} WHERE client_id=?`)
       return (r) => {
         if (!r.client_id) r.client_id = uuid() // 兜底：远端缺 client_id 时补一个
@@ -1428,6 +1529,7 @@ const api = {
       let kbBlocksN = 0
       let kbTagsN = 0
       let kbLinksN = 0
+      const kbCidToId = new Map()
       for (const r of kbMerged) {
         if (!r.client_id) r.client_id = uuid()
         const localRow = kbLocalMap.get(r.client_id)
@@ -1440,6 +1542,7 @@ const api = {
         }
         relPathUsed.set(r.rel_path, r.client_id)
         const docId = kbUpsert(r)
+        kbCidToId.set(r.client_id, docId)
         kbDocsN++
         if (remoteWin) {
           sqlite.prepare('DELETE FROM kb_blocks WHERE doc_id=?').run(docId)
@@ -1468,7 +1571,31 @@ const api = {
         }
       }
 
-      return { categories: catMerged.length, questions: qMerged.length, answerRecords: arN, wrongBooks: wbN, favorites: fvN, notes: ntN, papers: paperMerged.length, paperQuestions: pqMerged.length, kbDocs: kbDocsN, kbBlocks: kbBlocksN, kbTags: kbTagsN, kbLinks: kbLinksN }
+      // 6) 反馈层七张表：全部 LWW（事件行 client_id 唯一，多端合并天然去重；UNIQUE 表用 OR IGNORE）
+      const mergeSimple = (cfgIdx, remoteKey) => {
+        const c = cfg[cfgIdx]
+        const rows = lwwMerge(readAll(c.table), remote[remoteKey] || [])
+        const up = makeUpsert(c.table, c.cols, !!c.orIgnore)
+        rows.forEach(r => up(r))
+        return rows.length
+      }
+      const xpN = mergeSimple(9, 'xpLogs')
+      const hbN = mergeSimple(10, 'habits')
+      const hcN = mergeSimple(11, 'habitChecks')
+      const rvN = mergeSimple(12, 'reviewLogs')
+      const fsN = mergeSimple(13, 'focusSessions')
+      // 高亮/文档双链：doc 引用按 cid 解析成本机 id 后再 upsert
+      const hlMerged = lwwMerge(readAll('kb_highlights'), remote.kbHighlights || [])
+      applyFk(hlMerged, 'doc_cid', 'doc_id', kbCidToId)
+      const hlUp = makeUpsert('kb_highlights', cfg[14].cols)
+      hlMerged.forEach(r => hlUp(r))
+      const dlMerged = lwwMerge(readAll('kb_doc_links'), remote.kbDocLinks || [])
+      applyFk(dlMerged, 'from_cid', 'from_doc_id', kbCidToId)
+      applyFk(dlMerged, 'to_cid', 'to_doc_id', kbCidToId)
+      const dlUp = makeUpsert('kb_doc_links', cfg[15].cols, true)
+      dlMerged.forEach(r => dlUp(r))
+
+      return { categories: catMerged.length, questions: qMerged.length, answerRecords: arN, wrongBooks: wbN, favorites: fvN, notes: ntN, papers: paperMerged.length, paperQuestions: pqMerged.length, kbDocs: kbDocsN, kbBlocks: kbBlocksN, kbTags: kbTagsN, kbLinks: kbLinksN, xpLogs: xpN, habits: hbN, habitChecks: hcN, reviewLogs: rvN, focusSessions: fsN, kbHighlights: hlMerged.length, kbDocLinks: dlMerged.length }
     })
     const result = tx()
     // 还原图片二进制到本地图床（换设备后 getImage 不裂图）
@@ -1554,9 +1681,11 @@ const api = {
     return this.getKbDoc(id)
   },
 
-  // 阅读埋点：打开阅读页 +1
+  // 阅读埋点：打开阅读页 +1（同时给 5 XP，供每日任务「阅读」判定）
   bumpKbRead(id) {
     sqlite.prepare('UPDATE kb_docs SET read_count=read_count+1 WHERE id=? AND deleted=0').run(id)
+    const doc = sqlite.prepare('SELECT title FROM kb_docs WHERE id=? AND deleted=0').get(id)
+    this.logXp(5, 'kbread', doc ? doc.title : '')
     return { ok: true }
   },
 
@@ -1583,6 +1712,256 @@ const api = {
       return { ok: true, blocks: blocks.length }
     } catch (e) {
       return { ok: false, error: String((e && e.message) || e) }
+    }
+  },
+
+  // ================= 反馈层（XP / 每日任务 / 回顾 / 专注 / 习惯 / 高亮 / 双链 / 错题原因） =================
+  // 所有事件行带 client_id，多端 LWW 合并按行去重，总量正确。
+  logXp(xp, source, note = '') {
+    sqlite.prepare('INSERT INTO xp_logs (user_id, xp, source, note, created_at, deleted, client_id) VALUES (?,?,?,?,?,0,?)')
+      .run(LOCAL_USER, Math.round(xp) || 0, source || '', note || '', Date.now(), uuid())
+    return { ok: true }
+  },
+
+  // 等级 = floor(sqrt(总XP/100))+1，每级所需 XP 递增（100/300/600/1000…）
+  xpStats() {
+    const total = sqlite.prepare('SELECT COALESCE(SUM(xp),0) AS n FROM xp_logs WHERE deleted=0').get().n
+    const todayStart = new Date().setHours(0, 0, 0, 0)
+    const today = sqlite.prepare('SELECT COALESCE(SUM(xp),0) AS n FROM xp_logs WHERE deleted=0 AND created_at>=?').get(todayStart).n
+    const d = new Date()
+    const dow = (d.getDay() + 6) % 7 // 周一=0
+    const weekStart = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow).getTime()
+    const week = sqlite.prepare('SELECT COALESCE(SUM(xp),0) AS n FROM xp_logs WHERE deleted=0 AND created_at>=?').get(weekStart).n
+    const level = Math.floor(Math.sqrt(total / 100)) + 1
+    const curLevelBase = 100 * (level - 1) * (level - 1)
+    const nextLevelBase = 100 * level * level
+    // 近 8 周排行（自己 vs 历史周）
+    const weeks = sqlite.prepare(
+      `SELECT strftime('%Y-%W', datetime(created_at/1000,'unixepoch','localtime')) AS wk, SUM(xp) AS n
+       FROM xp_logs WHERE deleted=0 GROUP BY wk ORDER BY wk DESC LIMIT 8`
+    ).all()
+    return {
+      total, today, week,
+      level,
+      curLevelXp: total - curLevelBase,
+      nextLevelXp: nextLevelBase - curLevelBase,
+      levelPct: Math.min(100, Math.round((total - curLevelBase) / Math.max(1, nextLevelBase - curLevelBase) * 100)),
+      weeks: weeks.map(w => ({ wk: w.wk, xp: w.n }))
+    }
+  },
+
+  // 今日行为计数（每日任务/回顾用）：今日复习条数、今日阅读次数
+  todayCounts() {
+    const todayStart = new Date().setHours(0, 0, 0, 0)
+    const review = sqlite.prepare('SELECT COUNT(*) AS n FROM review_logs WHERE created_at>=?').get(todayStart).n
+    const kbRead = sqlite.prepare("SELECT COUNT(*) AS n FROM xp_logs WHERE deleted=0 AND created_at>=? AND source='kbread'").get(todayStart).n
+    return { review, kbRead }
+  },
+
+  // 每日任务 Quest：按当天指标实时判定，达标且当天未领过 XP 的自动发放（+20/个）
+  checkQuests() {
+    const todayStart = new Date().setHours(0, 0, 0, 0)
+    const has = (note) => sqlite.prepare(
+      "SELECT COUNT(*) AS n FROM xp_logs WHERE deleted=0 AND created_at>=? AND source='quest' AND note=?"
+    ).get(todayStart, note).n > 0
+    const s = this.getSummary()
+    const tc = this.todayCounts()
+    const tasks = [
+      { key: 'quiz20', name: '刷 20 题', note: '刷20题', done: s.today >= 20 },
+      { key: 'review5', name: '复习 5 条', note: '复习5条', done: tc.review >= 5 },
+      { key: 'read1', name: '阅读 1 篇文档', note: '阅读1篇', done: tc.kbRead >= 1 }
+    ]
+    const claimed = []
+    tasks.forEach(t => {
+      if (t.done && !has(t.note)) {
+        this.logXp(20, 'quest', t.note)
+        claimed.push(t.name)
+      }
+    })
+    return { tasks: tasks.map(t => ({ key: t.key, name: t.name, done: t.done })), claimed }
+  },
+
+  // 每日回顾：到期错题（复用智能复习调度）+ 知识库随机块
+  getDailyReview(limit = 8) {
+    const due = sqlite.prepare(
+      "SELECT w.question_id, w.next_review_at, q.stem, q.options_json, q.answer_json, q.analysis, q.type FROM wrong_books w " +
+      "JOIN questions q ON q.id=w.question_id WHERE w.user_id=? AND w.status='wrong' AND w.deleted=0 " +
+      "AND (w.next_review_at IS NULL OR w.next_review_at<=?) ORDER BY w.next_review_at IS NULL DESC, w.next_review_at ASC LIMIT ?"
+    ).all(LOCAL_USER, Date.now(), Math.ceil(limit / 2))
+    const blocks = sqlite.prepare(
+      `SELECT b.id AS block_id, b.heading, b.content, d.id AS doc_id, d.title AS doc_title
+       FROM kb_blocks b JOIN kb_docs d ON d.id=b.doc_id WHERE d.deleted=0 ORDER BY RANDOM() LIMIT ?`
+    ).all(Math.floor(limit / 2))
+    return {
+      questions: due.map(r => ({ questionId: r.question_id, stem: r.stem, type: r.type, options: JSON.parse(r.options_json || '[]'), answer: JSON.parse(r.answer_json || '[]'), analysis: r.analysis || '' })),
+      blocks: blocks.map(b => ({ blockId: b.block_id, docId: b.doc_id, docTitle: b.doc_title, heading: b.heading, content: b.content }))
+    }
+  },
+
+  // 记录每日回顾结果（答对/想起来 = result 1）并给 XP
+  logReview(itemType, itemId, result) {
+    sqlite.prepare('INSERT INTO review_logs (item_type, item_id, result, created_at, client_id) VALUES (?,?,?,?,?)')
+      .run(itemType, itemId, result ? 1 : 0, Date.now(), uuid())
+    if (result) this.logXp(5, 'review', itemType)
+    return { ok: true }
+  },
+
+  // 专注番茄：完成一个 session 记分钟 + XP（2 XP/分钟）
+  addFocusSession(minutes) {
+    sqlite.prepare('INSERT INTO focus_sessions (minutes, started_at, created_at, deleted, client_id) VALUES (?,?,?,0,?)')
+      .run(Math.max(1, Math.round(minutes)) || 25, Date.now(), Date.now(), uuid())
+    this.logXp(Math.max(1, Math.round(minutes)) * 2, 'focus', minutes + 'min')
+    return { ok: true }
+  },
+
+  focusStats() {
+    const todayStart = new Date().setHours(0, 0, 0, 0)
+    const today = sqlite.prepare('SELECT COALESCE(SUM(minutes),0) AS n FROM focus_sessions WHERE deleted=0 AND created_at>=?').get(todayStart).n
+    const weekStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - ((new Date().getDay() + 6) % 7)).getTime()
+    const week = sqlite.prepare('SELECT COALESCE(SUM(minutes),0) AS n FROM focus_sessions WHERE deleted=0 AND created_at>=?').get(weekStart).n
+    return { today, week }
+  },
+
+  // ---- 习惯打卡（多目标）----
+  listHabits() {
+    const rows = sqlite.prepare('SELECT * FROM habits WHERE deleted=0 ORDER BY sort, id').all()
+    const today = new Date().toISOString().slice(0, 10)
+    const checkStmt = sqlite.prepare('SELECT check_date FROM habit_checks WHERE habit_id=? ORDER BY check_date DESC')
+    const streakStmt = sqlite.prepare('SELECT check_date FROM habit_checks WHERE habit_id=?')
+    return rows.map(h => {
+      const dates = new Set(streakStmt.all(h.id).map(r => r.check_date))
+      let streak = 0
+      const d = new Date()
+      while (dates.has(d.toISOString().slice(0, 10))) { streak++; d.setDate(d.getDate() - 1) }
+      return { ...h, checkedToday: dates.has(today), streak, total: dates.size }
+    })
+  },
+
+  addHabit(name, icon = '✅') {
+    const now = Date.now()
+    const info = sqlite.prepare('INSERT INTO habits (name, icon, sort, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,0,?)')
+      .run(String(name || '').trim() || '新习惯', icon || '✅', 0, now, now, uuid())
+    return info.lastInsertRowid
+  },
+
+  updateHabit(id, patch = {}) {
+    const cur = sqlite.prepare('SELECT * FROM habits WHERE id=? AND deleted=0').get(id)
+    if (!cur) return null
+    sqlite.prepare('UPDATE habits SET name=?, icon=?, updated_at=? WHERE id=?')
+      .run(patch.name ?? cur.name, patch.icon ?? cur.icon, Date.now(), id)
+    return this.listHabits()
+  },
+
+  deleteHabit(id) {
+    const tx = sqlite.transaction(() => {
+      sqlite.prepare('DELETE FROM habit_checks WHERE habit_id=?').run(id)
+      sqlite.prepare('UPDATE habits SET deleted=1 WHERE id=?').run(id)
+    })
+    tx()
+    return { ok: true }
+  },
+
+  checkHabit(habitId, dateStr) {
+    const date = dateStr || new Date().toISOString().slice(0, 10)
+    sqlite.prepare('INSERT OR IGNORE INTO habit_checks (habit_id, check_date, created_at, client_id) VALUES (?,?,?,?)')
+      .run(habitId, date, Date.now(), uuid())
+    return { ok: true }
+  },
+
+  uncheckHabit(habitId, dateStr) {
+    const date = dateStr || new Date().toISOString().slice(0, 10)
+    sqlite.prepare('DELETE FROM habit_checks WHERE habit_id=? AND check_date=?').run(habitId, date)
+    return { ok: true }
+  },
+
+  // ---- 文档高亮批注 ----
+  getHighlightsForDoc(docId) {
+    return sqlite.prepare('SELECT * FROM kb_highlights WHERE doc_id=? AND deleted=0 ORDER BY created_at DESC').all(docId)
+  },
+
+  addHighlight({ docId, blockId = null, text = '', note = '', color = 'yellow' }) {
+    const now = Date.now()
+    const info = sqlite.prepare('INSERT INTO kb_highlights (doc_id, block_id, text, note, color, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,0,?)')
+      .run(docId, blockId, String(text || '').slice(0, 500), note || '', color || 'yellow', now, now, uuid())
+    return info.lastInsertRowid
+  },
+
+  removeHighlight(id) {
+    sqlite.prepare('UPDATE kb_highlights SET deleted=1 WHERE id=?').run(id)
+    return { ok: true }
+  },
+
+  // ---- 文档 ↔ 文档 双链 ----
+  getDocLinks(docId) {
+    const out = { from: [], to: [] }
+    const a = sqlite.prepare('SELECT l.to_doc_id AS doc_id, l.note, d.title FROM kb_doc_links l JOIN kb_docs d ON d.id=l.to_doc_id WHERE l.from_doc_id=? AND d.deleted=0').all(docId)
+    const b = sqlite.prepare('SELECT l.from_doc_id AS doc_id, l.note, d.title FROM kb_doc_links l JOIN kb_docs d ON d.id=l.from_doc_id WHERE l.to_doc_id=? AND d.deleted=0').all(docId)
+    out.from = a
+    out.to = b
+    return out
+  },
+
+  linkDocs(fromDocId, toDocId) {
+    sqlite.prepare('INSERT OR IGNORE INTO kb_doc_links (from_doc_id, to_doc_id, note, created_at, client_id) VALUES (?,?,?,?,?)')
+      .run(fromDocId, toDocId, '', Date.now(), uuid())
+    return { ok: true }
+  },
+
+  unlinkDocs(fromDocId, toDocId) {
+    sqlite.prepare('DELETE FROM kb_doc_links WHERE (from_doc_id=? AND to_doc_id=?) OR (from_doc_id=? AND to_doc_id=?)')
+      .run(fromDocId, toDocId, toDocId, fromDocId)
+    return { ok: true }
+  },
+
+  // ---- 错题原因标签 ----
+  setWrongReason(questionId, reason) {
+    sqlite.prepare("UPDATE wrong_books SET reason=?, updated_at=? WHERE user_id=? AND question_id=? AND deleted=0")
+      .run(String(reason || '').trim(), Date.now(), LOCAL_USER, questionId)
+    return { ok: true }
+  },
+
+  // ---- 学习周报（聚合近 7 天，前端拼 HTML 导出 PDF）----
+  getWeeklyReport() {
+    const now = new Date()
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7).getTime()
+    const q = sqlite.prepare(
+      'SELECT COUNT(*) AS n, COALESCE(SUM(is_correct),0) AS c FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=?'
+    ).get(LOCAL_USER, weekStart)
+    const xp = sqlite.prepare('SELECT COALESCE(SUM(xp),0) AS n FROM xp_logs WHERE deleted=0 AND created_at>=?').get(weekStart).n
+    const focus = sqlite.prepare('SELECT COALESCE(SUM(minutes),0) AS n FROM focus_sessions WHERE deleted=0 AND created_at>=?').get(weekStart).n
+    const review = sqlite.prepare('SELECT COUNT(*) AS n FROM review_logs WHERE created_at>=?').get(weekStart).n
+    const habits = sqlite.prepare('SELECT COUNT(DISTINCT habit_id) AS h, COUNT(*) AS c FROM habit_checks WHERE check_date>=?').get(new Date(weekStart).toISOString().slice(0, 10))
+    const s = this.getSummary()
+    const kb = this.kbStats()
+    const x = this.xpStats()
+    // 近 7 天每日答题数
+    const daily = []
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
+      const start = d.setHours(0, 0, 0, 0)
+      const end = start + 86400000
+      const n = sqlite.prepare('SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=? AND created_at<?').get(LOCAL_USER, start, end).n
+      daily.push({ date: `${d.getMonth() + 1}/${d.getDate()}`, n })
+    }
+    return {
+      weekStart,
+      answered: q.n || 0,
+      correct: q.c || 0,
+      accuracy: q.n ? Math.round((q.c / q.n) * 100) : 0,
+      xp: xp,
+      level: x.level,
+      totalXp: x.total,
+      focus,
+      review,
+      habitDays: habits.h || 0,
+      habitChecks: habits.c || 0,
+      wrongActive: s.wrongCount,
+      mastered: s.mastered,
+      totalAnswered: s.learned || s.totalAnswered || 0,
+      kbDocs: kb.docs,
+      kbLinks: kb.links,
+      kbRead: kb.readCount,
+      daily
     }
   },
 

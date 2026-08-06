@@ -1,6 +1,7 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import { tiku } from '../api/tiku.js'
+import ReviewPanel from './ReviewPanel.vue'
 
 const props = defineProps({ subject: Object })
 const emit = defineEmits(['start', 'start-mock'])
@@ -14,12 +15,70 @@ watch(() => props.subject.id, load)
 
 const goalPct = computed(() => dailyGoal.value ? Math.min(100, Math.round((summary.value.today / dailyGoal.value) * 100)) : 0)
 
+// 每日任务 Quest + 习惯打卡 + 每日回顾 + 番茄钟
+const tasks = ref([])
+const habits = ref([])
+const questClaimed = ref('')
+const reviewOpen = ref(false)
+const focusMinutes = ref(25)
+const focusLeft = ref(0)
+const focusRunning = ref(false)
+const focusToday = ref(0)
+let focusTimer = null
+
 async function load() {
   loading.value = true
   summary.value = await tiku.getSummary()
   try { dailyGoal.value = Number(await tiku.getSetting('daily_goal')) || 0 } catch (e) { dailyGoal.value = 0 }
+  try {
+    const q = await tiku.checkQuests()
+    tasks.value = q.tasks
+    questClaimed.value = q.claimed.join('、')
+  } catch (e) { /* 任务失败不阻塞 */ }
+  try { habits.value = await tiku.listHabits() } catch (e) { habits.value = [] }
+  try { const fs = await tiku.focusStats(); focusToday.value = fs.today } catch (e) { focusToday.value = 0 }
   loading.value = false
 }
+
+async function toggleHabit(h) {
+  if (h.checkedToday) await tiku.uncheckHabit(h.id)
+  else await tiku.checkHabit(h.id)
+  habits.value = await tiku.listHabits()
+}
+
+function onTaskClick(t) {
+  if (t.key === 'quiz20') emit('start', { mode: 'practice' })
+  else if (t.key === 'review5') reviewOpen.value = true
+  else alert('去「知识库」Tab 打开任意一篇文档阅读，即算完成')
+}
+
+// 番茄钟
+const focusText = computed(() => {
+  const m = Math.floor(focusLeft.value / 60)
+  const s = focusLeft.value % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+})
+function startFocus() {
+  if (focusRunning.value) return
+  focusLeft.value = focusMinutes.value * 60
+  focusRunning.value = true
+  focusTimer = setInterval(() => {
+    focusLeft.value--
+    if (focusLeft.value <= 0) stopFocus(true)
+  }, 1000)
+}
+async function stopFocus(completed = false) {
+  clearInterval(focusTimer)
+  focusTimer = null
+  focusRunning.value = false
+  if (completed) {
+    await tiku.addFocusSession(focusMinutes.value)
+    const fs = await tiku.focusStats()
+    focusToday.value = fs.today
+  }
+  focusLeft.value = 0
+}
+onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
 </script>
 
 <template>
@@ -61,6 +120,51 @@ async function load() {
       <div class="goal-sub">{{ goalPct >= 100 ? '🎉 今日目标已达成！' : '还差 ' + Math.max(0, dailyGoal - summary.today) + ' 题，去刷几道吧' }}</div>
     </div>
 
+    <!-- 每日任务 Quest -->
+    <div class="card quest-card">
+      <div class="card-title">📋 每日任务 <span class="quest-xp">每个 +20 XP</span></div>
+      <div v-if="questClaimed" class="quest-claimed">🎉 {{ questClaimed }} 已完成，XP 已到账</div>
+      <div class="quest-list">
+        <div v-for="t in tasks" :key="t.key" class="quest-item" :class="{ done: t.done }" @click="onTaskClick(t)">
+          <span class="quest-check">{{ t.done ? '✓' : '○' }}</span>
+          <span class="quest-name">{{ t.name }}</span>
+          <span class="quest-state">{{ t.done ? '已完成' : '去做' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 习惯打卡 -->
+    <div v-if="habits.length" class="card habit-card">
+      <div class="card-title">🔁 我的习惯 <span class="quest-xp">今日打卡</span></div>
+      <div class="habit-list">
+        <div v-for="h in habits" :key="h.id" class="habit-item" :class="{ done: h.checkedToday }" @click="toggleHabit(h)">
+          <span class="habit-icon">{{ h.icon }}</span>
+          <span class="habit-name">{{ h.name }}</span>
+          <span class="habit-streak">🔥 {{ h.streak }} 天</span>
+          <span class="habit-check">{{ h.checkedToday ? '✓' : '○' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 每日回顾 + 专注 -->
+    <div class="card duo-card">
+      <div class="duo-row">
+        <div class="duo-left" @click="reviewOpen = true">
+          <span class="duo-title">🧠 每日回顾</span>
+          <span class="duo-sub">主动回忆 · 对抗遗忘</span>
+        </div>
+        <div class="duo-right">
+          <span class="duo-title">⏱ 专注 {{ focusMinutes }} 分钟</span>
+          <div class="focus-ctrl">
+            <span v-if="focusRunning" class="focus-time">{{ focusText }}</span>
+            <button v-if="!focusRunning" class="btn btn-primary" @click="startFocus">开始</button>
+            <button v-else class="btn" @click="stopFocus(false)">停止</button>
+          </div>
+          <span class="duo-sub">今日已专注 {{ focusToday }} 分钟</span>
+        </div>
+      </div>
+    </div>
+
     <!-- 快捷入口 -->
     <div class="card shortcuts">
       <div class="card-title">知识卡片预览</div>
@@ -98,6 +202,8 @@ async function load() {
     </div>
 
     <div v-if="loading" class="empty">加载中…</div>
+
+    <ReviewPanel :show="reviewOpen" @close="reviewOpen = false" />
   </div>
 </template>
 
@@ -130,6 +236,73 @@ async function load() {
 .goal-bar { height: 8px; background: rgba(255,255,255,.06); border-radius: 6px; overflow: hidden; }
 .goal-fill { height: 100%; background: linear-gradient(90deg, var(--brand), var(--brand2, #7b46c4)); border-radius: 6px; transition: width .4s; box-shadow: var(--glow-soft); }
 .goal-sub { font-size: 12px; color: var(--muted); }
+
+/* 每日任务 */
+.quest-xp { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+.quest-claimed { font-size: 12px; color: var(--ok); margin-bottom: 8px; }
+.quest-list { display: flex; flex-direction: column; gap: 8px; }
+.quest-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 12px;
+  cursor: pointer;
+  transition: border-color .2s;
+}
+.quest-item:hover { border-color: var(--brand); }
+.quest-item.done { border-color: rgba(44, 229, 168, 0.4); background: rgba(44, 229, 168, 0.05); }
+.quest-check { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--muted); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: var(--muted); }
+.quest-item.done .quest-check { border-color: var(--ok); color: var(--ok); }
+.quest-name { flex: 1; font-size: 13px; color: var(--text); }
+.quest-state { font-size: 11px; color: var(--muted); }
+.quest-item.done .quest-state { color: var(--ok); }
+
+/* 习惯打卡 */
+.habit-list { display: flex; flex-direction: column; gap: 6px; }
+.habit-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.habit-item.done { border-color: rgba(44, 229, 168, 0.4); background: rgba(44, 229, 168, 0.05); }
+.habit-icon { font-size: 16px; }
+.habit-name { flex: 1; font-size: 13px; color: var(--text); }
+.habit-streak { font-size: 11px; color: var(--warn); }
+.habit-check { font-size: 16px; color: var(--muted); }
+.habit-item.done .habit-check { color: var(--ok); }
+
+/* 每日回顾 + 专注 */
+.duo-row { display: flex; gap: 14px; }
+.duo-left {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.duo-left:hover { border-color: var(--brand); }
+.duo-right {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.duo-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.duo-sub { font-size: 11px; color: var(--muted); }
+.focus-ctrl { display: flex; align-items: center; gap: 8px; }
+.focus-time { font-size: 20px; font-weight: 600; color: var(--brand); font-variant-numeric: tabular-nums; }
 
 .shortcuts .shortcut-grid {
   display: grid;

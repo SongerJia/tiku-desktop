@@ -5,7 +5,15 @@ import { tiku } from '../api/tiku.js'
 import SimpleQuestion from './SimpleQuestion.vue'
 
 const props = defineProps({ show: Boolean, doc: Object })
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'open-doc'])
+
+const HL_COLORS = {
+  yellow: 'rgba(255, 200, 60, 0.25)',
+  blue: 'rgba(60, 160, 255, 0.25)',
+  green: 'rgba(80, 220, 140, 0.25)',
+  pink: 'rgba(255, 110, 160, 0.25)'
+}
+const hlColor = (c) => HL_COLORS[c] || HL_COLORS.yellow
 
 const md = new MarkdownIt({ linkify: true, breaks: true, html: false })
 const html = ref('')
@@ -46,6 +54,55 @@ function cancelEdit() {
   editMode.value = false
 }
 
+// 高亮批注 + 文档双链
+const hl = ref([])
+const links = ref({ from: [], to: [] })
+const hlPanel = ref(true)
+const linkKw = ref('')
+const linkRes = ref([])
+let linkTimer = null
+
+async function loadHlAndLinks() {
+  if (!props.doc) return
+  const [h, l] = await Promise.all([tiku.getHighlightsForDoc(props.doc.id), tiku.getDocLinks(props.doc.id)])
+  hl.value = h
+  links.value = l
+}
+
+async function addHlFromSelection() {
+  const sel = window.getSelection()
+  const text = sel ? sel.toString().trim() : ''
+  if (!text) { alert('先在文档正文里选中文字，再点「高亮」'); return }
+  await tiku.addHighlight({ docId: props.doc.id, text })
+  try { sel.removeAllRanges() } catch (e) { /* 忽略 */ }
+  await loadHlAndLinks()
+}
+
+async function removeHl(id) {
+  await tiku.removeHighlight(id)
+  await loadHlAndLinks()
+}
+
+function onLinkInput() {
+  clearTimeout(linkTimer)
+  const kw = linkKw.value.trim()
+  if (!kw) { linkRes.value = []; return }
+  linkTimer = setTimeout(async () => {
+    linkRes.value = (await tiku.kbSearch(kw, 5)).filter(d => d.id !== props.doc.id)
+  }, 300)
+}
+
+async function linkDoc(d) {
+  await tiku.linkDocs(props.doc.id, d.id)
+  linkRes.value = linkRes.value.filter(x => x.id !== d.id)
+  await loadHlAndLinks()
+}
+
+async function unlinkDoc(docId) {
+  await tiku.unlinkDocs(props.doc.id, docId)
+  await loadHlAndLinks()
+}
+
 async function loadQPanel() {
   if (!props.doc) return
   const [links, sugg] = await Promise.all([
@@ -69,6 +126,7 @@ watch(() => props.show, async (v) => {
   if (props.doc.type === 'md') await renderMd()
   else await renderPdf()
   await loadQPanel()
+  await loadHlAndLinks()
   await tiku.kbBumpRead(props.doc.id) // 阅读埋点（计入学习统计）
 })
 
@@ -182,6 +240,7 @@ onBeforeUnmount(() => {
         <div class="kb-reader-spacer"></div>
         <span v-if="pdfState.pages" class="kb-pdf-prog">{{ pdfState.done }}/{{ pdfState.pages }}</span>
         <template v-if="props.doc?.type === 'md' && !editMode">
+          <button class="btn kb-edit-btn" @click="addHlFromSelection">高亮</button>
           <button class="btn kb-edit-btn" @click="startEdit">编辑</button>
         </template>
         <template v-if="editMode">
@@ -233,6 +292,37 @@ onBeforeUnmount(() => {
             <div v-for="q in mRes" :key="'m' + q.id" class="kb-lq">
               <span class="kb-lq-stem" @click="openQ(q.id, q.stem)">{{ q.stem }}</span>
               <button class="kb-lq-act" @click="linkQ(q.id)">关联</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 批注与关联：高亮 + 文档双链 -->
+        <div class="kb-links">
+          <div class="kb-links-head" @click="hlPanel = !hlPanel">
+            <span>批注与关联</span>
+            <span v-if="hl.length || links.from.length || links.to.length" class="kb-links-count">{{ hl.length + links.from.length + links.to.length }}</span>
+            <span class="kb-links-toggle">{{ hlPanel ? '收起' : '展开' }}</span>
+          </div>
+          <div v-if="hlPanel" class="kb-links-body">
+            <div v-if="hl.length" class="kb-hl">
+              <div v-for="h in hl" :key="h.id" class="kb-lq">
+                <span class="kb-hl-text" :style="{ background: hlColor(h.color) }">{{ h.text }}</span>
+                <button class="kb-lq-act" @click="removeHl(h.id)">删除</button>
+              </div>
+            </div>
+            <div v-else class="kb-links-empty">阅读时选中文字点「高亮」，重要内容不丢失</div>
+            <div v-if="links.from.length || links.to.length" class="kb-dl">
+              <div v-for="l in [...links.from, ...links.to]" :key="l.doc_id" class="kb-lq">
+                <span class="kb-lq-stem" @click="$emit('open-doc', l.doc_id)">{{ l.title }}</span>
+                <button class="kb-lq-act" @click="unlinkDoc(l.doc_id)">解除</button>
+              </div>
+            </div>
+            <div class="kb-lq-search">
+              <input v-model="linkKw" class="input" placeholder="搜索其他文档建立关联…" @input="onLinkInput" />
+            </div>
+            <div v-for="d in linkRes" :key="'d' + d.id" class="kb-lq">
+              <span class="kb-lq-stem">{{ d.title }}</span>
+              <button class="kb-lq-act" @click="linkDoc(d)">关联</button>
             </div>
           </div>
         </div>
@@ -383,4 +473,17 @@ onBeforeUnmount(() => {
 .kb-lq-act:hover { color: var(--brand); }
 .kb-lq-search { margin-top: 4px; }
 .kb-lq-search .input { width: 100%; font-size: 13px; }
+.kb-hl, .kb-dl { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+.kb-hl-text {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.6;
+  border-radius: 6px;
+  padding: 4px 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 </style>

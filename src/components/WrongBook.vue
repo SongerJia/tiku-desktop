@@ -16,6 +16,12 @@ onMounted(async () => {
 
 const typeLabel = (t) => ({ single: '单选', multiple: '多选', judge: '判断', essay: '问答' }[t] || t)
 const answerText = (q) => (q.answer && q.answer.length) ? q.answer.join('、') : '（主观题）'
+const REASONS = ['粗心', '知识点不懂', '时间不够', '审题不清', '其他']
+
+async function setReason(it, reason) {
+  it.reason = reason
+  await tiku.setWrongReason(it.question_id, reason)
+}
 
 function escapeHtml(s) {
   return String(s == null ? '' : s)
@@ -83,6 +89,13 @@ async function toggleSimilar(qid) {
     <div v-for="it in items" :key="it.question_id" class="card">
       <div class="stem">{{ it.stem }}</div>
       <div class="meta">答错 {{ it.wrong_count }} 次 · 已复习 {{ it.reviewed_count }} 次</div>
+      <div class="reason-row">
+        <span class="reason-label">错因</span>
+        <select class="reason-select" :value="it.reason || ''" @change="setReason(it, $event.target.value)">
+          <option value="">未标记</option>
+          <option v-for="r in REASONS" :key="r" :value="r">{{ r }}</option>
+        </select>
+      </div>
       <div class="actions">
         <button class="primary" @click="emit('start', { mode: 'wrong' })">复习这批错题</button>
         <button class="ghost" @click="toggleSimilar(it.question_id)">
@@ -128,6 +141,18 @@ button { border: none; padding: 7px 14px; border-radius: 8px; font-size: 13px; c
 
 .similar { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
 .sim-empty { font-size: 12px; color: var(--muted); }
+.reason-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+.reason-label { font-size: 12px; color: var(--muted); }
+.reason-select {
+  background: var(--input-solid-bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  outline: none;
+}
+.reason-select:focus { border-color: var(--brand); }
 .sim-item { border-left: 2px solid var(--brand); padding-left: 8px; }
 .sim-stem { font-size: 12px; color: var(--text); line-height: 1.5; }
 .sim-ans { font-size: 11px; color: var(--ok); margin-top: 2px; }

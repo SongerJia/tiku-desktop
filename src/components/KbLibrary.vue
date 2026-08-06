@@ -85,6 +85,14 @@ function openReader(doc) {
   reader.value = { show: true, doc }
 }
 
+// 从双链跳转打开另一篇文档（优先本地列表，否则按 id 拉取）
+async function openLinkedDoc(docId) {
+  const found = docs.value.find(d => d.id === docId)
+  if (found) { reader.value = { show: true, doc: found }; return }
+  const d = await tiku.kbGet(docId)
+  if (d) reader.value = { show: true, doc: { id: d.id, type: d.type, title: d.title } }
+}
+
 async function onDelete(doc) {
   if (!confirm(`确定删除「${doc.title}」？将同时移除其文本块与题目关联（副本文件一并删除，不影响你的原始文件）。`)) return
   await tiku.kbDelete(doc.id)
@@ -216,7 +224,7 @@ function fmtTime(ts) {
       </div>
     </div>
 
-    <KbReader :show="reader.show" :doc="reader.doc" @close="reader.show = false" />
+    <KbReader :show="reader.show" :doc="reader.doc" @close="reader.show = false" @open-doc="openLinkedDoc" />
   </div>
 </template>
 

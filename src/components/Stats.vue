@@ -1,6 +1,52 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { tiku } from '../api/tiku.js'
+import { printHtml } from '../utils/print.js'
+
+// 学习周报：聚合近 7 天数据 → 打印/导出 PDF
+async function exportReport() {
+  const r = await tiku.getWeeklyReport()
+  const bar = r.daily.map(d => `<div class="bar-cell"><div class="bar" style="height:${Math.max(4, d.n * 6)}px"></div><span>${d.date}</span><b>${d.n}</b></div>`).join('')
+  const body = `
+<h1>学习周报</h1>
+<p class="doc-sub">生成时间：${new Date().toLocaleString()} · 知识记忆小助手</p>
+<div class="sec">本周概览</div>
+<div class="kpis">
+  <div class="kpi"><b>${r.answered}</b><span>答题数</span></div>
+  <div class="kpi"><b>${r.accuracy}%</b><span>正确率</span></div>
+  <div class="kpi"><b>${r.xp}</b><span>获得 XP</span></div>
+  <div class="kpi"><b>${r.focus}</b><span>专注分钟</span></div>
+  <div class="kpi"><b>${r.review}</b><span>回顾条数</span></div>
+  <div class="kpi"><b>${r.habitDays}</b><span>习惯打卡天</span></div>
+</div>
+<div class="sec">近 7 天答题分布</div>
+<div class="bars">${bar}</div>
+<div class="sec">累计数据</div>
+<table class="report-table">
+  <tr><td>等级</td><td>Lv.${r.level}（总 ${r.totalXp} XP）</td></tr>
+  <tr><td>累计已做</td><td>${r.totalAnswered} 题</td></tr>
+  <tr><td>掌握</td><td>${r.mastered} 题</td></tr>
+  <tr><td>活跃错题</td><td>${r.wrongActive} 题</td></tr>
+  <tr><td>知识库</td><td>${r.kbDocs} 篇文档 · ${r.kbLinks} 条联动 · 阅读 ${r.kbRead} 次</td></tr>
+</table>`
+  const style = `
+h1 { margin: 0 0 4px; }
+.doc-sub { color: #666; font-size: 12px; margin: 0 0 16px; }
+.sec { font-size: 14px; font-weight: bold; margin: 18px 0 8px; border-left: 3px solid #0891b2; padding-left: 8px; }
+.kpis { display: flex; gap: 10px; flex-wrap: wrap; }
+.kpi { flex: 1; min-width: 90px; border: 1px solid #ddd; border-radius: 10px; padding: 12px; text-align: center; }
+.kpi b { display: block; font-size: 20px; color: #0891b2; }
+.kpi span { font-size: 11px; color: #666; }
+.bars { display: flex; align-items: flex-end; gap: 8px; height: 120px; }
+.bar-cell { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+.bar { width: 60%; background: #0891b2; border-radius: 4px 4px 0 0; }
+.bar-cell span { font-size: 11px; color: #666; }
+.bar-cell b { font-size: 12px; }
+.report-table { width: 100%; border-collapse: collapse; }
+.report-table td { border: 1px solid #ddd; padding: 8px 10px; font-size: 13px; }
+.report-table td:first-child { width: 120px; color: #666; }`
+  printHtml('学习周报', body, style)
+}
 
 const loggedIn = ref(false)
 const loading = ref(false)
@@ -64,6 +110,7 @@ onMounted(async () => {
     </div>
 
     <div v-if="loggedIn">
+      <button class="btn btn-primary report-btn" @click="exportReport">📄 导出学习周报</button>
       <div class="stats-grid">
       <!-- 总体进度 -->
       <div class="card progress-card">
@@ -293,4 +340,5 @@ onMounted(async () => {
 .dot.light { background: rgba(42, 245, 255, 0.25); }
 .dot.mid { background: rgba(42, 245, 255, 0.55); }
 .dot.heavy { background: var(--brand); box-shadow: var(--glow); }
+.report-btn { margin-bottom: 14px; }
 </style>
