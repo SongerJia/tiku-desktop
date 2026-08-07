@@ -313,6 +313,7 @@ ipcMain.handle('kbFolders', () => db.getKbFolders())
 ipcMain.handle('kbMove', (e, docId, folder) => db.moveKbDoc(docId, folder))
 ipcMain.handle('kbBumpRead', (e, id) => db.bumpKbRead(id))
 ipcMain.handle('kbSaveMd', (e, id, content) => db.kbSaveMd(id, content))
+ipcMain.handle('kbGetNote', (e, docId) => db.getKbNote(docId))
 // ---- 反馈层（XP/每日任务/回顾/专注/习惯/高亮/双链/错题原因）----
 ipcMain.handle('xpStats', () => db.xpStats())
 ipcMain.handle('checkQuests', () => db.checkQuests())

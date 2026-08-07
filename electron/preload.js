@@ -87,6 +87,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   kbMove: (docId, folder) => ipcRenderer.invoke('kbMove', docId, folder),
   kbBumpRead: (id) => ipcRenderer.invoke('kbBumpRead', id),
   kbSaveMd: (id, content) => ipcRenderer.invoke('kbSaveMd', id, content),
+  kbGetNote: (docId) => ipcRenderer.invoke('kbGetNote', docId),
   kbExport: () => ipcRenderer.invoke('kbExport'),
   xpStats: () => ipcRenderer.invoke('xpStats'),
   checkQuests: () => ipcRenderer.invoke('checkQuests'),

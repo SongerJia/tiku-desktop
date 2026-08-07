@@ -2299,6 +2299,32 @@ const api = {
     }
   },
 
+  // 文档笔记：独立 MD 文档，命名固定 = 原文档标题 + '笔记'；已存在则复用，否则创建空笔记
+  getKbNote(docId) {
+    const doc = sqlite.prepare('SELECT id, title FROM kb_docs WHERE id=? AND deleted=0').get(docId)
+    if (!doc) return { ok: false, error: '文档不存在' }
+    // 防套娃：文档本身已是笔记（标题以「笔记」结尾）时直接返回自身，不再生成「笔记笔记」
+    if (/笔记$/.test(String(doc.title))) {
+      return { ok: true, noteId: doc.id, title: doc.title, created: false }
+    }
+    const noteTitle = String(doc.title) + '笔记'
+    const existing = sqlite.prepare(
+      "SELECT id FROM kb_docs WHERE title=? AND type='md' AND deleted=0 ORDER BY id LIMIT 1"
+    ).get(noteTitle)
+    if (existing) return { ok: true, noteId: existing.id, title: noteTitle, created: false }
+    // 创建空 MD 笔记（rel_path 放 notes/ 子目录，避免与导入文档冲突；folder 留空归未分类，不在知识库单列）
+    const rel = 'notes/' + Date.now() + '-' + uuid().slice(0, 8) + '.md'
+    const dir = this.kbDir()
+    fs.mkdirSync(path.join(dir, 'notes'), { recursive: true })
+    fs.writeFileSync(path.join(dir, rel), '# ' + noteTitle + '\n\n')
+    const now = Date.now()
+    const buf = fs.readFileSync(path.join(dir, rel))
+    const info = sqlite.prepare(
+      'INSERT INTO kb_docs (title, type, rel_path, size, hash, folder, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,?,0,?)'
+    ).run(noteTitle, 'md', rel, buf.length, crypto.createHash('sha1').update(buf).digest('hex'), '', now, now, uuid())
+    return { ok: true, noteId: Number(info.lastInsertRowid), title: noteTitle, created: true }
+  },
+
   findKbDocByHash(hash) {
     if (!hash) return null
     return sqlite.prepare('SELECT id, title, type FROM kb_docs WHERE hash=? AND deleted=0 LIMIT 1').get(hash) || null
