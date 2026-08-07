@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue'
 import { computed } from 'vue'
 
 const props = defineProps({ show: Boolean, q: Object })
@@ -46,7 +47,7 @@ function isRight(i) {
           >
             <span class="sq-let">{{ letter(i) }}</span>
             <span>{{ o }}</span>
-            <span v-if="isRight(i)" class="sq-ok">✓</span>
+            <span v-if="isRight(i)" class="sq-ok"><Icon name="check" :size="16"/></span>
           </div>
         </div>
         <div v-if="ans.length" class="sq-ans">

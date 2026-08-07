@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue'
 import { ref, computed, watch, onMounted } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
@@ -358,13 +359,13 @@ async function batchDelete() {
                   class="q-note"
                   title="有笔记，点击查看/编辑"
                   @click.stop="openNote(q)"
-                >✎</span>
+                ><Icon name="note" :size="14"/></span>
                 <span
                   v-if="q.images && q.images.length"
                   class="q-img-badge"
                   title="含题干配图"
                 >图</span>
-                <button v-if="!batchMode" class="mini tag-btn" @click="openTagEditor(q)">🏷 标签</button>
+                <button v-if="!batchMode" class="mini tag-btn" @click="openTagEditor(q)"><Icon name="tag" :size="14"/> 标签</button>
                 <span class="q-spacer"></span>
                 <button v-if="!batchMode" class="mini" @click="openEdit(q)">编辑</button>
                 <button
@@ -450,7 +451,7 @@ async function batchDelete() {
           </div>
           <div class="tag-stem">{{ tagQ.stem }}</div>
           <div class="tag-current">
-            <span v-for="t in tagDraft" :key="t" class="tag-pill" @click="removeTagFromDraft(t)">#{{ t }} ✕</span>
+            <span v-for="t in tagDraft" :key="t" class="tag-pill" @click="removeTagFromDraft(t)">#{{ t }} <Icon name="x" :size="14"/></span>
             <span v-if="!tagDraft.length" class="tag-empty">暂无标签，输入后回车添加</span>
           </div>
           <input

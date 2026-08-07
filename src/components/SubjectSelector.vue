@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue'
 import { ref, onMounted, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { useEsc } from '../utils/useEsc.js'
@@ -77,7 +78,7 @@ useEsc(() => emit('close'))
               >
                 <span class="toggle" @click.stop="toggle(node)">{{ node.children && node.children.length ? (isExpanded(node) ? '−' : '+') : '' }}</span>
                 <span class="name">{{ node.name }}</span>
-                <span v-if="selectedId === node.id" class="check">✓</span>
+                <span v-if="selectedId === node.id" class="check"><Icon name="check" :size="16"/></span>
               </div>
               <ul v-if="node.children && node.children.length && isExpanded(node)" class="sub-tree">
                 <li v-for="sub in node.children" :key="sub.id">
@@ -88,7 +89,7 @@ useEsc(() => emit('close'))
                   >
                     <span class="toggle" @click.stop="toggle(sub)">{{ sub.children && sub.children.length ? (isExpanded(sub) ? '−' : '+') : '' }}</span>
                     <span class="name">{{ sub.name }}</span>
-                    <span v-if="selectedId === sub.id" class="check">✓</span>
+                    <span v-if="selectedId === sub.id" class="check"><Icon name="check" :size="16"/></span>
                   </div>
                   <ul v-if="sub.children && sub.children.length && isExpanded(sub)" class="sub-tree">
                     <li v-for="leaf in sub.children" :key="leaf.id">
@@ -98,7 +99,7 @@ useEsc(() => emit('close'))
                         @click="select(leaf)"
                       >
                         <span class="name leaf-name">{{ leaf.name }}</span>
-                        <span v-if="selectedId === leaf.id" class="check">✓</span>
+                        <span v-if="selectedId === leaf.id" class="check"><Icon name="check" :size="16"/></span>
                       </div>
                     </li>
                   </ul>

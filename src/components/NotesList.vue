@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue'
 import { ref, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 
@@ -49,9 +50,9 @@ async function delNote(item) {
 
         <div class="nl-body">
           <div v-if="!list.length" class="empty">
-            <div class="empty-icon">✎</div>
+            <div class="empty-icon"><Icon name="note" :size="14"/></div>
             <div>还没有笔记</div>
-            <div class="empty-sub">在答题页点「✎ 笔记」写下你的理解</div>
+            <div class="empty-sub">在答题页点「<Icon name="note" :size="14"/> 笔记」写下你的理解</div>
           </div>
 
           <div v-else class="nl-list">

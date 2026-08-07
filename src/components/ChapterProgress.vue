@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue'
 import { ref, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 
@@ -22,7 +23,7 @@ const barCls = (rate) => (rate >= 80 ? 'hi' : rate >= 50 ? 'mid' : 'lo')
   <div v-if="show" class="cp-mask" @click.self="emit('close')">
     <div class="cp-box">
       <div class="cp-head">
-        <span class="cp-title">📊 章节进度</span>
+        <span class="cp-title"><Icon name="chart" :size="14"/> 章节进度</span>
         <span class="cp-sub">每章掌握情况 · 正确率按答题计算</span>
         <button class="btn cp-close" @click="emit('close')">关闭</button>
       </div>
@@ -41,8 +42,8 @@ const barCls = (rate) => (rate >= 80 ? 'hi' : rate >= 50 ? 'mid' : 'lo')
             <div class="cp-nums">
               <span class="cp-rate" :class="barCls(c.rate)">{{ c.rate }}%</span>
               <span class="cp-learned">{{ c.learned }}/{{ c.totalQ }} 已学</span>
-              <span v-if="c.mastered" class="cp-mastered">✓ {{ c.mastered }} 掌握</span>
-              <span v-if="c.wrong" class="cp-wrong">✗ {{ c.wrong }} 错</span>
+              <span v-if="c.mastered" class="cp-mastered"><Icon name="check" :size="14"/> {{ c.mastered }} 掌握</span>
+              <span v-if="c.wrong" class="cp-wrong"><Icon name="x" :size="14"/> {{ c.wrong }} 错</span>
             </div>
           </div>
         </div>

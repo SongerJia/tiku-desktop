@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue'
 import { ref, watch } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
@@ -90,8 +91,8 @@ useEsc(() => emit('close'))
           </div>
         </div>
         <div class="rv-actions">
-          <button class="rv-no" @click="grade(false)">✗ 没想起来</button>
-          <button class="rv-yes" @click="grade(true)">✓ 想起来</button>
+          <button class="rv-no" @click="grade(false)"><Icon name="x" :size="14"/> 没想起来</button>
+          <button class="rv-yes" @click="grade(true)"><Icon name="check" :size="14"/> 想起来</button>
         </div>
       </div>
     </div>

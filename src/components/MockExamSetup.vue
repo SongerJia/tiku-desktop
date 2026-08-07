@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue'
 import { ref, onMounted, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { printHtml } from '../utils/print.js'
@@ -235,7 +236,7 @@ async function exportPaperPdf(p) {
           <!-- ===== 我的试卷 ===== -->
           <div v-else class="mine">
             <div v-if="!papers.length" class="empty">
-              <div class="empty-icon">📝</div>
+              <div class="empty-icon"><Icon name="paper" :size="14"/></div>
               <div>还没有模拟卷</div>
               <div class="empty-sub">在「新建组卷」按题型/难度抽题，生成后可反复重考</div>
             </div>

@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue'
 import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import CountUp from './CountUp.vue'
@@ -124,7 +125,7 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
     <!-- 今日目标进度 -->
     <div class="card goal-card" v-if="dailyGoal">
       <div class="goal-top">
-        <span class="goal-label">🎯 今日目标</span>
+        <span class="goal-label"><Icon name="target" :size="14"/> 今日目标</span>
         <span class="goal-num">{{ Math.min(summary.today, dailyGoal) }} / {{ dailyGoal }} 题</span>
       </div>
       <div class="goal-bar"><div class="goal-fill" :style="{ width: goalPct + '%' }"></div></div>
@@ -133,11 +134,11 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
 
     <!-- 每日任务 Quest -->
     <div class="card quest-card">
-      <div class="card-title">📋 每日任务 <span class="quest-xp">每个 +20 XP</span></div>
+      <div class="card-title"><Icon name="paper" :size="14"/> 每日任务 <span class="quest-xp">每个 +20 XP</span></div>
       <div v-if="questClaimed" class="quest-claimed">🎉 {{ questClaimed }} 已完成，XP 已到账</div>
       <div class="quest-list">
         <div v-for="t in tasks" :key="t.key" class="quest-item" :class="{ done: t.done }" @click="onTaskClick(t)">
-          <span class="quest-check">{{ t.done ? '✓' : '○' }}</span>
+          <span class="quest-check">{{ t.done ? '<Icon name="check" :size="14"/>' : '○' }}</span>
           <span class="quest-name">{{ t.name }}</span>
           <span class="quest-state">{{ t.done ? '已完成' : '去做' }}</span>
         </div>
@@ -146,13 +147,13 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
 
     <!-- 习惯打卡 -->
     <div v-if="habits.length" class="card habit-card">
-      <div class="card-title">🔁 我的习惯 <span class="quest-xp">今日打卡</span></div>
+      <div class="card-title"><Icon name="refresh" :size="14"/> 我的习惯 <span class="quest-xp">今日打卡</span></div>
       <div class="habit-list">
         <div v-for="h in habits" :key="h.id" class="habit-item" :class="{ done: h.checkedToday }" @click="toggleHabit(h)">
           <span class="habit-icon">{{ h.icon }}</span>
           <span class="habit-name">{{ h.name }}</span>
-          <span class="habit-streak">🔥 {{ h.streak }} 天</span>
-          <span class="habit-check">{{ h.checkedToday ? '✓' : '○' }}</span>
+          <span class="habit-streak"><Icon name="fire" :size="14"/> {{ h.streak }} 天</span>
+          <span class="habit-check">{{ h.checkedToday ? '<Icon name="check" :size="14"/>' : '○' }}</span>
         </div>
       </div>
     </div>
@@ -161,11 +162,11 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
     <div class="card duo-card">
       <div class="duo-row">
         <div class="duo-left" @click="reviewOpen = true">
-          <span class="duo-title">🧠 每日回顾</span>
+          <span class="duo-title"><Icon name="pulse" :size="14"/> 每日回顾</span>
           <span class="duo-sub">主动回忆 · 对抗遗忘</span>
         </div>
         <div class="duo-right">
-          <span class="duo-title">⏱ 专注 {{ focusMinutes }} 分钟</span>
+          <span class="duo-title"><Icon name="clock" :size="14"/> 专注 {{ focusMinutes }} 分钟</span>
           <div class="focus-ctrl">
             <span v-if="focusRunning" class="focus-time">{{ focusText }}</span>
             <button v-if="!focusRunning" class="btn btn-primary" @click="startFocus">开始</button>
@@ -181,22 +182,22 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
       <div class="card-title">知识卡片预览</div>
       <div class="shortcut-grid">
         <div class="shortcut" @click="$emit('start', { mode: 'wrong' })">
-          <div class="s-icon wrong">✗</div>
+          <div class="s-icon wrong"><Icon name="x" :size="14"/></div>
           <div class="s-label">错题本</div>
           <div class="s-count">{{ summary.wrongCount }} 题</div>
         </div>
         <div class="shortcut" @click="$emit('start', { mode: 'favorite' })">
-          <div class="s-icon fav">★</div>
+          <div class="s-icon fav"><Icon name="star" :size="14"/></div>
           <div class="s-label">我的收藏</div>
           <div class="s-count">去复习</div>
         </div>
         <div class="shortcut" @click="$emit('start', { mode: 'practice' })">
-          <div class="s-icon all">📚</div>
+          <div class="s-icon all"><Icon name="book" :size="14"/></div>
           <div class="s-label">全部刷题</div>
           <div class="s-count">{{ summary.total }} 题</div>
         </div>
         <div class="shortcut no-click">
-          <div class="s-icon today">📅</div>
+          <div class="s-icon today"><Icon name="calendar" :size="14"/></div>
           <div class="s-label">今日已刷</div>
           <div class="s-count">{{ summary.today }} 题</div>
         </div>

@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue'
 import { ref } from 'vue'
 import { tiku } from '../api/tiku.js'
 
@@ -32,7 +33,7 @@ async function skip() {
     <div v-if="show" class="wg-mask" @click.self="skip">
       <div class="card wg-box">
         <div class="wg-head">
-          <span class="wg-logo">📚</span>
+          <span class="wg-logo"><Icon name="book" :size="16"/></span>
           <span class="wg-title">欢迎使用知识记忆小助手</span>
         </div>
         <div class="wg-body">

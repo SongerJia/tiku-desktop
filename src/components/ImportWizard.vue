@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue'
 import { ref, computed } from 'vue'
 import { tiku } from '../api/tiku.js'
 import {
@@ -325,7 +326,7 @@ function previewText(r) {
 
         <!-- ============ 步骤 3：结果 ============ -->
         <div v-else class="iw-body result-body">
-          <div class="done-icon">✓</div>
+          <div class="done-icon"><Icon name="check" :size="14"/></div>
           <div class="done-title">导入完成</div>
           <div class="done-stats">
             <div><b>{{ importResult ? importResult.inserted : 0 }}</b> 题已入库</div>

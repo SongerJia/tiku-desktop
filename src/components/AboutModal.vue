@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue'
 import { ref, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 
@@ -22,7 +23,7 @@ function openRepo() {
 <template>
   <div v-if="show" class="ab-mask" @click.self="emit('close')">
     <div class="ab-box">
-      <div class="ab-logo">📚</div>
+      <div class="ab-logo"><Icon name="book" :size="14"/></div>
       <h3 class="ab-name">{{ info.name }}</h3>
       <div class="ab-ver">v{{ info.version }}</div>
       <p class="ab-desc">

@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue'
 import CountUp from './CountUp.vue'
 import { showConfirm } from '../utils/confirm.js'
 import { ref, onMounted, computed } from 'vue'
@@ -270,7 +271,7 @@ onMounted(async () => {
     <!-- 学习成长（知识库概览 + 成就） -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('learn')">
-        <span class="sec-title">📈 学习成长</span>
+        <span class="sec-title"><Icon name="chart" :size="14"/> 学习成长</span>
         <span class="sec-badge">{{ unlockedCount }} 成就</span>
         <span class="sec-arrow" :class="{ open: secOpen.learn }">▾</span>
       </div>
@@ -297,7 +298,7 @@ onMounted(async () => {
           <div class="ach-head">
             <span class="ach-icon">{{ a.icon }}</span>
             <span class="ach-name">{{ a.name }}</span>
-            <span class="ach-pct" :class="{ done: a.got }">{{ a.got ? '✓ 已达成' : a.fmtText }}</span>
+            <span class="ach-pct" :class="{ done: a.got }">{{ a.got ? '<Icon name="check" :size="14"/> 已达成' : a.fmtText }}</span>
           </div>
           <span class="ach-desc">{{ a.desc }}</span>
           <div class="ach-bar">
@@ -310,10 +311,10 @@ onMounted(async () => {
     </div>
 
 
-    <!-- ⚙️ 偏好设置 -->
+    <!-- <Icon name="settings" :size="14"/> 偏好设置 -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('prefs')">
-        <span class="sec-title">⚙️ 偏好设置</span>
+        <span class="sec-title"><Icon name="settings" :size="14"/> 偏好设置</span>
         <span class="sec-arrow" :class="{ open: secOpen.prefs }">▾</span>
       </div>
       <div v-show="secOpen.prefs" class="sec-body">
@@ -351,10 +352,10 @@ onMounted(async () => {
     </div>
 
 
-    <!-- 🔁 习惯管理 -->
+    <!-- <Icon name="refresh" :size="14"/> 习惯管理 -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('habits')">
-        <span class="sec-title">🔁 习惯管理</span> <span class="sec-badge">{{ habits.length }} 个</span>
+        <span class="sec-title"><Icon name="refresh" :size="14"/> 习惯管理</span> <span class="sec-badge">{{ habits.length }} 个</span>
         <span class="sec-arrow" :class="{ open: secOpen.habits }">▾</span>
       </div>
       <div v-show="secOpen.habits" class="sec-body">
@@ -366,7 +367,7 @@ onMounted(async () => {
         <div v-for="h in habits" :key="h.id" class="habit-mgr-item">
           <span class="habit-mgr-icon">{{ h.icon }}</span>
           <span class="habit-mgr-name">{{ h.name }}</span>
-          <span class="habit-mgr-streak">🔥 {{ h.streak }} 天</span>
+          <span class="habit-mgr-streak"><Icon name="fire" :size="14"/> {{ h.streak }} 天</span>
           <button class="habit-mgr-del" @click="removeHabit(h)">删除</button>
         </div>
         <div v-if="!habits.length" class="habit-mgr-empty">还没有习惯，加一个吧（如：雅思刷题 / 健身 / 阅读）</div>
@@ -381,10 +382,10 @@ onMounted(async () => {
     </div>
 
 
-    <!-- ☁️ 云同步与数据 -->
+    <!-- <Icon name="cloud" :size="14"/> 云同步与数据 -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('sync')">
-        <span class="sec-title">☁️ 云同步与数据</span> <span class="sec-badge">{{ syncConnected ? '已连接' : '未连接' }}</span>
+        <span class="sec-title"><Icon name="cloud" :size="14"/> 云同步与数据</span> <span class="sec-badge">{{ syncConnected ? '已连接' : '未连接' }}</span>
         <span class="sec-arrow" :class="{ open: secOpen.sync }">▾</span>
       </div>
       <div v-show="secOpen.sync" class="sec-body">
@@ -461,10 +462,10 @@ onMounted(async () => {
     </div>
 
 
-    <!-- 📒 错题与收藏 -->
+    <!-- <Icon name="note" :size="14"/> 错题与收藏 -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('misc')">
-        <span class="sec-title">📒 错题与收藏</span>
+        <span class="sec-title"><Icon name="note" :size="14"/> 错题与收藏</span>
         <span class="sec-arrow" :class="{ open: secOpen.misc }">▾</span>
       </div>
       <div v-show="secOpen.misc" class="sec-body">

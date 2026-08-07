@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue'
 import { ref, computed, onMounted } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
@@ -216,7 +217,7 @@ function fmtTime(ts) {
         <input v-model="editor.folder" class="input" placeholder="留空=未分类（输入新名字即创建文件夹）" />
         <label class="kb-lab">标签</label>
         <div class="kb-edit-tags">
-          <span v-for="t in editor.tags" :key="t" class="q-tag" @click="removeEditorTag(t)">{{ t }} ✕</span>
+          <span v-for="t in editor.tags" :key="t" class="q-tag" @click="removeEditorTag(t)">{{ t }} <Icon name="x" :size="14"/></span>
         </div>
         <div class="kb-edit-add">
           <input id="kb-tag-input" class="input" placeholder="输入标签回车添加（点击标签可移除）" @keyup.enter="addEditorTag" />

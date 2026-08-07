@@ -1,4 +1,5 @@
 <script setup>
+import Icon from './Icon.vue'
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
@@ -357,7 +358,7 @@ function optionClass(key) {
           <div class="rv-top">
             <span class="rv-no">第 {{ i + 1 }} 题</span>
             <span class="rv-type">{{ typeLabel(r.type) }}</span>
-            <span class="rv-badge">{{ r.correct ? '✓ 正确' : '✗ 错误' }}</span>
+            <span class="rv-badge">{{ r.correct ? '正确' : '错误' }}</span>
           </div>
           <div class="rv-stem">{{ r.stem }}</div>
           <div v-if="r.images && r.images.length" class="rv-imgs">
@@ -452,10 +453,10 @@ function optionClass(key) {
             </span>
           </div>
           <div v-if="keywordHits.hits.length" class="kw-list">
-            <span class="kw-hit" v-for="k in keywordHits.hits" :key="k">✓ {{ k }}</span>
+            <span class="kw-hit" v-for="k in keywordHits.hits" :key="k"><Icon name="check" :size="12"/> {{ k }}</span>
           </div>
           <div v-if="keywordHits.miss.length" class="kw-list">
-            <span class="kw-miss" v-for="k in keywordHits.miss" :key="k">✗ {{ k }}</span>
+            <span class="kw-miss" v-for="k in keywordHits.miss" :key="k"><Icon name="x" :size="12"/> {{ k }}</span>
           </div>
           <p class="kw-tip">提示：主观题无标准答案，请对照采分点自行判断是否掌握。</p>
           <div class="actions">
@@ -490,7 +491,7 @@ function optionClass(key) {
 
         <div v-else class="result">
           <div :class="result.isCorrect ? 'ok' : 'no'">
-            {{ result.isCorrect ? '✓ 回答正确' : '✗ 回答错误' }}
+            {{ result.isCorrect ? '回答正确' : '回答错误' }}
             <span class="ans">正确答案：{{ result.answer.join('、') }}</span>
           </div>
           <div class="analysis"><b>解析：</b>{{ result.analysis }}</div>
@@ -501,7 +502,7 @@ function optionClass(key) {
       <!-- 问答题：结果（自评后） -->
       <div v-else-if="result" class="result">
         <div :class="result.isCorrect ? 'ok' : 'no'">
-          {{ result.isCorrect ? '✓ 已自评掌握' : '✗ 自评未掌握' }}
+          {{ result.isCorrect ? '已自评掌握' : '自评未掌握' }}
           <span class="ans">（主观题·自评）</span>
         </div>
         <div v-if="result.keywords && result.keywords.length" class="kw-list">
