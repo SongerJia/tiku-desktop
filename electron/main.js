@@ -8,6 +8,16 @@ const { readXlsx, writeXlsx } = require('./xlsx-lite')
 const syncGithub = require('./sync-github')
 const { extractMd, extractPdf, uniqueRelPath } = require('./kbExtract')
 
+// ---- 继承 git 代理通道（必须在 app ready 前生效）----
+// 用户网络常见「git 能 push 但 Node 直连不通」：把 git 全局代理喂给 Chromium 网络栈，
+// 让同步与 git 走同一条通道（系统代理由 net.fetch 自动继承，这里只补 git 手动配置的）。
+try {
+  const { execSync } = require('child_process')
+  const proxy = (execSync('git config --global --get http.proxy', { encoding: 'utf8', timeout: 4000 }) ||
+    execSync('git config --global --get https.proxy', { encoding: 'utf8', timeout: 4000 }) || '').trim()
+  if (proxy) app.commandLine.appendSwitch('proxy-server', proxy.replace(/^https?:\/\//, ''))
+} catch (e) { /* 无 git 代理配置，忽略 */ }
+
 // ---- 云同步 token 安全存储（加密落盘，不进 settings 表，避免明文） ----
 const TOKEN_PATH = path.join(app.getPath('userData'), 'sync-token.enc')
 

@@ -1,14 +1,17 @@
 // GitHub Gist 同步模块（零后端方案）。
-// 用 Node 全局 fetch 调 GitHub REST API，把整库 JSON 快照存进一个私有 Gist 文件。
-// 权限只需 token 带 gist scope。所有请求统一带 Authorization: Bearer。
+// 请求优先走 Electron net.fetch（Chromium 网络栈）：继承系统代理 + 系统证书信任，
+// 解决 Node 原生 fetch 不认系统代理证书导致的 UNABLE_TO_VERIFY_LEAF_SIGNATURE。
 // 快照压缩：TKZ1: 前缀 + gzip + base64（体积降 70-85%，且绕开 Gist API 单文件 1MB 读取截断）。
 
 const zlib = require('zlib')
+const { net } = require('electron')
 const API = 'https://api.github.com'
 const FILE = 'tiku-backup.json'
 
+// 统一请求入口：Electron net.fetch 优先（系统代理/证书），降级原生 fetch
 async function ghFetch(path, token, opts = {}) {
-  const res = await fetch(API + path, {
+  const url = API + path
+  const init = {
     ...opts,
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -18,7 +21,18 @@ async function ghFetch(path, token, opts = {}) {
       'X-GitHub-Api-Version': '2022-11-28',
       ...(opts.headers || {})
     }
-  })
+  }
+  let res
+  try {
+    if (net && typeof net.fetch === 'function') res = await net.fetch(url, init)
+    else res = await fetch(url, init)
+  } catch (e) {
+    const msg = (e && e.message) || String(e)
+    if (/certificate|TLS|SSL/i.test(msg)) {
+      throw new Error('网络证书校验失败（请求被代理或防火墙拦截）。请检查网络代理设置，或在「偏好设置」关闭再打开自动同步后重试')
+    }
+    throw new Error('网络请求失败：' + msg)
+  }
   if (!res.ok) {
     let msg = `GitHub API ${res.status}`
     try {
@@ -65,15 +79,16 @@ async function getGist(token, gistId) {
   let content = f.content
   if (f.truncated) {
     // API 只给了前 1MB（残缺）→ 用 raw_url 拉完整内容（带认证，私有 gist 也能读）
-    const res = await fetch(f.raw_url, {
+    const init = {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/vnd.github.raw+json',
         'User-Agent': 'tiku-desktop'
       }
-    })
-    if (!res.ok) throw new Error(`拉取完整快照失败（GitHub ${res.status}）`)
-    content = await res.text()
+    }
+    const raw = (net && typeof net.fetch === 'function') ? await net.fetch(f.raw_url, init) : await fetch(f.raw_url, init)
+    if (!raw.ok) throw new Error(`拉取完整快照失败（GitHub ${raw.status}）`)
+    content = await raw.text()
   }
   return { content: decodeSnapshot(content), updatedAt: g.updated_at, truncated: !!f.truncated }
 }
