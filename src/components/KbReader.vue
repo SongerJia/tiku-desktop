@@ -1,5 +1,5 @@
 <script setup>
-import { ref, nextTick, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
 import { tiku } from '../api/tiku.js'
@@ -92,17 +92,28 @@ function onGlobalKeydown(e) {
     saveMdDoc(true)
   }
 }
-// 阅读字号
+// 统一缩放：MD 用字号倍数（14px = 100%），PDF 用 canvas scale（100 = 基准 1.5）
 const fontSize = ref(14)
+const MD_FONT_BASE = 14
+const MD_ZOOM_MIN = 75   // ≈10.5px
+const MD_ZOOM_MAX = 150  // =21px
+const MD_ZOOM_STEP = 10  // ≈1.4px/步
+const isMdDoc = computed(() => props.doc?.type === 'md')
+const zoomPct = computed(() => isMdDoc.value ? Math.round(fontSize.value / MD_FONT_BASE * 100) : pdfZoom.value)
+const ZOOM_MIN = computed(() => isMdDoc.value ? MD_ZOOM_MIN : PDF_ZOOM_MIN)
+const ZOOM_MAX = computed(() => isMdDoc.value ? MD_ZOOM_MAX : PDF_ZOOM_MAX)
+const ZOOM_STEP = computed(() => isMdDoc.value ? MD_ZOOM_STEP : PDF_ZOOM_STEP)
+function mdZoomToFont(pct) { return Math.round(MD_FONT_BASE * pct / 100 * 10) / 10 }
+
 // PDF 当前页（滚动估算）
 const currentPage = ref(0)
-// PDF 缩放百分比（100 = 基准 1.5 scale），全量重渲染实现
+// PDF 缩放百分比（100 = 基准 1.5 scale），懒渲染重建
 const pdfZoom = ref(100)
 const PDF_ZOOM_MIN = 50
 const PDF_ZOOM_MAX = 250
 const PDF_ZOOM_STEP = 15
 let pdfZoomTimer = null
-// 缩放交互：右下角浮层 + Ctrl+滚轮 + 2.2s 无操作自动隐藏
+// 缩放交互：右下角浮层 + Ctrl+滚轮 + 2.2s 无操作自动隐藏（MD/PDF 统一）
 const zoomUi = ref(false)
 let zoomUiTimer = null
 function showZoomUi() {
@@ -119,31 +130,52 @@ function scheduleZoomRender() {
     await rebuildPdfAtZoom() // 懒渲染重建：只渲染可见页，旧 zoom 缓存命中直接复用
   }, 200)
 }
-function changePdfZoom(delta) {
-  pdfZoom.value = Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, pdfZoom.value + delta))
-  showZoomUi()
+function applyPdfZoom(val) {
+  pdfZoom.value = Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, val))
   scheduleZoomRender()
+}
+// 统一缩放入口：MD 改字号，PDF 改 scale
+function changeZoom(delta) {
+  if (isMdDoc.value) {
+    const cur = Math.round(fontSize.value / MD_FONT_BASE * 100)
+    fontSize.value = mdZoomToFont(Math.min(ZOOM_MAX.value, Math.max(ZOOM_MIN.value, cur + delta)))
+  } else {
+    applyPdfZoom(pdfZoom.value + delta)
+  }
+  showZoomUi()
 }
 function onZoomSlider(e) {
-  pdfZoom.value = Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, Number(e.target.value)))
+  const pct = Number(e.target.value)
+  if (isMdDoc.value) {
+    fontSize.value = mdZoomToFont(pct)
+  } else {
+    applyPdfZoom(pct)
+  }
   showZoomUi()
-  scheduleZoomRender()
 }
-// Ctrl+滚轮缩放（passive:false 才能 preventDefault 拦页面滚动）
-let pdfWheelCleanup = null
-function attachPdfWheel() {
-  const c = pdfContainer.value
-  if (!c || pdfWheelCleanup) return
+function resetZoom() {
+  if (isMdDoc.value) {
+    fontSize.value = MD_FONT_BASE
+  } else {
+    applyPdfZoom(100)
+  }
+  showZoomUi()
+}
+// Ctrl+滚轮缩放（MD 挂 Vditor 容器 / PDF 挂 pdfContainer；passive:false 才能 preventDefault）
+let zoomWheelCleanup = null
+function attachZoomWheel() {
+  const c = isMdDoc.value ? mdVditorEl.value : pdfContainer.value
+  if (!c || zoomWheelCleanup) return
   const onWheel = (e) => {
     if (!e.ctrlKey) return
     e.preventDefault()
-    changePdfZoom(e.deltaY < 0 ? PDF_ZOOM_STEP : -PDF_ZOOM_STEP)
+    changeZoom(e.deltaY < 0 ? ZOOM_STEP.value : -ZOOM_STEP.value)
   }
   c.addEventListener('wheel', onWheel, { passive: false })
-  pdfWheelCleanup = () => c.removeEventListener('wheel', onWheel)
+  zoomWheelCleanup = () => c.removeEventListener('wheel', onWheel)
 }
-function detachPdfWheel() {
-  if (pdfWheelCleanup) { pdfWheelCleanup(); pdfWheelCleanup = null }
+function detachZoomWheel() {
+  if (zoomWheelCleanup) { zoomWheelCleanup(); zoomWheelCleanup = null }
 }
 const html = ref('')
 const pdfState = ref({ loading: false, error: '', pages: 0, done: 0 })
@@ -349,15 +381,16 @@ watch(() => props.show, async (v) => {
   mKw.value = ''
   mRes.value = []
   pdfZoom.value = 100 // 换文档重置缩放
+  fontSize.value = MD_FONT_BASE
   zoomUi.value = false
   clearTimeout(pdfZoomTimer)
   clearTimeout(zoomUiTimer)
   clearTimeout(mdSaveTimer)
-  detachPdfWheel()
+  detachZoomWheel()
   destroyMdVditor()
   cleanupPdf()
-  if (props.doc.type === 'md') await initMdVditor()
-  else { await renderPdf(); attachPdfWheel() }
+  if (props.doc.type === 'md') { await initMdVditor(); attachZoomWheel() }
+  else { await renderPdf(); attachZoomWheel() }
   await loadQPanel()
   await loadHlAndLinks()
   await tiku.kbBumpRead(props.doc.id) // 阅读埋点（计入学习统计）
@@ -478,7 +511,7 @@ function cleanupPdf() {
 onBeforeUnmount(() => {
   cleanupPdf()
   destroyMdVditor()
-  detachPdfWheel()
+  detachZoomWheel()
   clearTimeout(mTimer)
   clearTimeout(pdfZoomTimer)
   clearTimeout(zoomUiTimer)
@@ -502,8 +535,6 @@ useEsc(() => emit('close'))
         <span v-if="mdSaveStatus === 'saving'" class="kb-save-state">保存中…</span>
         <span v-else-if="mdSaveStatus === 'saved'" class="kb-save-state ok">已保存</span>
         <span v-else-if="mdSaveStatus === 'err'" class="kb-save-state err">保存失败</span>
-        <button class="btn kb-act" @click="fontSize = Math.max(12, fontSize - 1)">A-</button>
-        <button class="btn kb-act" @click="fontSize = Math.min(20, fontSize + 1)">A+</button>
       </template>
       <button class="btn kb-side-toggle" :class="{ off: !sidePanelOpen }" @click="sidePanelOpen = !sidePanelOpen">
         <span class="kb-side-toggle-icon">{{ sidePanelOpen ? '⟩' : '⟨' }}</span>
@@ -604,13 +635,13 @@ useEsc(() => emit('close'))
       </div>
     </div>
 
-    <!-- PDF 缩放浮层：右下角，2.2s 无操作自动隐藏；hover 暂停计时 -->
-    <div v-if="zoomUi && props.doc?.type === 'pdf'" class="kb-zoom-ui" @mouseenter="pauseZoomHide" @mouseleave="resumeZoomHide">
-      <button class="kb-zoom-btn" :disabled="pdfZoom <= PDF_ZOOM_MIN" @click="changePdfZoom(-PDF_ZOOM_STEP)" title="缩小">−</button>
-      <input class="kb-zoom-range" type="range" :min="PDF_ZOOM_MIN" :max="PDF_ZOOM_MAX" :value="pdfZoom" @input="onZoomSlider" title="缩放比例" />
-      <button class="kb-zoom-btn" :disabled="pdfZoom >= PDF_ZOOM_MAX" @click="changePdfZoom(PDF_ZOOM_STEP)" title="放大">＋</button>
-      <span class="kb-zoom-pct">{{ pdfZoom }}%</span>
-      <button class="kb-zoom-reset" v-if="pdfZoom !== 100" @click="changePdfZoom(100 - pdfZoom)">复位</button>
+    <!-- 缩放浮层（MD/PDF 统一）：右下角，2.2s 无操作自动隐藏；hover 暂停计时 -->
+    <div v-if="zoomUi" class="kb-zoom-ui" @mouseenter="pauseZoomHide" @mouseleave="resumeZoomHide">
+      <button class="kb-zoom-btn" :disabled="zoomPct <= ZOOM_MIN" @click="changeZoom(-ZOOM_STEP)" title="缩小">−</button>
+      <input class="kb-zoom-range" type="range" :min="ZOOM_MIN" :max="ZOOM_MAX" :value="zoomPct" @input="onZoomSlider" title="缩放比例" />
+      <button class="kb-zoom-btn" :disabled="zoomPct >= ZOOM_MAX" @click="changeZoom(ZOOM_STEP)" title="放大">＋</button>
+      <span class="kb-zoom-pct">{{ zoomPct }}%</span>
+      <button class="kb-zoom-reset" v-if="zoomPct !== 100" @click="resetZoom">复位</button>
     </div>
 
     <SimpleQuestion :show="sq.show" :q="sq.q" @close="sq.show = false" />
@@ -736,7 +767,7 @@ useEsc(() => emit('close'))
   background: transparent;
 }
 .kb-md-vditor :deep(.vditor-reset) {
-  font-size: var(--kb-md-fs, 14px);
+  font-size: var(--kb-md-fs, 14px) !important;
   line-height: 1.8;
 }
 .kb-md-vditor :deep(.vditor-ir) {
