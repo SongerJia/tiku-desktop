@@ -62,9 +62,7 @@ function scheduleZoomRender() {
   clearTimeout(pdfZoomTimer)
   pdfZoomTimer = setTimeout(async () => {
     if (!pdfDoc || !pdfContainer.value) return
-    pdfContainer.value.innerHTML = ''
-    pdfState.value.done = 0
-    await renderAllPages() // 全量重渲染（scale 跟随 pdfZoom）
+    await rebuildPdfAtZoom() // 懒渲染重建：只渲染可见页，旧 zoom 缓存命中直接复用
   }, 200)
 }
 function changePdfZoom(delta) {
@@ -98,6 +96,121 @@ const pdfState = ref({ loading: false, error: '', pages: 0, done: 0 })
 const pdfContainer = ref(null)
 let pdfTask = null
 let pdfDoc = null
+// ---- 懒渲染（保守版）：按需 getPage + 串行渲染 + 缩放缓存 ----
+// 教训：大 PDF（400+ 页）严禁全量/并发 getPage——两次事故都是 600 页并发预取卡死主线程
+let pdfPageObjs = []   // pdfjs Page 对象缓存（仅渲染到的页）
+let pageEls = []       // 每页当前 DOM 元素（占位 div 或 canvas）
+const pdfCache = new Map()  // `${p}|${zoom}` → canvas（缩放回旧比例直接复用）
+const PDF_CACHE_MAX = 40
+let renderQueue = []   // 待渲染页码
+let renderBusy = false // 渲染队列串行锁
+let pdfScrollTimer = null
+
+function cacheSet(key, canvas) {
+  pdfCache.set(key, canvas)
+  if (pdfCache.size > PDF_CACHE_MAX) {
+    const oldest = pdfCache.keys().next().value
+    pdfCache.delete(oldest)
+  }
+}
+// 视口内可见页（懒渲染依据）：以滚动宿主 .kb-main 的视口矩形判断
+function visiblePages() {
+  const c = pdfContainer.value
+  if (!c || !pdfDoc) return []
+  const host = c.parentElement || c
+  const rect = host.getBoundingClientRect()
+  const top = rect.top
+  const bottom = rect.bottom
+  const out = []
+  for (let p = 1; p <= pdfDoc.numPages; p++) {
+    const el = pageEls[p]
+    if (!el) continue
+    const r = el.getBoundingClientRect()
+    if (r.bottom >= top && r.top <= bottom) out.push(p)
+  }
+  return out
+}
+// 渲染队列泵：串行渲染，避免并发 getPage/render 卡死主线程
+async function pumpRenderQueue() {
+  if (renderBusy) return
+  renderBusy = true
+  try {
+    while (renderQueue.length) {
+      const p = renderQueue.shift()
+      await renderPage(p)
+    }
+  } catch (e) { /* 单页失败不阻塞队列 */ } finally {
+    renderBusy = false
+  }
+}
+// 渲染单页：缩放缓存命中直接复用（移动 canvas 节点，cloneNode 不复制像素）；否则按需 getPage（单页，绝不并发）
+async function renderPage(p) {
+  const placeholder = pageEls[p]
+  if (!placeholder || !pdfDoc) return
+  const key = `${p}|${pdfZoom.value}`
+  let canvas = pdfCache.get(key)
+  if (!canvas) {
+    try {
+      const page = pdfPageObjs[p] || await pdfDoc.getPage(p)
+      pdfPageObjs[p] = page
+      const scale = 1.5 * (pdfZoom.value / 100)
+      const vp = page.getViewport({ scale })
+      canvas = document.createElement('canvas')
+      canvas.width = Math.floor(vp.width)
+      canvas.height = Math.floor(vp.height)
+      canvas.className = 'kb-pdf-page'
+      canvas.dataset.page = p
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise
+      cacheSet(key, canvas)
+    } catch (e) {
+      if (!pdfState.value.error) pdfState.value.error = String((e && e.message) || e)
+      return
+    }
+  }
+  canvas.classList.add('kb-pdf-page')
+  canvas.dataset.page = p
+  placeholder.replaceWith(canvas)
+  pageEls[p] = canvas
+  pdfState.value.done++
+}
+// 按当前 zoom 重建占位 + 渲染可见页（打开文档 / 缩放时调用）
+async function rebuildPdfAtZoom() {
+  const c = pdfContainer.value
+  if (!c || !pdfDoc) return
+  const total = pdfDoc.numPages
+  const anchor = currentPage.value || Number(props.doc.last_page) || 1
+  c.innerHTML = ''
+  pageEls = []
+  const scale = 1.5 * (pdfZoom.value / 100)
+  // 只 getPage anchor 一页拿统一样式占位尺寸（PDF 通常统一页大小）；绝不遍历/并发 getPage
+  let stdW = 900
+  let stdH = 1200
+  try {
+    const aPage = pdfPageObjs[anchor] || await pdfDoc.getPage(anchor)
+    pdfPageObjs[anchor] = aPage
+    const vp = aPage.getViewport({ scale })
+    stdW = Math.floor(vp.width)
+    stdH = Math.floor(vp.height)
+  } catch (e) { /* 用兜底尺寸 */ }
+  // 为所有页建占位（撑出正确滚动条长度）
+  for (let p = 1; p <= total; p++) {
+    const ph = document.createElement('div')
+    ph.className = 'kb-pdf-ph'
+    ph.dataset.page = p
+    ph.style.width = stdW + 'px'
+    ph.style.height = stdH + 'px'
+    c.appendChild(ph)
+    pageEls[p] = ph
+  }
+  pdfState.value.done = 0
+  const anchorEl = pageEls[anchor]
+  if (anchorEl) anchorEl.scrollIntoView({ block: 'start' })
+  // 只渲染视口内可见页（首屏少量，其余滚动时补）
+  for (const p of visiblePages()) {
+    if (!renderQueue.includes(p)) renderQueue.push(p)
+  }
+  await pumpRenderQueue()
+}
 
 // 「相关题目」面板：已关联(kb_links) + L2 推荐(kbSuggestQuestions) + 手动搜题关联
 const qLinks = ref([])
@@ -290,7 +403,7 @@ async function renderPdf() {
     })
     pdfDoc = await pdfTask.promise
     pdfState.value.pages = pdfDoc.numPages
-    await renderAllPages()
+    await rebuildPdfAtZoom() // 建占位 + 渲染可见页（懒渲染）
   } catch (e) {
     pdfState.value.error = String((e && e.message) || e)
   } finally {
@@ -298,46 +411,30 @@ async function renderPdf() {
   }
 }
 
-async function renderAllPages() {
-  if (!pdfDoc || !pdfContainer.value) return
-  try {
-    const scale = 1.5 * (pdfZoom.value / 100)
-    for (let p = 1; p <= pdfDoc.numPages; p++) {
-      const page = await pdfDoc.getPage(p)
-      const vp = page.getViewport({ scale })
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.floor(vp.width)
-      canvas.height = Math.floor(vp.height)
-      const ctx = canvas.getContext('2d')
-      await page.render({ canvasContext: ctx, viewport: vp }).promise
-      canvas.classList.add('kb-pdf-page')
-      canvas.dataset.page = p
-      pdfContainer.value.appendChild(canvas)
-      pdfState.value.done = p
-    }
-    // 恢复阅读位置：缩放后回到当前页（而非第一页）
-    const last = currentPage.value || Number(props.doc.last_page) || 0
-    if (last > 0 && last <= pdfDoc.numPages) {
-      const target = pdfContainer.value.querySelector(`canvas[data-page="${last}"]`)
-      if (target) target.scrollIntoView({ block: 'start' })
-    }
-  } catch (e) {
-    if (!pdfState.value.error) pdfState.value.error = String((e && e.message) || e)
-  }
-}
-
-// 滚动时估算当前页（保存阅读位置用）
+// 滚动：估算当前页（保存位置用）+ 防抖补渲染新进视口的页
 function onPdfScroll() {
-  const container = pdfContainer.value
-  if (!container) return
-  const canvases = container.querySelectorAll('canvas.kb-pdf-page')
-  const top = container.scrollTop + 40
+  if (!pdfDoc) return
+  const host = (pdfContainer.value && pdfContainer.value.parentElement) || pdfContainer.value
+  if (!host) return
+  const top = host.getBoundingClientRect().top + 40
   let cur = 0
-  for (const c of canvases) {
-    if (c.offsetTop <= top) cur = Number(c.dataset.page) || 0
+  for (let p = 1; p <= pdfDoc.numPages; p++) {
+    const el = pageEls[p]
+    if (!el) continue
+    if (el.getBoundingClientRect().top <= top) cur = p
     else break
   }
   currentPage.value = cur
+  // 把可见但未渲染的页加入队列（防抖，避免滚动中疯狂排队）
+  clearTimeout(pdfScrollTimer)
+  pdfScrollTimer = setTimeout(() => {
+    const vis = visiblePages()
+    for (const p of vis) {
+      if (pdfCache.has(`${p}|${pdfZoom.value}`)) continue
+      if (!renderQueue.includes(p)) renderQueue.push(p)
+    }
+    pumpRenderQueue()
+  }, 120)
 }
 
 async function saveScroll() {
@@ -353,6 +450,12 @@ function cleanupPdf() {
   }
   pdfTask = null
   pdfDoc = null
+  pdfPageObjs = []
+  pageEls = []
+  renderQueue = []
+  renderBusy = false
+  pdfCache.clear()
+  clearTimeout(pdfScrollTimer)
 }
 
 onBeforeUnmount(() => {
@@ -373,7 +476,7 @@ useEsc(() => emit('close'))
       <span class="badge kb-type" :class="props.doc?.type">{{ props.doc?.type === 'pdf' ? 'PDF' : 'MD' }}</span>
       <span class="kb-title">{{ props.doc?.title }}</span>
       <div class="kb-spacer"></div>
-      <span v-if="pdfState.pages" class="kb-pdf-prog">{{ pdfState.done }}/{{ pdfState.pages }}</span>
+      <span v-if="pdfState.pages" class="kb-pdf-prog">{{ currentPage || 1 }}/{{ pdfState.pages }} 页</span>
       <template v-if="props.doc?.type === 'md' && !editMode">
         <button class="btn kb-act" @click="addHlFromSelection">高亮</button>
         <button class="btn kb-act" @click="startEdit">编辑</button>
@@ -667,6 +770,18 @@ useEsc(() => emit('close'))
   border-radius: 4px;
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
   background: #fff;
+}
+.kb-pdf-ph {
+  border-radius: 4px;
+  background:
+    linear-gradient(90deg, rgba(127, 127, 127, 0.05) 25%, rgba(127, 127, 127, 0.09) 50%, rgba(127, 127, 127, 0.05) 75%);
+  background-size: 300% 100%;
+  animation: kb-pdf-scan 1.4s infinite;
+  flex-shrink: 0;
+}
+@keyframes kb-pdf-scan {
+  0% { background-position: 0% 0; }
+  100% { background-position: 300% 0; }
 }
 .kb-err { color: #e85f3d; text-align: center; padding: 40px 0; }
 .kb-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
