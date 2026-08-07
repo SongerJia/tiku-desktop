@@ -473,7 +473,7 @@ function previewText(r) {
 .input {
   flex: 1;
   min-width: 0;
-  background: rgba(5, 8, 15, 0.8);
+  background: var(--input-solid-bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   color: var(--text);

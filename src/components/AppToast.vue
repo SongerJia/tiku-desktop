@@ -20,7 +20,7 @@ import { toastMsg, toastType } from '../utils/toast.js'
   border-radius: 12px;
   font-size: 13px;
   line-height: 1.5;
-  background: rgba(10, 18, 34, 0.92);
+  background: var(--toast-bg);
   border: 1px solid var(--line);
   color: var(--text);
   backdrop-filter: blur(8px);
@@ -30,6 +30,8 @@ import { toastMsg, toastType } from '../utils/toast.js'
 }
 .app-toast.ok { border-color: var(--ok); color: var(--ok); }
 .app-toast.err { border-color: var(--bad); color: var(--bad); }
+[data-theme="light"] .app-toast.ok { color: #1a7f5c; }
+[data-theme="light"] .app-toast.err { color: #c0392b; }
 .toast-enter-active, .toast-leave-active { transition: opacity .25s, transform .25s; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(8px); }
 </style>

@@ -144,7 +144,7 @@ async function delNote(item) {
   white-space: pre-wrap;
   word-break: break-word;
   padding: 8px 10px;
-  background: rgba(5, 8, 15, 0.5);
+  background: var(--input-solid-bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
 }

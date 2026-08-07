@@ -29,6 +29,7 @@
   --side-active-bg: rgba(91, 124, 250, 0.14);
   /* 设置类小输入框背景（与 .input 半透明叠卡片区分） */
   --input-solid-bg: rgba(10, 13, 20, 0.85);
+  --toast-bg: rgba(10, 18, 34, 0.92);
 }
 
 * { box-sizing: border-box; }
@@ -177,7 +178,7 @@ html, body, #app {
   align-items: center;
   height: 64px;
   padding-bottom: var(--safe-bottom);
-  background: rgba(10, 18, 34, 0.85);
+  background: var(--topbar-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid var(--line);
@@ -369,6 +370,7 @@ button:focus:not(:focus-visible) { outline: none; }
   --modal-mask: rgba(255, 255, 255, 0.72);
   --modal-blur: 14px;
   --input-solid-bg: rgba(255, 255, 255, 0.92);
+  --toast-bg: rgba(255, 255, 255, 0.95);
 }
 [data-theme="light"] .app {
   background-image:

@@ -570,7 +570,7 @@ async function batchDelete() {
 .filters { display: flex; gap: 8px; flex-wrap: wrap; }
 .filters .input { flex: 1; min-width: 120px; }
 .input {
-  background: rgba(5, 8, 15, 0.8);
+  background: var(--input-solid-bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   color: var(--text);
@@ -710,12 +710,12 @@ async function batchDelete() {
   max-height: 96px;
   overflow-y: auto;
   padding: 8px 10px;
-  background: rgba(5, 8, 15, 0.6);
+  background: var(--input-solid-bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
 }
 .note-input {
-  background: rgba(5, 8, 15, 0.8);
+  background: var(--input-solid-bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   color: var(--text);

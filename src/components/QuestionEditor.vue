@@ -370,7 +370,7 @@ async function save() {
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 .input {
-  background: rgba(5, 8, 15, 0.8);
+  background: var(--input-solid-bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   color: var(--text);
