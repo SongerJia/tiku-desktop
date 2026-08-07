@@ -572,7 +572,7 @@ useEsc(() => emit('close'))
         </template>
       </div>
       <!-- 右：相关题目 + 批注与关联 -->
-      <div class="kb-side-panel">
+      <div class="kb-side-panel" :class="{ collapsed: !sidePanelOpen }">
         <!-- 相关题目面板：已关联 + L2 推荐 + 手动搜题关联 -->
         <div class="kb-links">
           <div class="kb-links-head" @click="qPanel = !qPanel">
