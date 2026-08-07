@@ -2,7 +2,7 @@
 
 一个**本地安装、离线可用**的刷题题库桌面软件。数据全存在你电脑上的一个 SQLite 文件里，不需要服务器、不需要联网、不需要备案。支持分类刷题、选择题自动判分、问答题自评、错题本、收藏、学习统计、模拟卷组卷、题目图片与笔记，以及 CSV / Excel / JSON 导入导出。内置**个人知识库**（md / pdf 知识文档，与题库题目双向联动），升级为"刷题 + 资料库"all-in-one 学习工具。
 
-> 当前版本：**v0.6.0（Phase 1 本地 + Phase 2 轻量云同步 + 模拟卷/图片 + 增强体验 + 个人知识库全闭环 + 学习反馈层 + 全局打磨）**。已实现本地刷题全闭环、GitHub Gist 零后端多端同步、模拟卷组卷、题目图片、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就、批量操作、浅色主题，**个人知识库**（md/pdf 导入、全文搜索、阅读、MD 在线编辑、文件夹分类、同步、导出、与题目双向联动、统计），**学习反馈层**（XP 等级、每日任务、每日回顾、番茄钟、习惯打卡、错题原因、文档高亮/双链、周排行、学习周报），以及**全局体验打磨**（应用内 Toast/Confirm、骨架屏、计数动画、Tab 过渡、Esc 关闭、键盘可达、自动备份、首启引导、打包图标）与**学习体验打磨**（知识块间隔复习、练习完成总结、顽固错题优先、键盘快捷键、成就/升级即时庆祝）；Phase 3 用 Capacitor 出 Android APK。
+> 当前版本：**v0.6.0（Phase 1 本地 + Phase 2 轻量云同步 + 模拟卷/图片 + 增强体验 + 个人知识库全闭环 + 学习反馈层 + 全局打磨 + 阅读器体验升级）**。已实现本地刷题全闭环、GitHub Gist 零后端多端同步、模拟卷组卷、题目图片、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就、批量操作、浅色主题，**个人知识库**（md/pdf 导入、全文搜索、阅读、MD 在线编辑、文件夹分类、同步、导出、与题目双向联动、统计），**学习反馈层**（XP 等级、每日任务、每日回顾、番茄钟、习惯打卡、错题原因、文档高亮/双链、周排行、学习周报），以及**全局体验打磨**（应用内 Toast/Confirm、骨架屏、计数动画、Tab 过渡、Esc 关闭、键盘可达、自动备份、首启引导、打包图标）与**学习体验打磨**（知识块间隔复习、练习完成总结、顽固错题优先、键盘快捷键、成就/升级即时庆祝）与**阅读器体验升级**（知识库全屏三栏阅读页、右侧栏整列收起、MD 打开即 Vditor 即时渲染编辑、PDF 懒渲染 + 缩放缓存 + Ctrl+滚轮 + 右下角缩放浮层、MD/PDF 缩放交互统一）；Phase 3 用 Capacitor 出 Android APK。
 
 ---
 
@@ -17,8 +17,8 @@
 | 本地数据库 | better-sqlite3 | ^11.3.0 | 单个 `tiku.db` SQLite 文件，存在系统用户目录 |
 | Excel 读写 | 自研 `electron/xlsx-lite.js` | — | 零依赖，Node 内置 `zlib` + 手写 zip/CRC32，不装 `xlsx` npm 包 |
 | CSV 解析 | 自研 `src/utils/bankParser.js` | — | RFC4180 + GBK 自动回落 + 题型/答案归一化 |
-| MD 渲染 | markdown-it | ^15.0.0 | 纯 JS，知识库阅读页渲染 Markdown（`html:false` 防注入） |
-| PDF 抽取/渲染 | pdfjs-dist | ^6.2.108 | 纯 JS：主进程抽文本（`extractPdf`）、渲染进程逐页 canvas 渲染（`disableWorker` 主线程模式） |
+| MD 编辑/渲染 | Vditor | ^3.11.2 | 即时渲染（IR）模式：整篇渲染预览、光标行显示源码（点击行即编辑）；离线资源本地化在 `public/vditor/`（cdn 指向相对路径） |
+| PDF 抽取/渲染 | pdfjs-dist | ^6.2.108 | 纯 JS：主进程抽文本（`extractPdf`）、渲染进程 canvas 渲染；**懒渲染**（只渲染可见页 + 滚动按需补渲 + 缩放缓存，大 PDF 秒开）+ Ctrl+滚轮缩放 |
 
 ### 核心约定
 - **主进程**：`electron/main.js`（CommonJS），负责窗口、IPC、SQLite、better-sqlite3、xlsx-lite。
@@ -61,13 +61,18 @@
 | **题目批量操作** | 多选题目批量移动章节/打标签/改难度/删除 | ✅ 完成 | `batchUpdateQuestions`/`batchDeleteQuestions`；软删兼容同步 |
 | **浅色主题 + 字号** | 护眼浅色主题、字号 80%–140% 全局缩放 | ✅ 完成 | `data-theme="light"` 覆盖 CSS 变量 + `documentElement.zoom`；存 `settings.theme/font_scale` |
 | **图片跨设备同步** | 修复：题图随 Gist 快照一并跨设备（原仅传文件名会裂图） | ✅ 完成 | `exportSync` 内嵌图片 base64、`mergeRemote` 还原到 `userData/images` |
-| **个人知识库** | 知识文档（md/pdf）入库、MD 按标题切块 / PDF 逐页抽文本、全文检索、知识库 Tab（列表/搜索/标签/阅读：markdown-it + pdfjs 渲染）、**题目↔文档双向联动**（解析页「相关文档」+ 文档页「相关题目」+ L2 自动推荐） | ✅ 完成 | `kb_docs`/`kb_blocks`/`kb_tags`/`kb_links` 四表 + `electron/kbExtract.js` + LIKE 检索 + `getSuggestedDocsForQuestion`/`getSuggestedQuestionsForDoc`（共享标签 + 题干/块关键词，零 ML） |
+| **个人知识库** | 知识文档（md/pdf）入库、MD 按标题切块 / PDF 逐页抽文本、全文检索、知识库 Tab（列表/搜索/标签/**全屏三栏阅读**：Vditor IR 编辑 + pdfjs 懒渲染）、**题目↔文档双向联动**（解析页「相关文档」+ 文档页「相关题目」+ L2 自动推荐） | ✅ 完成 | `kb_docs`/`kb_blocks`/`kb_tags`/`kb_links` 四表 + `electron/kbExtract.js` + LIKE 检索 + `getSuggestedDocsForQuestion`/`getSuggestedQuestionsForDoc`（共享标签 + 题干/块关键词，零 ML） |
 | **统一搜索** | 顶部搜索按钮一处搜题目 + 知识文档（双组结果，题目速览 / 文档阅读直达） | ✅ 完成 | `UnifiedSearch.vue` + `SimpleQuestion.vue`；并行 `listQuestions(keyword)` + `kbSearch` |
 | **知识库跨设备同步** | 知识库随 Gist 快照同步：MD 文本 base64 内嵌跨设备还原；PDF 仅同步元数据+文件名（换设备重导原件）；子表/文件跟随远端胜出的文档重建 | ✅ 完成（阶段 E） | `exportSync` 加 `kbDocs/kbBlocksByCid/kbTagsByCid/kbLinksByCid/kbFiles`；`mergeRemote` LWW + rel_path 冲突换名兜底 |
 | **整库备份含知识库** | JSON 备份/恢复含 kb 四表 + 全部原件文件（md/pdf base64 内嵌） | ✅ 完成 | `exportData` 加 kb 表与 `listKbFiles`；`importData` 还原 `restoreKbFiles`；老备份无 kb 字段自动跳过 |
 | **知识库文件夹** | 文档按文件夹分组展示（未分类置顶）、编辑弹层设置/移动文件夹 | ✅ 完成 | `kb_docs.folder` 列（ALTER 兜底）+ `getKbFolders`/`moveKbDoc` |
 | **知识库统计** | 「我的」新增知识库概览（文档/文本块/题目联动/阅读次数/标签/文件夹）+ 阅读埋点 | ✅ 完成 | `kb_docs.read_count` + `bumpKbRead`；`kbStats` 扩展 |
 | **MD 在线编辑** | 知识库阅读页 MD 文档直接编辑保存，自动重新切块并更新检索索引 | ✅ 完成 | `kbSaveMd` 写回副本 + `extractMd` 重建块 + 更新 hash/size |
+| **全屏三栏阅读页** | 知识库阅读从弹窗改为全屏三栏：左 MD 目录 / 中正文 / 右相关题目+批注；窄屏 <960px 回退单栏 | ✅ 完成 | `kb-page` + flex 三栏；MD 目录常驻左栏 |
+| **右侧栏整列收起** | 顶栏「收起侧栏/展开侧栏」一键沉浸阅读（0.25s flex 动画），与各卡片独立收起共存 | ✅ 完成 | `sidePanelOpen` + `.collapsed` 修饰符；窄屏隐藏按钮 |
+| **MD 打开即 Vditor 编辑** | MD 文档打开直接进 Vditor 即时渲染编辑器——整篇预览、点击行即编辑，无「编辑」按钮；输入停 800ms 自动保存 + Ctrl+S + 返回落盘 | ✅ 完成 | `initMdVditor`（mode:'ir'）+ `saveMdDoc`；目录从 Vditor DOM 收集 |
+| **PDF 懒渲染 + 缩放缓存** | 大 PDF 打开只渲染可见页、滚动按需补渲（串行单页 getPage，严禁全量/并发）、缩放回旧比例复用缓存 | ✅ 完成 | `rebuildPdfAtZoom`/`pumpRenderQueue`/`pdfCache`（LRU 40） |
+| **MD/PDF 统一缩放** | 右下角缩放浮层（滑条 + −/＋ + 百分比 + 复位）+ Ctrl+滚轮 + 2.2s 自动隐藏，MD 字号倍数 / PDF canvas scale | ✅ 完成 | `changeZoom`/`onZoomSlider` 按文档类型分发；`attachZoomWheel` |
 | **系统通知提醒** | 每日定时学习提醒（今日已刷/错题待复习），主进程 Notification + 每分钟检查，当天只提醒一次 | ✅ 完成 | settings `remind_enabled/remind_time/last_remind_date`；「我的」偏好设置开关 + 时间选择 |
 | **知识库导出** | 一键导出知识库到指定目录（全部原件副本 + manifest.json 元数据/标签/联动摘要） | ✅ 完成 | `kbExport` 选目录复制 + 写 manifest |
 | **XP 经验值 + 等级** | 刷题/复习/阅读/专注/任务得 XP，等级进度条 + 今日/本周统计 | ✅ 完成 | `xp_logs` 事件表（带 client_id 随同步）+ `xpStats`；答对+10 答错+2 |
@@ -129,6 +134,7 @@ tiku-desktop/
 │  ├─ utils/print.js        # 独立窗口打印/导出 PDF
 │  ├─ utils/appearance.js   # 主题/字号应用
 │  └─ components/      # 页面与业务组件（KbLibrary/KbReader/UnifiedSearch/SimpleQuestion 为知识库新增）
+├─ public/vditor/      # Vditor 离线资源（dist 全套 + content-theme 深浅主题；cdn 指向 './vditor' 本地化，生产 file:// 可用）
 ├─ scripts/            # 独立测试脚本（test-kb.py / test-kb-extract.mjs / test-parser.mjs / test-xlsx.mjs / test-mock-paper.js / test-tag-filter.py）
 ├─ vite.config.js
 ├─ vite.verify.config.js   # 纯编译校验（不落盘产物）
@@ -197,7 +203,7 @@ npm run dist
 5 个底部 Tab：
 - **首页**：欢迎卡 + 知识卡片总数（计数动画）+ 快捷入口 + 今日目标进度 + **每日任务 Quest** + **习惯打卡** + **每日回顾/番茄钟** + 空题库引导。
 - **题库**（原「知识库」）：搜索框 + 章节筛选 chips + 知识点卡片列表，点卡片即进入答题。题库管理的入口在「我的」。
-- **知识库**（个人文档）：md / pdf 知识文档的导入、全文搜索、标签筛选、阅读（MD 用 markdown-it 渲染，PDF 用 pdfjs 逐页渲染）；阅读页含「相关题目」+「批注与关联」（高亮 + 文档双链）+ MD 在线编辑。
+- **知识库**（个人文档）：md / pdf 知识文档的导入、全文搜索、标签筛选、**全屏三栏阅读**（左目录/中正文/右相关题目+批注，右侧栏可一键收起）；MD 文档**打开即 Vditor 即时渲染编辑器**（整篇预览、点击行即编辑、自动保存），PDF 懒渲染 + Ctrl+滚轮/右下角浮层缩放；阅读页含「相关题目」+「批注与关联」（高亮 + 文档双链）。
 - **学习统计**：环形掌握进度 + 数字卡 + 学习趋势（周柱状）+ 学习习惯 + 当月学习日历 + 学习周报导出。
 - **我的**：用户卡（右侧紧凑 XP 等级）+ 按类别折叠分组（学习成长：XP/知识库概览/成就墙；偏好设置；习惯管理；云同步与数据；错题与收藏含笔记）+ 底部菜单（**章节进度**弹层：按科目逐章展示 已学/正确率/掌握/错题；**关于我们**弹层：版本/技术栈/GitHub 链接）。
 
@@ -249,7 +255,7 @@ npm run dist
 |---|---|
 | **导入** | 「导入文档」多选或下次拖拽；仅收 `md` / `pdf`。原件**复制**进 `userData/kb/`（绝不改动原文件），同 hash 自动去重跳过，同名文件自动加后缀。**零格式门槛**：任意排版直接可用，MD 的 `#` 标题、PDF 的文本层只是「切块更精细」的加分项 |
 | **搜索** | 列表页搜索框 300ms 防抖全文检索（标题 + 文本块，`LIKE` 中英文子串，`%`/`_` 已转义）；标签筛选 chips |
-| **阅读** | MD 用 markdown-it 渲染（`html:false` 防注入）；PDF 用 pdfjs-dist 逐页 canvas 渲染（`disableWorker` 主线程，绕开 workerSrc 打包坑）。**扫描版 PDF 无法内嵌预览** → 提示 + 「系统阅读器打开」兜底（`shell.openPath`） |
+| **阅读** | **全屏三栏阅读页**（左 MD 目录 / 中正文 / 右相关题目+批注，右侧栏可整列收起）。MD 用 **Vditor 即时渲染（IR）**——打开即编辑器，整篇渲染预览、点击行即编辑，输入停 800ms 自动保存 / Ctrl+S / 返回落盘；PDF 用 pdfjs-dist canvas **懒渲染**（只渲染可见页、滚动按需补渲、缩放缓存）+ **Ctrl+滚轮 / 右下角浮层**缩放（MD/PDF 交互统一）。**扫描版 PDF 无法内嵌预览** → 提示 + 「系统阅读器打开」兜底（`shell.openPath`） |
 | **联动（L1 手动）** | 文档阅读页「相关题目」面板可**搜题手动关联/解除**；Quiz 交卷解析页每题「相关文档」面板显示已关联列表（可解除）。关联存 `kb_links`，双向可见 |
 | **联动（L2 推荐）** | 零 ML：共享标签（`question_tags ∩ kb_tags`）+ 题干/块关键词 `LIKE` 命中，按「标签匹配 → 关键词命中」排序，**自动排除已关联**。`getSuggestedDocsForQuestion` / `getSuggestedQuestionsForDoc` |
 | **边界** | ① 无标点长中文串被零 ML 分词器贪婪并成一个词，关键词推荐可能 miss——靠标签路径兜底；② 扫描版 PDF 全文搜不到，靠文件名/标签兜底 |
