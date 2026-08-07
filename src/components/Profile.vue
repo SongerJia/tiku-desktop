@@ -175,32 +175,6 @@ async function setRemindTime(v) {
 // ---- 游戏化成就（指标来自 getAchievements，成就定义在前端派生）----
 const metrics = ref(null)
 // progress: 0~1 达成度；fmt: 进度文案（"已完成"由模板统一处理）
-const ACH_DEFS = [
-  { key: 'first', name: '初次启程', icon: '🌟', desc: '完成第一题', progress: m => m.totalAnswered / 1, fmt: m => `${Math.min(m.totalAnswered, 1)}/1` },
-  { key: 'ten', name: '小试牛刀', icon: '✨', desc: '累计刷题 10 题', progress: m => m.totalAnswered / 10, fmt: m => `${m.totalAnswered}/10` },
-  { key: 'hundred', name: '百题斩', icon: '💯', desc: '累计刷题 100 题', progress: m => m.totalAnswered / 100, fmt: m => `${m.totalAnswered}/100` },
-  { key: 'thousand', name: '千题斩', icon: '💪', desc: '累计刷题 1000 题', progress: m => m.totalAnswered / 1000, fmt: m => `${m.totalAnswered}/1000` },
-  { key: 'today20', name: '今日之星', icon: '🌞', desc: '单日刷题 20 题', progress: m => m.today / 20, fmt: m => `${Math.min(m.today, 20)}/20` },
-  { key: 'streak7', name: '七日打卡', icon: '🔥', desc: '连续学习 7 天', progress: m => m.streak / 7, fmt: m => `${Math.min(m.streak, 7)}/7` },
-  { key: 'streak30', name: '月度连击', icon: '⚡', desc: '连续学习 30 天', progress: m => m.streak / 30, fmt: m => `${Math.min(m.streak, 30)}/30` },
-  { key: 'active30', name: '月度学霸', icon: '🏆', desc: '累计学习 30 天', progress: m => m.activeDays / 30, fmt: m => `${m.activeDays}/30` },
-  { key: 'mastered', name: '渐入佳境', icon: '🎯', desc: '掌握 50 道题', progress: m => m.mastered / 50, fmt: m => `${m.mastered}/50` },
-  { key: 'master200', name: '知识大师', icon: '🏅', desc: '掌握 200 道题', progress: m => m.mastered / 200, fmt: m => `${m.mastered}/200` },
-  { key: 'correct200', name: '神射手', icon: '🎯', desc: '累计答对 200 次', progress: m => m.correctCount / 200, fmt: m => `${m.correctCount}/200` },
-  { key: 'essay20', name: '问答专家', icon: '💬', desc: '问答作答 20 次', progress: m => m.essayCount / 20, fmt: m => `${m.essayCount}/20` },
-  { key: 'paper', name: '出卷人', icon: '📝', desc: '组卷至少 1 套', progress: m => m.papersCount / 1, fmt: m => `${Math.min(m.papersCount, 1)}/1` },
-  { key: 'notes10', name: '好学笔记', icon: '📒', desc: '写满 10 条笔记', progress: m => m.notesCount / 10, fmt: m => `${m.notesCount}/10` },
-  { key: 'notes50', name: '笔记狂魔', icon: '📓', desc: '写满 50 条笔记', progress: m => m.notesCount / 50, fmt: m => `${m.notesCount}/50` },
-  { key: 'tags5', name: '井井有条', icon: '🏷️', desc: '使用 5 个标签', progress: m => m.tagsUsed / 5, fmt: m => `${m.tagsUsed}/5` },
-  { key: 'tags15', name: '标签大师', icon: '🏷️', desc: '使用 15 个标签', progress: m => m.tagsUsed / 15, fmt: m => `${m.tagsUsed}/15` },
-  { key: 'fav20', name: '收藏家', icon: '⭐', desc: '收藏 20 道题', progress: m => m.favCount / 20, fmt: m => `${m.favCount}/20` },
-  { key: 'fav50', name: '收藏达人', icon: '💖', desc: '收藏 50 道题', progress: m => m.favCount / 50, fmt: m => `${m.favCount}/50` },
-  { key: 'kbFirst', name: '建库人', icon: '📚', desc: '导入第 1 篇文档', progress: m => m.kbDocs / 1, fmt: m => `${Math.min(m.kbDocs, 1)}/1` },
-  { key: 'kbTen', name: '藏书家', icon: '📚', desc: '导入 10 篇文档', progress: m => m.kbDocs / 10, fmt: m => `${m.kbDocs}/10` },
-  { key: 'kbLink10', name: '知识织网', icon: '🕸️', desc: '建立 10 条文档↔题目联动', progress: m => m.kbLinks / 10, fmt: m => `${m.kbLinks}/10` },
-  { key: 'kbRead50', name: '求知若渴', icon: '📖', desc: '阅读文档 50 次', progress: m => m.kbReadCount / 50, fmt: m => `${m.kbReadCount}/50` },
-  { key: 'goal', name: '自律克己', icon: '🎯', desc: '设定每日目标', progress: m => (m.dailyGoal > 0 ? 1 : 0), fmt: m => (m.dailyGoal > 0 ? '已设置' : '未设置') }
-]
 const achievements = computed(() => ACH_DEFS.map(a => {
   const p = metrics.value ? a.progress(metrics.value) : 0
   return {

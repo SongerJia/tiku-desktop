@@ -3,6 +3,7 @@ import { ref, watch, onBeforeUnmount } from 'vue'
 import MarkdownIt from 'markdown-it'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
+import { celebrate } from '../utils/celebrate.js'
 import { showConfirm } from '../utils/confirm.js'
 import { useEsc } from '../utils/useEsc.js'
 import SimpleQuestion from './SimpleQuestion.vue'
@@ -164,6 +165,7 @@ watch(() => props.show, async (v) => {
   await loadQPanel()
   await loadHlAndLinks()
   await tiku.kbBumpRead(props.doc.id) // 阅读埋点（计入学习统计）
+  celebrate()
 })
 
 async function linkQ(qid) {

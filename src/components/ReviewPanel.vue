@@ -3,6 +3,7 @@ import Icon from './Icon.vue'
 import { ref, watch } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
+import { celebrate } from '../utils/celebrate.js'
 import { useEsc } from '../utils/useEsc.js'
 
 const props = defineProps({ show: Boolean })
@@ -44,6 +45,7 @@ async function grade(result) {
   const it = cur()
   if (!it) return
   await tiku.logReview(it.type, it.id, result)
+  celebrate()
   if (result) done.value++
   else forgot.value++
   idx.value++

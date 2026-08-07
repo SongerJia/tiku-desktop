@@ -88,7 +88,7 @@ async function toggleSimilar(qid) {
     <p v-if="!items.length" class="empty">暂无活跃错题，继续保持！</p>
     <div v-for="it in items" :key="it.question_id" class="card">
       <div class="stem">{{ it.stem }}</div>
-      <div class="meta">答错 {{ it.wrong_count }} 次 · 已复习 {{ it.reviewed_count }} 次</div>
+      <div class="meta">答错 {{ it.wrong_count }} 次 · 已复习 {{ it.reviewed_count }} 次 <span v-if="it.wrong_count >= 3" class="stubborn">顽固 · 每日回顾优先</span></div>
       <div class="reason-row">
         <span class="reason-label">错因</span>
         <select class="reason-select" :value="it.reason || ''" @change="setReason(it, $event.target.value)">
@@ -134,6 +134,7 @@ async function toggleSimilar(qid) {
 .wb-head h2 { margin: 0; }
 .stem { font-weight: 500; margin-bottom: 6px; }
 .meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.stubborn { color: var(--bad); border: 1px solid rgba(229, 83, 95, 0.4); background: rgba(229, 83, 95, 0.08); border-radius: 6px; padding: 0 6px; margin-left: 6px; font-size: 11px; }
 .actions { display: flex; gap: 8px; }
 button { border: none; padding: 7px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; }
 .primary { background: var(--brand); color: #021018; }

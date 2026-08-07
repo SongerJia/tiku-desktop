@@ -4,6 +4,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 import { showConfirm } from '../utils/confirm.js'
+import { celebrate } from '../utils/celebrate.js'
 import { showToast } from '../utils/toast.js'
 import KbReader from './KbReader.vue'
 
@@ -33,6 +34,8 @@ const essayText = ref('')          // 问答题作答文本
 const essayReviewing = ref(false)  // 问答题：已提交作答，等待用户自评
 const result = ref(null)
 const sessionCorrect = ref(0)
+const sessionStart = ref(0)
+const sessionEnd = ref(0)
 const favSet = ref(new Set())
 const loading = ref(true)
 const timeUp = ref(false)
@@ -153,7 +156,9 @@ function shuffle(arr) {
   return a
 }
 
+onMounted(() => window.addEventListener('keydown', onKey))
 onMounted(async () => {
+  sessionStart.value = Date.now()
   // 断点续做：直接用保存的题目与位置恢复
   if (props.resume && props.resume.questions && props.resume.questions.length) {
     questions.value = props.resume.questions
@@ -199,7 +204,10 @@ onMounted(async () => {
   }
 })
 
-onUnmounted(() => { if (timer) clearInterval(timer) })
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
+  window.removeEventListener('keydown', onKey)
+})
 
 // 退出拦截：练习模式未完成 → 保存断点；完成 → 清除断点
 async function onExit() {
@@ -252,7 +260,8 @@ async function submitEssay(grade) {
     qid: q.value.id, type: q.value.type, stem: q.value.stem,
     options: q.value.options, your: essayText.value,
     answer: q.value.answer, correct: res.isCorrect, analysis: res.analysis,
-    images: imageUrls.value.slice()
+    images: imageUrls.value.slice(),
+    q: { ...q.value }
   })
 }
 
@@ -265,6 +274,7 @@ async function submit() {
     mode: props.mode
   })
   result.value = res
+  celebrate() // 成就/升级即时庆祝
   if (res.isCorrect) {
     sessionCorrect.value++
     if (props.paperId && q.value.paperScore) earnedScore.value += q.value.paperScore
@@ -273,7 +283,8 @@ async function submit() {
     qid: q.value.id, type: q.value.type, stem: q.value.stem,
     options: q.value.options, your: selected.value.slice(),
     answer: res.answer, correct: res.isCorrect, analysis: res.analysis,
-    images: imageUrls.value.slice()
+    images: imageUrls.value.slice(),
+    q: { ...q.value }
   })
 }
 
@@ -287,6 +298,7 @@ function resetPerQuestion() {
 function next() {
   idx.value++
   resetPerQuestion()
+  if (idx.value >= questions.value.length) sessionEnd.value = Date.now()
 }
 
 // 只在背题模式下开放回看上一题（答题模式回退会让判分记录变得含糊）
@@ -318,6 +330,7 @@ async function finishExam() {
   }
   timeUp.value = true
   idx.value = questions.value.length
+  sessionEnd.value = Date.now()
 }
 
 // ---- 题目笔记 ----
@@ -351,6 +364,49 @@ async function saveNote() {
   setTimeout(() => { noteHint.value = '' }, 1500)
 }
 
+// 键盘快捷键：1-9 选答案 / Enter 提交或下一题 / F 收藏 / 空格翻页（背题）
+function onKey(e) {
+  const tag = (e.target && e.target.tagName || '').toLowerCase()
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+  if (loading.value || showReview.value) return
+  if (isRecite.value) {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); next(); return }
+    if (e.key === 'f' || e.key === 'F') { toggleFav(); return }
+    return
+  }
+  if (isEssay.value || timeUp.value || !q.value) return
+  // 数字键：按选项位置选（1 → 第 1 个选项，不依赖 A/B/C 字符）
+  if (/^[1-9]$/.test(e.key) && !result.value) {
+    const o = (q.value.options || [])[Number(e.key) - 1]
+    if (o) { select(o.key); e.preventDefault(); return }
+  }
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    if (result.value) next()
+    else if (selected.value.length) submit()
+    return
+  }
+  if (e.key === 'f' || e.key === 'F') { toggleFav(); return }
+}
+
+// 练习总结：本次错题 + 用时
+const wrongs = computed(() => reviews.value.filter(r => !r.correct))
+function fmtDuration(ms) {
+  const s = Math.max(0, Math.round(ms / 1000))
+  const m = Math.floor(s / 60)
+  return m ? m + ' 分 ' + (s % 60) + ' 秒' : s + ' 秒'
+}
+function redoWrongs() {
+  questions.value = wrongs.value.map(r => r.q ? { ...r.q } : { id: r.qid, type: r.type, stem: r.stem, options: r.options, answer: r.answer, analysis: r.analysis })
+  idx.value = 0
+  sessionCorrect.value = 0
+  sessionStart.value = Date.now()
+  sessionEnd.value = 0
+  reviews.value = []
+  result.value = null
+  resetPerQuestion()
+}
+
 async function toggleFav() {
   if (!q.value) return
   const r = await tiku.toggleFavorite(q.value.id)
@@ -382,6 +438,7 @@ function optionClass(key) {
         <span v-if="isRecite" class="recite-tag">背题</span>
       </span>
       <span v-if="isExam && !isDone" class="timer" :class="{ warn: timeLeft <= 60 }">⏱ {{ timeText }}</span>
+      <span v-if="!loading && !isDone && !isRecite" class="kb-hint" style="font-size:11px;color:var(--muted);margin-left:auto;opacity:.7">⌨ 1-9 选 · Enter 提交/下一题 · F 收藏</span>
       <button v-if="isExam && !isDone" class="fav submit-exam" @click="manualFinish">交卷</button>
       <button class="fav" :class="{ on: q && favSet.has(q.id) }" @click="toggleFav" :disabled="!q">★ 收藏</button>
       <button class="fav note-btn" :class="{ on: hasNote }" @click="noteOpen = !noteOpen" :disabled="!q">✎ 笔记</button>
@@ -438,7 +495,17 @@ function optionClass(key) {
         （正确率 {{ questions.length ? Math.round(sessionCorrect / questions.length * 100) : 0 }}%）</p>
       <p v-else-if="isRecite">共浏览 {{ questions.length }} 题。背题不判分、不计入统计，想检验效果就切回「答题」再来一遍。</p>
       <p v-else>共 {{ questions.length }} 题，答对 {{ sessionCorrect }} 题，正确率
-        {{ questions.length ? Math.round(sessionCorrect / questions.length * 100) : 0 }}%</p>
+        {{ questions.length ? Math.round(sessionCorrect / questions.length * 100) : 0 }}% · 用时 {{ fmtDuration(sessionEnd.value - sessionStart.value) }}</p>
+
+      <div v-if="wrongs.length && !isRecite && !props.paperId" class="done-wrongs">
+        <div class="dw-title">本次答错 {{ wrongs.length }} 题<template v-if="wrongs.length > 5">（展示前 5）</template></div>
+        <div v-for="w in wrongs.slice(0, 5)" :key="w.qid" class="dw-item">
+          <span class="dw-badge">{{ typeLabel(w.type) }}</span>
+          <span class="dw-stem">{{ w.stem }}</span>
+        </div>
+        <button class="btn-review" @click="redoWrongs">重做这 {{ wrongs.length }} 道错题</button>
+      </div>
+
       <button v-if="reviews.length && !isRecite" class="btn-review" @click="showReview = true">查看逐题解析</button>
       <button @click="onExit">回到首页</button>
     </div>
@@ -860,9 +927,15 @@ function optionClass(key) {
 .done h2 { color: var(--brand); text-shadow: var(--glow-soft); }
 .done .score { color: var(--brand); font-size: 18px; }
 .done p { color: var(--muted); margin: 8px 0 16px; }
+.done-wrongs { text-align: left; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 0 0 14px; display: flex; flex-direction: column; gap: 6px; background: rgba(229, 83, 95, 0.04); }
+.dw-title { font-size: 13px; font-weight: 600; color: var(--bad); }
+.dw-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.dw-badge { flex-shrink: 0; font-size: 10px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--text); }
+.dw-stem { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.done-wrongs .btn-review { margin-top: 4px; }
 .done button {
   background: var(--brand);
-  color: #021018;
+  color: #ffffff;
   border: none;
   padding: 10px 24px;
   border-radius: 24px;

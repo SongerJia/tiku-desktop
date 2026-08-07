@@ -262,7 +262,10 @@ const api = {
         heading TEXT,
         content TEXT NOT NULL,
         char_start INTEGER,
-        char_end INTEGER
+        char_end INTEGER,
+        review_at INTEGER,
+        review_count INTEGER DEFAULT 0,
+        review_lapses INTEGER DEFAULT 0
       );
       CREATE TABLE IF NOT EXISTS kb_tags (
         doc_id INTEGER NOT NULL,
@@ -389,6 +392,10 @@ const api = {
     // 知识库：文件夹分类 + 阅读次数统计
     addColumn('kb_docs', 'folder', 'folder TEXT DEFAULT \'\'')
     addColumn('kb_docs', 'read_count', 'read_count INTEGER DEFAULT 0')
+    // 知识块间隔复习（每日回顾调度：记住→3天，忘记→1天）
+    addColumn('kb_blocks', 'review_at', 'review_at INTEGER')
+    addColumn('kb_blocks', 'review_count', 'review_count INTEGER DEFAULT 0')
+    addColumn('kb_blocks', 'review_lapses', 'review_lapses INTEGER DEFAULT 0')
     addColumn('kb_docs', 'last_page', 'last_page INTEGER DEFAULT 0') // PDF 阅读位置记忆
     // 错题原因标签（粗心/知识点不懂/时间不够…）
     addColumn('wrong_books', 'reason', 'reason TEXT DEFAULT \'\'')
@@ -1625,9 +1632,9 @@ const api = {
           sqlite.prepare('DELETE FROM kb_blocks WHERE doc_id=?').run(docId)
           sqlite.prepare('DELETE FROM kb_tags WHERE doc_id=?').run(docId)
           sqlite.prepare('DELETE FROM kb_links WHERE doc_id=?').run(docId)
-          const insB = sqlite.prepare('INSERT INTO kb_blocks (doc_id, seq, heading, content, char_start, char_end) VALUES (?,?,?,?,?,?)')
+          const insB = sqlite.prepare('INSERT INTO kb_blocks (doc_id, seq, heading, content, char_start, char_end, review_at, review_count, review_lapses) VALUES (?,?,?,?,?,?,?,?,?)')
           for (const b of (remote.kbBlocksByCid && remote.kbBlocksByCid[r.client_id]) || []) {
-            insB.run(docId, b.seq || 0, b.heading ?? null, String(b.content || ''), b.char_start ?? null, b.char_end ?? null)
+            insB.run(docId, b.seq || 0, b.heading ?? null, String(b.content || ''), b.char_start ?? null, b.char_end ?? null, b.review_at ?? null, b.review_count || 0, b.review_lapses || 0)
             kbBlocksN++
           }
           const insT = sqlite.prepare('INSERT OR IGNORE INTO kb_tags (doc_id, tag) VALUES (?,?)')
@@ -1715,7 +1722,12 @@ const api = {
     replace('paper_questions', data.paperQuestions, ['id', 'paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted'])
     // 知识库（老备份无 kb 字段时 replace 自动跳过；文件按需写回）
     replace('kb_docs', data.kbDocs, ['id', 'title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'created_at', 'updated_at', 'deleted', 'client_id'])
-    replace('kb_blocks', data.kbBlocks, ['id', 'doc_id', 'seq', 'heading', 'content', 'char_start', 'char_end'])
+    ;(data.kbBlocks || []).forEach(b => {
+      b.review_at = b.review_at ?? null
+      b.review_count = b.review_count ?? 0
+      b.review_lapses = b.review_lapses ?? 0
+    })
+    replace('kb_blocks', data.kbBlocks, ['id', 'doc_id', 'seq', 'heading', 'content', 'char_start', 'char_end', 'review_at', 'review_count', 'review_lapses'])
     replace('kb_tags', data.kbTags, ['doc_id', 'tag'])
     replace('kb_links', data.kbLinks, ['id', 'doc_id', 'block_id', 'question_id', 'note', 'created_at'])
     this.restoreKbFiles(data.kbFiles)
@@ -1912,12 +1924,24 @@ const api = {
     const due = sqlite.prepare(
       "SELECT w.question_id, w.next_review_at, q.stem, q.options_json, q.answer_json, q.analysis, q.type, c.name AS category_name FROM wrong_books w " +
       "JOIN questions q ON q.id=w.question_id LEFT JOIN categories c ON c.id=q.category_id WHERE w.user_id=? AND w.status='wrong' AND w.deleted=0 " +
-      "AND (w.next_review_at IS NULL OR w.next_review_at<=?) ORDER BY w.next_review_at IS NULL DESC, w.next_review_at ASC LIMIT ?"
+      "AND (w.next_review_at IS NULL OR w.next_review_at<=?) " +
+      "ORDER BY (w.wrong_count>=3) DESC, w.next_review_at IS NULL DESC, w.next_review_at ASC LIMIT ?"
     ).all(LOCAL_USER, Date.now(), Math.ceil(limit / 2))
-    const blocks = sqlite.prepare(
+    // 知识块：到期块优先（复习过且到期的先出），不够再随机补从未复习过的新块
+    const blockLimit = Math.floor(limit / 2)
+    const dueBlocks = sqlite.prepare(
       `SELECT b.id AS block_id, b.heading, b.content, d.id AS doc_id, d.title AS doc_title
-       FROM kb_blocks b JOIN kb_docs d ON d.id=b.doc_id WHERE d.deleted=0 ORDER BY RANDOM() LIMIT ?`
-    ).all(Math.floor(limit / 2))
+       FROM kb_blocks b JOIN kb_docs d ON d.id=b.doc_id
+       WHERE d.deleted=0 AND b.review_count>0 AND (b.review_at IS NULL OR b.review_at<=?)
+       ORDER BY (b.review_lapses>0) DESC, b.review_at IS NULL DESC, b.review_at ASC LIMIT ?`
+    ).all(Date.now(), blockLimit)
+    const blocks = dueBlocks.length < blockLimit
+      ? dueBlocks.concat(sqlite.prepare(
+          `SELECT b.id AS block_id, b.heading, b.content, d.id AS doc_id, d.title AS doc_title
+           FROM kb_blocks b JOIN kb_docs d ON d.id=b.doc_id
+           WHERE d.deleted=0 AND b.review_count=0 ORDER BY RANDOM() LIMIT ?`
+        ).all(blockLimit - dueBlocks.length))
+      : dueBlocks
     return {
       questions: due.map(r => ({ questionId: r.question_id, stem: r.stem, type: r.type, options: JSON.parse(r.options_json || '[]'), answer: JSON.parse(r.answer_json || '[]'), analysis: r.analysis || '', categoryName: r.category_name || '' })),
       blocks: blocks.map(b => ({ blockId: b.block_id, docId: b.doc_id, docTitle: b.doc_title, heading: b.heading, content: b.content }))
@@ -1928,6 +1952,15 @@ const api = {
   logReview(itemType, itemId, result) {
     sqlite.prepare('INSERT INTO review_logs (item_type, item_id, result, created_at, client_id) VALUES (?,?,?,?,?)')
       .run(itemType, itemId, result ? 1 : 0, Date.now(), uuid())
+    if (itemType === 'block') {
+      // 知识块间隔调度：记住 → 3 天后见；忘记 → 1 天后见（缩短间隔重来）
+      const now = Date.now()
+      const rc = sqlite.prepare('SELECT review_count FROM kb_blocks WHERE id=?').get(itemId)
+      const n = (rc && rc.review_count || 0) + 1
+      const interval = result ? 3 : 1
+      sqlite.prepare('UPDATE kb_blocks SET review_at=?, review_count=?, review_lapses=review_lapses+? WHERE id=?')
+        .run(now + interval * 86400000, n, result ? 0 : 1, itemId)
+    }
     if (result) this.logXp(5, 'review', itemType)
     return { ok: true }
   },
