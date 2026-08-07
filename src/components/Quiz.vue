@@ -4,6 +4,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 import { showConfirm } from '../utils/confirm.js'
+import { showToast } from '../utils/toast.js'
 import KbReader from './KbReader.vue'
 
 const props = defineProps({
@@ -19,7 +20,9 @@ const props = defineProps({
   paperId: { default: null },
   // 标签筛选：仅练习带指定标签的题（AND 语义，由 db 层解析）
   tags: { default: null },
-  wide: { default: false }
+  wide: { default: false },
+  // 断点续做：传 { questions, idx } 直接恢复练习
+  resume: { default: null }
 })
 const emit = defineEmits(['exit'])
 
@@ -90,6 +93,17 @@ async function unlinkDoc(qid, d) {
 // 背题模式下直接从题目本身取答案，不经过 submitAnswer（那会写记录）
 const reciteAnswer = computed(() => (q.value && q.value.answer) || [])
 
+// 背题模式：会/不会标记（不会 → 提交判错入错题本，计入后续复习）
+const reciteMarked = ref(new Set())
+async function markRecite(understood) {
+  if (reciteMarked.value.has(q.value.id)) return
+  reciteMarked.value.add(q.value.id)
+  if (!understood) {
+    await tiku.submitAnswer({ questionId: q.value.id, selected: [], durationMs: 0, mode: 'recite', selfGrade: false })
+    showToast('已加入错题本，稍后可在「智能复习」中巩固', 'ok')
+  }
+}
+
 // 问答题：实时计算作答文本对「得分关键词」的命中情况（不区分大小写）
 const keywordHits = computed(() => {
   const kws = (q.value && q.value.keywords) || []
@@ -140,6 +154,17 @@ function shuffle(arr) {
 }
 
 onMounted(async () => {
+  // 断点续做：直接用保存的题目与位置恢复
+  if (props.resume && props.resume.questions && props.resume.questions.length) {
+    questions.value = props.resume.questions
+    idx.value = Math.min(Number(props.resume.idx) || 0, questions.value.length - 1)
+    reviews.value = []
+    showReview.value = false
+    loading.value = false
+    const favs = await tiku.getFavorites()
+    favSet.value = new Set(favs.map(f => f.question_id))
+    return
+  }
   let list
   if (props.paperId) {
     // 模拟卷：题目与分值来自已保存的卷，顺序固定，不随机、不限量
@@ -175,6 +200,21 @@ onMounted(async () => {
 })
 
 onUnmounted(() => { if (timer) clearInterval(timer) })
+
+// 退出拦截：练习模式未完成 → 保存断点；完成 → 清除断点
+async function onExit() {
+  const isPractice = !props.paperId && !props.recite && !props.durationMin
+  if (isPractice && !isDone.value && questions.value.length > 1) {
+    await tiku.saveResumeSession({
+      subjectId: props.subjectId, categoryId: props.categoryId, order: props.order,
+      mode: 'practice', questions: questions.value, idx: idx.value
+    })
+    showToast('已保存进度，下次练习可继续', 'ok')
+  } else if (isPractice && isDone.value) {
+    await tiku.clearResumeSession()
+  }
+  emit('exit')
+}
 
 function select(key) {
   if (isRecite.value || result.value || timeUp.value || isEssay.value) return
@@ -335,7 +375,7 @@ function optionClass(key) {
   <div :class="wide ? 'quiz-mask' : 'quiz'">
    <div :class="wide ? 'quiz-modal' : ''">
     <div class="bar">
-      <button class="back" @click="emit('exit')">← 返回</button>
+      <button class="back" @click="onExit">← 返回</button>
       <span v-if="!loading && !isDone" class="progress">
         第 {{ idx + 1 }} / {{ questions.length }} 题<template v-if="!isRecite"> · 对 {{ sessionCorrect }}</template>
         <span class="mode-tag">{{ modeLabel(mode) }}·{{ orderLabel(order) }}</span>
@@ -389,7 +429,7 @@ function optionClass(key) {
           </div>
         </div>
       </div>
-      <button class="rv-done" @click="emit('exit')">回到首页</button>
+      <button class="rv-done" @click="onExit">回到首页</button>
     </div>
     <div v-else-if="isDone" class="done card">
       <h2>{{ isRecite ? '已过完本轮' : (props.paperId ? '模拟卷完成' : '本场结束') }}</h2>
@@ -400,7 +440,7 @@ function optionClass(key) {
       <p v-else>共 {{ questions.length }} 题，答对 {{ sessionCorrect }} 题，正确率
         {{ questions.length ? Math.round(sessionCorrect / questions.length * 100) : 0 }}%</p>
       <button v-if="reviews.length && !isRecite" class="btn-review" @click="showReview = true">查看逐题解析</button>
-      <button @click="emit('exit')">回到首页</button>
+      <button @click="onExit">回到首页</button>
     </div>
 
     <div v-else class="card">
@@ -480,6 +520,14 @@ function optionClass(key) {
           <span class="kw-hit" v-for="k in q.keywords" :key="k">采分点：{{ k }}</span>
         </div>
         <div v-if="q.analysis" class="analysis"><b>解析：</b>{{ q.analysis }}</div>
+        <div class="recite-mark" v-if="!reciteMarked.has(q.id)">
+          <span class="rm-hint">这题会了吗？不会的会自动进错题本，方便后面复习</span>
+          <div class="rm-actions">
+            <button class="rm-yes" @click="markRecite(true)">✓ 会了</button>
+            <button class="rm-no" @click="markRecite(false)">✗ 不会</button>
+          </div>
+        </div>
+        <div v-else class="recite-marked">已标记，继续下一题</div>
         <div class="actions">
           <button class="nav-prev" :disabled="idx === 0" @click="prev">← 上一题</button>
           <button class="next" @click="next">{{ idx + 1 >= questions.length ? '完成' : '下一题 →' }}</button>
@@ -598,6 +646,23 @@ function optionClass(key) {
 .progress { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
 .mode-tag { background: var(--brand-light); color: var(--brand); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; font-size: 11px; }
 .recite-tag { background: rgba(255, 193, 84, 0.14); color: #ffc154; border: 1px solid rgba(255, 193, 84, 0.45); border-radius: 6px; padding: 1px 7px; font-size: 11px; }
+.recite-mark { margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
+.rm-hint { font-size: 12px; color: var(--muted); }
+.rm-actions { display: flex; gap: 10px; }
+.rm-yes, .rm-no {
+  flex: 1;
+  padding: 9px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.rm-yes:hover { border-color: var(--ok); color: var(--ok); background: rgba(47, 191, 143, 0.08); }
+.rm-no:hover { border-color: var(--bad); color: var(--bad); background: rgba(229, 83, 95, 0.08); }
+.recite-marked { margin: 12px 0; font-size: 12px; color: var(--ok); }
 .timer { color: var(--brand); font-size: 13px; font-weight: 600; margin-left: auto; text-shadow: var(--glow-soft); }
 .timer.warn { color: var(--bad); text-shadow: 0 0 8px rgba(255, 77, 109, 0.5); animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: .4; } }

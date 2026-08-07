@@ -1,13 +1,21 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { tiku } from '../api/tiku.js'
+import Icon from './Icon.vue'
 
 const props = defineProps({
   show: Boolean,
   wide: Boolean,
   preset: { type: Object, default: () => ({ categoryId: null, subjectId: null, presetMode: 'practice', scopeLabel: '' }) }
 })
-const emit = defineEmits(['confirm', 'cancel'])
+const emit = defineEmits(['confirm', 'cancel', 'resume'])
+
+// 断点续做 + 智能复习到期提示
+const resumeSession = ref(null)
+const reviewDue = ref(null)
+function resumeLast() {
+  emit('resume', resumeSession.value)
+}
 
 // 范围 → 对应拉题 mode
 const scopes = [
@@ -25,6 +33,8 @@ const allTags = ref([])
 const selTags = ref([])
 onMounted(async () => {
   try { allTags.value = (await tiku.listTags()).map(t => t.tag) } catch (e) { allTags.value = [] }
+  try { resumeSession.value = await tiku.getResumeSession() } catch (e) { resumeSession.value = null }
+  try { reviewDue.value = await tiku.reviewDueStats() } catch (e) { reviewDue.value = null }
 })
 function toggleTag(t) {
   const i = selTags.value.indexOf(t)
@@ -80,6 +90,16 @@ function confirm() {
           <span class="close" @click="emit('cancel')">×</span>
           <span class="title">练习设置</span>
           <span class="scope">{{ scopeLabel }}</span>
+        </div>
+
+        <!-- 断点续做 -->
+        <div v-if="resumeSession && resumeSession.questions" class="resume-bar">
+          <span>上次练习到第 {{ (resumeSession.idx || 0) + 1 }}/{{ resumeSession.questions.length }} 题</span>
+          <button class="btn btn-primary" @click="resumeLast">继续上次</button>
+        </div>
+        <!-- 智能复习到期提示 -->
+        <div v-if="scope === 'review-due' && reviewDue" class="due-hint">
+          <Icon name="clock" :size="13"/> 今日到期 <b>{{ reviewDue.due }}</b> 题 · 预计 {{ reviewDue.estMinutes }} 分钟
         </div>
 
         <!-- 范围 -->
@@ -169,6 +189,28 @@ function confirm() {
 </template>
 
 <style scoped>
+.resume-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid rgba(91, 124, 250, 0.4);
+  background: rgba(91, 124, 250, 0.08);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text);
+}
+.due-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+.due-hint b { color: var(--warn); }
 .setup-mask {
   position: fixed;
   inset: 0;

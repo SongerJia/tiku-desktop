@@ -309,6 +309,18 @@ ipcMain.handle('getDocLinks', (e, docId) => db.getDocLinks(docId))
 ipcMain.handle('linkDocs', (e, fromDocId, toDocId) => db.linkDocs(fromDocId, toDocId))
 ipcMain.handle('unlinkDocs', (e, fromDocId, toDocId) => db.unlinkDocs(fromDocId, toDocId))
 ipcMain.handle('setWrongReason', (e, questionId, reason) => db.setWrongReason(questionId, reason))
+ipcMain.handle('saveResumeSession', (e, p) => db.saveResumeSession(p))
+ipcMain.handle('getResumeSession', () => db.getResumeSession())
+ipcMain.handle('clearResumeSession', () => db.clearResumeSession())
+ipcMain.handle('xpDetail', () => db.xpDetail())
+ipcMain.handle('reviewDueStats', () => db.reviewDueStats())
+ipcMain.handle('saveKbScroll', (e, docId, page) => db.saveKbScroll(docId, page))
+ipcMain.handle('listBackups', () => db.listBackups())
+ipcMain.handle('restoreBackup', (e, file) => {
+  const r = db.restoreBackup(file)
+  if (r.ok) setTimeout(() => { try { app.relaunch(); app.exit(0) } catch (err) { app.exit(0) } }, 600)
+  return r
+})
 ipcMain.handle('getWeeklyReport', () => db.getWeeklyReport())
 ipcMain.handle('getChapterProgress', () => db.getChapterProgress())
 ipcMain.handle('getVersion', () => ({ name: pkg.productName || '知识记忆小助手', version: pkg.version }))
@@ -435,9 +447,10 @@ ipcMain.handle('syncNow', async () => {
   let gistId = db.getSetting('sync_gist_id')
 
   // 1) 拉远端并合并进本地（若无 gistId 说明还没建过，跳过 pull）
+  let merge = null
   if (gistId) {
     const g = await syncGithub.getGist(token, gistId)
-    if (g.content) db.mergeRemote(g.content)
+    if (g.content) merge = db.mergeRemote(g.content)
   }
 
   // 2) 导出本地全量快照并推送
@@ -452,5 +465,5 @@ ipcMain.handle('syncNow', async () => {
 
   const now = Date.now()
   db.setSetting('sync_last_sync', String(now))
-  return { ok: true, lastSync: now, gistId }
+  return { ok: true, lastSync: now, gistId, merge }
 })

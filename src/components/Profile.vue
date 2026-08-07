@@ -10,6 +10,8 @@ import Favorites from './Favorites.vue'
 import NotesList from './NotesList.vue'
 import ChapterProgress from './ChapterProgress.vue'
 import AboutModal from './AboutModal.vue'
+import BackupModal from './BackupModal.vue'
+import XpDetailModal from './XpDetailModal.vue'
 
 const emit = defineEmits(['reset', 'start', 'open-bank'])
 
@@ -34,6 +36,8 @@ const menus = [
 ]
 const showChapter = ref(false)
 const showAbout = ref(false)
+const showBackup = ref(false)
+const showXpDetail = ref(false)
 
 onMounted(async () => {
   try {
@@ -69,9 +73,22 @@ async function doSync() {
   try {
     const r = await tiku.syncNow()
     syncLast.value = r.lastSync
-    showToast('同步成功 · ' + new Date(r.lastSync).toLocaleString())
+    let msg = '同步成功 · ' + new Date(r.lastSync).toLocaleString()
+    if (r.merge) {
+      const m = r.merge
+      const parts = []
+      if (m.questions) parts.push('题目 ' + m.questions)
+      if (m.answerRecords) parts.push('答题 ' + m.answerRecords)
+      if (m.wrongBooks) parts.push('错题 ' + m.wrongBooks)
+      if (m.notes) parts.push('笔记 ' + m.notes)
+      if (m.kbDocs) parts.push('文档 ' + m.kbDocs)
+      if (m.xpLogs) parts.push('XP ' + m.xpLogs)
+      if (m.habits) parts.push('习惯 ' + m.habits)
+      if (parts.length) msg += ' · 合并：' + parts.slice(0, 5).join('、')
+    }
+    showToast(msg, 'ok')
   } catch (e) {
-    showToast('同步失败：' + (e.message || '网络异常'))
+    showToast('同步失败：' + (e.message || '网络异常'), 'err')
   } finally {
     syncing.value = false
   }
@@ -451,6 +468,11 @@ onMounted(async () => {
         <span class="arrow">›</span>
         <input type="file" accept=".json" style="display:none" @change="importData" />
       </label>
+      <div class="list-item" @click="showBackup = true">
+        <span class="title">备份管理</span>
+        <span class="sub">自动备份列表 · 一键恢复</span>
+        <span class="arrow">›</span>
+      </div>
       <div class="list-item" @click="clearLocal">
         <span class="title danger">清空本地学习数据</span>
         <span class="arrow">›</span>
@@ -505,6 +527,8 @@ onMounted(async () => {
     <NotesList :show="showNotes" @close="showNotes = false" />
     <ChapterProgress :show="showChapter" @close="showChapter = false" />
     <AboutModal :show="showAbout" @close="showAbout = false" />
+    <BackupModal :show="showBackup" @close="showBackup = false" />
+    <XpDetailModal :show="showXpDetail" @close="showXpDetail = false" />
   </div>
 </template>
 

@@ -19,6 +19,29 @@ const HL_COLORS = {
 const hlColor = (c) => HL_COLORS[c] || HL_COLORS.yellow
 
 const md = new MarkdownIt({ linkify: true, breaks: true, html: false })
+// MD 目录：给 h1-h4 加锚点 id，收集目录项
+let toc = []
+const _headingOpen = md.renderer.rules.heading_open || ((tokens, idx) => `<${tokens[idx].tag}>`)
+md.renderer.rules.heading_open = (tokens, idx) => {
+  const tag = tokens[idx].tag
+  const level = Number(tag.slice(1))
+  if (level <= 4) {
+    const id = 'sec-' + toc.length
+    toc.push({ id, level, text: tokens[idx + 1] ? tokens[idx + 1].content : '' })
+    return `<${tag} id="${id}" class="kb-h${level}">`
+  }
+  return `<${tag}>`
+}
+const tocList = ref([])
+const tocOpen = ref(false)
+function jumpToToc(id) {
+  const el = document.getElementById(id)
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+// 阅读字号
+const fontSize = ref(14)
+// PDF 当前页（滚动估算）
+const currentPage = ref(0)
 const html = ref('')
 const pdfState = ref({ loading: false, error: '', pages: 0, done: 0 })
 const pdfContainer = ref(null)
@@ -57,12 +80,13 @@ function cancelEdit() {
   editMode.value = false
 }
 
-// 关闭拦截：MD 编辑未保存时先确认，防丢数据
+// 关闭拦截：MD 编辑未保存时先确认，防丢数据；PDF 顺带保存阅读位置
 async function onClose() {
   if (editMode.value) {
     const ok = await showConfirm('有未保存的编辑内容，确定关闭？编辑内容将丢失。')
     if (!ok) return
   }
+  await saveScroll()
   emit('close')
 }
 
@@ -183,8 +207,10 @@ function b64ToUint8(b64) {
 async function renderMd() {
   const r = await tiku.kbRead(props.doc.id)
   if (!r.ok) { html.value = `<div class="kb-err">读取失败：${r.error}</div>`; return }
+  toc = []
   const text = new TextDecoder('utf-8').decode(b64ToUint8(r.base64))
   html.value = md.render(text)
+  tocList.value = toc.slice()
 }
 
 async function renderPdf() {
@@ -221,11 +247,39 @@ async function renderAllPages() {
       const ctx = canvas.getContext('2d')
       await page.render({ canvasContext: ctx, viewport: vp }).promise
       canvas.classList.add('kb-pdf-page')
+      canvas.dataset.page = p
       pdfContainer.value.appendChild(canvas)
       pdfState.value.done = p
     }
+    // 恢复上次阅读位置
+    const last = Number(props.doc.last_page) || 0
+    if (last > 0 && last <= pdfDoc.numPages) {
+      const target = pdfContainer.value.querySelector(`canvas[data-page="${last}"]`)
+      if (target) target.scrollIntoView({ block: 'start' })
+    }
   } catch (e) {
     if (!pdfState.value.error) pdfState.value.error = String((e && e.message) || e)
+  }
+}
+
+// 滚动时估算当前页（保存阅读位置用）
+function onPdfScroll() {
+  const container = pdfContainer.value
+  if (!container) return
+  const canvases = container.querySelectorAll('canvas.kb-pdf-page')
+  const top = container.scrollTop + 40
+  let cur = 0
+  for (const c of canvases) {
+    if (c.offsetTop <= top) cur = Number(c.dataset.page) || 0
+    else break
+  }
+  currentPage.value = cur
+}
+
+async function saveScroll() {
+  if (!props.doc) return
+  if (props.doc.type === 'pdf' && currentPage.value > 0) {
+    await tiku.saveKbScroll(props.doc.id, currentPage.value)
   }
 }
 
@@ -255,6 +309,9 @@ useEsc(() => emit('close'))
         <template v-if="props.doc?.type === 'md' && !editMode">
           <button class="btn kb-edit-btn" @click="addHlFromSelection">高亮</button>
           <button class="btn kb-edit-btn" @click="startEdit">编辑</button>
+          <button class="btn kb-edit-btn" @click="fontSize = Math.max(11, fontSize - 1)">A-</button>
+          <button class="btn kb-edit-btn" @click="fontSize = Math.min(20, fontSize + 1)">A+</button>
+          <button v-if="tocList.length" class="btn kb-edit-btn" @click="tocOpen = !tocOpen">目录</button>
         </template>
         <template v-if="editMode">
           <button class="btn btn-primary" @click="saveEdit">保存</button>
@@ -271,14 +328,24 @@ useEsc(() => emit('close'))
           placeholder="编辑 Markdown 内容，保存后自动重新切块并更新全文检索索引"
         ></textarea>
         <template v-else>
+        <!-- MD 目录 -->
+        <div v-if="tocOpen && tocList.length" class="kb-toc">
+          <div
+            v-for="t in tocList"
+            :key="t.id"
+            class="kb-toc-item"
+            :style="{ paddingLeft: (t.level - 1) * 12 + 8 + 'px' }"
+            @click="jumpToToc(t.id)"
+          >{{ t.text || '（无标题）' }}</div>
+        </div>
         <div v-if="pdfState.error" class="kb-err">
           <p>{{ pdfState.error }}</p>
           <p class="kb-hint">扫描版 PDF 没有文本层无法内嵌预览，可用系统阅读器打开原件</p>
           <button class="btn btn-primary" @click="tiku.kbOpen(props.doc.id)">系统阅读器打开</button>
         </div>
         <div v-if="pdfState.loading" class="empty">PDF 加载中…</div>
-        <div v-if="props.doc?.type === 'md'" class="kb-md" v-html="html"></div>
-        <div v-else ref="pdfContainer" class="kb-pdf"></div>
+        <div v-if="props.doc?.type === 'md'" class="kb-md" :style="{ fontSize: fontSize + 'px' }" v-html="html"></div>
+        <div v-else ref="pdfContainer" class="kb-pdf" @scroll.passive="onPdfScroll"></div>
 
         <!-- 相关题目面板：已关联 + L2 推荐 + 手动搜题关联 -->
         <div class="kb-links">
@@ -384,6 +451,31 @@ useEsc(() => emit('close'))
 .kb-type.md { background: rgba(91, 124, 250, 0.12); color: var(--brand); }
 .kb-pdf-prog { font-size: 12px; color: var(--muted); }
 .kb-edit-btn { padding: 4px 12px; }
+.kb-toc {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card-solid);
+  padding: 8px 4px;
+  margin-bottom: 12px;
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.kb-toc-item {
+  padding: 5px 10px;
+  font-size: 12.5px;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background .15s, color .15s;
+}
+.kb-toc-item:hover { background: var(--brand-light); color: var(--brand); }
+.kb-md h1, .kb-md h2, .kb-md h3, .kb-md h4 { scroll-margin-top: 70px; }
 .kb-close { padding: 4px 14px; }
 .kb-edit-area {
   width: 100%;

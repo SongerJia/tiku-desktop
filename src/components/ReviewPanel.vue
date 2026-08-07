@@ -25,7 +25,7 @@ watch(() => props.show, async v => {
   forgot.value = 0
   const r = await tiku.getDailyReview(8)
   items.value = [
-    ...r.questions.map(q => ({ type: 'question', id: q.questionId, front: q.stem, back: renderQ(q), kind: '题目' })),
+    ...r.questions.map(q => ({ type: 'question', id: q.questionId, front: q.stem, back: renderQ(q), kind: q.categoryName ? `题目 · ${q.categoryName}` : '题目' })),
     ...r.blocks.map(b => ({ type: 'block', id: b.blockId, front: b.content, back: `来自文档《${b.docTitle}》${b.heading ? ' · ' + b.heading : ''}`, kind: '知识块' }))
   ]
   loading.value = false

@@ -106,6 +106,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getDocLinks: (docId) => ipcRenderer.invoke('getDocLinks', docId),
   linkDocs: (fromDocId, toDocId) => ipcRenderer.invoke('linkDocs', fromDocId, toDocId),
   unlinkDocs: (fromDocId, toDocId) => ipcRenderer.invoke('unlinkDocs', fromDocId, toDocId),
-  setWrongReason: (questionId, reason) => ipcRenderer.invoke('setWrongReason', questionId, reason),
+  saveResumeSession: (p) => ipcRenderer.invoke('saveResumeSession', p),
+  getResumeSession: () => ipcRenderer.invoke('getResumeSession'),
+  clearResumeSession: () => ipcRenderer.invoke('clearResumeSession'),
+  xpDetail: () => ipcRenderer.invoke('xpDetail'),
+  reviewDueStats: () => ipcRenderer.invoke('reviewDueStats'),
+  saveKbScroll: (docId, page) => ipcRenderer.invoke('saveKbScroll', docId, page),
+  listBackups: () => ipcRenderer.invoke('listBackups'),
+  restoreBackup: (file) => ipcRenderer.invoke('restoreBackup', file),  setWrongReason: (questionId, reason) => ipcRenderer.invoke('setWrongReason', questionId, reason),
   getWeeklyReport: () => ipcRenderer.invoke('getWeeklyReport')
 })

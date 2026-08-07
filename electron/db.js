@@ -84,6 +84,40 @@ const api = {
     } catch (e) { /* 备份失败不影响启动 */ }
   },
 
+  // 备份列表（供「备份管理」弹层）
+  listBackups() {
+    try {
+      const dir = path.join(app.getPath('userData'), 'backups')
+      if (!fs.existsSync(dir)) return []
+      return fs.readdirSync(dir)
+        .filter(f => f.endsWith('.db'))
+        .map(f => {
+          const st = fs.statSync(path.join(dir, f))
+          return { file: f, size: st.size, mtime: st.mtimeMs }
+        })
+        .sort((a, b) => b.mtime - a.mtime)
+    } catch (e) { return [] }
+  },
+
+  // 一键恢复备份：复制备份文件覆盖当前库（WAL 一并清掉），返回后由主进程重启应用
+  restoreBackup(fileName) {
+    const dir = path.join(app.getPath('userData'), 'backups')
+    const src = path.join(dir, String(fileName))
+    if (!fs.existsSync(src)) return { ok: false, error: '备份文件不存在' }
+    try {
+      if (sqlite) sqlite.close()
+      const target = dbPath()
+      fs.copyFileSync(src, target)
+      for (const ext of ['-wal', '-shm']) {
+        const w = target + ext
+        if (fs.existsSync(w)) fs.unlinkSync(w)
+      }
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) }
+    }
+  },
+
   close() {
     if (sqlite) sqlite.close()
   },
@@ -355,6 +389,7 @@ const api = {
     // 知识库：文件夹分类 + 阅读次数统计
     addColumn('kb_docs', 'folder', 'folder TEXT DEFAULT \'\'')
     addColumn('kb_docs', 'read_count', 'read_count INTEGER DEFAULT 0')
+    addColumn('kb_docs', 'last_page', 'last_page INTEGER DEFAULT 0') // PDF 阅读位置记忆
     // 错题原因标签（粗心/知识点不懂/时间不够…）
     addColumn('wrong_books', 'reason', 'reason TEXT DEFAULT \'\'')
   },
@@ -465,7 +500,7 @@ const api = {
     }
   },
 
-  getQuestions({ subjectId, categoryId, mode, limit, keyword, tags } = {}) {
+  getQuestions({ subjectId, categoryId, mode, limit, offset, keyword, tags } = {}) {
     // 弱点强化：按错题数/正确率加权返回最弱的题，不走普通筛选
     if (mode === 'weak') {
       return this.getWeakQuestions(limit ? Number(limit) : 30, subjectId, categoryId)
@@ -516,6 +551,10 @@ const api = {
     if (limit) {
       sql += ' LIMIT ?'
       params.push(limit)
+    }
+    if (offset) {
+      sql += ' OFFSET ?'
+      params.push(offset)
     }
     const rows = sqlite.prepare(sql).all(...params)
     return rows.map(r => ({
@@ -1788,6 +1827,55 @@ const api = {
     }
   },
 
+  // ---- 练习断点续做：退出练习时保存会话，下次可继续 ----
+  saveResumeSession(payload) {
+    this.setSetting('resume_session', JSON.stringify({ ...payload, savedAt: Date.now() }))
+    return { ok: true }
+  },
+  getResumeSession() {
+    try {
+      const raw = this.getSetting('resume_session')
+      if (!raw) return null
+      const s = JSON.parse(raw)
+      if (!s || !s.questionIds || !s.questionIds.length) return null
+      return s
+    } catch (e) { return null }
+  },
+  clearResumeSession() {
+    this.setSetting('resume_session', '')
+    return { ok: true }
+  },
+
+  // ---- XP 明细：今日按来源 + 最近记录 ----
+  xpDetail() {
+    const todayStart = new Date().setHours(0, 0, 0, 0)
+    const bySource = sqlite.prepare(
+      "SELECT source, COUNT(*) AS n, SUM(xp) AS total FROM xp_logs WHERE deleted=0 AND created_at>=? GROUP BY source ORDER BY total DESC"
+    ).all(todayStart)
+    const recent = sqlite.prepare(
+      'SELECT xp, source, note, created_at FROM xp_logs WHERE deleted=0 ORDER BY created_at DESC LIMIT 20'
+    ).all()
+    const SOURCE_LABEL = { quiz: '刷题', review: '每日回顾', kbread: '文档阅读', focus: '专注', quest: '每日任务' }
+    return {
+      bySource: bySource.map(r => ({ ...r, label: SOURCE_LABEL[r.source] || r.source })),
+      recent: recent.map(r => ({ ...r, label: SOURCE_LABEL[r.source] || r.source }))
+    }
+  },
+
+  // ---- 复习到期统计（智能复习入口提示）----
+  reviewDueStats() {
+    const due = sqlite.prepare(
+      "SELECT COUNT(*) AS n FROM wrong_books WHERE user_id=? AND status='wrong' AND deleted=0 AND (next_review_at IS NULL OR next_review_at<=?)"
+    ).get(LOCAL_USER, Date.now()).n
+    return { due, estMinutes: Math.max(1, Math.ceil(due / 10)) } // 按 10 题/分钟估
+  },
+
+  // ---- PDF 阅读位置记忆 ----
+  saveKbScroll(docId, page) {
+    sqlite.prepare('UPDATE kb_docs SET last_page=? WHERE id=? AND deleted=0').run(Math.max(0, Math.round(page || 0)), docId)
+    return { ok: true }
+  },
+
   // 今日行为计数（每日任务/回顾用）：今日复习条数、今日阅读次数
   todayCounts() {
     const todayStart = new Date().setHours(0, 0, 0, 0)
@@ -1822,8 +1910,8 @@ const api = {
   // 每日回顾：到期错题（复用智能复习调度）+ 知识库随机块
   getDailyReview(limit = 8) {
     const due = sqlite.prepare(
-      "SELECT w.question_id, w.next_review_at, q.stem, q.options_json, q.answer_json, q.analysis, q.type FROM wrong_books w " +
-      "JOIN questions q ON q.id=w.question_id WHERE w.user_id=? AND w.status='wrong' AND w.deleted=0 " +
+      "SELECT w.question_id, w.next_review_at, q.stem, q.options_json, q.answer_json, q.analysis, q.type, c.name AS category_name FROM wrong_books w " +
+      "JOIN questions q ON q.id=w.question_id LEFT JOIN categories c ON c.id=q.category_id WHERE w.user_id=? AND w.status='wrong' AND w.deleted=0 " +
       "AND (w.next_review_at IS NULL OR w.next_review_at<=?) ORDER BY w.next_review_at IS NULL DESC, w.next_review_at ASC LIMIT ?"
     ).all(LOCAL_USER, Date.now(), Math.ceil(limit / 2))
     const blocks = sqlite.prepare(
@@ -1831,7 +1919,7 @@ const api = {
        FROM kb_blocks b JOIN kb_docs d ON d.id=b.doc_id WHERE d.deleted=0 ORDER BY RANDOM() LIMIT ?`
     ).all(Math.floor(limit / 2))
     return {
-      questions: due.map(r => ({ questionId: r.question_id, stem: r.stem, type: r.type, options: JSON.parse(r.options_json || '[]'), answer: JSON.parse(r.answer_json || '[]'), analysis: r.analysis || '' })),
+      questions: due.map(r => ({ questionId: r.question_id, stem: r.stem, type: r.type, options: JSON.parse(r.options_json || '[]'), answer: JSON.parse(r.answer_json || '[]'), analysis: r.analysis || '', categoryName: r.category_name || '' })),
       blocks: blocks.map(b => ({ blockId: b.block_id, docId: b.doc_id, docTitle: b.doc_title, heading: b.heading, content: b.content }))
     }
   },

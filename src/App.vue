@@ -135,7 +135,26 @@ function onSetupConfirm(cfg) {
     durationMin: cfg.durationMin ?? null,
     recite: !!cfg.recite,
     paperId: null,
-    tags: cfg.tags && cfg.tags.length ? cfg.tags : null
+    tags: cfg.tags && cfg.tags.length ? cfg.tags : null,
+    resume: null
+  }
+  setup.value.active = false
+}
+
+// 断点续做：直接用保存的题目与位置恢复
+function onResume(session) {
+  quiz.value = {
+    active: true,
+    categoryId: session.categoryId || null,
+    subjectId: session.subjectId || null,
+    mode: 'practice',
+    order: session.order || 'sequential',
+    limit: null,
+    durationMin: null,
+    recite: false,
+    paperId: null,
+    tags: null,
+    resume: session
   }
   setup.value.active = false
 }
@@ -253,6 +272,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
           :recite="quiz.recite"
           :paperId="quiz.paperId"
           :tags="quiz.tags"
+          :resume="quiz.resume"
           @exit="exitQuiz"
         />
         <template v-else>
@@ -300,6 +320,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
       :wide="isWide"
       :preset="setup"
       @confirm="onSetupConfirm"
+      @resume="onResume"
       @cancel="setup.active = false"
     />
 

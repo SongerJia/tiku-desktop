@@ -11,6 +11,8 @@ const chapters = ref([])
 const currentChapterId = ref(null)
 const questions = ref([])
 const loading = ref(true)
+const PAGE = 50
+const visibleCount = ref(PAGE)
 
 onMounted(load)
 watch(() => props.subject.id, load)
@@ -29,6 +31,7 @@ async function load() {
 
 async function fetchQuestions() {
   loading.value = true
+  visibleCount.value = PAGE
   questions.value = await tiku.getQuestions({
     categoryId: currentChapterId.value,
     keyword: keyword.value.trim() || undefined
@@ -77,7 +80,7 @@ function typeLabel(t) {
     <div v-else-if="!questions.length" class="empty card">暂无知识点</div>
     <div v-else class="question-list">
       <div
-        v-for="q in questions"
+        v-for="q in questions.slice(0, visibleCount)"
         :key="q.id"
         class="card q-card"
         @click="$emit('start', { categoryId: q.category_id, mode: 'practice' })"
@@ -88,6 +91,9 @@ function typeLabel(t) {
         </div>
         <div class="q-arrow">›</div>
       </div>
+      <button v-if="questions.length > visibleCount" class="load-more" @click="visibleCount += PAGE">
+        加载更多（{{ questions.length - visibleCount }} 道）
+      </button>
     </div>
   </div>
 </template>
@@ -127,6 +133,17 @@ function typeLabel(t) {
 }
 
 .question-list { display: flex; flex-direction: column; gap: 10px; }
+.load-more {
+  padding: 10px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.load-more:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-light); }
 .q-card {
   display: flex;
   align-items: center;
