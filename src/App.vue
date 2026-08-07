@@ -180,7 +180,31 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
     <!-- PC 侧边导航 -->
     <aside v-if="isWide" class="sidebar" :style="{ width: sidebarWidth + 'px' }">
       <div class="side-brand">
-        <span class="side-logo">📚</span>
+        <svg class="side-logo-svg" viewBox="0 0 32 32" width="32" height="32">
+          <defs>
+            <linearGradient id="sg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#5b7cfa"/>
+              <stop offset="100%" stop-color="#7a5cff"/>
+            </linearGradient>
+          </defs>
+          <rect x="1" y="1" width="30" height="30" rx="7" fill="url(#sg)" opacity="0.22"/>
+          <rect x="1" y="1" width="30" height="30" rx="7" fill="none" stroke="rgba(91,124,250,0.5)" stroke-width="0.8"/>
+          <!-- 书左页（靛蓝） -->
+          <path d="M8.5 9 L16 10.8 L16 24 L8.5 22.2 Z" fill="#5b7cfa"/>
+          <!-- 书右页（紫蓝） -->
+          <path d="M23.5 9 L16 10.8 L16 24 L23.5 22.2 Z" fill="#7a5cff"/>
+          <!-- 书脊高光 -->
+          <line x1="16" y1="10.8" x2="16" y2="24" stroke="rgba(255,255,255,0.32)" stroke-width="0.6"/>
+          <!-- 星标（记忆之星） -->
+          <path d="M22.5 4.5 L23.1 6 L24.6 6.2 L23.5 7.2 L23.7 8.6 L22.5 7.9 L21.3 8.6 L21.5 7.2 L20.4 6.2 L21.9 6 Z" fill="#9fb6ff"/>
+          <!-- 书页线 -->
+          <line x1="11" y1="13.2" x2="14.4" y2="14" stroke="rgba(15,20,40,0.4)" stroke-width="0.5"/>
+          <line x1="11" y1="16.6" x2="14.4" y2="17.4" stroke="rgba(15,20,40,0.4)" stroke-width="0.5"/>
+          <line x1="11" y1="20" x2="14.4" y2="20.8" stroke="rgba(15,20,40,0.4)" stroke-width="0.5"/>
+          <line x1="17.6" y1="14" x2="21" y2="13.2" stroke="rgba(15,20,40,0.4)" stroke-width="0.5"/>
+          <line x1="17.6" y1="17.4" x2="21" y2="16.6" stroke="rgba(15,20,40,0.4)" stroke-width="0.5"/>
+          <line x1="17.6" y1="20.8" x2="21" y2="20" stroke="rgba(15,20,40,0.4)" stroke-width="0.5"/>
+        </svg>
         <span class="side-name">知识记忆小助手</span>
       </div>
       <nav class="side-nav">
