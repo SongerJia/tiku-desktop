@@ -85,6 +85,10 @@
 | **顽固错题标记** | 同题错 ≥3 次标「顽固」，错题本高亮 + 每日回顾永远优先 | ✅ 完成 | `wrong_count>=3` 排序优先 + WrongBook badge |
 | **键盘快捷键** | 1-9 选答案 / Enter 提交或下一题 / F 收藏 / 空格翻页（背题），输入框聚焦自动禁用 | ✅ 完成 | Quiz `onKey` + window keydown |
 | **成就/升级即时庆祝** | 答题/复习/阅读后检测，新成就解锁与等级升级即时 toast 庆祝（首次不打扰老数据） | ✅ 完成 | `utils/achievements.js` 共享定义 + `utils/celebrate.js` 触发器 |
+| **单词卡（闪卡）** | 正反面闪卡：添加/批量管理/翻卡复习，复用遗忘曲线调度（记住→3 天 / 忘记→1 天），随 Gist 同步 | ✅ 完成 | `cards` 表 + `CardsPanel.vue`（列表+翻卡复习）；首页入口显示到期数 |
+| **听力音频** | 题目可配 `audio_url`（本地路径或 http 链接），答题页自动显示播放器——雅思等听力题的扩展点 | ✅ 完成 | `questions.audio_url` 列 + 录题表单字段 + Quiz `<audio>` 渲染；随同步/备份传播 |
+| **习惯增强** | 打卡 +5 XP（当天首次）+ 首页显示近 7 天圆点 + 空态引导；修复打卡勾选图标渲染 bug | ✅ 完成 | `checkHabit` XP 奖励 + `listHabits` 返回 week 位图 |
+| **备份补全** | 整库备份/恢复补上反馈层 7 表（XP/习惯/打卡/回顾/专注/高亮/双链）+ 单词卡——之前备份会丢这些数据 | ✅ 完成 | `exportData` + `importData` 全覆盖，老备份自动跳过 |
 | **全局体验打磨** | 应用内 Toast（替代原生 alert）/ Confirm 弹层（替代原生 confirm）/ 骨架屏加载 / 计数动画 / Tab 切换过渡 / Esc 统一关闭 / 键盘 focus 可达 / 卡片 hover 反馈 | ✅ 完成 | `utils/toast.js` + `AppToast.vue`、`utils/confirm.js` + `AppConfirm.vue`、`SkeletonCards.vue`、`CountUp.vue`、`useEsc.js`；原生弹窗清零 |
 | **数据安全** | 每次启动自动备份 `tiku.db`（按天去重，保留 5 份）+ 主进程全局错误日志 | ✅ 完成 | `db.autoBackup()` → `userData/backups/`；`error.log` |
 | **首启欢迎引导** | 首次启动 3 步引导（导入题库/知识库/设目标），看过后不再显示 | ✅ 完成 | `WelcomeGuide.vue` + `settings.seen_welcome` |

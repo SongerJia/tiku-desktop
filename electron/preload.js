@@ -113,6 +113,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   reviewDueStats: () => ipcRenderer.invoke('reviewDueStats'),
   saveKbScroll: (docId, page) => ipcRenderer.invoke('saveKbScroll', docId, page),
   listBackups: () => ipcRenderer.invoke('listBackups'),
-  restoreBackup: (file) => ipcRenderer.invoke('restoreBackup', file),  setWrongReason: (questionId, reason) => ipcRenderer.invoke('setWrongReason', questionId, reason),
+  restoreBackup: (file) => ipcRenderer.invoke('restoreBackup', file),  addCard: (front, back, category) => ipcRenderer.invoke('addCard', front, back, category),
+  listCards: () => ipcRenderer.invoke('listCards'),
+  updateCard: (id, front, back, category) => ipcRenderer.invoke('updateCard', id, front, back, category),
+  deleteCard: (id) => ipcRenderer.invoke('deleteCard', id),
+  getCardReview: (limit) => ipcRenderer.invoke('getCardReview', limit),
+  cardsStats: () => ipcRenderer.invoke('cardsStats'),
+  setWrongReason: (questionId, reason) => ipcRenderer.invoke('setWrongReason', questionId, reason),
   getWeeklyReport: () => ipcRenderer.invoke('getWeeklyReport')
 })

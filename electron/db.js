@@ -329,6 +329,19 @@ const api = {
         deleted INTEGER DEFAULT 0,
         client_id TEXT
       );
+      CREATE TABLE IF NOT EXISTS cards (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        front TEXT NOT NULL,
+        back TEXT NOT NULL,
+        category TEXT DEFAULT '',
+        review_at INTEGER,
+        review_count INTEGER DEFAULT 0,
+        review_lapses INTEGER DEFAULT 0,
+        created_at INTEGER,
+        updated_at INTEGER,
+        deleted INTEGER DEFAULT 0,
+        client_id TEXT
+      );
       CREATE TABLE IF NOT EXISTS kb_highlights (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         doc_id INTEGER NOT NULL,
@@ -381,6 +394,7 @@ const api = {
     addColumn('questions', 'client_id', 'client_id TEXT')
     addColumn('questions', 'category_cid', 'category_cid TEXT')
     addColumn('questions', 'images_json', 'images_json TEXT')
+    addColumn('questions', 'audio_url', 'audio_url TEXT')
     addColumn('answer_records', 'client_id', 'client_id TEXT')
     addColumn('answer_records', 'question_cid', 'question_cid TEXT')
     addColumn('wrong_books', 'client_id', 'client_id TEXT')
@@ -1259,24 +1273,24 @@ const api = {
 
   addQuestion(q) {
     const info = sqlite.prepare(`INSERT INTO questions
-      (category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,images_json,updated_at,client_id,category_cid)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      (category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,images_json,audio_url,updated_at,client_id,category_cid)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(q.categoryId, q.type, q.stem, JSON.stringify(q.options || []),
         JSON.stringify(q.answer || []), JSON.stringify(q.keywords || []),
         q.analysis || '', q.difficulty || 3,
         q.source || '手动录入', JSON.stringify(q.images || []),
-        Date.now(), uuid(), categoryCid(q.categoryId))
+        q.audioUrl || '', Date.now(), uuid(), categoryCid(q.categoryId))
     return { ok: true, id: info.lastInsertRowid }
   },
 
   updateQuestion(q) {
     sqlite.prepare(`UPDATE questions SET category_id=?,type=?,stem=?,options_json=?,
-      answer_json=?,keywords_json=?,analysis=?,difficulty=?,source=?,images_json=?,updated_at=?,category_cid=? WHERE id=?`)
+      answer_json=?,keywords_json=?,analysis=?,difficulty=?,source=?,images_json=?,audio_url=?,updated_at=?,category_cid=? WHERE id=?`)
       .run(q.categoryId, q.type, q.stem, JSON.stringify(q.options || []),
         JSON.stringify(q.answer || []), JSON.stringify(q.keywords || []),
         q.analysis || '', q.difficulty || 3,
         q.source || '手动录入', JSON.stringify(q.images || []),
-        Date.now(), categoryCid(q.categoryId), q.id)
+        q.audioUrl || '', Date.now(), categoryCid(q.categoryId), q.id)
     return { ok: true }
   },
 
@@ -1367,7 +1381,15 @@ const api = {
       kbBlocks: dump('kb_blocks', COLS.kbBlocks),
       kbTags: dump('kb_tags', COLS.kbTags),
       kbLinks: dump('kb_links', COLS.kbLinks),
-      kbFiles
+      kbFiles,
+      xpLogs: dump('xp_logs'),
+      habits: dump('habits'),
+      habitChecks: dump('habit_checks'),
+      reviewLogs: dump('review_logs'),
+      focusSessions: dump('focus_sessions'),
+      kbHighlights: dump('kb_highlights'),
+      kbDocLinks: dump('kb_doc_links'),
+      cards: dump('cards')
     }, null, 2)
   },
 
@@ -1499,6 +1521,7 @@ const api = {
       habitChecks: dump('habit_checks'),
       reviewLogs: dump('review_logs'),
       focusSessions: dump('focus_sessions'),
+      cards: dump('cards'),
       kbHighlights,
       kbDocLinks
     }, null, 2)
@@ -1513,7 +1536,7 @@ const api = {
     // 各表写入列（client_id 是身份键，不参与 UPDATE 覆盖）
     const cfg = [
       { table: 'categories', cols: ['name', 'parent_id', 'level', 'stage', 'sort', 'client_id', 'parent_cid', 'updated_at', 'deleted'] },
-      { table: 'questions', cols: ['category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'client_id', 'category_cid', 'updated_at', 'deleted'] },
+      { table: 'questions', cols: ['category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'audio_url', 'client_id', 'category_cid', 'updated_at', 'deleted'] },
       { table: 'answer_records', cols: ['user_id', 'question_id', 'selected_json', 'is_correct', 'duration_ms', 'mode', 'self_graded', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
       { table: 'wrong_books', cols: ['user_id', 'question_id', 'wrong_count', 'reviewed_count', 'next_review_at', 'weak_point', 'reason', 'status', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
       { table: 'favorites', cols: ['user_id', 'question_id', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
@@ -1527,6 +1550,7 @@ const api = {
       { table: 'habit_checks', cols: ['habit_id', 'check_date', 'created_at', 'client_id'], orIgnore: true },
       { table: 'review_logs', cols: ['item_type', 'item_id', 'result', 'created_at', 'client_id'] },
       { table: 'focus_sessions', cols: ['minutes', 'started_at', 'created_at', 'deleted', 'client_id'] },
+      { table: 'cards', cols: ['front', 'back', 'category', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'] },
       { table: 'kb_highlights', cols: ['doc_id', 'block_id', 'text', 'note', 'color', 'created_at', 'updated_at', 'deleted', 'client_id'] },
       { table: 'kb_doc_links', cols: ['from_doc_id', 'to_doc_id', 'note', 'created_at', 'client_id'], orIgnore: true }
     ]
@@ -1713,7 +1737,7 @@ const api = {
       tx()
     }
     replace('categories', data.categories, ['id', 'name', 'parent_id', 'level', 'stage', 'sort', 'client_id', 'parent_cid', 'updated_at', 'deleted'])
-    replace('questions', data.questions, ['id', 'category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'client_id', 'category_cid', 'updated_at', 'deleted'])
+    replace('questions', data.questions, ['id', 'category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'audio_url', 'client_id', 'category_cid', 'updated_at', 'deleted'])
     replace('answer_records', data.answerRecords, ['id', 'user_id', 'question_id', 'selected_json', 'is_correct', 'duration_ms', 'mode', 'self_graded', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])
     replace('wrong_books', data.wrongBooks, ['id', 'user_id', 'question_id', 'wrong_count', 'reviewed_count', 'next_review_at', 'weak_point', 'status', 'client_id', 'question_cid', 'updated_at', 'deleted'])
     replace('favorites', data.favorites, ['id', 'user_id', 'question_id', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])
@@ -1730,6 +1754,19 @@ const api = {
     replace('kb_blocks', data.kbBlocks, ['id', 'doc_id', 'seq', 'heading', 'content', 'char_start', 'char_end', 'review_at', 'review_count', 'review_lapses'])
     replace('kb_tags', data.kbTags, ['doc_id', 'tag'])
     replace('kb_links', data.kbLinks, ['id', 'doc_id', 'block_id', 'question_id', 'note', 'created_at'])
+    replace('xp_logs', data.xpLogs, ['id', 'user_id', 'xp', 'source', 'note', 'created_at', 'deleted', 'client_id'])
+    replace('habits', data.habits, ['id', 'name', 'icon', 'sort', 'created_at', 'updated_at', 'deleted', 'client_id'])
+    replace('habit_checks', data.habitChecks, ['id', 'habit_id', 'check_date', 'created_at', 'client_id'])
+    replace('review_logs', data.reviewLogs, ['id', 'item_type', 'item_id', 'result', 'created_at', 'client_id'])
+    replace('focus_sessions', data.focusSessions, ['id', 'minutes', 'started_at', 'created_at', 'deleted', 'client_id'])
+    replace('kb_highlights', data.kbHighlights, ['id', 'doc_id', 'block_id', 'text', 'note', 'color', 'created_at', 'updated_at', 'deleted', 'client_id'])
+    replace('kb_doc_links', data.kbDocLinks, ['id', 'from_doc_id', 'to_doc_id', 'note', 'created_at', 'client_id'])
+    ;(data.cards || []).forEach(c => {
+      c.review_at = c.review_at ?? null
+      c.review_count = c.review_count ?? 0
+      c.review_lapses = c.review_lapses ?? 0
+    })
+    replace('cards', data.cards, ['id', 'front', 'back', 'category', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'])
     this.restoreKbFiles(data.kbFiles)
     // 补齐可能缺失的 client_id（老备份无 cid 列）
     this.backfillClientIds()
@@ -1952,17 +1989,68 @@ const api = {
   logReview(itemType, itemId, result) {
     sqlite.prepare('INSERT INTO review_logs (item_type, item_id, result, created_at, client_id) VALUES (?,?,?,?,?)')
       .run(itemType, itemId, result ? 1 : 0, Date.now(), uuid())
-    if (itemType === 'block') {
-      // 知识块间隔调度：记住 → 3 天后见；忘记 → 1 天后见（缩短间隔重来）
+    if (itemType === 'block' || itemType === 'card') {
+      // 知识块/单词卡间隔调度：记住 → 3 天后见；忘记 → 1 天后见（缩短间隔重来）
+      const table = itemType === 'card' ? 'cards' : 'kb_blocks'
       const now = Date.now()
-      const rc = sqlite.prepare('SELECT review_count FROM kb_blocks WHERE id=?').get(itemId)
+      const rc = sqlite.prepare(`SELECT review_count FROM ${table} WHERE id=?`).get(itemId)
       const n = (rc && rc.review_count || 0) + 1
       const interval = result ? 3 : 1
-      sqlite.prepare('UPDATE kb_blocks SET review_at=?, review_count=?, review_lapses=review_lapses+? WHERE id=?')
+      sqlite.prepare(`UPDATE ${table} SET review_at=?, review_count=?, review_lapses=review_lapses+? WHERE id=?`)
         .run(now + interval * 86400000, n, result ? 0 : 1, itemId)
     }
     if (result) this.logXp(5, 'review', itemType)
     return { ok: true }
+  },
+
+  // ============ 单词卡（闪卡）============
+  addCard(front, back, category) {
+    const now = Date.now()
+    sqlite.prepare('INSERT INTO cards (front, back, category, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,0,?)')
+      .run(String(front || '').trim(), String(back || '').trim(), String(category || '').trim(), now, now, uuid())
+    this.logXp(2, 'card', 'new')
+    return { ok: true }
+  },
+
+  listCards() {
+    const dueNow = Date.now()
+    return sqlite.prepare(
+      `SELECT c.*, (c.review_at IS NULL OR c.review_at<=?) AS due, c.review_lapses AS lapses
+       FROM cards c WHERE c.deleted=0 ORDER BY c.created_at DESC`
+    ).all(dueNow)
+  },
+
+  updateCard(id, front, back, category) {
+    sqlite.prepare('UPDATE cards SET front=?, back=?, category=?, updated_at=? WHERE id=? AND deleted=0')
+      .run(String(front || '').trim(), String(back || '').trim(), String(category || '').trim(), Date.now(), id)
+    return { ok: true }
+  },
+
+  deleteCard(id) {
+    sqlite.prepare('UPDATE cards SET deleted=1, updated_at=? WHERE id=?').run(Date.now(), id)
+    return { ok: true }
+  },
+
+  // 单词卡复习抽取：到期卡优先（含新卡），最多 limit 张
+  getCardReview(limit = 10) {
+    const now = Date.now()
+    const due = sqlite.prepare(
+      `SELECT * FROM cards WHERE deleted=0 AND review_count>0 AND (review_at IS NULL OR review_at<=?)
+       ORDER BY (review_lapses>0) DESC, review_at IS NULL DESC, review_at ASC LIMIT ?`
+    ).all(now, limit)
+    const pool = due.length < limit
+      ? due.concat(sqlite.prepare(
+          `SELECT * FROM cards WHERE deleted=0 AND review_count=0 ORDER BY RANDOM() LIMIT ?`
+        ).all(limit - due.length))
+      : due
+    return pool.map(c => ({ id: c.id, front: c.front, back: c.back, category: c.category }))
+  },
+
+  cardsStats() {
+    const now = Date.now()
+    const total = sqlite.prepare('SELECT COUNT(*) AS n FROM cards WHERE deleted=0').get().n
+    const due = sqlite.prepare('SELECT COUNT(*) AS n FROM cards WHERE deleted=0 AND (review_at IS NULL OR review_at<=?)').get(now).n
+    return { total, due }
   },
 
   // 专注番茄：完成一个 session 记分钟 + XP（2 XP/分钟）
@@ -1992,7 +2080,10 @@ const api = {
       let streak = 0
       const d = new Date()
       while (dates.has(d.toISOString().slice(0, 10))) { streak++; d.setDate(d.getDate() - 1) }
-      return { ...h, checkedToday: dates.has(today), streak, total: dates.size }
+      const week = []
+      const w = new Date()
+      for (let i = 6; i >= 0; i--) { const dt = new Date(w); dt.setDate(w.getDate() - i); week.push(dates.has(dt.toISOString().slice(0, 10))) }
+      return { ...h, checkedToday: dates.has(today), streak, total: dates.size, week }
     })
   },
 
@@ -2022,8 +2113,9 @@ const api = {
 
   checkHabit(habitId, dateStr) {
     const date = dateStr || new Date().toISOString().slice(0, 10)
-    sqlite.prepare('INSERT OR IGNORE INTO habit_checks (habit_id, check_date, created_at, client_id) VALUES (?,?,?,?)')
+    const info = sqlite.prepare('INSERT OR IGNORE INTO habit_checks (habit_id, check_date, created_at, client_id) VALUES (?,?,?,?)')
       .run(habitId, date, Date.now(), uuid())
+    if (info.changes > 0) this.logXp(5, 'habit', 'check') // 当天首次打卡 +5 XP
     return { ok: true }
   },
 

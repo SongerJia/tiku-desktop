@@ -25,6 +25,7 @@ const error = ref('')
 const saving = ref(false)
 // 题干配图：文件名数组（原文件存 userData/images，库里只存文件名）
 const images = ref([])
+const audioUrl = ref('')
 const uploading = ref(false)
 // 题干配图的预览 dataURL（getImage 是异步的，模板里不能直接 :src=Promise）
 const thumbUrls = ref([])
@@ -67,6 +68,7 @@ function loadFromProps() {
     source.value = q.source || '手动录入'
     categoryId.value = q.category_id || ''
     images.value = (q.images || []).slice()
+    audioUrl.value = q.audio_url || ''
   } else {
     type.value = 'single'
     stem.value = ''
@@ -78,6 +80,7 @@ function loadFromProps() {
     source.value = '手动录入'
     categoryId.value = props.defaultCategoryId || ''
     images.value = []
+    audioUrl.value = ''
   }
 }
 
@@ -179,7 +182,8 @@ async function save() {
       analysis: analysis.value.trim(),
       difficulty: Number(difficulty.value) || 3,
       source: source.value.trim() || '手动录入',
-      images: images.value.slice()
+      images: images.value.slice(),
+      audioUrl: audioUrl.value.trim()
     }
     if (isEdit.value) await tiku.updateQuestion(payload)
     else await tiku.addQuestion(payload)
@@ -279,6 +283,13 @@ async function save() {
               </label>
             </div>
             <span class="hint-sm">图片保存在本机「userData/images」，同步时会随题库 JSON 一起备份</span>
+          </div>
+
+          <div class="field">
+            <label>听力音频（选填，雅思等听力题）</label>
+            <input v-model="audioUrl" class="input" placeholder="音频地址：本地文件路径或 http(s) 链接（答题页自动出现播放器）" />
+            <audio v-if="audioUrl.trim()" :src="audioUrl.trim()" controls preload="none" class="audio-preview"></audio>
+            <span class="hint-sm">答题页会显示播放器；本地路径用绝对路径（如 D://audio//listening1.mp3）</span>
           </div>
 
           <div class="field">

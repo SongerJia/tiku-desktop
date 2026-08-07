@@ -6,6 +6,7 @@ import CountUp from './CountUp.vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import ReviewPanel from './ReviewPanel.vue'
+import CardsPanel from './CardsPanel.vue'
 
 const props = defineProps({ subject: Object, refreshKey: { default: 0 } })
 const emit = defineEmits(['start', 'start-mock', 'goto'])
@@ -25,6 +26,8 @@ const tasks = ref([])
 const habits = ref([])
 const questClaimed = ref('')
 const reviewOpen = ref(false)
+const cardsOpen = ref(false)
+const cardStats = ref({ total: 0, due: 0 })
 const focusMinutes = ref(25)
 const focusLeft = ref(0)
 const focusRunning = ref(false)
@@ -42,12 +45,18 @@ async function load() {
   } catch (e) { /* 任务失败不阻塞 */ }
   try { habits.value = await tiku.listHabits() } catch (e) { habits.value = [] }
   try { const fs = await tiku.focusStats(); focusToday.value = fs.today } catch (e) { focusToday.value = 0 }
+  try { cardStats.value = await tiku.cardsStats() } catch (e) {}
   loading.value = false
 }
 
 async function toggleHabit(h) {
-  if (h.checkedToday) await tiku.uncheckHabit(h.id)
-  else await tiku.checkHabit(h.id)
+  if (h.checkedToday) {
+    await tiku.uncheckHabit(h.id)
+    showToast(`已取消「${h.name}」打卡`)
+  } else {
+    await tiku.checkHabit(h.id)
+    showToast(`「${h.name}」打卡成功，+5 XP，连续 ${h.streak + 1} 天`, 'ok')
+  }
   habits.value = await tiku.listHabits()
 }
 
@@ -145,15 +154,19 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
       </div>
     </div>
 
-    <!-- 习惯打卡 -->
-    <div v-if="habits.length" class="card habit-card">
-      <div class="card-title"><Icon name="refresh" :size="14"/> 我的习惯 <span class="quest-xp">今日打卡</span></div>
-      <div class="habit-list">
+    <!-- 习惯打卡（无习惯时显示引导） -->
+    <div class="card habit-card">
+      <div class="card-title"><Icon name="refresh" :size="14"/> 我的习惯 <span class="quest-xp">每天打卡 +5 XP</span></div>
+      <div v-if="!habits.length" class="habit-empty">还没有习惯。在「我的 → 习惯管理」添加一个（如：雅思刷题 / 健身 / 阅读），每天打卡攒连续天数。</div>
+      <div v-else class="habit-list">
         <div v-for="h in habits" :key="h.id" class="habit-item" :class="{ done: h.checkedToday }" @click="toggleHabit(h)">
           <span class="habit-icon">{{ h.icon }}</span>
           <span class="habit-name">{{ h.name }}</span>
           <span class="habit-streak"><Icon name="fire" :size="14"/> {{ h.streak }} 天</span>
-          <span class="habit-check">{{ h.checkedToday ? '<Icon name="check" :size="14"/>' : '○' }}</span>
+          <span class="habit-week">
+            <i v-for="(ok, i) in h.week" :key="i" :class="{ on: ok }"></i>
+          </span>
+          <span class="habit-check"><Icon v-if="h.checkedToday" name="check" :size="14"/><i v-else class="hollow"></i></span>
         </div>
       </div>
     </div>
@@ -213,9 +226,19 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
       <button class="btn btn-primary" @click="$emit('start-mock')">去组卷</button>
     </div>
 
+    <!-- 单词卡入口 -->
+    <div class="card mock-entry">
+      <div class="me-text">
+        <div class="me-title">单词卡 <span class="me-badge">{{ cardStats.due > 0 ? '今日到期 ' + cardStats.due : '闪卡记忆' }}</span></div>
+        <div class="me-sub">正反面闪卡，按遗忘曲线自动安排复习（记住 3 天再见 / 忘记明天再来）</div>
+      </div>
+      <button class="btn btn-primary" @click="cardsOpen = true">{{ cardStats.total ? '去复习' : '去添加' }}</button>
+    </div>
+
     <SkeletonCards v-if="loading" :count="3" />
 
     <ReviewPanel :show="reviewOpen" @close="reviewOpen = false" />
+    <CardsPanel :show="cardsOpen" @close="cardsOpen = false" />
   </div>
 </template>
 
@@ -292,6 +315,11 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
 .habit-streak { font-size: 11px; color: var(--warn); }
 .habit-check { font-size: 16px; color: var(--muted); }
 .habit-item.done .habit-check { color: var(--ok); }
+.habit-empty { font-size: 12px; color: var(--muted); line-height: 1.7; }
+.habit-week { display: inline-flex; gap: 3px; align-items: center; }
+.habit-week i { width: 6px; height: 6px; border-radius: 50%; background: rgba(148, 163, 184, 0.25); }
+.habit-week i.on { background: var(--ok); box-shadow: 0 0 4px rgba(47, 191, 143, 0.5); }
+.habit-check .hollow { display: inline-block; width: 12px; height: 12px; border: 1.5px solid var(--line); border-radius: 50%; }
 
 /* 每日回顾 + 专注 */
 .duo-row { display: flex; gap: 14px; }
@@ -365,10 +393,10 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
   background:
     radial-gradient(circle at 12% 50%, rgba(255, 193, 84, 0.16), transparent 55%),
     linear-gradient(135deg, rgba(91, 124, 250, 0.08), rgba(255, 193, 84, 0.06));
-  border-color: rgba(255, 193, 84, 0.30);
-}
+  border-color: rgba(255, 193, 84, 0.30);}
 .mock-entry .me-text { flex: 1; }
 .me-title { font-size: 16px; font-weight: 700; color: var(--text); }
+.me-badge { font-size: 10px; font-weight: 500; color: var(--warn); border: 1px solid rgba(217, 154, 61, 0.4); border-radius: 8px; padding: 0 6px; vertical-align: 2px; }
 .me-sub { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
 .mock-entry .btn { flex: 0 0 auto; }
 </style>

@@ -522,6 +522,12 @@ function optionClass(key) {
         <img v-for="(src, i) in imageUrls" :key="i" :src="src" class="q-img" alt="题干图" />
       </div>
 
+      <!-- 听力音频（题干配置 audio_url 时显示播放器） -->
+      <div v-if="q.audio_url" class="q-audio">
+        <audio :src="q.audio_url" controls preload="none"></audio>
+        <span class="qa-hint">先听音频再作答</span>
+      </div>
+
       <!-- 选择题 / 判断题：选项作答 -->
       <div v-if="!isEssay" class="options">
         <div
@@ -740,6 +746,9 @@ function optionClass(key) {
 .stem { font-size: 15px; font-weight: 500; line-height: 1.5; }
 
 .q-images { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.q-audio { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; }
+.q-audio audio { height: 36px; }
+.qa-hint { font-size: 11px; color: var(--muted); }
 .q-img { max-width: 100%; max-height: 220px; border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--glow-soft); }
 
 .timeup { background: rgba(255, 77, 109, 0.12); border: 1px solid var(--bad); color: var(--bad); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; }
