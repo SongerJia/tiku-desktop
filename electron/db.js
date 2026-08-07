@@ -1084,30 +1084,6 @@ const api = {
     return { total, learned, mastered, today, wrongCount, activeDays, streak }
   },
 
-  getChapterProgress(subjectId) {
-    const sql = subjectId
-      ? 'SELECT id FROM categories WHERE deleted=0 AND parent_id=? ORDER BY sort, id'
-      : 'SELECT id FROM categories WHERE deleted=0 AND parent_id IS NOT NULL AND parent_id!=0 ORDER BY sort, id'
-    const chapters = sqlite.prepare(sql).all(...(subjectId ? [subjectId] : []))
-    const result = []
-    for (const ch of chapters) {
-      const cat = sqlite.prepare('SELECT id, name FROM categories WHERE id=?').get(ch.id)
-      const stat = sqlite.prepare(`SELECT COUNT(*) AS n, SUM(is_correct) AS c
-        FROM answer_records ar JOIN questions q ON q.id=ar.question_id
-        WHERE ar.user_id=? AND ar.deleted=0 AND q.category_id=?`).get(LOCAL_USER, ch.id)
-      const totalQ = sqlite.prepare('SELECT COUNT(*) AS n FROM questions WHERE deleted=0 AND category_id=?').get(ch.id).n
-      result.push({
-        id: ch.id,
-        name: cat.name,
-        totalQ: totalQ || 0,
-        answered: stat.n || 0,
-        correct: stat.c || 0,
-        rate: stat.n ? Math.round(((stat.c || 0) / stat.n) * 100) : 0
-      })
-    }
-    return result
-  },
-
   getWeeklyTrend() {
     const days = []
     const now = new Date()
