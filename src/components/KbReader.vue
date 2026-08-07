@@ -42,6 +42,22 @@ function jumpToToc(id) {
 const fontSize = ref(14)
 // PDF 当前页（滚动估算）
 const currentPage = ref(0)
+// PDF 缩放百分比（100 = 基准 1.5 scale），全量重渲染实现
+const pdfZoom = ref(100)
+const PDF_ZOOM_MIN = 50
+const PDF_ZOOM_MAX = 250
+const PDF_ZOOM_STEP = 15
+let pdfZoomTimer = null
+function changePdfZoom(delta) {
+  pdfZoom.value = Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, pdfZoom.value + delta))
+  clearTimeout(pdfZoomTimer)
+  pdfZoomTimer = setTimeout(async () => {
+    if (!pdfDoc || !pdfContainer.value) return
+    pdfContainer.value.innerHTML = ''
+    pdfState.value.done = 0
+    await renderAllPages() // 全量重渲染（scale 跟随 pdfZoom）
+  }, 200)
+}
 const html = ref('')
 const pdfState = ref({ loading: false, error: '', pages: 0, done: 0 })
 const pdfContainer = ref(null)
@@ -160,6 +176,8 @@ watch(() => props.show, async (v) => {
   mKw.value = ''
   mRes.value = []
   editMode.value = false
+  pdfZoom.value = 100 // 换文档重置缩放
+  clearTimeout(pdfZoomTimer)
   cleanupPdf()
   if (props.doc.type === 'md') await renderMd()
   else await renderPdf()
@@ -245,9 +263,10 @@ async function renderPdf() {
 async function renderAllPages() {
   if (!pdfDoc || !pdfContainer.value) return
   try {
+    const scale = 1.5 * (pdfZoom.value / 100)
     for (let p = 1; p <= pdfDoc.numPages; p++) {
       const page = await pdfDoc.getPage(p)
-      const vp = page.getViewport({ scale: 1.5 })
+      const vp = page.getViewport({ scale })
       const canvas = document.createElement('canvas')
       canvas.width = Math.floor(vp.width)
       canvas.height = Math.floor(vp.height)
@@ -258,8 +277,8 @@ async function renderAllPages() {
       pdfContainer.value.appendChild(canvas)
       pdfState.value.done = p
     }
-    // 恢复上次阅读位置
-    const last = Number(props.doc.last_page) || 0
+    // 恢复阅读位置：缩放后回到当前页（而非第一页）
+    const last = currentPage.value || Number(props.doc.last_page) || 0
     if (last > 0 && last <= pdfDoc.numPages) {
       const target = pdfContainer.value.querySelector(`canvas[data-page="${last}"]`)
       if (target) target.scrollIntoView({ block: 'start' })
@@ -301,6 +320,7 @@ function cleanupPdf() {
 onBeforeUnmount(() => {
   cleanupPdf()
   clearTimeout(mTimer)
+  clearTimeout(pdfZoomTimer)
 })
 useEsc(() => emit('close'))
 </script>
@@ -319,6 +339,12 @@ useEsc(() => emit('close'))
         <button class="btn kb-act" @click="startEdit">编辑</button>
         <button class="btn kb-act" @click="fontSize = Math.max(11, fontSize - 1)">A-</button>
         <button class="btn kb-act" @click="fontSize = Math.min(20, fontSize + 1)">A+</button>
+      </template>
+      <template v-else-if="props.doc?.type === 'pdf' && !editMode">
+        <button class="btn kb-act" :disabled="pdfZoom <= PDF_ZOOM_MIN" @click="changePdfZoom(-PDF_ZOOM_STEP)">缩小</button>
+        <span class="kb-pdf-zoom">{{ pdfZoom }}%</span>
+        <button class="btn kb-act" :disabled="pdfZoom >= PDF_ZOOM_MAX" @click="changePdfZoom(PDF_ZOOM_STEP)">放大</button>
+        <button class="btn kb-act" v-if="pdfZoom !== 100" @click="changePdfZoom(100 - pdfZoom)">复位 100%</button>
       </template>
       <template v-if="editMode">
         <button class="btn btn-primary" @click="saveEdit">保存</button>
@@ -458,6 +484,7 @@ useEsc(() => emit('close'))
 .kb-type.pdf { background: rgba(232, 95, 61, 0.15); color: #e85f3d; }
 .kb-type.md { background: rgba(91, 124, 250, 0.12); color: var(--brand); }
 .kb-pdf-prog { font-size: 12px; color: var(--muted); }
+.kb-pdf-zoom { font-size: 12px; color: var(--muted); min-width: 42px; text-align: center; font-variant-numeric: tabular-nums; }
 .kb-act { padding: 4px 12px; }
 
 .kb-body {
