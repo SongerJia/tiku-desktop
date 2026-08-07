@@ -139,8 +139,7 @@ onMounted(async () => {
       </div>
       </div>
 
-      <!-- 学习趋势 + 学习习惯 并排 -->
-      <div class="trend-habit">
+      <!-- 学习趋势 -->
       <div class="card trend-card">
         <div class="card-title">学习趋势</div>
         <div v-if="!trend.length" class="empty">本周暂无学习记录</div>
@@ -170,7 +169,6 @@ onMounted(async () => {
             <div class="habit-desc">走过的每一步都算数</div>
           </div>
         </div>
-      </div>
       </div>
 
       <!-- 学习日历 -->
@@ -210,28 +208,31 @@ onMounted(async () => {
 .stats-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--text); }
 
 .overview-card {
-  display: grid;
-  grid-template-columns: 160px 1fr;
+  display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 28px;
+  padding: 20px 24px;
 }
 @media (max-width: 520px) {
-  .overview-card { grid-template-columns: 1fr; }
+  .overview-card { flex-direction: column; gap: 16px; }
 }
 .overview-numbers {
+  flex: 1;
   display: flex;
-  justify-content: space-around;
-  text-align: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 14px;
 }
-.trend-habit {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  gap: 12px;
+.overview-numbers .num-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px dashed var(--line);
+  padding-bottom: 12px;
 }
-@media (max-width: 760px) {
-  .trend-habit { grid-template-columns: 1fr; }
-}
+.overview-numbers .num-item:last-child { border-bottom: none; padding-bottom: 0; }
+.overview-numbers .num-value { font-size: 24px; }
+.overview-numbers .num-label { margin-top: 0; font-size: 12px; }
 .avatar {
   width: 56px;
   height: 56px;
