@@ -48,8 +48,17 @@ const PDF_ZOOM_MIN = 50
 const PDF_ZOOM_MAX = 250
 const PDF_ZOOM_STEP = 15
 let pdfZoomTimer = null
-function changePdfZoom(delta) {
-  pdfZoom.value = Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, pdfZoom.value + delta))
+// 缩放交互：右下角浮层 + Ctrl+滚轮 + 2.2s 无操作自动隐藏
+const zoomUi = ref(false)
+let zoomUiTimer = null
+function showZoomUi() {
+  zoomUi.value = true
+  clearTimeout(zoomUiTimer)
+  zoomUiTimer = setTimeout(() => { zoomUi.value = false }, 2200)
+}
+function pauseZoomHide() { clearTimeout(zoomUiTimer) }
+function resumeZoomHide() { showZoomUi() }
+function scheduleZoomRender() {
   clearTimeout(pdfZoomTimer)
   pdfZoomTimer = setTimeout(async () => {
     if (!pdfDoc || !pdfContainer.value) return
@@ -57,6 +66,32 @@ function changePdfZoom(delta) {
     pdfState.value.done = 0
     await renderAllPages() // 全量重渲染（scale 跟随 pdfZoom）
   }, 200)
+}
+function changePdfZoom(delta) {
+  pdfZoom.value = Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, pdfZoom.value + delta))
+  showZoomUi()
+  scheduleZoomRender()
+}
+function onZoomSlider(e) {
+  pdfZoom.value = Math.min(PDF_ZOOM_MAX, Math.max(PDF_ZOOM_MIN, Number(e.target.value)))
+  showZoomUi()
+  scheduleZoomRender()
+}
+// Ctrl+滚轮缩放（passive:false 才能 preventDefault 拦页面滚动）
+let pdfWheelCleanup = null
+function attachPdfWheel() {
+  const c = pdfContainer.value
+  if (!c || pdfWheelCleanup) return
+  const onWheel = (e) => {
+    if (!e.ctrlKey) return
+    e.preventDefault()
+    changePdfZoom(e.deltaY < 0 ? PDF_ZOOM_STEP : -PDF_ZOOM_STEP)
+  }
+  c.addEventListener('wheel', onWheel, { passive: false })
+  pdfWheelCleanup = () => c.removeEventListener('wheel', onWheel)
+}
+function detachPdfWheel() {
+  if (pdfWheelCleanup) { pdfWheelCleanup(); pdfWheelCleanup = null }
 }
 const html = ref('')
 const pdfState = ref({ loading: false, error: '', pages: 0, done: 0 })
@@ -177,10 +212,13 @@ watch(() => props.show, async (v) => {
   mRes.value = []
   editMode.value = false
   pdfZoom.value = 100 // 换文档重置缩放
+  zoomUi.value = false
   clearTimeout(pdfZoomTimer)
+  clearTimeout(zoomUiTimer)
+  detachPdfWheel()
   cleanupPdf()
   if (props.doc.type === 'md') await renderMd()
-  else await renderPdf()
+  else { await renderPdf(); attachPdfWheel() }
   await loadQPanel()
   await loadHlAndLinks()
   await tiku.kbBumpRead(props.doc.id) // 阅读埋点（计入学习统计）
@@ -319,8 +357,10 @@ function cleanupPdf() {
 
 onBeforeUnmount(() => {
   cleanupPdf()
+  detachPdfWheel()
   clearTimeout(mTimer)
   clearTimeout(pdfZoomTimer)
+  clearTimeout(zoomUiTimer)
 })
 useEsc(() => emit('close'))
 </script>
@@ -339,12 +379,6 @@ useEsc(() => emit('close'))
         <button class="btn kb-act" @click="startEdit">编辑</button>
         <button class="btn kb-act" @click="fontSize = Math.max(11, fontSize - 1)">A-</button>
         <button class="btn kb-act" @click="fontSize = Math.min(20, fontSize + 1)">A+</button>
-      </template>
-      <template v-else-if="props.doc?.type === 'pdf' && !editMode">
-        <button class="btn kb-act" :disabled="pdfZoom <= PDF_ZOOM_MIN" @click="changePdfZoom(-PDF_ZOOM_STEP)">缩小</button>
-        <span class="kb-pdf-zoom">{{ pdfZoom }}%</span>
-        <button class="btn kb-act" :disabled="pdfZoom >= PDF_ZOOM_MAX" @click="changePdfZoom(PDF_ZOOM_STEP)">放大</button>
-        <button class="btn kb-act" v-if="pdfZoom !== 100" @click="changePdfZoom(100 - pdfZoom)">复位 100%</button>
       </template>
       <template v-if="editMode">
         <button class="btn btn-primary" @click="saveEdit">保存</button>
@@ -454,6 +488,15 @@ useEsc(() => emit('close'))
       </div>
     </div>
 
+    <!-- PDF 缩放浮层：右下角，2.2s 无操作自动隐藏；hover 暂停计时 -->
+    <div v-if="zoomUi && props.doc?.type === 'pdf' && !editMode" class="kb-zoom-ui" @mouseenter="pauseZoomHide" @mouseleave="resumeZoomHide">
+      <button class="kb-zoom-btn" :disabled="pdfZoom <= PDF_ZOOM_MIN" @click="changePdfZoom(-PDF_ZOOM_STEP)" title="缩小">−</button>
+      <input class="kb-zoom-range" type="range" :min="PDF_ZOOM_MIN" :max="PDF_ZOOM_MAX" :value="pdfZoom" @input="onZoomSlider" title="缩放比例" />
+      <button class="kb-zoom-btn" :disabled="pdfZoom >= PDF_ZOOM_MAX" @click="changePdfZoom(PDF_ZOOM_STEP)" title="放大">＋</button>
+      <span class="kb-zoom-pct">{{ pdfZoom }}%</span>
+      <button class="kb-zoom-reset" v-if="pdfZoom !== 100" @click="changePdfZoom(100 - pdfZoom)">复位</button>
+    </div>
+
     <SimpleQuestion :show="sq.show" :q="sq.q" @close="sq.show = false" />
   </div>
 </template>
@@ -484,8 +527,43 @@ useEsc(() => emit('close'))
 .kb-type.pdf { background: rgba(232, 95, 61, 0.15); color: #e85f3d; }
 .kb-type.md { background: rgba(91, 124, 250, 0.12); color: var(--brand); }
 .kb-pdf-prog { font-size: 12px; color: var(--muted); }
-.kb-pdf-zoom { font-size: 12px; color: var(--muted); min-width: 42px; text-align: center; font-variant-numeric: tabular-nums; }
 .kb-act { padding: 4px 12px; }
+/* PDF 缩放浮层：右下角，滑条 + −/＋ + 百分比 + 复位 */
+.kb-zoom-ui {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 320;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--card-solid, var(--bg));
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  transition: opacity .2s ease, transform .2s ease;
+}
+.kb-zoom-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.kb-zoom-btn:disabled { opacity: .35; cursor: default; }
+.kb-zoom-btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+.kb-zoom-range { width: 120px; accent-color: var(--brand); cursor: pointer; }
+.kb-zoom-pct { font-size: 12px; color: var(--muted); min-width: 42px; text-align: center; font-variant-numeric: tabular-nums; }
+.kb-zoom-reset { font-size: 12px; color: var(--brand); background: none; border: none; cursor: pointer; padding: 2px 4px; }
+.kb-zoom-reset:hover { text-decoration: underline; }
 
 .kb-body {
   flex: 1;
