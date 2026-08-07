@@ -61,7 +61,7 @@ function openRepo() {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 0 40px rgba(91, 124, 250, 0.12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
   text-align: center;
 }
 .ab-logo {

@@ -265,8 +265,8 @@ function fmtTime(ts) {
   gap: 8px;
   transition: transform .1s, border-color .2s, box-shadow .2s;
 }
-.kb-card:hover { border-color: var(--brand); box-shadow: var(--glow-soft); }
-.kb-card:active { transform: scale(0.99); }
+.kb-card:hover { border-color: var(--brand); box-shadow: var(--shadow-hover); transform: translateY(-2px); }
+.kb-card:active { transform: translateY(0) scale(0.99); }
 .kb-head { display: flex; align-items: center; gap: 8px; }
 .kb-type { text-transform: uppercase; letter-spacing: 1px; }
 .kb-type.pdf { background: rgba(232, 95, 61, 0.15); color: #e85f3d; }

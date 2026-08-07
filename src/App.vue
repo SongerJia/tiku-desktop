@@ -361,6 +361,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
 }
 .top-search:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow-soft); }
 .tab-page { height: 100%; }
-.fade-enter-active, .fade-leave-active { transition: opacity .18s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+.fade-enter-active, .fade-leave-active { transition: opacity .16s ease, transform .16s ease; }
+.fade-enter-from { opacity: 0; transform: translateY(6px); }
+.fade-leave-to { opacity: 0; }
 </style>

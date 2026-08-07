@@ -120,7 +120,8 @@ async function toggleSimilar(qid) {
 .weak-chapters { margin-bottom: 12px; border: 1px solid rgba(255, 77, 109, 0.3); border-radius: 10px; padding: 10px 12px; background: rgba(255, 77, 109, 0.06); }
 .wc-title { font-size: 12px; color: var(--bad); margin-bottom: 8px; font-weight: 600; }
 .wc-list { display: flex; flex-direction: column; gap: 6px; }
-.wc-item { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.wc-item { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 6px 8px; border-radius: 8px; transition: background .15s; }
+.wc-item:hover { background: rgba(148, 163, 184, 0.08); }
 .wc-name { flex: 1; color: var(--text); }
 .wc-rate { font-weight: 700; }
 .wc-wrong { color: var(--muted); font-size: 11px; }

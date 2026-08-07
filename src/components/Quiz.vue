@@ -426,6 +426,9 @@ function optionClass(key) {
         >
           <span class="key">{{ opt.key }}</span>
           <span class="text">{{ opt.text }}</span>
+          <span v-if="optionClass(opt.key).sel" class="mark sel"><Icon name="check" :size="14"/></span>
+          <span v-else-if="optionClass(opt.key).right" class="mark right"><Icon name="check" :size="14"/></span>
+          <span v-else-if="optionClass(opt.key).wrong" class="mark wrong"><Icon name="x" :size="14"/></span>
         </div>
       </div>
 
@@ -615,17 +618,47 @@ function optionClass(key) {
   align-items: center;
   gap: 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 12px;
+  border-radius: 10px;
+  padding: 11px 13px;
   cursor: pointer;
   color: var(--text);
   background: rgba(255, 255, 255, 0.02);
+  position: relative;
+  transition: border-color .15s, background .15s, transform .12s, box-shadow .15s;
+}
+.option:hover { border-color: var(--brand); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); }
+.option:active { transform: scale(0.99); }
+.option .key {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  flex-shrink: 0;
   transition: all .15s;
 }
-.option:hover { border-color: var(--brand); box-shadow: var(--glow-soft); }
-.option.sel { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
-.option.right { background: rgba(44, 229, 168, 0.12); border-color: var(--ok); box-shadow: 0 0 10px rgba(44, 229, 168, 0.3); }
-.option.wrong { background: rgba(255, 77, 109, 0.12); border-color: var(--bad); box-shadow: 0 0 10px rgba(255, 77, 109, 0.3); }
+.option.sel { background: var(--brand-light); border-color: var(--brand); }
+.option.sel .key { background: var(--brand); border-color: var(--brand); color: #fff; }
+.option.sel .text { color: var(--brand); font-weight: 500; }
+.option.right { background: rgba(47, 191, 143, 0.12); border-color: var(--ok); }
+.option.right .key { border-color: var(--ok); color: var(--ok); }
+.option.wrong { background: rgba(229, 83, 95, 0.12); border-color: var(--bad); }
+.option.wrong .key { border-color: var(--bad); color: var(--bad); }
+.option .mark {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.option .mark.sel { color: var(--brand); }
+.option .mark.right { color: var(--ok); }
+.option .mark.wrong { color: var(--bad); }
 .key { font-weight: 600; width: 22px; text-align: center; color: var(--brand); }
 .text { line-height: 1.5; }
 

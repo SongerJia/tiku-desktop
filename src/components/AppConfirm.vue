@@ -35,7 +35,7 @@ import { confirmState, resolveConfirm } from '../utils/confirm.js'
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 0 40px rgba(91, 124, 250, 0.12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
 }
 .cf-title { margin: 0; font-size: 15px; color: var(--text); }
 .cf-msg { margin: 0; font-size: 13px; line-height: 1.7; color: var(--muted); white-space: pre-line; }

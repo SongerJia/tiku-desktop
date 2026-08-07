@@ -73,7 +73,7 @@ async function skip() {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  box-shadow: 0 0 50px rgba(91, 124, 250, 0.15);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
 }
 .wg-head { display: flex; align-items: center; gap: 10px; }
 .wg-logo { font-size: 26px; }

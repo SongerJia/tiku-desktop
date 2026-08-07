@@ -148,7 +148,7 @@ useEsc(() => emit('close'))
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 0 40px rgba(91, 124, 250, 0.12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
 }
 .us-head { display: flex; gap: 10px; padding: 14px; border-bottom: 1px solid var(--line); }
 .us-input { flex: 1; font-size: 14px; }

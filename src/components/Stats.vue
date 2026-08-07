@@ -1,4 +1,5 @@
 <script setup>
+import CountUp from './CountUp.vue'
 import { ref, computed, onMounted } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
@@ -136,15 +137,15 @@ onMounted(async () => {
       <!-- 数字卡片 -->
       <div class="card numbers">
         <div class="num-item">
-          <div class="num-value">{{ summary.total }}</div>
+          <div class="num-value"><CountUp :value="summary.total" /></div>
           <div class="num-label">总卡片数</div>
         </div>
         <div class="num-item">
-          <div class="num-value">{{ summary.learned }}</div>
+          <div class="num-value"><CountUp :value="summary.learned" /></div>
           <div class="num-label">已学习</div>
         </div>
         <div class="num-item">
-          <div class="num-value">{{ summary.mastered }}</div>
+          <div class="num-value"><CountUp :value="summary.mastered" /></div>
           <div class="num-label">已掌握</div>
         </div>
       </div>
