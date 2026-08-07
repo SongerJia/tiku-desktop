@@ -351,7 +351,7 @@ useEsc(() => emit('close'))
 .kb-mask {
   position: fixed;
   inset: 0;
-  background: rgba(2, 12, 24, 0.85);
+  background: var(--modal-mask);
   backdrop-filter: blur(6px);
   display: flex;
   align-items: center;

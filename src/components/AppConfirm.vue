@@ -21,7 +21,7 @@ import { confirmState, resolveConfirm } from '../utils/confirm.js'
 .cf-mask {
   position: fixed;
   inset: 0;
-  background: rgba(2, 12, 24, 0.72);
+  background: var(--modal-mask);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;

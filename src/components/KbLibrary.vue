@@ -309,7 +309,7 @@ function fmtTime(ts) {
 .kb-mask {
   position: fixed;
   inset: 0;
-  background: rgba(2, 12, 24, 0.75);
+  background: var(--modal-mask);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;

@@ -56,7 +56,7 @@ const barCls = (rate) => (rate >= 80 ? 'hi' : rate >= 50 ? 'mid' : 'lo')
 .cp-mask {
   position: fixed;
   inset: 0;
-  background: rgba(2, 12, 24, 0.82);
+  background: var(--modal-mask); backdrop-filter: blur(var(--modal-blur)); -webkit-backdrop-filter: blur(var(--modal-blur));
   backdrop-filter: blur(6px);
   display: flex;
   align-items: center;

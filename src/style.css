@@ -20,6 +20,9 @@
   --shadow: 0 10px 32px rgba(0, 0, 0, 0.42);          /* 卡片 rest */
   --shadow-hover: 0 14px 40px rgba(0, 0, 0, 0.55);    /* 卡片 hover 抬起 */
   --safe-bottom: 20px;
+  /* 弹层遮罩：深色主题深色毛玻璃；浅色主题浅色毛玻璃（由 [data-theme] 覆盖） */
+  --modal-mask: rgba(2, 12, 24, 0.82);
+  --modal-blur: 6px;
   /* 侧栏 / 顶栏 / 选中态（暗色默认；浅色主题覆盖下方） */
   --sidebar-bg: rgba(13, 17, 26, 0.82);
   --topbar-bg: rgba(13, 17, 26, 0.6);
@@ -368,6 +371,9 @@ button:focus:not(:focus-visible) { outline: none; }
   --sidebar-bg: rgba(255, 255, 255, 0.92);
   --topbar-bg: rgba(255, 255, 255, 0.78);
   --side-active-bg: rgba(61, 91, 217, 0.14);
+  /* 浅色主题弹层遮罩：白底毛玻璃，背景可见但被柔化 */
+  --modal-mask: rgba(255, 255, 255, 0.72);
+  --modal-blur: 14px;
   --input-solid-bg: rgba(255, 255, 255, 0.92);
 }
 [data-theme="light"] .app {
