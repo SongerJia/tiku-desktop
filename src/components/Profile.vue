@@ -2,6 +2,7 @@
 import Icon from './Icon.vue'
 import CountUp from './CountUp.vue'
 import { showConfirm } from '../utils/confirm.js'
+import { ACH_DEFS } from '../utils/achievements.js'
 import { ref, onMounted, computed } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { applyAppearance } from '../utils/appearance.js'
