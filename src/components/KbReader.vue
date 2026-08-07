@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, nextTick, watch, onBeforeUnmount } from 'vue'
+import MarkdownIt from 'markdown-it'
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
 import { tiku } from '../api/tiku.js'
@@ -23,10 +24,24 @@ const HL_COLORS = {
 }
 const hlColor = (c) => HL_COLORS[c] || HL_COLORS.yellow
 
-// MD 目录：Vditor.preview 渲染后从 DOM 收集 h1-h4（同一渲染引擎，锚点 id 由 Vditor 生成）
+// 阅读态 MD 渲染：markdown-it（稳定渲染，5083ea3 验证过正文必显示）；编辑态仍用 Vditor IR
+const md = new MarkdownIt({ linkify: true, breaks: true, html: false })
+// MD 目录：给 h1-h4 加锚点 id，收集目录项
+let toc = []
+const _headingOpen = md.renderer.rules.heading_open || ((tokens, idx) => `<${tokens[idx].tag}>`)
+md.renderer.rules.heading_open = (tokens, idx) => {
+  const tag = tokens[idx].tag
+  const level = Number(tag.slice(1))
+  if (level <= 4) {
+    const id = 'sec-' + toc.length
+    toc.push({ id, level, text: tokens[idx + 1] ? tokens[idx + 1].content : '' })
+    return `<${tag} id="${id}" class="kb-h${level}">`
+  }
+  return `<${tag}>`
+}
 const tocList = ref([])
-const mdViewEl = ref(null)
-const mdErr = ref('') // MD 渲染错误信息（非空时显示错误块，正常时 ref 容器交给 Vditor.preview）
+const html = ref('') // 阅读态渲染结果（markdown-it → v-html）
+const mdErr = ref('') // MD 渲染错误信息
 let themeObserver = null // 监听 data-theme 切换，阅读态重渲染跟随主题
 let mdRenderSeq = 0 // 渲染序号守卫：防止快速切换文档时旧渲染覆盖新文档
 function jumpToToc(id) {
@@ -229,7 +244,6 @@ async function rebuildPdfAtZoom() {
 }
 // PDF 当前页（滚动估算）
 const currentPage = ref(0)
-const html = ref('')
 const pdfState = ref({ loading: false, error: '', pages: 0, done: 0 })
 const pdfContainer = ref(null)
 let pdfTask = null
@@ -337,7 +351,7 @@ function destroyVditor() {
 // 例外：用户选中了文字（准备高亮）时不进入编辑
 async function onMdBodyClick(e) {
   if (editMode.value) return
-  const el = mdViewEl.value
+  const el = e.currentTarget
   if (!el) return
   if (e.target.closest('a, button, img, .vditor-task')) return // 链接/按钮/图片照常交互，不进编辑
   const sel = window.getSelection()
@@ -543,64 +557,16 @@ function b64ToUint8(b64) {
   return bytes
 }
 
-// 预加载 Lute 渲染引擎：Vditor.preview 依赖 window.Lute（动态 script 注入在 Electron/file:// 下不可靠）
-// 这里显式加载本地 lute.min.js，加载完成后再调 preview，避免「正文空白 + 无报错」
-let lutePromise = null
-function ensureLute() {
-  if (window.Lute) return Promise.resolve()
-  if (lutePromise) return lutePromise
-  lutePromise = new Promise((resolve, reject) => {
-    const existing = document.getElementById('vditorLuteScript')
-    if (existing) { resolve(); return }
-    const s = document.createElement('script')
-    s.id = 'vditorLuteScript'
-    s.src = (import.meta.env.DEV ? '/vditor' : './vditor') + '/dist/js/lute/lute.min.js'
-    s.onload = () => { if (window.Lute) resolve(); else reject(new Error('Lute 加载后未定义 window.Lute')) }
-    s.onerror = () => { lutePromise = null; reject(new Error('Lute 引擎加载失败（本地资源缺失？）')) }
-    document.head.appendChild(s)
-  })
-  return lutePromise
-}
-
 async function renderMd() {
   const seq = ++mdRenderSeq
   const r = await tiku.kbRead(props.doc.id)
-  if (!r.ok) { mdErr.value = `<div class="kb-err">读取失败：${r.error}</div>`; return }
+  if (!r.ok) { mdErr.value = `读取失败：${r.error}`; return }
   const text = new TextDecoder('utf-8').decode(b64ToUint8(r.base64))
-  const isDark = document.documentElement.dataset.theme === 'dark'
-  // 先确保 Lute 就绪（失败立刻给用户可读报错，而不是空白）
-  try {
-    await ensureLute()
-  } catch (e) {
-    mdErr.value = `<div class="kb-err">MD 渲染引擎加载失败：${(e && e.message) || e}</div>`
-    return
-  }
   mdErr.value = ''
-  await nextTick()
-  const el = mdViewEl.value
-  if (!el) return
-  try {
-    await Vditor.preview(el, text, {
-      cdn: import.meta.env.DEV ? '/vditor' : './vditor',
-      theme: {
-        current: isDark ? 'dark' : 'light',
-        path: (import.meta.env.DEV ? '/vditor' : './vditor') + '/dist/css/content-theme'
-      },
-      lang: 'zh_CN',
-      hljs: { lineNumbers: true }
-    })
-    if (seq !== mdRenderSeq) return // 已有更新的渲染请求，丢弃本次结果
-  } catch (e) {
-    mdErr.value = `<div class="kb-err">渲染失败：${(e && e.message) || e}</div>`
-    return
-  }
-  // 从渲染后的 DOM 收集目录（h1-h4 自带 id 锚点）
-  await nextTick()
-  const headings = el.querySelectorAll('h1, h2, h3, h4')
-  tocList.value = Array.from(headings).map((h, i) => {
-    if (!h.id) h.id = 'sec-' + i
-    return { id: h.id, level: Number(h.tagName.slice(1)), text: h.textContent || '（无标题）' }
-  })
+  toc = []
+  html.value = md.render(text)
+  if (seq !== mdRenderSeq) return // 已有更新的渲染请求，丢弃本次结果
+  tocList.value = toc.slice()
 }
 
 async function renderPdf() {
@@ -743,8 +709,8 @@ useEsc(() => {
           </div>
           <div v-if="pdfState.loading" class="empty">PDF 加载中…</div>
           <template v-if="props.doc?.type === 'md'">
-            <div v-if="mdErr" class="kb-err" v-html="mdErr"></div>
-            <div ref="mdViewEl" class="kb-md" :class="{ hidden: !!mdErr }" :style="{ fontSize: fontSize + 'px' }" @click="onMdBodyClick"></div>
+            <div v-if="mdErr" class="kb-err">{{ mdErr }}</div>
+            <div v-else class="kb-md" :style="{ fontSize: fontSize + 'px' }" v-html="html" @click="onMdBodyClick"></div>
           </template>
           <div v-else ref="pdfContainer" class="kb-pdf"></div>
         </template>
@@ -1051,25 +1017,19 @@ useEsc(() => {
 }
 
 .kb-md { max-width: 760px; margin: 0 auto; }
-.kb-md.hidden { display: none; }
-.kb-md :deep(.vditor-reset) { color: var(--text); font-size: inherit; line-height: 1.8; }
-.kb-md :deep(.vditor-reset h1),
-.kb-md :deep(.vditor-reset h2),
-.kb-md :deep(.vditor-reset h3),
-.kb-md :deep(.vditor-reset h4) { color: var(--brand); margin: 18px 0 10px; }
-.kb-md :deep(.vditor-reset h1) { font-size: 1.6em; }
-.kb-md :deep(.vditor-reset h2) { font-size: 1.3em; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
-.kb-md :deep(.vditor-reset h3) { font-size: 1.1em; }
-.kb-md :deep(.vditor-reset h4) { font-size: 1em; }
-.kb-md :deep(.vditor-reset p) { line-height: 1.8; color: var(--text); margin: 8px 0; }
-.kb-md :deep(.vditor-reset ul),
-.kb-md :deep(.vditor-reset ol) { padding-left: 22px; color: var(--text); line-height: 1.8; }
-.kb-md :deep(.vditor-reset blockquote) { border-left: 3px solid var(--brand); padding-left: 12px; color: var(--muted); margin: 10px 0; }
-.kb-md :deep(.vditor-reset table) { border-collapse: collapse; margin: 10px 0; }
-.kb-md :deep(.vditor-reset th),
-.kb-md :deep(.vditor-reset td) { border: 1px solid var(--line); padding: 6px 10px; }
-.kb-md :deep(.vditor-reset img) { max-width: 100%; border-radius: 8px; }
-.kb-md :deep(.vditor-reset pre) { border-radius: 10px; }
+.kb-md :deep(h1), .kb-md :deep(h2), .kb-md :deep(h3) { color: var(--brand); margin: 18px 0 10px; }
+.kb-md :deep(h1) { font-size: 20px; }
+.kb-md :deep(h2) { font-size: 17px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.kb-md :deep(h3) { font-size: 15px; }
+.kb-md :deep(p) { line-height: 1.8; color: var(--text); margin: 8px 0; }
+.kb-md :deep(ul), .kb-md :deep(ol) { padding-left: 22px; color: var(--text); line-height: 1.8; }
+.kb-md :deep(code) { background: rgba(91, 124, 250, 0.1); color: var(--brand); padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
+.kb-md :deep(pre) { background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow-x: auto; }
+.kb-md :deep(pre code) { background: none; color: var(--text); }
+.kb-md :deep(blockquote) { border-left: 3px solid var(--brand); padding-left: 12px; color: var(--muted); margin: 10px 0; }
+.kb-md :deep(table) { border-collapse: collapse; margin: 10px 0; }
+.kb-md :deep(th), .kb-md :deep(td) { border: 1px solid var(--line); padding: 6px 10px; font-size: 13px; }
+.kb-md :deep(img) { max-width: 100%; border-radius: 8px; }
 .kb-pdf { display: flex; flex-direction: column; align-items: center; gap: 12px; overflow-x: auto; padding: 0 6px; }
 .kb-pdf-page {
   height: auto;
