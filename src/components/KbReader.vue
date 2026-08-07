@@ -219,11 +219,8 @@ async function rebuildPdfAtZoom() {
     stdW = Math.floor(vp.width)
     stdH = Math.floor(vp.height)
   } catch (e) { /* 用兜底尺寸 */ }
-  // 为所有页建占位（撑滚动条）+ 后台 getPage 缓存；不 await 避免阻塞首屏
+  // 为所有页建占位（撑滚动条）；不并发预取 getPage——大 PDF（600+页）并发 getPage 会卡死主线程，只在滚动/首屏渲染时按需取
   for (let p = 1; p <= total; p++) {
-    if (p !== anchor && !pdfPageObjs[p]) {
-      pdfDoc.getPage(p).then(page => { pdfPageObjs[p] = page }).catch(() => {})
-    }
     const ph = document.createElement('div')
     ph.className = 'kb-pdf-ph'
     ph.dataset.page = p
@@ -235,12 +232,12 @@ async function rebuildPdfAtZoom() {
   // 滚动到 anchor（默认会找最近的纵滚祖先 .kb-main）
   const anchorEl = pageEls[anchor]
   if (anchorEl) anchorEl.scrollIntoView({ block: 'start' })
-  // 先渲染 anchor 前后 ±3 页（共 7 页）作为首屏可见内容；其余 595 页等滚动时 onPdfScroll 按需补
+  // 先渲染 anchor 前后 ±3 页（共 7 页）作为首屏可见内容；其余页等滚动时 onPdfScroll 按需补
   for (let dp = -3; dp <= 3; dp++) {
     const p = anchor + dp
     if (p >= 1 && p <= total && !renderQueue.includes(p)) renderQueue.push(p)
   }
-  pumpRenderQueue()
+  await pumpRenderQueue()
 }
 // PDF 当前页（滚动估算）
 const currentPage = ref(0)
