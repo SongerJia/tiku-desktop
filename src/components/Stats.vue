@@ -97,26 +97,16 @@ onMounted(async () => {
 
 <template>
   <div class="stats">
-    <!-- 登录提示 / 用户信息 -->
-    <div class="card login-card">
-      <template v-if="!loggedIn">
-        <div class="avatar">?</div>
-        <div class="login-tip">登录后可查看学习进度</div>
-        <button class="btn btn-primary" @click="login">立即登录</button>
-      </template>
-      <template v-else>
-        <div class="avatar solid">张</div>
-        <div class="login-tip">本地用户 · 学习进度实时统计</div>
-        <div class="login-sub">已坚持学习，继续加油！</div>
-      </template>
+    <!-- 页面标题行 + 导出周报 -->
+    <div class="stats-head">
+      <h2 class="stats-title">学习统计</h2>
+      <button class="btn btn-primary report-btn" @click="exportReport">导出学习周报</button>
     </div>
 
     <div v-if="loggedIn">
-      <button class="btn btn-primary report-btn" @click="exportReport">📄 导出学习周报</button>
       <div class="stats-grid">
-      <!-- 总体进度 -->
-      <div class="card progress-card">
-        <div class="card-title center">总体进度</div>
+      <!-- 概览：掌握进度环形 + 数字 -->
+      <div class="card overview-card">
         <div class="ring-wrap">
           <svg class="ring" viewBox="0 0 120 120">
             <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(91, 124, 250, 0.14)" stroke-width="10" />
@@ -132,10 +122,8 @@ onMounted(async () => {
             <div class="ring-label">掌握进度</div>
           </div>
         </div>
-      </div>
 
-      <!-- 数字卡片 -->
-      <div class="card numbers">
+      <div class="overview-numbers">
         <div class="num-item">
           <div class="num-value"><CountUp :value="summary.total" /></div>
           <div class="num-label">总卡片数</div>
@@ -149,13 +137,15 @@ onMounted(async () => {
           <div class="num-label">已掌握</div>
         </div>
       </div>
+      </div>
 
-      <!-- 学习趋势 -->
+      <!-- 学习趋势 + 学习习惯 并排 -->
+      <div class="trend-habit">
       <div class="card trend-card">
         <div class="card-title">学习趋势</div>
         <div v-if="!trend.length" class="empty">本周暂无学习记录</div>
         <div v-else class="trend-bars">
-          <div v-for="d in trend" :key="d.date" class="bar-item">
+          <div v-for="d in trend" :key="d.date" class="bar-item" :title="`${d.date}：${d.count} 题`">
             <div class="bar-track">
               <div class="bar-fill" :style="{ height: `${(d.count / maxTrend) * 60}px` }"></div>
             </div>
@@ -180,6 +170,7 @@ onMounted(async () => {
             <div class="habit-desc">走过的每一步都算数</div>
           </div>
         </div>
+      </div>
       </div>
 
       <!-- 学习日历 -->
@@ -215,14 +206,31 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.center { text-align: center; }
+.stats-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.stats-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--text); }
 
-.login-card {
-  display: flex;
-  flex-direction: column;
+.overview-card {
+  display: grid;
+  grid-template-columns: 160px 1fr;
   align-items: center;
   gap: 10px;
+}
+@media (max-width: 520px) {
+  .overview-card { grid-template-columns: 1fr; }
+}
+.overview-numbers {
+  display: flex;
+  justify-content: space-around;
   text-align: center;
+  gap: 6px;
+}
+.trend-habit {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 760px) {
+  .trend-habit { grid-template-columns: 1fr; }
 }
 .avatar {
   width: 56px;
@@ -238,25 +246,22 @@ onMounted(async () => {
   border: 1px solid var(--line);
   box-shadow: var(--glow-soft);
 }
-.avatar.solid { background: var(--brand); color: #021018; box-shadow: var(--glow); }
-.login-tip { font-size: 14px; color: var(--text); }
-.login-sub { font-size: 12px; color: var(--muted); }
+.avatar.solid { background: var(--brand); color: #ffffff; }
 
-.progress-card { text-align: center; }
 .ring-wrap {
   position: relative;
   width: 140px;
   height: 140px;
   margin: 10px auto 0;
 }
-.ring { width: 100%; height: 100%; filter: drop-shadow(0 0 6px rgba(42,245,255,0.4)); }
+.ring { width: 100%; height: 100%; }
 .ring-text {
   position: absolute;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
 }
-.ring-num { font-size: 28px; font-weight: 700; color: var(--brand); text-shadow: var(--glow-soft); }
+.ring-num { font-size: 28px; font-weight: 700; color: var(--brand); }
 .ring-label { font-size: 12px; color: var(--muted); }
 
 .numbers {
@@ -264,7 +269,7 @@ onMounted(async () => {
   justify-content: space-around;
   text-align: center;
 }
-.num-value { font-size: 26px; font-weight: 700; color: var(--brand); text-shadow: var(--glow-soft); }
+.num-value { font-size: 26px; font-weight: 700; color: var(--brand); }
 .num-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
 .trend-bars {
@@ -310,7 +315,7 @@ onMounted(async () => {
   padding: 12px;
 }
 .habit-label { font-size: 13px; color: var(--text); }
-.habit-value { font-size: 22px; font-weight: 700; color: var(--brand); margin: 6px 0; text-shadow: var(--glow-soft); }
+.habit-value { font-size: 22px; font-weight: 700; color: var(--brand); margin: 6px 0; }
 .habit-value .unit { font-size: 12px; margin-left: 2px; }
 .habit-desc { font-size: 11px; color: var(--muted); }
 
@@ -327,7 +332,7 @@ onMounted(async () => {
   margin: 0 auto;
   color: var(--text);
 }
-.day.active { background: var(--brand); color: #021018; box-shadow: var(--glow); font-weight: 600; }
+.day.active { background: var(--brand); color: #ffffff; font-weight: 600; }
 .day.empty { visibility: hidden; }
 .cal-legend {
   display: flex;
@@ -342,5 +347,5 @@ onMounted(async () => {
 .dot.light { background: rgba(91, 124, 250, 0.25); }
 .dot.mid { background: rgba(91, 124, 250, 0.55); }
 .dot.heavy { background: var(--brand); box-shadow: var(--glow); }
-.report-btn { margin-bottom: 14px; }
+.report-btn { margin: 0; }
 </style>
