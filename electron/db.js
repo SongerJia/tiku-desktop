@@ -342,6 +342,16 @@ const api = {
         deleted INTEGER DEFAULT 0,
         client_id TEXT
       );
+      CREATE TABLE IF NOT EXISTS materials (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT DEFAULT '',
+        content TEXT NOT NULL,
+        subject_id INTEGER,
+        created_at INTEGER,
+        updated_at INTEGER,
+        deleted INTEGER DEFAULT 0,
+        client_id TEXT
+      );
       CREATE TABLE IF NOT EXISTS kb_highlights (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         doc_id INTEGER NOT NULL,
@@ -395,6 +405,9 @@ const api = {
     addColumn('questions', 'category_cid', 'category_cid TEXT')
     addColumn('questions', 'images_json', 'images_json TEXT')
     addColumn('questions', 'audio_url', 'audio_url TEXT')
+    // 材料题：questions 挂材料（materials 表），material_cid 用于跨设备引用解析
+    addColumn('questions', 'material_id', 'material_id INTEGER')
+    addColumn('questions', 'material_cid', 'material_cid TEXT')
     addColumn('answer_records', 'client_id', 'client_id TEXT')
     addColumn('answer_records', 'question_cid', 'question_cid TEXT')
     addColumn('wrong_books', 'client_id', 'client_id TEXT')
@@ -526,49 +539,49 @@ const api = {
     if (mode === 'weak') {
       return this.getWeakQuestions(limit ? Number(limit) : 30, subjectId, categoryId)
     }
-    let sql = 'SELECT * FROM questions WHERE deleted=0'
+    let sql = 'SELECT q.*, m.title AS material_title, m.content AS material_content FROM questions q LEFT JOIN materials m ON m.id=q.material_id WHERE q.deleted=0'
     const params = []
     if (categoryId) {
-      sql += ' AND category_id=?'
+      sql += ' AND q.category_id=?'
       params.push(categoryId)
     } else if (subjectId) {
       const ids = descendantCategoryIds(subjectId)
       if (!ids.length) return []
-      sql += ' AND category_id IN (' + ids.map(() => '?').join(',') + ')'
+      sql += ' AND q.category_id IN (' + ids.map(() => '?').join(',') + ')'
       params.push(...ids)
     }
     if (keyword) {
-      sql += ' AND stem LIKE ?'
+      sql += ' AND q.stem LIKE ?'
       params.push(`%${keyword}%`)
     }
     if (mode === 'wrong') {
       const ids = sqlite.prepare("SELECT question_id FROM wrong_books WHERE user_id=? AND status='wrong' AND deleted=0").all(LOCAL_USER).map(w => w.question_id)
       if (!ids.length) return []
-      sql += ' AND id IN (' + ids.map(() => '?').join(',') + ')'
+      sql += ' AND q.id IN (' + ids.map(() => '?').join(',') + ')'
       params.push(...ids)
     } else if (mode === 'favorite') {
       const ids = sqlite.prepare('SELECT question_id FROM favorites WHERE user_id=? AND deleted=0').all(LOCAL_USER).map(f => f.question_id)
       if (!ids.length) return []
-      sql += ' AND id IN (' + ids.map(() => '?').join(',') + ')'
+      sql += ' AND q.id IN (' + ids.map(() => '?').join(',') + ')'
       params.push(...ids)
     } else if (mode === 'unattempted') {
-      sql += ' AND id NOT IN (SELECT question_id FROM answer_records WHERE user_id=? AND deleted=0)'
+      sql += ' AND q.id NOT IN (SELECT question_id FROM answer_records WHERE user_id=? AND deleted=0)'
       params.push(LOCAL_USER)
     } else if (mode === 'review-due') {
       const ids = sqlite.prepare("SELECT question_id FROM wrong_books WHERE user_id=? AND status='wrong' AND deleted=0 AND (next_review_at IS NULL OR next_review_at<=?)")
         .all(LOCAL_USER, Date.now()).map(w => w.question_id)
       if (!ids.length) return []
-      sql += ' AND id IN (' + ids.map(() => '?').join(',') + ')'
+      sql += ' AND q.id IN (' + ids.map(() => '?').join(',') + ')'
       params.push(...ids)
     }
     if (tags && tags.length) {
       // 按标签筛选：题目须带全部所选标签（AND 语义），通过 question_tags 子查询解析
       tags.forEach(t => {
-        sql += ' AND id IN (SELECT question_id FROM question_tags WHERE tag=?)'
+        sql += ' AND q.id IN (SELECT question_id FROM question_tags WHERE tag=?)'
         params.push(t)
       })
     }
-    sql += ' ORDER BY id ASC'
+    sql += ' ORDER BY q.id ASC'
     if (limit) {
       sql += ' LIMIT ?'
       params.push(limit)
@@ -1174,8 +1187,8 @@ const api = {
     const duplicateMode = opts.duplicateMode || (opts.skipDuplicate === false ? 'all' : 'skip')
     const now = Date.now()
     const insQ = sqlite.prepare(`INSERT INTO questions
-      (category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,images_json,audio_url,updated_at,client_id,category_cid)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      (category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,images_json,audio_url,material_id,material_cid,updated_at,client_id,category_cid)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     const dupStmt = sqlite.prepare('SELECT id FROM questions WHERE category_id=? AND stem=? AND deleted=0')
     const updQ = sqlite.prepare(`UPDATE questions SET type=?,options_json=?,answer_json=?,keywords_json=?,analysis=?,difficulty=?,source=?,audio_url=?,updated_at=? WHERE id=?`)
     let inserted = 0
@@ -1189,6 +1202,8 @@ const api = {
         if (r.subject) subjectId = this.upsertCategoryByName(r.subject, null, 1)
         if (!subjectId) { skipped++; continue }
         const categoryId = r.chapter ? this.upsertCategoryByName(r.chapter, subjectId, 2) : subjectId
+        // 材料题：按 科目+内容 去重建材料实体，题目引用它（material_cid 供跨设备解析）
+        const mat = r.material ? this.upsertMaterial(subjectId, r.material) : null
         const dup = dupStmt.get(categoryId, r.stem)
         if (dup) {
           if (duplicateMode === 'skip') { duplicated++; continue }
@@ -1207,7 +1222,8 @@ const api = {
           JSON.stringify(r.options || []), JSON.stringify(r.answer || []),
           JSON.stringify(r.keywords || []),
           r.analysis || '', r.difficulty || 3, r.source || '导入',
-          JSON.stringify(r.images || []), r.audio || '', now,
+          JSON.stringify(r.images || []), r.audio || '',
+          mat ? mat.id : null, mat ? mat.cid : null, now,
           uuid(), categoryCid(categoryId)
         )
         inserted++
@@ -1382,7 +1398,8 @@ const api = {
       focusSessions: dump('focus_sessions'),
       kbHighlights: dump('kb_highlights'),
       kbDocLinks: dump('kb_doc_links'),
-      cards: dump('cards')
+      cards: dump('cards'),
+      materials: dump('materials')
     }, null, 2)
   },
 
@@ -1529,7 +1546,7 @@ const api = {
     // 各表写入列（client_id 是身份键，不参与 UPDATE 覆盖）
     const cfg = [
       { table: 'categories', cols: ['name', 'parent_id', 'level', 'stage', 'sort', 'client_id', 'parent_cid', 'updated_at', 'deleted'] },
-      { table: 'questions', cols: ['category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'audio_url', 'client_id', 'category_cid', 'updated_at', 'deleted'] },
+      { table: 'questions', cols: ['category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'audio_url', 'material_id', 'material_cid', 'client_id', 'category_cid', 'updated_at', 'deleted'] },
       { table: 'answer_records', cols: ['user_id', 'question_id', 'selected_json', 'is_correct', 'duration_ms', 'mode', 'self_graded', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
       { table: 'wrong_books', cols: ['user_id', 'question_id', 'wrong_count', 'reviewed_count', 'next_review_at', 'weak_point', 'reason', 'status', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
       { table: 'favorites', cols: ['user_id', 'question_id', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
@@ -1544,6 +1561,7 @@ const api = {
       { table: 'review_logs', cols: ['item_type', 'item_id', 'result', 'created_at', 'client_id'] },
       { table: 'focus_sessions', cols: ['minutes', 'started_at', 'created_at', 'deleted', 'client_id'] },
       { table: 'cards', cols: ['front', 'back', 'category', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'] },
+      { table: 'materials', cols: ['title', 'content', 'subject_id', 'created_at', 'updated_at', 'deleted', 'client_id'] },
       { table: 'kb_highlights', cols: ['doc_id', 'block_id', 'text', 'note', 'color', 'created_at', 'updated_at', 'deleted', 'client_id'] },
       { table: 'kb_doc_links', cols: ['from_doc_id', 'to_doc_id', 'note', 'created_at', 'client_id'], orIgnore: true }
     ]
@@ -1580,10 +1598,17 @@ const api = {
       const catCidToId = new Map()
       for (const r of catMerged) catCidToId.set(r.client_id, catUpsert(r))
 
-      // 2) questions（依赖 categories）
+      // 1.5) materials（案例题背景材料，独立合并建 cid→id 映射，questions 引用它）
+      const matUpsert = makeUpsert('materials', cfg[15].cols)
+      const matMerged = lwwMerge(readAll('materials'), remote.materials || [])
+      const matCidToId = new Map()
+      for (const r of matMerged) matCidToId.set(r.client_id, matUpsert(r))
+
+      // 2) questions（依赖 categories + materials）
       const qUpsert = makeUpsert('questions', cfg[1].cols)
       const qMerged = lwwMerge(readAll('questions'), remote.questions || [])
       applyFk(qMerged, 'category_cid', 'category_id', catCidToId)
+      applyFk(qMerged, 'material_cid', 'material_id', matCidToId)
       const qCidToId = new Map()
       for (const r of qMerged) qCidToId.set(r.client_id, qUpsert(r))
 
@@ -1760,7 +1785,7 @@ const api = {
       tx()
     }
     replace('categories', data.categories, ['id', 'name', 'parent_id', 'level', 'stage', 'sort', 'client_id', 'parent_cid', 'updated_at', 'deleted'])
-    replace('questions', data.questions, ['id', 'category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'audio_url', 'client_id', 'category_cid', 'updated_at', 'deleted'])
+    replace('questions', data.questions, ['id', 'category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'audio_url', 'material_id', 'material_cid', 'client_id', 'category_cid', 'updated_at', 'deleted'])
     replace('answer_records', data.answerRecords, ['id', 'user_id', 'question_id', 'selected_json', 'is_correct', 'duration_ms', 'mode', 'self_graded', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])
     replace('wrong_books', data.wrongBooks, ['id', 'user_id', 'question_id', 'wrong_count', 'reviewed_count', 'next_review_at', 'weak_point', 'status', 'client_id', 'question_cid', 'updated_at', 'deleted'])
     replace('favorites', data.favorites, ['id', 'user_id', 'question_id', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])
@@ -1790,6 +1815,7 @@ const api = {
       c.review_lapses = c.review_lapses ?? 0
     })
     replace('cards', data.cards, ['id', 'front', 'back', 'category', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'])
+    replace('materials', data.materials, ['id', 'title', 'content', 'subject_id', 'created_at', 'updated_at', 'deleted', 'client_id'])
     this.restoreKbFiles(data.kbFiles)
     // 补齐可能缺失的 client_id（老备份无 cid 列）
     this.backfillClientIds()
@@ -2074,6 +2100,27 @@ const api = {
     const total = sqlite.prepare('SELECT COUNT(*) AS n FROM cards WHERE deleted=0').get().n
     const due = sqlite.prepare('SELECT COUNT(*) AS n FROM cards WHERE deleted=0 AND (review_at IS NULL OR review_at<=?)').get(now).n
     return { total, due }
+  },
+
+  // ============ 材料题（案例题背景材料）============
+  // 按 科目+内容 精确匹配复用；不存在则新建。返回材料 id（内容为空返回 null）
+  upsertMaterial(subjectId, content, title = '') {
+    const c = String(content || '').trim()
+    if (!c) return null
+    const ex = sqlite.prepare('SELECT id, client_id FROM materials WHERE deleted=0 AND subject_id=? AND content=?').get(subjectId, c)
+    if (ex) return { id: ex.id, cid: ex.client_id }
+    const now = Date.now()
+    const cid = uuid()
+    const info = sqlite.prepare('INSERT INTO materials (title, content, subject_id, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,0,?)')
+      .run(String(title || '').trim(), c, subjectId, now, now, cid)
+    return { id: info.lastInsertRowid, cid }
+  },
+
+  listMaterials() {
+    return sqlite.prepare(
+      `SELECT m.*, (SELECT COUNT(*) FROM questions q WHERE q.material_id=m.id AND q.deleted=0) AS qCount
+       FROM materials m WHERE m.deleted=0 ORDER BY m.updated_at DESC`
+    ).all()
   },
 
   // 专注番茄：完成一个 session 记分钟 + XP（2 XP/分钟）

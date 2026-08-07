@@ -33,6 +33,7 @@ const selected = ref([])
 const essayText = ref('')          // 问答题作答文本
 const essayReviewing = ref(false)  // 问答题：已提交作答，等待用户自评
 const result = ref(null)
+const materialOpen = ref(true) // 材料卡默认展开
 const sessionCorrect = ref(0)
 const sessionStart = ref(0)
 const sessionEnd = ref(0)
@@ -293,6 +294,7 @@ function resetPerQuestion() {
   essayText.value = ''
   essayReviewing.value = false
   result.value = null
+  materialOpen.value = true
 }
 
 function next() {
@@ -512,6 +514,17 @@ function optionClass(key) {
 
     <div v-else class="card">
       <div v-if="timeUp" class="timeup">⏰ 时间到，已自动交卷</div>
+
+      <!-- 材料题：背景材料卡（先读材料再作答，可折叠） -->
+      <div v-if="q.material_content" class="material-card" @click="materialOpen = !materialOpen">
+        <div class="mc-head">
+          <Icon name="doc" :size="13"/>
+          <b class="mc-title">{{ q.material_title || '材料' }}</b>
+          <span class="mc-toggle">{{ materialOpen ? '收起 ▲' : '展开 ▼' }}</span>
+        </div>
+        <div v-show="materialOpen" class="mc-body">{{ q.material_content }}</div>
+      </div>
+
       <div class="meta">
         <span class="tag">{{ typeLabel(q.type) }}</span>
         <span class="stem">{{ q.stem }}</span>
@@ -752,6 +765,11 @@ function optionClass(key) {
 .q-img { max-width: 100%; max-height: 220px; border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--glow-soft); }
 
 .timeup { background: rgba(255, 77, 109, 0.12); border: 1px solid var(--bad); color: var(--bad); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; }
+.material-card { border: 1px solid rgba(91, 124, 250, 0.35); border-radius: 10px; background: rgba(91, 124, 250, 0.05); margin-bottom: 12px; overflow: hidden; cursor: pointer; }
+.mc-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; font-size: 13px; color: var(--text); }
+.mc-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-toggle { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+.mc-body { padding: 4px 14px 12px; font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto; }
 
 .options { display: flex; flex-direction: column; gap: 8px; }
 .option {
