@@ -147,7 +147,7 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
       <div v-if="questClaimed" class="quest-claimed">🎉 {{ questClaimed }} 已完成，XP 已到账</div>
       <div class="quest-list">
         <div v-for="t in tasks" :key="t.key" class="quest-item" :class="{ done: t.done }" @click="onTaskClick(t)">
-          <span class="quest-check">{{ t.done ? '<Icon name="check" :size="14"/>' : '○' }}</span>
+          <span class="quest-check"><Icon v-if="t.done" name="check" :size="14"/><i v-else class="hollow"></i></span>
           <span class="quest-name">{{ t.name }}</span>
           <span class="quest-state">{{ t.done ? '已完成' : '去做' }}</span>
         </div>

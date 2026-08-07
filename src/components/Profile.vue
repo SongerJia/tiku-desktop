@@ -317,7 +317,10 @@ onMounted(async () => {
           <div class="ach-head">
             <span class="ach-icon">{{ a.icon }}</span>
             <span class="ach-name">{{ a.name }}</span>
-            <span class="ach-pct" :class="{ done: a.got }">{{ a.got ? '<Icon name="check" :size="14"/> 已达成' : a.fmtText }}</span>
+            <span class="ach-pct" :class="{ done: a.got }">
+              <template v-if="a.got"><Icon name="check" :size="14"/> 已达成</template>
+              <template v-else>{{ a.fmtText }}</template>
+            </span>
           </div>
           <span class="ach-desc">{{ a.desc }}</span>
           <div class="ach-bar">

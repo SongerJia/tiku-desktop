@@ -48,10 +48,12 @@ const filteredDocs = computed(() => {
 })
 
 // 文件夹分组：未分类在前，其余按名称
+// 笔记文档（标题以「笔记」结尾）不再单列，直接归入未分类
 const groupedDocs = computed(() => {
   const groups = new Map()
   for (const d of filteredDocs.value) {
-    const k = d.folder || ''
+    const isNote = String(d.title || '').endsWith('笔记')
+    const k = isNote ? '' : (d.folder || '')
     if (!groups.has(k)) groups.set(k, [])
     groups.get(k).push(d)
   }
