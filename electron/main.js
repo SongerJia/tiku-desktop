@@ -1,5 +1,5 @@
 const { app, BrowserWindow, ipcMain, Menu, safeStorage, dialog, shell, Notification } = require('electron')
-const pkg = require('./package.json')
+const pkg = require('../package.json')
 const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
