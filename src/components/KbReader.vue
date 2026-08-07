@@ -34,7 +34,6 @@ md.renderer.rules.heading_open = (tokens, idx) => {
   return `<${tag}>`
 }
 const tocList = ref([])
-const tocOpen = ref(false)
 function jumpToToc(id) {
   const el = document.getElementById(id)
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -305,37 +304,31 @@ useEsc(() => emit('close'))
 </script>
 
 <template>
-  <div v-if="show" class="kb-mask" @click.self="emit('close')">
-    <div class="kb-reader">
-      <div class="kb-reader-head">
-        <span class="badge kb-type" :class="props.doc?.type">{{ props.doc?.type === 'pdf' ? 'PDF' : 'MD' }}</span>
-        <span class="kb-reader-title">{{ props.doc?.title }}</span>
-        <div class="kb-reader-spacer"></div>
-        <span v-if="pdfState.pages" class="kb-pdf-prog">{{ pdfState.done }}/{{ pdfState.pages }}</span>
-        <template v-if="props.doc?.type === 'md' && !editMode">
-          <button class="btn kb-edit-btn" @click="addHlFromSelection">高亮</button>
-          <button class="btn kb-edit-btn" @click="startEdit">编辑</button>
-          <button class="btn kb-edit-btn" @click="fontSize = Math.max(11, fontSize - 1)">A-</button>
-          <button class="btn kb-edit-btn" @click="fontSize = Math.min(20, fontSize + 1)">A+</button>
-          <button v-if="tocList.length" class="btn kb-edit-btn" @click="tocOpen = !tocOpen">目录</button>
-        </template>
-        <template v-if="editMode">
-          <button class="btn btn-primary" @click="saveEdit">保存</button>
-          <button class="btn" @click="cancelEdit">取消</button>
-        </template>
-        <button class="btn kb-close" @click="onClose">关闭</button>
-      </div>
-      <div class="kb-reader-body">
-        <textarea
-          v-if="editMode"
-          v-model="editText"
-          class="kb-edit-area"
-          spellcheck="false"
-          placeholder="编辑 Markdown 内容，保存后自动重新切块并更新全文检索索引"
-        ></textarea>
-        <template v-else>
-        <!-- MD 目录 -->
-        <div v-if="tocOpen && tocList.length" class="kb-toc">
+  <div v-if="show" class="kb-page">
+    <!-- 顶栏：返回 + 标题 + 操作按钮 -->
+    <div class="kb-head">
+      <button class="btn kb-back" @click="onClose">← 返回</button>
+      <span class="badge kb-type" :class="props.doc?.type">{{ props.doc?.type === 'pdf' ? 'PDF' : 'MD' }}</span>
+      <span class="kb-title">{{ props.doc?.title }}</span>
+      <div class="kb-spacer"></div>
+      <span v-if="pdfState.pages" class="kb-pdf-prog">{{ pdfState.done }}/{{ pdfState.pages }}</span>
+      <template v-if="props.doc?.type === 'md' && !editMode">
+        <button class="btn kb-act" @click="addHlFromSelection">高亮</button>
+        <button class="btn kb-act" @click="startEdit">编辑</button>
+        <button class="btn kb-act" @click="fontSize = Math.max(11, fontSize - 1)">A-</button>
+        <button class="btn kb-act" @click="fontSize = Math.min(20, fontSize + 1)">A+</button>
+      </template>
+      <template v-if="editMode">
+        <button class="btn btn-primary" @click="saveEdit">保存</button>
+        <button class="btn" @click="cancelEdit">取消</button>
+      </template>
+    </div>
+    <!-- 主体：左目录 | 中正文 | 右相关题目+批注 -->
+    <div class="kb-body">
+      <!-- 左：MD 目录（常驻） -->
+      <div v-if="props.doc?.type === 'md' && tocList.length" class="kb-side-toc">
+        <div class="kb-side-title">目录</div>
+        <div class="kb-toc">
           <div
             v-for="t in tocList"
             :key="t.id"
@@ -344,15 +337,29 @@ useEsc(() => emit('close'))
             @click="jumpToToc(t.id)"
           >{{ t.text || '（无标题）' }}</div>
         </div>
-        <div v-if="pdfState.error" class="kb-err">
-          <p>{{ pdfState.error }}</p>
-          <p class="kb-hint">扫描版 PDF 没有文本层无法内嵌预览，可用系统阅读器打开原件</p>
-          <button class="btn btn-primary" @click="tiku.kbOpen(props.doc.id)">系统阅读器打开</button>
-        </div>
-        <div v-if="pdfState.loading" class="empty">PDF 加载中…</div>
-        <div v-if="props.doc?.type === 'md'" class="kb-md" :style="{ fontSize: fontSize + 'px' }" v-html="html"></div>
-        <div v-else ref="pdfContainer" class="kb-pdf" @scroll.passive="onPdfScroll"></div>
-
+      </div>
+      <!-- 中：正文（md / pdf / 编辑态） -->
+      <div class="kb-main" @scroll.passive="onPdfScroll">
+        <textarea
+          v-if="editMode"
+          v-model="editText"
+          class="kb-edit-area"
+          spellcheck="false"
+          placeholder="编辑 Markdown 内容，保存后自动重新切块并更新全文检索索引"
+        ></textarea>
+        <template v-else>
+          <div v-if="pdfState.error" class="kb-err">
+            <p>{{ pdfState.error }}</p>
+            <p class="kb-hint">扫描版 PDF 没有文本层无法内嵌预览，可用系统阅读器打开原件</p>
+            <button class="btn btn-primary" @click="tiku.kbOpen(props.doc.id)">系统阅读器打开</button>
+          </div>
+          <div v-if="pdfState.loading" class="empty">PDF 加载中…</div>
+          <div v-if="props.doc?.type === 'md'" class="kb-md" :style="{ fontSize: fontSize + 'px' }" v-html="html"></div>
+          <div v-else ref="pdfContainer" class="kb-pdf"></div>
+        </template>
+      </div>
+      <!-- 右：相关题目 + 批注与关联 -->
+      <div class="kb-side-panel">
         <!-- 相关题目面板：已关联 + L2 推荐 + 手动搜题关联 -->
         <div class="kb-links">
           <div class="kb-links-head" @click="qPanel = !qPanel">
@@ -412,7 +419,6 @@ useEsc(() => emit('close'))
             </div>
           </div>
         </div>
-        </template>
       </div>
     </div>
 
@@ -421,50 +427,51 @@ useEsc(() => emit('close'))
 </template>
 
 <style scoped>
-.kb-mask {
+/* 全屏三栏阅读页 */
+.kb-page {
   position: fixed;
   inset: 0;
-  background: var(--modal-mask);
-  backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 300;
-  padding: 16px;
-}
-.kb-reader {
-  width: min(860px, 96vw);
-  height: 92vh;
-  background: var(--bg, #06121f);
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  z-index: 200;
+  background: var(--bg);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
 }
-.kb-reader-head {
+.kb-head {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 16px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--line);
+  background: var(--topbar-bg, var(--bg));
+  flex-shrink: 0;
 }
-.kb-reader-title { font-size: 15px; font-weight: 500; color: var(--text); }
-.kb-reader-spacer { flex: 1; }
+.kb-back { padding: 4px 12px; }
+.kb-title { font-size: 14.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kb-spacer { flex: 1; }
 .kb-type { text-transform: uppercase; letter-spacing: 1px; }
 .kb-type.pdf { background: rgba(232, 95, 61, 0.15); color: #e85f3d; }
 .kb-type.md { background: rgba(91, 124, 250, 0.12); color: var(--brand); }
 .kb-pdf-prog { font-size: 12px; color: var(--muted); }
-.kb-edit-btn { padding: 4px 12px; }
-.kb-toc {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--card-solid);
-  padding: 8px 4px;
-  margin-bottom: 12px;
-  max-height: 220px;
+.kb-act { padding: 4px 12px; }
+
+.kb-body {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.kb-side-toc {
+  flex: 0 0 200px;
+  min-width: 0;
+  border-right: 1px solid var(--line);
   overflow-y: auto;
+  padding: 14px 10px;
+  background: rgba(127, 127, 127, 0.03);
+}
+.kb-side-title { font-size: 11px; color: var(--muted); letter-spacing: 2px; padding: 0 6px 8px; }
+.kb-toc {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -481,8 +488,27 @@ useEsc(() => emit('close'))
   transition: background .15s, color .15s;
 }
 .kb-toc-item:hover { background: var(--brand-light); color: var(--brand); }
+
+.kb-main {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 24px 30px 60px;
+  scroll-behavior: smooth;
+}
+.kb-side-panel {
+  flex: 0 0 300px;
+  min-width: 0;
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(127, 127, 127, 0.03);
+}
 .kb-md h1, .kb-md h2, .kb-md h3, .kb-md h4 { scroll-margin-top: 70px; }
-.kb-close { padding: 4px 14px; }
 .kb-edit-area {
   width: 100%;
   height: 100%;
@@ -499,12 +525,6 @@ useEsc(() => emit('close'))
   resize: none;
 }
 .kb-edit-area:focus { border-color: var(--brand); box-shadow: var(--glow-soft); }
-.kb-reader-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px 26px;
-  scroll-behavior: smooth;
-}
 .kb-md { max-width: 760px; margin: 0 auto; }
 .kb-md :deep(h1), .kb-md :deep(h2), .kb-md :deep(h3) { color: var(--brand); margin: 18px 0 10px; }
 .kb-md :deep(h1) { font-size: 20px; }
@@ -529,6 +549,14 @@ useEsc(() => emit('close'))
 }
 .kb-err { color: #e85f3d; text-align: center; padding: 40px 0; }
 .kb-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+/* 窄屏：三栏 → 单栏（目录隐藏、右侧板落到底部） */
+@media (max-width: 960px) {
+  .kb-body { flex-direction: column; }
+  .kb-side-toc { display: none; }
+  .kb-side-panel { flex: 0 0 auto; border-left: none; border-top: 1px solid var(--line); max-height: 40vh; }
+  .kb-main { padding: 18px 18px 40px; }
+}
 
 .kb-links {
   margin: 22px auto 0;
