@@ -117,12 +117,13 @@ function typeLabel(t) {
   cursor: pointer;
   transition: all .2s;
 }
-.filter-chip:hover { border-color: var(--brand); box-shadow: var(--glow-soft); }
+.filter-chip:hover { border-color: var(--brand); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); }
 .filter-chip.active {
   background: var(--brand);
-  color: #021018;
+  color: #ffffff;
   border-color: var(--brand);
-  box-shadow: var(--glow);
+  font-weight: 600;
+  box-shadow: 0 2px 10px rgba(91, 124, 250, 0.32);
 }
 
 .question-list { display: flex; flex-direction: column; gap: 10px; }
