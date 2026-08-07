@@ -83,8 +83,6 @@ const api = {
       }
     } catch (e) { /* 备份失败不影响启动 */ }
   },
-    return this
-  },
 
   close() {
     if (sqlite) sqlite.close()
