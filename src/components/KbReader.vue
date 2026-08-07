@@ -220,10 +220,14 @@ async function renderPdf() {
   if (!r.ok) { pdfState.value.error = `读取失败：${r.error}`; return }
   try {
     pdfState.value.loading = true
-    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    // pdfjs 6.x 必须显式设置 workerSrc；用本地 worker 文件避免网络依赖
+    const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/legacy/build/pdf.worker.min.mjs', import.meta.url).href
+    }
+    const getDocument = pdfjsLib.getDocument
     pdfTask = getDocument({
       data: b64ToUint8(r.base64),
-      disableWorker: true,
       isEvalSupported: false,
       useSystemFonts: true
     })
