@@ -1,6 +1,7 @@
 <script setup>
-import { ref, watch, onBeforeUnmount } from 'vue'
-import MarkdownIt from 'markdown-it'
+import { ref, nextTick, watch, onBeforeUnmount } from 'vue'
+import Vditor from 'vditor'
+import 'vditor/dist/index.css'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { celebrate } from '../utils/celebrate.js'
@@ -19,24 +20,77 @@ const HL_COLORS = {
 }
 const hlColor = (c) => HL_COLORS[c] || HL_COLORS.yellow
 
-const md = new MarkdownIt({ linkify: true, breaks: true, html: false })
-// MD 目录：给 h1-h4 加锚点 id，收集目录项
-let toc = []
-const _headingOpen = md.renderer.rules.heading_open || ((tokens, idx) => `<${tokens[idx].tag}>`)
-md.renderer.rules.heading_open = (tokens, idx) => {
-  const tag = tokens[idx].tag
-  const level = Number(tag.slice(1))
-  if (level <= 4) {
-    const id = 'sec-' + toc.length
-    toc.push({ id, level, text: tokens[idx + 1] ? tokens[idx + 1].content : '' })
-    return `<${tag} id="${id}" class="kb-h${level}">`
-  }
-  return `<${tag}>`
-}
+// MD 文档：打开即进入 Vditor 即时渲染（IR）编辑器——整篇渲染预览，点击任意行光标定位即进入编辑，无「编辑」按钮
+const mdVditorEl = ref(null)
+let mdVditor = null
+const mdSaveStatus = ref('') // '' | 'saving' | 'saved' | 'err'
+let mdSaveTimer = null
 const tocList = ref([])
 function jumpToToc(id) {
   const el = document.getElementById(id)
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+// 从 Vditor 渲染后的 DOM 收集 h1-h4 目录（Vditor 自带锚点 id）
+function collectTocFromVditor() {
+  const root = mdVditorEl.value
+  if (!root) return
+  const headings = root.querySelectorAll('.vditor-reset h1, .vditor-reset h2, .vditor-reset h3, .vditor-reset h4')
+  tocList.value = Array.from(headings).map((h, i) => {
+    if (!h.id) h.id = 'kb-sec-' + i
+    return { id: h.id, level: Number(h.tagName.slice(1)), text: h.textContent || '（无标题）' }
+  })
+}
+// 保存 MD 文档（Vditor 内容 → kbSaveMd；input 防抖 + Ctrl+S + 返回时立即保存）
+async function saveMdDoc(showStatus = true) {
+  if (!mdVditor || !props.doc) return false
+  const content = mdVditor.getValue()
+  if (showStatus) mdSaveStatus.value = 'saving'
+  const r = await tiku.kbSaveMd(props.doc.id, content)
+  if (showStatus) mdSaveStatus.value = r.ok ? 'saved' : 'err'
+  return r.ok
+}
+function destroyMdVditor() {
+  if (mdVditor) {
+    try { mdVditor.destroy() } catch (e) { /* 忽略 */ }
+    mdVditor = null
+  }
+  clearTimeout(mdSaveTimer)
+}
+async function initMdVditor() {
+  const r = await tiku.kbRead(props.doc.id)
+  if (!r.ok) { showToast('读取失败：' + r.error, 'err'); return }
+  const text = new TextDecoder('utf-8').decode(b64ToUint8(r.base64))
+  await nextTick()
+  if (!mdVditorEl.value) return
+  const isDark = document.documentElement.dataset.theme === 'dark'
+  mdVditor = new Vditor(mdVditorEl.value, {
+    mode: 'ir', // 即时渲染：整篇渲染预览，光标所在行显示源码（点击行即进入编辑）
+    cdn: import.meta.env.DEV ? '/vditor' : './vditor',
+    value: text,
+    height: '100%',
+    theme: isDark ? 'dark' : 'classic',
+    lang: 'zh_CN',
+    placeholder: '',
+    cache: { enable: false },
+    preview: { delay: 120 },
+    input: () => {
+      clearTimeout(mdSaveTimer)
+      mdSaveStatus.value = 'saving'
+      mdSaveTimer = setTimeout(() => saveMdDoc(true), 800) // 输入停顿 800ms 自动保存
+      collectTocFromVditor() // 标题变化后更新目录
+    },
+    after: () => {
+      collectTocFromVditor()
+    }
+  })
+}
+// 全局快捷键：Ctrl+S 保存 MD 文档
+function onGlobalKeydown(e) {
+  if (!mdVditor || !props.doc || props.doc.type !== 'md') return
+  if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+    e.preventDefault()
+    saveMdDoc(true)
+  }
 }
 // 阅读字号
 const fontSize = ref(14)
@@ -222,35 +276,14 @@ const mLoading = ref(false)
 const sq = ref({ show: false, q: null })
 let mTimer = null
 
-// MD 在线编辑
-const editMode = ref(false)
-const editText = ref('')
 // 右侧面板整列收起/展开（沉浸阅读）
 const sidePanelOpen = ref(true)
 
-async function startEdit() {
-  const r = await tiku.kbRead(props.doc.id)
-  if (!r.ok) { showToast('读取失败：' + r.error, 'err'); return }
-  editText.value = new TextDecoder('utf-8').decode(b64ToUint8(r.base64))
-  editMode.value = true
-}
-
-async function saveEdit() {
-  const r = await tiku.kbSaveMd(props.doc.id, editText.value)
-  if (!r.ok) { showToast('保存失败：' + r.error, 'err'); return }
-  editMode.value = false
-  await renderMd()
-}
-
-function cancelEdit() {
-  editMode.value = false
-}
-
-// 关闭拦截：MD 编辑未保存时先确认，防丢数据；PDF 顺带保存阅读位置
+// 关闭：MD 文档先立即保存（防抖中的改动落盘）；PDF 保存阅读位置
 async function onClose() {
-  if (editMode.value) {
-    const ok = await showConfirm('有未保存的编辑内容，确定关闭？编辑内容将丢失。')
-    if (!ok) return
+  if (props.doc && props.doc.type === 'md') {
+    clearTimeout(mdSaveTimer)
+    await saveMdDoc(false)
   }
   await saveScroll()
   emit('close')
@@ -269,15 +302,6 @@ async function loadHlAndLinks() {
   const [h, l] = await Promise.all([tiku.getHighlightsForDoc(props.doc.id), tiku.getDocLinks(props.doc.id)])
   hl.value = h
   links.value = l
-}
-
-async function addHlFromSelection() {
-  const sel = window.getSelection()
-  const text = sel ? sel.toString().trim() : ''
-  if (!text) { showToast('先在文档正文里选中文字，再点「高亮」'); return }
-  await tiku.addHighlight({ docId: props.doc.id, text })
-  try { sel.removeAllRanges() } catch (e) { /* 忽略 */ }
-  await loadHlAndLinks()
 }
 
 async function removeHl(id) {
@@ -317,20 +341,22 @@ async function loadQPanel() {
 
 watch(() => props.show, async (v) => {
   if (!v || !props.doc) return
-  html.value = ''
+  tocList.value = []
+  mdSaveStatus.value = ''
   pdfState.value = { loading: false, error: '', pages: 0, done: 0 }
   qLinks.value = []
   qSugg.value = []
   mKw.value = ''
   mRes.value = []
-  editMode.value = false
   pdfZoom.value = 100 // 换文档重置缩放
   zoomUi.value = false
   clearTimeout(pdfZoomTimer)
   clearTimeout(zoomUiTimer)
+  clearTimeout(mdSaveTimer)
   detachPdfWheel()
+  destroyMdVditor()
   cleanupPdf()
-  if (props.doc.type === 'md') await renderMd()
+  if (props.doc.type === 'md') await initMdVditor()
   else { await renderPdf(); attachPdfWheel() }
   await loadQPanel()
   await loadHlAndLinks()
@@ -374,15 +400,6 @@ function b64ToUint8(b64) {
     for (let j = 0; j < chunk; j++) bytes[i + j] = bin.charCodeAt(i + j)
   }
   return bytes
-}
-
-async function renderMd() {
-  const r = await tiku.kbRead(props.doc.id)
-  if (!r.ok) { html.value = `<div class="kb-err">读取失败：${r.error}</div>`; return }
-  toc = []
-  const text = new TextDecoder('utf-8').decode(b64ToUint8(r.base64))
-  html.value = md.render(text)
-  tocList.value = toc.slice()
 }
 
 async function renderPdf() {
@@ -460,11 +477,15 @@ function cleanupPdf() {
 
 onBeforeUnmount(() => {
   cleanupPdf()
+  destroyMdVditor()
   detachPdfWheel()
   clearTimeout(mTimer)
   clearTimeout(pdfZoomTimer)
   clearTimeout(zoomUiTimer)
+  clearTimeout(mdSaveTimer)
+  window.removeEventListener('keydown', onGlobalKeydown)
 })
+window.addEventListener('keydown', onGlobalKeydown)
 useEsc(() => emit('close'))
 </script>
 
@@ -477,15 +498,12 @@ useEsc(() => emit('close'))
       <span class="kb-title">{{ props.doc?.title }}</span>
       <div class="kb-spacer"></div>
       <span v-if="pdfState.pages" class="kb-pdf-prog">{{ currentPage || 1 }}/{{ pdfState.pages }} 页</span>
-      <template v-if="props.doc?.type === 'md' && !editMode">
-        <button class="btn kb-act" @click="addHlFromSelection">高亮</button>
-        <button class="btn kb-act" @click="startEdit">编辑</button>
-        <button class="btn kb-act" @click="fontSize = Math.max(11, fontSize - 1)">A-</button>
+      <template v-if="props.doc?.type === 'md'">
+        <span v-if="mdSaveStatus === 'saving'" class="kb-save-state">保存中…</span>
+        <span v-else-if="mdSaveStatus === 'saved'" class="kb-save-state ok">已保存</span>
+        <span v-else-if="mdSaveStatus === 'err'" class="kb-save-state err">保存失败</span>
+        <button class="btn kb-act" @click="fontSize = Math.max(12, fontSize - 1)">A-</button>
         <button class="btn kb-act" @click="fontSize = Math.min(20, fontSize + 1)">A+</button>
-      </template>
-      <template v-if="editMode">
-        <button class="btn btn-primary" @click="saveEdit">保存</button>
-        <button class="btn" @click="cancelEdit">取消</button>
       </template>
       <button class="btn kb-side-toggle" :class="{ off: !sidePanelOpen }" @click="sidePanelOpen = !sidePanelOpen">
         <span class="kb-side-toggle-icon">{{ sidePanelOpen ? '⟩' : '⟨' }}</span>
@@ -507,15 +525,11 @@ useEsc(() => emit('close'))
           >{{ t.text || '（无标题）' }}</div>
         </div>
       </div>
-      <!-- 中：正文（md / pdf / 编辑态） -->
+      <!-- 中：正文（md = Vditor 编辑器 / pdf = 懒渲染） -->
       <div class="kb-main" @scroll.passive="onPdfScroll">
-        <textarea
-          v-if="editMode"
-          v-model="editText"
-          class="kb-edit-area"
-          spellcheck="false"
-          placeholder="编辑 Markdown 内容，保存后自动重新切块并更新全文检索索引"
-        ></textarea>
+        <template v-if="props.doc?.type === 'md'">
+          <div ref="mdVditorEl" class="kb-md-vditor" :style="{ '--kb-md-fs': fontSize + 'px' }"></div>
+        </template>
         <template v-else>
           <div v-if="pdfState.error" class="kb-err">
             <p>{{ pdfState.error }}</p>
@@ -523,8 +537,7 @@ useEsc(() => emit('close'))
             <button class="btn btn-primary" @click="tiku.kbOpen(props.doc.id)">系统阅读器打开</button>
           </div>
           <div v-if="pdfState.loading" class="empty">PDF 加载中…</div>
-          <div v-if="props.doc?.type === 'md'" class="kb-md" :style="{ fontSize: fontSize + 'px' }" v-html="html"></div>
-          <div v-else ref="pdfContainer" class="kb-pdf"></div>
+          <div ref="pdfContainer" class="kb-pdf"></div>
         </template>
       </div>
       <!-- 右：相关题目 + 批注与关联 -->
@@ -592,7 +605,7 @@ useEsc(() => emit('close'))
     </div>
 
     <!-- PDF 缩放浮层：右下角，2.2s 无操作自动隐藏；hover 暂停计时 -->
-    <div v-if="zoomUi && props.doc?.type === 'pdf' && !editMode" class="kb-zoom-ui" @mouseenter="pauseZoomHide" @mouseleave="resumeZoomHide">
+    <div v-if="zoomUi && props.doc?.type === 'pdf'" class="kb-zoom-ui" @mouseenter="pauseZoomHide" @mouseleave="resumeZoomHide">
       <button class="kb-zoom-btn" :disabled="pdfZoom <= PDF_ZOOM_MIN" @click="changePdfZoom(-PDF_ZOOM_STEP)" title="缩小">−</button>
       <input class="kb-zoom-range" type="range" :min="PDF_ZOOM_MIN" :max="PDF_ZOOM_MAX" :value="pdfZoom" @input="onZoomSlider" title="缩放比例" />
       <button class="kb-zoom-btn" :disabled="pdfZoom >= PDF_ZOOM_MAX" @click="changePdfZoom(PDF_ZOOM_STEP)" title="放大">＋</button>
@@ -711,6 +724,32 @@ useEsc(() => emit('close'))
   padding: 24px 30px 60px;
   scroll-behavior: smooth;
 }
+/* Vditor MD 编辑器：填满中栏，内容限宽居中，字号跟随 A-/A+ */
+.kb-md-vditor {
+  max-width: 860px;
+  margin: 0 auto;
+  height: 100%;
+}
+.kb-md-vditor :deep(.vditor) {
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+}
+.kb-md-vditor :deep(.vditor-reset) {
+  font-size: var(--kb-md-fs, 14px);
+  line-height: 1.8;
+}
+.kb-md-vditor :deep(.vditor-ir) {
+  padding: 0 6px 40px;
+}
+.kb-md-vditor :deep(.vditor-toolbar) {
+  border: 1px solid var(--line);
+  border-radius: 10px 10px 0 0;
+  background: var(--card-solid, var(--bg));
+}
+.kb-save-state { font-size: 12px; color: var(--muted); }
+.kb-save-state.ok { color: #2ecc71; }
+.kb-save-state.err { color: #e85f3d; }
 .kb-side-panel {
   flex: 0 0 300px;
   min-width: 0;
@@ -732,37 +771,10 @@ useEsc(() => emit('close'))
 .kb-side-toggle { padding: 4px 12px; }
 .kb-side-toggle.off { color: var(--brand); border-color: var(--brand); }
 .kb-side-toggle-icon { font-family: Consolas, monospace; font-size: 14px; line-height: 1; }
-.kb-md h1, .kb-md h2, .kb-md h3, .kb-md h4 { scroll-margin-top: 70px; }
-.kb-edit-area {
-  width: 100%;
-  height: 100%;
-  min-height: 60vh;
-  background: var(--input-solid-bg);
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 14px 16px;
-  font-size: 13px;
-  line-height: 1.7;
-  font-family: Consolas, 'Courier New', monospace;
-  outline: none;
-  resize: none;
-}
-.kb-edit-area:focus { border-color: var(--brand); box-shadow: var(--glow-soft); }
-.kb-md { max-width: 760px; margin: 0 auto; }
-.kb-md :deep(h1), .kb-md :deep(h2), .kb-md :deep(h3) { color: var(--brand); margin: 18px 0 10px; }
-.kb-md :deep(h1) { font-size: 20px; }
-.kb-md :deep(h2) { font-size: 17px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
-.kb-md :deep(h3) { font-size: 15px; }
-.kb-md :deep(p) { line-height: 1.8; color: var(--text); margin: 8px 0; }
-.kb-md :deep(ul), .kb-md :deep(ol) { padding-left: 22px; color: var(--text); line-height: 1.8; }
-.kb-md :deep(code) { background: rgba(91, 124, 250, 0.1); color: var(--brand); padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
-.kb-md :deep(pre) { background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow-x: auto; }
-.kb-md :deep(pre code) { background: none; color: var(--text); }
-.kb-md :deep(blockquote) { border-left: 3px solid var(--brand); padding-left: 12px; color: var(--muted); margin: 10px 0; }
-.kb-md :deep(table) { border-collapse: collapse; margin: 10px 0; }
-.kb-md :deep(th), .kb-md :deep(td) { border: 1px solid var(--line); padding: 6px 10px; font-size: 13px; }
-.kb-md :deep(img) { max-width: 100%; border-radius: 8px; }
+.kb-md-vditor :deep(.vditor-reset h1),
+.kb-md-vditor :deep(.vditor-reset h2),
+.kb-md-vditor :deep(.vditor-reset h3),
+.kb-md-vditor :deep(.vditor-reset h4) { scroll-margin-top: 70px; }
 .kb-pdf { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .kb-pdf-page {
   max-width: 100%;
