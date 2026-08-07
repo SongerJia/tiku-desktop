@@ -30,6 +30,7 @@
 
 * { box-sizing: border-box; }
 .icon { vertical-align: -0.125em; flex-shrink: 0; }
+.icon { vertical-align: -0.125em; flex-shrink: 0; }
 
 html, body, #app {
   margin: 0;
