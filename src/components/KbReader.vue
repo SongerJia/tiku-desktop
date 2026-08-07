@@ -61,6 +61,8 @@ let mTimer = null
 // MD 在线编辑
 const editMode = ref(false)
 const editText = ref('')
+// 右侧面板整列收起/展开（沉浸阅读）
+const sidePanelOpen = ref(true)
 
 async function startEdit() {
   const r = await tiku.kbRead(props.doc.id)
@@ -322,6 +324,10 @@ useEsc(() => emit('close'))
         <button class="btn btn-primary" @click="saveEdit">保存</button>
         <button class="btn" @click="cancelEdit">取消</button>
       </template>
+      <button class="btn kb-side-toggle" :class="{ off: !sidePanelOpen }" @click="sidePanelOpen = !sidePanelOpen">
+        <span class="kb-side-toggle-icon">{{ sidePanelOpen ? '⟩' : '⟨' }}</span>
+        {{ sidePanelOpen ? '收起侧栏' : '展开侧栏' }}
+      </button>
     </div>
     <!-- 主体：左目录 | 中正文 | 右相关题目+批注 -->
     <div class="kb-body">
@@ -507,7 +513,17 @@ useEsc(() => emit('close'))
   flex-direction: column;
   gap: 12px;
   background: rgba(127, 127, 127, 0.03);
+  transition: flex-basis .25s ease, padding .25s ease;
 }
+.kb-side-panel.collapsed {
+  flex: 0 0 0;
+  padding: 0;
+  border-left-color: transparent;
+}
+.kb-side-panel.collapsed > * { opacity: 0; pointer-events: none; }
+.kb-side-toggle { padding: 4px 12px; }
+.kb-side-toggle.off { color: var(--brand); border-color: var(--brand); }
+.kb-side-toggle-icon { font-family: Consolas, monospace; font-size: 14px; line-height: 1; }
 .kb-md h1, .kb-md h2, .kb-md h3, .kb-md h4 { scroll-margin-top: 70px; }
 .kb-edit-area {
   width: 100%;
@@ -554,6 +570,7 @@ useEsc(() => emit('close'))
 @media (max-width: 960px) {
   .kb-body { flex-direction: column; }
   .kb-side-toc { display: none; }
+  .kb-side-toggle { display: none; }
   .kb-side-panel { flex: 0 0 auto; border-left: none; border-top: 1px solid var(--line); max-height: 40vh; }
   .kb-main { padding: 18px 18px 40px; }
 }
