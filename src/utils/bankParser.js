@@ -24,7 +24,8 @@ const HEADER_ALIASES = {
   keywords: ['得分关键词', '关键词', '采分点', '得分点', '要点', '关键点', 'keywords', 'keyword', 'points'],
   analysis: ['解析', '答案解析', '试题解析', '解释', '说明', '分析', 'analysis', 'explanation', 'explain'],
   difficulty: ['难度', '难度系数', '难易度', 'difficulty', 'level'],
-  source: ['来源', '出处', '年份', 'source', 'from']
+  source: ['来源', '出处', '年份', 'source', 'from'],
+  audio: ['听力音频', '音频', '音频地址', 'audio', 'audio_url']
 }
 
 function normalizeHeader(raw) {
@@ -233,7 +234,8 @@ export function rowToQuestion(row, map, rowNo, ctx = {}) {
       keywords,
       analysis: cell('analysis'),
       difficulty,
-      source: cell('source') || ctx.defaultSource || ''
+      source: cell('source') || ctx.defaultSource || '',
+      audio: cell('audio')
     }
   }
 }
@@ -320,7 +322,7 @@ function csvEscape(v) {
 export const TEMPLATE_HEADER = [
   '科目', '章节', '题型', '题干',
   '选项A', '选项B', '选项C', '选项D', '选项E', '选项F',
-  '答案', '得分关键词', '解析', '难度', '来源'
+  '答案', '得分关键词', '解析', '难度', '来源', '听力音频'
 ]
 
 /** 题库扁平行 → 二维数组（表头 + 数据行）。CSV 与 Excel 导出共用同一份行数据 */
@@ -345,7 +347,8 @@ export function bankToMatrix(list) {
       (q.keywords || []).join('；'),
       q.analysis || '',
       q.difficulty == null ? 3 : q.difficulty,
-      q.source || ''
+      q.source || '',
+      q.audio || ''
     ]
   })
   return [TEMPLATE_HEADER, ...body]
@@ -357,18 +360,18 @@ export function buildTemplateMatrix() {
     TEMPLATE_HEADER,
     ['二级建造师', '施工管理', '单选', '项目管理的核心任务是（ ）。',
       '目标控制', '成本控制', '进度控制', '质量控制', '', '',
-      'A', '', '项目管理的核心任务是项目的目标控制。', '2', '2024真题'],
+      'A', '', '项目管理的核心任务是项目的目标控制。', '2', '2024真题', ''],
     ['二级建造师', '工程法规', '多选', '下列属于非营利法人的有（ ）。',
       '事业单位', '社会团体', '有限责任公司', '基金会', '', '',
-      'ABD', '', '有限责任公司属于营利法人。', '3', '2023真题'],
+      'ABD', '', '有限责任公司属于营利法人。', '3', '2023真题', ''],
     ['二级建造师', '工程法规', '判断', '未取得施工许可证擅自施工的，可以并处罚款。',
       '', '', '', '', '', '',
-      '对', '', '依据《建筑法》第六十四条。', '1', '教材例题'],
+      '对', '', '依据《建筑法》第六十四条。', '1', '教材例题', ''],
     ['二级建造师', '施工管理', '问答', '简述施工进度计划编制的主要步骤。',
       '', '', '', '', '', '',
       '① 收集资料；② 划分施工过程；③ 计算工程量与劳动量；④ 确定各工序持续时间；⑤ 绘制网络图/横道图；⑥ 检查关键线路并优化资源；⑦ 交底后动态调整。',
       '收集资料；划分施工过程；计算工程量；持续时间；网络图；关键线路',
-      '问答题按采分点给分，答到关键词即可。', '4', '教材例题']
+      '问答题按采分点给分，答到关键词即可。', '4', '教材例题', '']
   ]
 }
 

@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clearUserData: () => ipcRenderer.invoke('clearUserData'),
   exportData: () => ipcRenderer.invoke('exportData'),
   importData: (json) => ipcRenderer.invoke('importData', json),
+  importPreview: (json) => ipcRenderer.invoke('importPreview', json),
 
   // 云同步（GitHub Gist）
   syncGetConfig: () => ipcRenderer.invoke('syncGetConfig'),

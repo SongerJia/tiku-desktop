@@ -25,7 +25,7 @@ const dragOver = ref(false)
 
 const targetSubjectId = ref('')
 const newSubjectName = ref('')
-const skipDuplicate = ref(true)
+const duplicateMode = ref('skip') // skip 跳过重复 | update 更新已有 | all 全部新增
 const importResult = ref(null)
 const importing = ref(false)
 const showAllErrors = ref(false)
@@ -174,7 +174,7 @@ async function doImport() {
     const rows = okRows.value.map(r => r.data)
     const res = await tiku.importQuestionBank(rows, {
       defaultSubjectId: subjectId,
-      skipDuplicate: skipDuplicate.value
+      duplicateMode: duplicateMode.value
     })
     importResult.value = res
     step.value = 3
@@ -296,10 +296,15 @@ function previewText(r) {
             </div>
           </div>
 
-          <label class="check-line">
-            <input type="checkbox" v-model="skipDuplicate" />
-            <span>跳过重复题目（同章节下题干完全相同）</span>
-          </label>
+          <div class="dedupe-line">
+            <span class="dd-label">重复处理</span>
+            <div class="seg">
+              <button :class="{ on: duplicateMode === 'skip' }" @click="duplicateMode = 'skip'">跳过</button>
+              <button :class="{ on: duplicateMode === 'update' }" @click="duplicateMode = 'update'">更新</button>
+              <button :class="{ on: duplicateMode === 'all' }" @click="duplicateMode = 'all'">全部新增</button>
+            </div>
+            <span class="dd-hint">{{ { skip: '同章节同题干自动跳过', update: '同题干覆盖更新内容', all: '不去重，全部插入' }[duplicateMode] }}</span>
+          </div>
 
           <div v-if="okRows.length" class="preview">
             <div class="sec-title">预览（前 5 题）</div>
@@ -332,6 +337,9 @@ function previewText(r) {
             <div><b>{{ importResult ? importResult.inserted : 0 }}</b> 题已入库</div>
             <div v-if="importResult && importResult.duplicated">
               <b>{{ importResult.duplicated }}</b> 题重复已跳过
+            </div>
+            <div v-if="importResult && importResult.updated">
+              <b>{{ importResult.updated }}</b> 题已更新
             </div>
             <div v-if="summary.failed"><b>{{ summary.failed }}</b> 行有错误未导入</div>
           </div>
@@ -477,6 +485,12 @@ function previewText(r) {
 
 .check-line { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
 .check-line input { accent-color: var(--brand); }
+.dedupe-line { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
+.dd-label { font-weight: 600; color: var(--text); }
+.dedupe-line .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.dedupe-line .seg button { border: none; background: transparent; color: var(--muted); padding: 5px 14px; font-size: 12px; cursor: pointer; transition: all .15s; }
+.dedupe-line .seg button.on { background: var(--brand); color: #ffffff; font-weight: 600; }
+.dd-hint { font-size: 11px; opacity: .85; }
 
 /* 预览 */
 .preview { display: flex; flex-direction: column; gap: 8px; }

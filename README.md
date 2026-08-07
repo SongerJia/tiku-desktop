@@ -89,6 +89,12 @@
 | **听力音频** | 题目可配 `audio_url`（本地路径或 http 链接），答题页自动显示播放器——雅思等听力题的扩展点 | ✅ 完成 | `questions.audio_url` 列 + 录题表单字段 + Quiz `<audio>` 渲染；随同步/备份传播 |
 | **习惯增强** | 打卡 +5 XP（当天首次）+ 首页显示近 7 天圆点 + 空态引导；修复打卡勾选图标渲染 bug | ✅ 完成 | `checkHabit` XP 奖励 + `listHabits` 返回 week 位图 |
 | **备份补全** | 整库备份/恢复补上反馈层 7 表（XP/习惯/打卡/回顾/专注/高亮/双链）+ 单词卡——之前备份会丢这些数据 | ✅ 完成 | `exportData` + `importData` 全覆盖，老备份自动跳过 |
+| **同步安全加固** | 快照 gzip 压缩（TKZ1 前缀，体积降 70-85%）+ 修复 Gist API 单文件 1MB 读取截断（truncated 时改 raw_url 拉全量）——杜绝大库同步静默丢数据 | ✅ 完成 | `sync-github.js` encode/decodeSnapshot + getGist 截断保护；老快照兼容 |
+| **自动同步** | 启动 3s 后 + 每 60 分钟静默同步（可关，「我的 → 偏好设置」开关）；同步失败自动重试 2 次（1.5s/3s 退避） | ✅ 完成 | main.js `scheduleAutoSync` + `runSync` 重试循环 |
+| **同步冲突可视** | 合并时统计冲突条数（同记录双端都改过），同步 toast 展示「冲突 N 条（按时间戳覆盖）」 | ✅ 完成 | `makeUpsert` 冲突计数 + Profile toast |
+| **导入备份保护** | 导入备份前**差异预览**：新增/覆盖/本地独有统计 + 明确确认，防误导入覆盖新数据 | ✅ 完成 | `db.importPreview` + Profile 导入确认弹层 |
+| **导入去重三模式** | 题库导入重复处理升级：跳过重复（默认）/ 覆盖更新同题干 / 全部新增；结果页显示更新数 | ✅ 完成 | `duplicateMode` 参数 + ImportWizard 三选 |
+| **导入模板补字段** | CSV/Excel 模板加「听力音频」列，解析器识别 audio 并写入 `audio_url` | ✅ 完成 | `bankParser.js` TEMPLATE_HEADER/别名/数据行 |
 | **全局体验打磨** | 应用内 Toast（替代原生 alert）/ Confirm 弹层（替代原生 confirm）/ 骨架屏加载 / 计数动画 / Tab 切换过渡 / Esc 统一关闭 / 键盘 focus 可达 / 卡片 hover 反馈 | ✅ 完成 | `utils/toast.js` + `AppToast.vue`、`utils/confirm.js` + `AppConfirm.vue`、`SkeletonCards.vue`、`CountUp.vue`、`useEsc.js`；原生弹窗清零 |
 | **数据安全** | 每次启动自动备份 `tiku.db`（按天去重，保留 5 份）+ 主进程全局错误日志 | ✅ 完成 | `db.autoBackup()` → `userData/backups/`；`error.log` |
 | **首启欢迎引导** | 首次启动 3 步引导（导入题库/知识库/设目标），看过后不再显示 | ✅ 完成 | `WelcomeGuide.vue` + `settings.seen_welcome` |

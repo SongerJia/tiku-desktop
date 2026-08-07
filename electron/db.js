@@ -1169,14 +1169,18 @@ const api = {
   },
 
   importQuestionBank(rows, opts = {}) {
-    const { defaultSubjectId = null, skipDuplicate = true } = opts
+    // duplicateMode: 'skip' 跳过重复（默认）| 'update' 覆盖更新同题干 | 'all' 全部新增
+    const { defaultSubjectId = null } = opts
+    const duplicateMode = opts.duplicateMode || (opts.skipDuplicate === false ? 'all' : 'skip')
     const now = Date.now()
     const insQ = sqlite.prepare(`INSERT INTO questions
-      (category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,updated_at,client_id,category_cid)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
+      (category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,images_json,audio_url,updated_at,client_id,category_cid)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     const dupStmt = sqlite.prepare('SELECT id FROM questions WHERE category_id=? AND stem=? AND deleted=0')
+    const updQ = sqlite.prepare(`UPDATE questions SET type=?,options_json=?,answer_json=?,keywords_json=?,analysis=?,difficulty=?,source=?,audio_url=?,updated_at=? WHERE id=?`)
     let inserted = 0
     let duplicated = 0
+    let updated = 0
     let skipped = 0
     const touched = new Set()
     const tx = sqlite.transaction(() => {
@@ -1185,12 +1189,25 @@ const api = {
         if (r.subject) subjectId = this.upsertCategoryByName(r.subject, null, 1)
         if (!subjectId) { skipped++; continue }
         const categoryId = r.chapter ? this.upsertCategoryByName(r.chapter, subjectId, 2) : subjectId
-        if (skipDuplicate && dupStmt.get(categoryId, r.stem)) { duplicated++; continue }
+        const dup = dupStmt.get(categoryId, r.stem)
+        if (dup) {
+          if (duplicateMode === 'skip') { duplicated++; continue }
+          if (duplicateMode === 'update') {
+            updQ.run(
+              r.type, JSON.stringify(r.options || []), JSON.stringify(r.answer || []),
+              JSON.stringify(r.keywords || []), r.analysis || '', r.difficulty || 3,
+              r.source || '导入', r.audio || '', now, dup.id
+            )
+            updated++
+            continue
+          }
+        }
         insQ.run(
           categoryId, r.type, r.stem,
           JSON.stringify(r.options || []), JSON.stringify(r.answer || []),
           JSON.stringify(r.keywords || []),
-          r.analysis || '', r.difficulty || 3, r.source || '导入', now,
+          r.analysis || '', r.difficulty || 3, r.source || '导入',
+          JSON.stringify(r.images || []), r.audio || '', now,
           uuid(), categoryCid(categoryId)
         )
         inserted++
@@ -1198,7 +1215,7 @@ const api = {
       }
     })
     tx()
-    return { ok: true, inserted, duplicated, skipped, subjects: Array.from(touched) }
+    return { ok: true, inserted, duplicated, updated, skipped, subjects: Array.from(touched) }
   },
 
   listQuestions({ subjectId = null, categoryId = null, keyword = '', page = 1, pageSize = 20, tags = null } = {}) {
@@ -1531,6 +1548,7 @@ const api = {
       { table: 'kb_doc_links', cols: ['from_doc_id', 'to_doc_id', 'note', 'created_at', 'client_id'], orIgnore: true }
     ]
 
+    let syncConflicts = 0 // 冲突数：同 client_id 双端都有且 updated_at 不同（LWW 按时间戳覆盖）
     const makeUpsert = (table, cols, orIgnore = false) => {
       const getByCid = sqlite.prepare(`SELECT id FROM ${table} WHERE client_id=?`)
       const insCols = cols
@@ -1539,10 +1557,12 @@ const api = {
       const updPh = updCols.map(c => `${c}=excluded.${c}`).join(',')
       const insert = sqlite.prepare(`INSERT ${orIgnore ? 'OR IGNORE' : ''} INTO ${table} (${insCols.join(',')}) VALUES (${insPh})`)
       const update = sqlite.prepare(`UPDATE ${table} SET ${updPh} WHERE client_id=?`)
+      const hasTs = cols.includes('updated_at')
       return (r) => {
         if (!r.client_id) r.client_id = uuid() // 兜底：远端缺 client_id 时补一个
         const ex = getByCid.get(r.client_id)
         if (ex) {
+          if (hasTs && r.updated_at && ex.updated_at && Number(r.updated_at) !== Number(ex.updated_at)) syncConflicts++
           update.run(...updCols.map(c => r[c]), r.client_id)
           return ex.id
         }
@@ -1679,7 +1699,7 @@ const api = {
       const dlUp = makeUpsert('kb_doc_links', cfg[15].cols, true)
       dlMerged.forEach(r => dlUp(r))
 
-      return { categories: catMerged.length, questions: qMerged.length, answerRecords: arN, wrongBooks: wbN, favorites: fvN, notes: ntN, papers: paperMerged.length, paperQuestions: pqMerged.length, kbDocs: kbDocsN, kbBlocks: kbBlocksN, kbTags: kbTagsN, kbLinks: kbLinksN, xpLogs: xpN, habits: hbN, habitChecks: hcN, reviewLogs: rvN, focusSessions: fsN, kbHighlights: hlMerged.length, kbDocLinks: dlMerged.length }
+      return { categories: catMerged.length, questions: qMerged.length, answerRecords: arN, wrongBooks: wbN, favorites: fvN, notes: ntN, papers: paperMerged.length, paperQuestions: pqMerged.length, kbDocs: kbDocsN, kbBlocks: kbBlocksN, kbTags: kbTagsN, kbLinks: kbLinksN, xpLogs: xpN, habits: hbN, habitChecks: hcN, reviewLogs: rvN, focusSessions: fsN, kbHighlights: hlMerged.length, kbDocLinks: dlMerged.length, conflicts: syncConflicts }
     })
     const result = tx()
     // 还原图片二进制到本地图床（换设备后 getImage 不裂图）
@@ -1699,6 +1719,33 @@ const api = {
   },
 
   // 导入手动备份 JSON（INSERT OR REPLACE，按 id 覆盖；同步预留 updated_at）。
+  // 导入前差异预览（不写入）：对比备份 JSON 与当前库，返回新增/更新/本地独有统计，供用户确认
+  importPreview(jsonStr) {
+    let data
+    try { data = JSON.parse(jsonStr) } catch (e) { throw new Error('备份文件不是有效的 JSON') }
+    const diff = (table, rows, idCol = 'id') => {
+      if (!rows || !rows.length) return { total: 0, fresh: 0, update: 0, localOnly: 0 }
+      const ids = new Set(rows.map(r => r[idCol]))
+      const local = sqlite.prepare(`SELECT ${idCol} FROM ${table} WHERE deleted=0`).all().map(r => r[idCol])
+      const localSet = new Set(local)
+      let fresh = 0, update = 0
+      for (const id of ids) { if (localSet.has(id)) update++; else fresh++ }
+      let localOnly = 0
+      for (const id of localSet) { if (!ids.has(id)) localOnly++ }
+      return { total: rows.length, fresh, update, localOnly }
+    }
+    return {
+      questions: diff('questions', data.questions),
+      categories: diff('categories', data.categories),
+      kbDocs: diff('kb_docs', data.kbDocs),
+      notes: diff('notes', data.notes),
+      wrongBooks: diff('wrong_books', data.wrongBooks),
+      otherTables: ['xp_logs', 'habits', 'habit_checks', 'review_logs', 'focus_sessions', 'kb_highlights', 'kb_doc_links', 'cards', 'papers', 'answer_records', 'favorites']
+        .filter(t => Array.isArray(data[t]) && data[t].length)
+        .length
+    }
+  },
+
   // 与 mergeRemote 不同：这里是"整机恢复"，不做 LWW 合并。
   importData(jsonStr) {
     const data = JSON.parse(jsonStr)

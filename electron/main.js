@@ -102,6 +102,7 @@ app.whenReady().then(() => {
   try { app.setAppUserModelId('com.songerjia.tiku-desktop') } catch (e) { /* 忽略 */ }
   createWindow()
   startReminderLoop()
+  scheduleAutoSync()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -128,6 +129,20 @@ function checkReminder() {
       db.setSetting('last_remind_date', dateStr())
     }
   } catch (e) { /* 提醒失败静默，不影响主流程 */ }
+}
+
+// 自动同步（auto_sync 开关默认开）：启动 3s 后静默同步一次 + 每 60 分钟兜底。
+// 失败只写日志不打扰用户；未连接或未建 gist 时直接跳过。
+function scheduleAutoSync() {
+  const silentSync = async () => {
+    try {
+      if (db.getSetting('auto_sync') === '0') return
+      if (!loadToken() || !db.getSetting('sync_gist_id')) return
+      await runSync(true)
+    } catch (e) { console.warn('[auto-sync]', (e && e.message) || e) }
+  }
+  setTimeout(silentSync, 3000)
+  setInterval(silentSync, 60 * 60 * 1000)
 }
 
 function startReminderLoop() {
@@ -174,6 +189,7 @@ ipcMain.handle('getRecentRecords', (e, limit) => db.getRecentRecords(limit))
 ipcMain.handle('clearUserData', () => db.clearUserData())
 ipcMain.handle('exportData', () => db.exportData())
 ipcMain.handle('importData', (e, json) => db.importData(json))
+ipcMain.handle('importPreview', (e, json) => db.importPreview(json))
 
 // ---- 题库管理 ----
 ipcMain.handle('listQuestions', (e, opts) => db.listQuestions(opts))
@@ -446,8 +462,8 @@ ipcMain.handle('syncDisconnect', () => {
   return { ok: true }
 })
 
-// 同步编排：pull 合并 → push 全量（收敛模型，保证多设备最终一致）
-ipcMain.handle('syncNow', async () => {
+// 同步编排：pull 合并 → push 全量（收敛模型，保证多设备最终一致）。失败自动重试 2 次。
+async function runSync(quiet = false) {
   const token = loadToken()
   if (!token) throw new Error('未连接 GitHub，请先在「云同步」中连接')
   let gistId = db.getSetting('sync_gist_id')
@@ -459,17 +475,31 @@ ipcMain.handle('syncNow', async () => {
     if (g.content) merge = db.mergeRemote(g.content)
   }
 
-  // 2) 导出本地全量快照并推送
+  // 2) 导出本地全量快照，压缩后推送（TKZ1: gzip+base64，绕开 Gist 1MB 截断）
   const local = db.exportSync()
+  const payload = syncGithub.encodeSnapshot(local)
   if (!gistId) {
-    const r = await syncGithub.createGist(token, local)
+    const r = await syncGithub.createGist(token, payload)
     gistId = r.gistId
     db.setSetting('sync_gist_id', gistId)
   } else {
-    await syncGithub.updateGist(token, gistId, local)
+    await syncGithub.updateGist(token, gistId, payload)
   }
 
   const now = Date.now()
   db.setSetting('sync_last_sync', String(now))
   return { ok: true, lastSync: now, gistId, merge }
+}
+
+ipcMain.handle('syncNow', async () => {
+  let lastErr
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await runSync(false)
+    } catch (e) {
+      lastErr = e
+      if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 1500)) // 1.5s / 3s 退避
+    }
+  }
+  throw lastErr
 })

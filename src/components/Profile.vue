@@ -86,6 +86,7 @@ async function doSync() {
       if (m.xpLogs) parts.push('XP ' + m.xpLogs)
       if (m.habits) parts.push('习惯 ' + m.habits)
       if (parts.length) msg += ' · 合并：' + parts.slice(0, 5).join('、')
+      if (m.conflicts) msg += ' · 冲突 ' + m.conflicts + ' 条（按时间戳覆盖）'
     }
     showToast(msg, 'ok')
   } catch (e) {
@@ -128,16 +129,35 @@ async function exportData() {
   showToast('备份已导出')
 }
 
-function importData(event) {
+async function importData(event) {
   const file = event.target.files[0]
   if (!file) return
   const reader = new FileReader()
   reader.onload = async (e) => {
     try {
-      const r = await tiku.importData(e.target.result)
-      showToast(`导入成功，共 ${r.imported} 题`)
+      const json = e.target.result
+      // 1) 差异预览：导入前让用户看清会新增/覆盖什么
+      const d = await tiku.importPreview(json)
+      const q = d.questions
+      const parts = []
+      if (q && q.total) parts.push(`题库：新增 ${q.fresh} · 覆盖 ${q.update} · 本地独有 ${q.localOnly} 保留`)
+      if (d.categories && d.categories.total) parts.push(`章节：${d.categories.total} 条`)
+      if (d.kbDocs && d.kbDocs.total) parts.push(`知识文档：${d.kbDocs.total} 篇`)
+      if (d.notes && d.notes.total) parts.push(`笔记：${d.notes.total} 条`)
+      if (d.otherTables) parts.push(`反馈数据：${d.otherTables} 类`)
+      const lines = [
+        '备份文件内容与当前库的差异：',
+        ...(parts.length ? parts.map(x => '· ' + x) : ['· 未识别到题库/文档数据']),
+        '',
+        '导入会按记录 id 覆盖已有数据（同 id），新增的记录直接加入；',
+        '本地独有记录不会删除。确定继续？'
+      ]
+      const ok = await showConfirm(lines.join('\n'), { title: '导入备份确认' })
+      if (!ok) return
+      const r = await tiku.importData(json)
+      showToast(`导入成功：${r.imported} 题 · ${r.kbDocs || 0} 篇文档`, 'ok')
     } catch (err) {
-      showToast('导入失败：' + err.message)
+      showToast('导入失败：' + (err.message || String(err)), 'err')
     }
   }
   reader.readAsText(file)
@@ -149,6 +169,7 @@ const theme = ref('dark')
 const fontScale = ref('1')
 const dailyGoal = ref(0)
 const remindEnabled = ref(false)
+const autoSync = ref(true)
 const remindTime = ref('21:00')
 async function setTheme(t) {
   theme.value = t
@@ -167,6 +188,11 @@ async function setDailyGoal(v) {
 async function setRemindEnabled(v) {
   remindEnabled.value = !!v
   await tiku.setSetting('remind_enabled', remindEnabled.value ? '1' : '0')
+}
+
+async function setAutoSync(v) {
+  autoSync.value = !!v
+  await tiku.setSetting('auto_sync', autoSync.value ? '1' : '0')
 }
 async function setRemindTime(v) {
   remindTime.value = v || '21:00'
@@ -231,6 +257,7 @@ onMounted(async () => {
     dailyGoal.value = Number(g) || 0
     metrics.value = ach
     remindEnabled.value = re === '1'
+    autoSync.value = await tiku.getSetting('auto_sync').then(v => v !== '0').catch(() => true)
     remindTime.value = rt || '21:00'
     kbStats.value = kb
     xp.value = x
@@ -335,6 +362,14 @@ onMounted(async () => {
         <input class="pref-input pref-time" type="time" :value="remindTime" @change="setRemindTime($event.target.value)" />
         <label class="pref-switch">
           <input type="checkbox" :checked="remindEnabled" @change="setRemindEnabled($event.target.checked)" />
+          <span class="pref-switch-slider"></span>
+        </label>
+      </div>
+      <div class="pref-row">
+        <span class="pref-label">自动同步</span>
+        <span class="pref-sub">启动与每 60 分钟静默同步</span>
+        <label class="pref-switch">
+          <input type="checkbox" :checked="autoSync" @change="setAutoSync($event.target.checked)" />
           <span class="pref-switch-slider"></span>
         </label>
       </div>
@@ -724,6 +759,7 @@ onMounted(async () => {
 .habit-mgr-add { display: flex; gap: 8px; }
 .habit-mgr-add .input { flex: 1; }
 .pref-unit { color: var(--muted); font-size: 12px; }
+.pref-sub { flex: 1; color: var(--muted); font-size: 11px; }
 
 /* 成就墙 */
 .ach-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
