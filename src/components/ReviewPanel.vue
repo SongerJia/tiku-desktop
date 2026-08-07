@@ -118,7 +118,7 @@ useEsc(() => emit('close'))
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 0 40px rgba(42, 245, 255, 0.12);
+  box-shadow: 0 0 40px rgba(91, 124, 250, 0.12);
 }
 .rv-head {
   display: flex;

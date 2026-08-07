@@ -108,7 +108,7 @@ tiku-desktop/
 ├─ src/
 │  ├─ App.vue          # 5 Tab 导航 + 顶部科目选择器/统一搜索按钮 + 答题覆盖层
 │  ├─ main.js          # Vue 入口
-│  ├─ style.css        # 全局 CSS 变量 + 基础样式（科幻风暗色主题 + 浅色主题）
+│  ├─ style.css        # 全局 CSS 变量 + 基础样式（精致现代暗色主题 + 浅色主题；字体 Inter + Noto Sans SC 本地打包）
 │  ├─ api/tiku.js      # 渲染层 IPC 调用封装（Proxy 自动转发 window.electronAPI + 统一错误日志）
 │  ├─ utils/bankParser.js   # CSV/Excel/JSON 题库解析与校验
 │  ├─ utils/print.js        # 独立窗口打印/导出 PDF

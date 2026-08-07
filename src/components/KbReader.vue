@@ -368,7 +368,7 @@ useEsc(() => emit('close'))
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 0 40px rgba(42, 245, 255, 0.15);
+  box-shadow: 0 0 40px rgba(91, 124, 250, 0.15);
 }
 .kb-reader-head {
   display: flex;
@@ -381,7 +381,7 @@ useEsc(() => emit('close'))
 .kb-reader-spacer { flex: 1; }
 .kb-type { text-transform: uppercase; letter-spacing: 1px; }
 .kb-type.pdf { background: rgba(232, 95, 61, 0.15); color: #e85f3d; }
-.kb-type.md { background: rgba(42, 245, 255, 0.12); color: var(--brand); }
+.kb-type.md { background: rgba(91, 124, 250, 0.12); color: var(--brand); }
 .kb-pdf-prog { font-size: 12px; color: var(--muted); }
 .kb-edit-btn { padding: 4px 12px; }
 .kb-close { padding: 4px 14px; }
@@ -414,7 +414,7 @@ useEsc(() => emit('close'))
 .kb-md :deep(h3) { font-size: 15px; }
 .kb-md :deep(p) { line-height: 1.8; color: var(--text); margin: 8px 0; }
 .kb-md :deep(ul), .kb-md :deep(ol) { padding-left: 22px; color: var(--text); line-height: 1.8; }
-.kb-md :deep(code) { background: rgba(42, 245, 255, 0.1); color: var(--brand); padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
+.kb-md :deep(code) { background: rgba(91, 124, 250, 0.1); color: var(--brand); padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
 .kb-md :deep(pre) { background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow-x: auto; }
 .kb-md :deep(pre code) { background: none; color: var(--text); }
 .kb-md :deep(blockquote) { border-left: 3px solid var(--brand); padding-left: 12px; color: var(--muted); margin: 10px 0; }
@@ -448,13 +448,13 @@ useEsc(() => emit('close'))
   font-size: 13px;
   font-weight: 500;
   color: var(--brand);
-  background: rgba(42, 245, 255, 0.05);
+  background: rgba(91, 124, 250, 0.05);
   user-select: none;
 }
 .kb-links-count {
   font-size: 11px;
   color: var(--muted);
-  background: rgba(42, 245, 255, 0.1);
+  background: rgba(91, 124, 250, 0.1);
   border-radius: 10px;
   padding: 0 8px;
 }

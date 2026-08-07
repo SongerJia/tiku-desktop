@@ -558,7 +558,7 @@ async function batchDelete() {
   border-radius: var(--radius-sm);
   padding: 9px 6px;
   text-align: center;
-  background: rgba(42, 245, 255, 0.04);
+  background: rgba(91, 124, 250, 0.04);
 }
 .stat b { display: block; font-size: 17px; color: var(--brand); }
 .stat span { font-size: 11px; color: var(--muted); }
@@ -591,7 +591,7 @@ async function batchDelete() {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   padding: 11px 12px;
-  background: rgba(42, 245, 255, 0.03);
+  background: rgba(91, 124, 250, 0.03);
 }
 .q-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
 .q-type {
@@ -619,7 +619,7 @@ async function batchDelete() {
   padding: 1px 6px;
   border: 1px solid var(--line);
   border-radius: 4px;
-  background: rgba(42, 245, 255, 0.10);
+  background: rgba(91, 124, 250, 0.10);
 }
 .q-spacer { flex: 1; }
 .q-stem { font-size: 13px; color: var(--text); line-height: 1.65; }
@@ -739,7 +739,7 @@ async function batchDelete() {
   cursor: pointer;
   transition: all 0.15s;
 }
-.note-save:hover { background: rgba(42, 245, 255, 0.12); box-shadow: var(--glow-soft); }
+.note-save:hover { background: rgba(91, 124, 250, 0.12); box-shadow: var(--glow-soft); }
 
 /* 标签筛选 */
 .tag-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }

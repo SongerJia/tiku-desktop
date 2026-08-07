@@ -744,7 +744,7 @@ function optionClass(key) {
   color: #021018;
   box-shadow: var(--glow);
 }
-.submit:hover, .next:hover { box-shadow: 0 0 20px rgba(42, 245, 255, 0.6); }
+.submit:hover, .next:hover { box-shadow: 0 0 20px rgba(91, 124, 250, 0.6); }
 .submit:disabled { background: rgba(255, 255, 255, 0.10); color: var(--muted); box-shadow: none; cursor: not-allowed; flex: 1; }
 .grade-yes { background: rgba(44, 229, 168, 0.18); border: 1px solid var(--ok); color: var(--ok); }
 .grade-yes:hover { box-shadow: 0 0 16px rgba(44, 229, 168, 0.4); }
@@ -772,7 +772,7 @@ function optionClass(key) {
   cursor: pointer;
   box-shadow: var(--glow);
 }
-.done button:hover { box-shadow: 0 0 20px rgba(42, 245, 255, 0.6); }
+.done button:hover { box-shadow: 0 0 20px rgba(91, 124, 250, 0.6); }
 
 /* 逐题解析页 */
 .review { display: flex; flex-direction: column; gap: 12px; }

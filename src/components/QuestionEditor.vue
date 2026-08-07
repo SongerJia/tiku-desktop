@@ -392,7 +392,7 @@ async function save() {
   padding: 7px 16px;
   border-radius: 20px;
   border: 1px solid var(--line);
-  background: rgba(42, 245, 255, 0.05);
+  background: rgba(91, 124, 250, 0.05);
   color: var(--muted);
   font-size: 13px;
   cursor: pointer;
@@ -412,7 +412,7 @@ async function save() {
   height: 32px;
   border-radius: 50%;
   border: 1px solid var(--line);
-  background: rgba(42, 245, 255, 0.05);
+  background: rgba(91, 124, 250, 0.05);
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;

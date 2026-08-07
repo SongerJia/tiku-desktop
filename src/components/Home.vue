@@ -99,9 +99,9 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
         <svg viewBox="0 0 120 100" width="110" height="92">
           <rect x="10" y="40" width="70" height="50" rx="8" fill="#0a1a26" stroke="#1c6f7d" stroke-width="1.5" />
           <rect x="25" y="25" width="70" height="50" rx="8" fill="#150f33" stroke="#7b46c4" stroke-width="1.5" />
-          <rect x="40" y="10" width="70" height="50" rx="8" fill="#0c2230" stroke="#2af5ff" stroke-width="2" />
-          <circle cx="95" cy="25" r="14" fill="none" stroke="#2af5ff" stroke-width="1.5" opacity="0.7" />
-          <path d="M95 11 L98 21 L108 21 L100 27 L103 37 L95 31 L87 37 L90 27 L82 21 L92 21 Z" fill="#2af5ff" />
+          <rect x="40" y="10" width="70" height="50" rx="8" fill="#0c2230" stroke="#5b7cfa" stroke-width="2" />
+          <circle cx="95" cy="25" r="14" fill="none" stroke="#5b7cfa" stroke-width="1.5" opacity="0.7" />
+          <path d="M95 11 L98 21 L108 21 L100 27 L103 37 L95 31 L87 37 L90 27 L82 21 L92 21 Z" fill="#5b7cfa" />
         </svg>
       </div>
     </div>
@@ -224,15 +224,15 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
   justify-content: space-between;
   align-items: center;
   background:
-    radial-gradient(circle at 90% 15%, rgba(176, 107, 255, 0.20), transparent 60%),
-    linear-gradient(135deg, rgba(42, 245, 255, 0.10), rgba(176, 107, 255, 0.06));
-  border-color: rgba(42, 245, 255, 0.30);
+    radial-gradient(circle at 90% 15%, rgba(122, 92, 255, 0.20), transparent 60%),
+    linear-gradient(135deg, rgba(91, 124, 250, 0.10), rgba(122, 92, 255, 0.06));
+  border-color: rgba(91, 124, 250, 0.30);
   box-shadow: var(--glow-soft), var(--shadow);
 }
 .welcome-text { flex: 1; }
 .welcome-text h1 { font-size: 22px; line-height: 1.3; margin: 8px 0 14px 0; color: var(--text); text-shadow: var(--glow-soft); }
 .welcome-text .subtitle { font-size: 12px; color: var(--muted); }
-.welcome-illustration { flex-shrink: 0; filter: drop-shadow(0 0 8px rgba(42, 245, 255, 0.35)); }
+.welcome-illustration { flex-shrink: 0; filter: drop-shadow(0 0 8px rgba(91, 124, 250, 0.35)); }
 
 .stat-card { display: flex; flex-direction: column; gap: 8px; }
 .stat-title { font-size: 15px; font-weight: 600; color: var(--text); }
@@ -363,7 +363,7 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
   gap: 12px;
   background:
     radial-gradient(circle at 12% 50%, rgba(255, 193, 84, 0.16), transparent 55%),
-    linear-gradient(135deg, rgba(42, 245, 255, 0.08), rgba(255, 193, 84, 0.06));
+    linear-gradient(135deg, rgba(91, 124, 250, 0.08), rgba(255, 193, 84, 0.06));
   border-color: rgba(255, 193, 84, 0.30);
 }
 .mock-entry .me-text { flex: 1; }

@@ -304,7 +304,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
   align-items: center;
   gap: 6px;
   border: 1px solid var(--line);
-  background: rgba(42, 245, 255, 0.06);
+  background: rgba(91, 124, 250, 0.06);
   font-size: 16px;
   font-weight: 600;
   color: var(--text);
@@ -323,7 +323,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
   height: 34px;
   border-radius: 10px;
   border: 1px solid var(--line);
-  background: rgba(42, 245, 255, 0.06);
+  background: rgba(91, 124, 250, 0.06);
   color: var(--text);
   cursor: pointer;
   display: inline-flex;

@@ -531,7 +531,7 @@ onMounted(async () => {
 .user-xp-fill {
   height: 100%;
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--brand), var(--brand2, #b06bff));
+  background: linear-gradient(90deg, var(--brand), var(--brand2, #7a5cff));
   transition: width .4s;
 }
 .user-xp-sub { font-size: 10px; color: var(--muted); }
@@ -554,7 +554,7 @@ onMounted(async () => {
 .sec-badge {
   font-size: 11px;
   color: var(--muted);
-  background: rgba(42, 245, 255, 0.08);
+  background: rgba(91, 124, 250, 0.08);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 0 8px;

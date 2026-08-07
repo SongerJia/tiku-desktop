@@ -95,7 +95,7 @@ function isRight(i) {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 1px 8px;
-  background: rgba(42, 245, 255, 0.08);
+  background: rgba(91, 124, 250, 0.08);
 }
 .sq-close { padding: 3px 12px; }
 .sq-body { padding: 16px 18px; overflow-y: auto; }

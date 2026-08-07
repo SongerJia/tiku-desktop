@@ -33,14 +33,14 @@ async function exportReport() {
   const style = `
 h1 { margin: 0 0 4px; }
 .doc-sub { color: #666; font-size: 12px; margin: 0 0 16px; }
-.sec { font-size: 14px; font-weight: bold; margin: 18px 0 8px; border-left: 3px solid #0891b2; padding-left: 8px; }
+.sec { font-size: 14px; font-weight: bold; margin: 18px 0 8px; border-left: 3px solid #3d5bd9; padding-left: 8px; }
 .kpis { display: flex; gap: 10px; flex-wrap: wrap; }
 .kpi { flex: 1; min-width: 90px; border: 1px solid #ddd; border-radius: 10px; padding: 12px; text-align: center; }
-.kpi b { display: block; font-size: 20px; color: #0891b2; }
+.kpi b { display: block; font-size: 20px; color: #3d5bd9; }
 .kpi span { font-size: 11px; color: #666; }
 .bars { display: flex; align-items: flex-end; gap: 8px; height: 120px; }
 .bar-cell { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
-.bar { width: 60%; background: #0891b2; border-radius: 4px 4px 0 0; }
+.bar { width: 60%; background: #3d5bd9; border-radius: 4px 4px 0 0; }
 .bar-cell span { font-size: 11px; color: #666; }
 .bar-cell b { font-size: 12px; }
 .report-table { width: 100%; border-collapse: collapse; }
@@ -118,7 +118,7 @@ onMounted(async () => {
         <div class="card-title center">总体进度</div>
         <div class="ring-wrap">
           <svg class="ring" viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(42, 245, 255, 0.14)" stroke-width="10" />
+            <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(91, 124, 250, 0.14)" stroke-width="10" />
             <circle
               cx="60" cy="60" r="50" fill="none" stroke="var(--brand)"
               stroke-width="10" stroke-linecap="round"
@@ -295,7 +295,7 @@ onMounted(async () => {
   background: linear-gradient(180deg, var(--brand), var(--brand2));
   border-radius: 7px;
   min-height: 4px;
-  box-shadow: 0 0 8px rgba(42, 245, 255, 0.5);
+  box-shadow: 0 0 8px rgba(91, 124, 250, 0.5);
 }
 .bar-date { font-size: 10px; color: var(--muted); }
 .bar-count { font-size: 10px; color: var(--brand); }
@@ -338,8 +338,8 @@ onMounted(async () => {
   color: var(--muted);
 }
 .dot { width: 10px; height: 10px; border-radius: 2px; }
-.dot.light { background: rgba(42, 245, 255, 0.25); }
-.dot.mid { background: rgba(42, 245, 255, 0.55); }
+.dot.light { background: rgba(91, 124, 250, 0.25); }
+.dot.mid { background: rgba(91, 124, 250, 0.55); }
 .dot.heavy { background: var(--brand); box-shadow: var(--glow); }
 .report-btn { margin-bottom: 14px; }
 </style>

@@ -269,7 +269,7 @@ function fmtTime(ts) {
 .kb-head { display: flex; align-items: center; gap: 8px; }
 .kb-type { text-transform: uppercase; letter-spacing: 1px; }
 .kb-type.pdf { background: rgba(232, 95, 61, 0.15); color: #e85f3d; }
-.kb-type.md { background: rgba(42, 245, 255, 0.12); color: var(--brand); }
+.kb-type.md { background: rgba(91, 124, 250, 0.12); color: var(--brand); }
 .kb-title {
   font-size: 14px;
   font-weight: 500;
@@ -287,7 +287,7 @@ function fmtTime(ts) {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 1px 8px;
-  background: rgba(42, 245, 255, 0.08);
+  background: rgba(91, 124, 250, 0.08);
   cursor: pointer;
 }
 .q-tag:hover { border-color: var(--brand); }
