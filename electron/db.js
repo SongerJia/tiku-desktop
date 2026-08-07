@@ -820,6 +820,26 @@ const api = {
   },
 
   // ============ 薄弱分析 / 相似题 / 弱点抽题 ============
+  // 章节进度（我的 → 章节进度）：按科目分组，每章 总题/已学/正确率/掌握/错题
+  getChapterProgress() {
+    const subjects = sqlite.prepare('SELECT id, name FROM categories WHERE deleted=0 AND (parent_id IS NULL OR parent_id=0) ORDER BY sort, id').all()
+    const out = []
+    for (const sub of subjects) {
+      const chapters = sqlite.prepare('SELECT id, name FROM categories WHERE deleted=0 AND parent_id=? ORDER BY sort, id').all(sub.id)
+      const list = chapters.map(ch => {
+        const totalQ = sqlite.prepare('SELECT COUNT(*) AS n FROM questions WHERE deleted=0 AND category_id=?').get(ch.id).n
+        const learned = sqlite.prepare('SELECT COUNT(DISTINCT question_id) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND question_id IN (SELECT id FROM questions WHERE category_id=?)').get(LOCAL_USER, ch.id).n
+        const stat = sqlite.prepare('SELECT COUNT(*) AS n, SUM(is_correct) AS c FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.category_id=?').get(LOCAL_USER, ch.id)
+        const n = stat.n || 0
+        const mastered = sqlite.prepare('SELECT COUNT(DISTINCT question_id) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND is_correct=1 AND question_id IN (SELECT id FROM questions WHERE category_id=?)').get(LOCAL_USER, ch.id).n
+        const wrong = sqlite.prepare("SELECT COUNT(*) AS n FROM wrong_books WHERE user_id=? AND status='wrong' AND deleted=0 AND question_id IN (SELECT id FROM questions WHERE category_id=?)").get(LOCAL_USER, ch.id).n
+        return { id: ch.id, name: ch.name, totalQ: totalQ || 0, learned: learned || 0, answered: n, rate: n ? Math.round(((stat.c || 0) / n) * 100) : 0, mastered: mastered || 0, wrong: wrong || 0 }
+      })
+      out.push({ subjectId: sub.id, subjectName: sub.name, chapters: list })
+    }
+    return out
+  },
+
   // 薄弱章节：正确率升序、错题数降序（用于错题页高亮最弱章节）
   getWeakChapters(subjectId = null, limit = 5) {
     const sql = subjectId

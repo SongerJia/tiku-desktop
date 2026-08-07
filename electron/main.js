@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, Menu, safeStorage, dialog, shell, Notification } = require('electron')
+const pkg = require('./package.json')
 const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
@@ -309,6 +310,9 @@ ipcMain.handle('linkDocs', (e, fromDocId, toDocId) => db.linkDocs(fromDocId, toD
 ipcMain.handle('unlinkDocs', (e, fromDocId, toDocId) => db.unlinkDocs(fromDocId, toDocId))
 ipcMain.handle('setWrongReason', (e, questionId, reason) => db.setWrongReason(questionId, reason))
 ipcMain.handle('getWeeklyReport', () => db.getWeeklyReport())
+ipcMain.handle('getChapterProgress', () => db.getChapterProgress())
+ipcMain.handle('getVersion', () => ({ name: pkg.productName || '知识记忆小助手', version: pkg.version }))
+ipcMain.handle('openExternal', (e, url) => { try { shell.openExternal(String(url)) } catch (err) {} })
 // 知识库导出：选目录 → 复制全部原件 + 写 manifest.json（元数据/标签/联动摘要）
 ipcMain.handle('kbExport', async () => {
   const win = BrowserWindow.getFocusedWindow()

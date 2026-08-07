@@ -7,6 +7,8 @@ import { applyAppearance } from '../utils/appearance.js'
 import WrongBook from './WrongBook.vue'
 import Favorites from './Favorites.vue'
 import NotesList from './NotesList.vue'
+import ChapterProgress from './ChapterProgress.vue'
+import AboutModal from './AboutModal.vue'
 
 const emit = defineEmits(['reset', 'start', 'open-bank'])
 
@@ -26,11 +28,11 @@ const syncToken = ref('')
 const syncing = ref(false)
 
 const menus = [
-  { label: '我的学习', action: () => emit('reset') },
-  { label: '我的笔记', action: () => showNotes.value = true },
-  { label: '章节进度', action: () => showToast('请在「学习统计」页查看') },
-  { label: '关于我们', action: () => showToast('知识记忆小助手 v0.1.0') }
+  { label: '章节进度', action: () => showChapter.value = true },
+  { label: '关于我们', action: () => showAbout.value = true }
 ]
+const showChapter = ref(false)
+const showAbout = ref(false)
 
 onMounted(async () => {
   try {
@@ -467,11 +469,16 @@ onMounted(async () => {
       </div>
       <div v-show="secOpen.misc" class="sec-body">
 
-    <!-- 错题本 / 收藏 -->
+    <!-- 错题本 / 收藏 / 笔记 -->
     <div class="card">
       <div class="card-title">我的错题与收藏</div>
       <WrongBook @start="forwardStart" />
       <Favorites @start="forwardStart" />
+      <div class="list-item" @click="showNotes = true">
+        <span class="title">我的笔记</span>
+        <span class="sub">查看与删除全部题目笔记</span>
+        <span class="arrow">›</span>
+      </div>
     </div>
 
 
@@ -495,6 +502,8 @@ onMounted(async () => {
     <div v-if="toast" class="toast">{{ toast }}</div>
 
     <NotesList :show="showNotes" @close="showNotes = false" />
+    <ChapterProgress :show="showChapter" @close="showChapter = false" />
+    <AboutModal :show="showAbout" @close="showAbout = false" />
   </div>
 </template>
 
