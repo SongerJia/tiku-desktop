@@ -143,7 +143,8 @@ const api = {
     this.ensureUser()
     this.seedIfEmpty()
     this.backfillClientIds() // 老库/样例数据补齐 client_id 与 *_cid，保证可同步
-    this.autoBackup()
+    // 每日备份延迟到窗口显示后后台执行：copyFileSync 复制大库文件会阻塞启动，不抢首帧
+    setTimeout(() => { try { this.autoBackup() } catch (e) { /* 备份失败不影响运行 */ } }, 4000)
   },
 
   // 启动期数据库状态（供渲染端提示「已从备份恢复」）

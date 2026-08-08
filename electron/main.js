@@ -83,18 +83,43 @@ function bankToMatrix(list) {
 }
 
 function createWindow() {
+  // 窗口尺寸/位置记忆：从 settings 恢复上次 bounds（首次用默认值）
+  let w = 1100
+  let h = 760
+  try {
+    const saved = JSON.parse(db.getSetting('window_bounds') || 'null')
+    if (saved && Number(saved.width) >= 760 && Number(saved.height) >= 600) {
+      w = saved.width
+      h = saved.height
+    }
+  } catch (e) { /* bounds 损坏则用默认 */ }
+
   const win = new BrowserWindow({
-    width: 1100,
-    height: 760,
+    width: w,
+    height: h,
     minWidth: 760,
     minHeight: 600,
     resizable: true,
     title: '知识记忆小助手',
+    show: false, // 防白屏：等 ready-to-show 再显示，避免加载期白屏闪烁
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false
     }
+  })
+  mainWindow = win
+
+  win.once('ready-to-show', () => win.show())
+
+  // 关闭时记住窗口 bounds（位置+尺寸），下次启动恢复
+  win.on('close', () => {
+    try {
+      const b = win.getBounds()
+      if (b.width >= 760 && b.height >= 600) {
+        db.setSetting('window_bounds', JSON.stringify({ width: b.width, height: b.height, x: b.x, y: b.y }))
+      }
+    } catch (e) { /* 保存失败忽略 */ }
   })
 
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -107,6 +132,9 @@ function createWindow() {
   // 开发调试需要 DevTools 时按 Ctrl+Shift+I（Windows/Linux）或 Cmd+Option+I（macOS）。
   Menu.setApplicationMenu(null)
 }
+
+// 主窗口引用（单实例聚焦 / 关闭清理用）
+let mainWindow = null
 
 // 单实例锁：防止重复双击打开多个窗口
 if (!app.requestSingleInstanceLock()) {

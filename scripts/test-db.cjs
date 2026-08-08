@@ -360,6 +360,7 @@ try {
   db.backfillClientIds()
   const catT2 = db.getCategories().find(c => c.id === catT.id)
   ok('backfillClientIds 补齐 client_id', !!catT2.client_id && catT2.client_id.length > 10)
+  db.autoBackup() // init 里 autoBackup 已改为延迟后台执行（防启动卡顿），此处显式调用保证断言确定性
   const baks = db.listBackups()
   ok('autoBackup/listBackups 生成备份', Array.isArray(baks) && baks.length >= 1 && baks[0].file.endsWith('.db'))
   ok('getDbStatus 返回状态对象', typeof db.getDbStatus() === 'object' && 'recovered' in db.getDbStatus())

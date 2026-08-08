@@ -1,20 +1,22 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
+// 首屏轻量组件静态引入（侧栏/首页/弹层容器）
 import Home from './components/Home.vue'
-import Knowledge from './components/Knowledge.vue'
-import KbLibrary from './components/KbLibrary.vue'
-import Stats from './components/Stats.vue'
-import Profile from './components/Profile.vue'
 import SubjectSelector from './components/SubjectSelector.vue'
-import Quiz from './components/Quiz.vue'
-import PracticeSetup from './components/PracticeSetup.vue'
-import BankManager from './components/BankManager.vue'
-import MockExamSetup from './components/MockExamSetup.vue'
 import UnifiedSearch from './components/UnifiedSearch.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import AppToast from './components/AppToast.vue'
 import AppConfirm from './components/AppConfirm.vue'
 import WelcomeGuide from './components/WelcomeGuide.vue'
+// 大组件按需拆包：进入对应视图/弹层才加载，首屏 bundle 瘦身（KbReader 的 Vditor/pdfjs 随 chunk 拆出）
+const Quiz = defineAsyncComponent(() => import('./components/Quiz.vue'))
+const Knowledge = defineAsyncComponent(() => import('./components/Knowledge.vue'))
+const KbLibrary = defineAsyncComponent(() => import('./components/KbLibrary.vue'))
+const Stats = defineAsyncComponent(() => import('./components/Stats.vue'))
+const Profile = defineAsyncComponent(() => import('./components/Profile.vue'))
+const PracticeSetup = defineAsyncComponent(() => import('./components/PracticeSetup.vue'))
+const BankManager = defineAsyncComponent(() => import('./components/BankManager.vue'))
+const MockExamSetup = defineAsyncComponent(() => import('./components/MockExamSetup.vue'))
 import { tiku } from './api/tiku.js'
 import { useResponsive } from './composables/useResponsive.js'
 import { applyAppearance } from './utils/appearance.js'

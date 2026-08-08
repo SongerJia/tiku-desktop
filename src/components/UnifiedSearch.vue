@@ -1,8 +1,9 @@
 <script setup>
-import { ref, watch, onBeforeUnmount } from 'vue'
+import { ref, watch, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { useEsc } from '../utils/useEsc.js'
-import KbReader from './KbReader.vue'
+// KbReader 含 Vditor/pdfjs 大依赖，懒加载避免拖进首屏主包
+const KbReader = defineAsyncComponent(() => import('./KbReader.vue'))
 import SimpleQuestion from './SimpleQuestion.vue'
 
 const props = defineProps({ show: Boolean })
