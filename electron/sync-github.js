@@ -6,7 +6,10 @@
 const zlib = require('zlib')
 const { net } = require('electron')
 const API = 'https://api.github.com'
-const FILE = 'tiku-backup.json'
+const FILE = 'tiku-backup.json'          // 旧版单文件（兼容读取）
+const CHUNK_BASE = 'tiku-backup.json.'  // 新版多文件分块前缀（.0/.1/...）
+const IMG_PREFIX = 'tiku-img.'          // 独立图片文件前缀（每个图片一个/多个分块）
+const IMG_INDEX = 'tiku-img-index.json' // 图片清单：{ entries: [{name, key, hash, parts}] }
 
 // 统一请求入口：Electron net.fetch 优先（系统代理/证书），降级原生 fetch
 async function ghFetch(path, token, opts = {}) {
@@ -51,46 +54,49 @@ async function validateToken(token) {
   return { login: u.login, name: u.name || u.login }
 }
 
-// 首次同步：建一个私有 Gist，返回 gistId
-async function createGist(token, content) {
+// 首次同步：建一个私有 Gist，返回 gistId。files 为 encodeSnapshotChunks 产出的多文件对象。
+async function createGist(token, files) {
   const body = {
     description: 'tiku-desktop 学习数据同步',
     public: false,
-    files: { [FILE]: { content } }
+    files
   }
   const g = await ghFetch('/gists', token, { method: 'POST', body: JSON.stringify(body) })
   return { gistId: g.id, updatedAt: g.updated_at }
 }
 
-// 后续同步：更新已有 Gist 的文件内容
-async function updateGist(token, gistId, content) {
-  const body = { files: { [FILE]: { content } } }
+// 后续同步：用新分块覆盖旧文件，并把旧分块/旧单文件置 null 删除（Gist 不自动清理残留文件）。
+// files 为多文件对象；oldFileKeys 为「上一次 gist 实际包含的文件名」（由 getGist 返回），
+// 用于精确置空，避免残留 .N 分块随库体积变化而累积。
+async function updateGist(token, gistId, files, oldFileKeys) {
+  const next = {}
+  for (const k of (oldFileKeys || [])) next[k] = null            // 删除旧分块与旧单文件
+  next[FILE] = null                                              // 兼容：清掉旧单文件
+  Object.assign(next, files)                                     // 写入新分块
+  const body = { files: next }
   const g = await ghFetch(`/gists/${gistId}`, token, { method: 'PATCH', body: JSON.stringify(body) })
   return { gistId: g.id, updatedAt: g.updated_at }
 }
 
-// 拉取远端快照内容（字符串），无内容返回 null。
-// 关键保护：Gist API 单文件读取上限 1MB——超限时 f.truncated=true 且 content 残缺，
-// 必须改用 raw_url 拉全量，否则合并会静默丢数据。返回的 content 始终是解码后的原始 JSON。
+// 拉取远端快照内容（解码后的原始 JSON 字符串），无内容返回 null。
+// 兼容旧单文件与新多文件分块；任一分块截断时用 raw_url 补拉。
 async function getGist(token, gistId) {
   const g = await ghFetch(`/gists/${gistId}`, token)
-  const f = g.files && g.files[FILE]
-  if (!f) return { content: null, updatedAt: g.updated_at, truncated: false }
-  let content = f.content
-  if (f.truncated) {
-    // API 只给了前 1MB（残缺）→ 用 raw_url 拉完整内容（带认证，私有 gist 也能读）
-    const init = {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github.raw+json',
-        'User-Agent': 'tiku-desktop'
-      }
-    }
-    const raw = (net && typeof net.fetch === 'function') ? await net.fetch(f.raw_url, init) : await fetch(f.raw_url, init)
-    if (!raw.ok) throw new Error(`拉取完整快照失败（GitHub ${raw.status}）`)
-    content = await raw.text()
+  const f = g.files || {}
+  if (!Object.keys(f).length) return { content: null, images: [], updatedAt: g.updated_at, truncated: false, fileKeys: [], imgManifest: null }
+  const content = await decodeSnapshotChunks(f, token)
+  const images = await decodeImageFiles(f, token)
+  // 解析图片清单（供同步编排层识别未变更图片、跳过重传）
+  let imgManifest = null
+  const idxFile = f[IMG_INDEX]
+  if (idxFile) {
+    try {
+      const c = idxFile.truncated ? await fetchRaw(idxFile.raw_url, token) : (idxFile.content || '')
+      imgManifest = JSON.parse(c)
+    } catch (e) { /* 清单损坏不阻断 */ }
   }
-  return { content: decodeSnapshot(content), updatedAt: g.updated_at, truncated: !!f.truncated }
+  const truncated = Object.values(f).some(x => x && x.truncated)
+  return { content, images, updatedAt: g.updated_at, truncated, fileKeys: Object.keys(f), imgManifest }
 }
 
 // 快照压缩：'TKZ1:' + gzip(json).toString('base64')。老数据无前缀时原样返回（兼容旧 Gist）
@@ -111,4 +117,119 @@ function decodeSnapshot(content) {
   return content // 旧版本未压缩快照
 }
 
-module.exports = { validateToken, createGist, updateGist, getGist, encodeSnapshot, decodeSnapshot, FILE }
+// 多文件分块：Gist 单文件硬上限 1MB，超大题库（尤其内嵌图片）单文件必失败。
+// 改为把编码后的字符串切成多个 <900KB 的文件（tiku-backup.json.0/.1/...），
+// 总容量随分块数线性扩展，彻底绕开 1MB 限制。base64 为 ASCII（≈1 字节/字符），故按字符切片即按字节。
+function encodeSnapshotChunks(jsonStr, maxBytes = 900 * 1024) {
+  const encoded = encodeSnapshot(jsonStr)
+  const files = {}
+  let i = 0
+  let idx = 0
+  while (i < encoded.length) {
+    files[CHUNK_BASE + idx] = { content: encoded.slice(i, i + maxBytes) }
+    i += maxBytes
+    idx++
+  }
+  if (idx === 0) files[CHUNK_BASE + '0'] = { content: encoded } // 空快照也至少一块
+  return { files, count: idx }
+}
+
+// 从 Gist 的 files 对象还原完整解码字符串：兼容旧单文件 + 新多文件分块。
+// 任一分块被截断（>1MB，理论上不会因 <900KB 发生）时用 raw_url 补拉。
+async function decodeSnapshotChunks(files, token) {
+  const names = Object.keys(files || {})
+  const single = files[FILE]
+  const chunks = names
+    .filter(n => n.startsWith(CHUNK_BASE))
+    .map(n => ({ idx: Number(n.slice(CHUNK_BASE.length)), file: files[n] }))
+    .sort((a, b) => a.idx - b.idx)
+
+  let encoded
+  if (single && chunks.length === 0) {
+    encoded = single.truncated ? await fetchRaw(single.raw_url, token) : (single.content || '')
+  } else {
+    const parts = await Promise.all(chunks.map(async c => {
+      return c.file && c.file.truncated ? await fetchRaw(c.file.raw_url, token) : (c.file && c.file.content || '')
+    }))
+    encoded = parts.join('')
+  }
+  return decodeSnapshot(encoded)
+}
+
+async function fetchRaw(url, token) {
+  const init = {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/vnd.github.raw+json',
+      'User-Agent': 'tiku-desktop'
+    }
+  }
+  const raw = (net && typeof net.fetch === 'function') ? await net.fetch(url, init) : await fetch(url, init)
+  if (!raw.ok) throw new Error(`拉取完整快照失败（GitHub ${raw.status}）`)
+  return raw.text()
+}
+
+// 把图片数组编码为独立 Gist 文件 + 清单（快照 JSON 不再内嵌 base64 图片，显著瘦身）。
+// imgList: [{ name, buffer, hash }]；每个图 gzip+base64，单文件 <=900KB 避免 Gist 1MB 截断；
+// 超长则自动分块（.0/.1/...）。返回 { files: {gistKey:{content}}, index: <清单 JSON 字符串> }。
+// 文件名做 base64url 安全化（无 . / + 歧义），清单保存原名→密钥映射，解码时还原。
+function encodeImageFiles(imgList) {
+  const files = {}
+  const entries = []
+  const maxBytes = 900 * 1024
+  for (const im of imgList || []) {
+    if (!im || !im.name || !im.buffer) continue
+    const safe = Buffer.from(String(im.name)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
+    const key = IMG_PREFIX + safe
+    let encoded
+    try { encoded = zlib.gzipSync(im.buffer).toString('base64') } catch (e) { continue }
+    if (encoded.length <= maxBytes) {
+      files[key] = { content: encoded }
+      entries.push({ name: im.name, key, hash: im.hash || '', parts: 1 })
+    } else {
+      let i = 0
+      for (let off = 0; off < encoded.length; off += maxBytes, i++) {
+        files[`${key}.${i}`] = { content: encoded.slice(off, off + maxBytes) }
+      }
+      entries.push({ name: im.name, key, hash: im.hash || '', parts: i })
+    }
+  }
+  const index = JSON.stringify({ version: 1, entries })
+  return { files, index }
+}
+
+// 从 Gist files 对象还原图片二进制数组 [{name, buffer}]（配合 encodeImageFiles）。
+// 读取清单定位每个图的密钥/分块数，分块或被截断时按 raw_url 补拉；单图失败不影响整体。
+async function decodeImageFiles(files, token) {
+  const f = files || {}
+  const idxFile = f[IMG_INDEX]
+  if (!idxFile) return []
+  let idx
+  try {
+    const c = idxFile.truncated ? await fetchRaw(idxFile.raw_url, token) : (idxFile.content || '')
+    idx = JSON.parse(c)
+  } catch (e) { return [] }
+  const out = []
+  for (const e of (idx.entries || [])) {
+    try {
+      let encoded = ''
+      if (e.parts && e.parts > 1) {
+        for (let i = 0; i < e.parts; i++) {
+          const cf = f[`${e.key}.${i}`]
+          if (!cf) break
+          encoded += cf.truncated ? await fetchRaw(cf.raw_url, token) : (cf.content || '')
+        }
+      } else {
+        const cf = f[e.key]
+        if (!cf) continue
+        encoded += cf.truncated ? await fetchRaw(cf.raw_url, token) : (cf.content || '')
+      }
+      if (!encoded) continue
+      const buf = zlib.gunzipSync(Buffer.from(encoded, 'base64'))
+      out.push({ name: e.name, buffer: buf })
+    } catch (e) { /* 单图损坏跳过 */ }
+  }
+  return out
+}
+
+module.exports = { validateToken, createGist, updateGist, getGist, encodeSnapshot, decodeSnapshot, encodeSnapshotChunks, decodeSnapshotChunks, encodeImageFiles, decodeImageFiles, FILE, CHUNK_BASE, IMG_PREFIX, IMG_INDEX }

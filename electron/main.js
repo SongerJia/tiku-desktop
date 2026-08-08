@@ -6,7 +6,9 @@ const crypto = require('crypto')
 const db = require('./db')
 const { readXlsx, writeXlsx } = require('./xlsx-lite')
 const syncGithub = require('./sync-github')
+const syncMerge = require('./sync-merge')
 const { extractMd, extractPdf, uniqueRelPath } = require('./kbExtract')
+const logger = require('./logger')
 
 // ---- 继承 git 代理通道（必须在 app ready 前生效）----
 // 用户网络常见「git 能 push 但 Node 直连不通」：把 git 全局代理喂给 Chromium 网络栈，
@@ -106,13 +108,38 @@ function createWindow() {
   Menu.setApplicationMenu(null)
 }
 
+// 单实例锁：防止重复双击打开多个窗口
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+  process.exit(0)
+}
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+  }
+})
+
 app.whenReady().then(() => {
-  db.init() // 打开 SQLite、建表、灌样例数据（仅首次）
+  try {
+    db.init() // 打开 SQLite、建表、灌样例数据（仅首次）；内部含损坏自动恢复
+    logger.info('应用主进程就绪')
+  } catch (e) {
+    logger.error('db.init 失败', e && e.message ? e.message : String(e))
+    // 数据库彻底打不开（无备份可恢复）时，给出可读错误而非静默白屏/无窗口
+    try {
+      dialog.showErrorBox('数据库无法打开',
+        '应用数据文件已损坏且自动恢复未成功。\n\n' +
+        '可尝试：进入「我的 → 数据管理」手动恢复备份；若仍不行，请删除用户数据目录下的 tiku.db 后重启（会清空本地数据）。\n\n' +
+        '错误信息：' + (e && e.message ? e.message : String(e)))
+    } catch (e2) { /* 弹窗失败也不阻塞 */ }
+  }
   // Windows 通知需 AppUserModelID（打包后生效；开发模式走 Electron 默认）
   try { app.setAppUserModelId('com.songerjia.tiku-desktop') } catch (e) { /* 忽略 */ }
   createWindow()
   startReminderLoop()
   scheduleAutoSync()
+  setupAutoUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -132,8 +159,10 @@ function checkReminder() {
     if (hm !== time) return
     if (db.getSetting('last_remind_date') === dateStr()) return
     const s = db.getSummary() || {}
+    const dueStats = db.reviewDueStats()
+    const due = dueStats ? dueStats.due : 0
     const goal = Number(db.getSetting('daily_goal') || 0)
-    const body = `今日已刷 ${s.today || 0} 题${goal ? `，目标 ${goal} 题` : ''}；错题本待复习 ${s.wrongCount || 0} 题。`
+    const body = `今日已刷 ${s.today || 0} 题${goal ? `，目标 ${goal} 题` : ''}；错题本待复习 ${s.wrongCount || 0} 题，今日到期 ${due} 题。`
     if (Notification.isSupported()) {
       new Notification({ title: '学习提醒 📚', body }).show()
       db.setSetting('last_remind_date', dateStr())
@@ -153,6 +182,37 @@ function scheduleAutoSync() {
   }
   setTimeout(silentSync, 3000)
   setInterval(silentSync, 60 * 60 * 1000)
+}
+
+// ---- 自动更新（electron-updater）：仅打包版启用；发现新版本自动下载，退出时安装 ----
+function setupAutoUpdater() {
+  try {
+    if (!app.isPackaged) { logger.info('auto-updater: 开发模式跳过'); return }
+    const { autoUpdater } = require('electron-updater')
+    autoUpdater.autoDownload = true
+    autoUpdater.autoInstallOnAppQuit = true
+    autoUpdater.on('update-available', (info) => {
+      logger.info('auto-updater: 发现新版本', info && info.version)
+      try {
+        if (Notification.isSupported()) {
+          new Notification({ title: '发现新版本 🚀', body: `v${info.version} 已开始下载，完成后退出应用即自动安装。` }).show()
+        }
+      } catch (e) { /* 忽略 */ }
+    })
+    autoUpdater.on('update-downloaded', (info) => {
+      try {
+        if (Notification.isSupported()) {
+          new Notification({ title: '更新已就绪 ✅', body: `v${info.version} 下载完成，退出应用后将自动安装。` }).show()
+        }
+      } catch (e) { /* 忽略 */ }
+    })
+    autoUpdater.on('error', (e) => logger.error('auto-updater 失败', e && e.message))
+    setTimeout(() => { try { autoUpdater.checkForUpdates() } catch (e) {} }, 10000)
+    setInterval(() => { try { autoUpdater.checkForUpdates() } catch (e) {} }, 6 * 3600 * 1000)
+    logger.info('auto-updater: 已启用')
+  } catch (e) {
+    logger.error('auto-updater 未启用', e && e.message)
+  }
 }
 
 function startReminderLoop() {
@@ -195,6 +255,12 @@ ipcMain.handle('getStats', () => db.getStats())
 ipcMain.handle('getSummary', () => db.getSummary())
 ipcMain.handle('getWeeklyTrend', () => db.getWeeklyTrend())
 ipcMain.handle('getMonthlyCalendar', (e, year, month) => db.getMonthlyCalendar(year, month))
+ipcMain.handle('getActivityHeatmap', (e, days) => db.getActivityHeatmap(days))
+ipcMain.handle('markMastered', (e, questionId) => db.markMastered(questionId))
+ipcMain.handle('rateReview', (e, questionId, quality) => db.rateReview(questionId, quality))
+ipcMain.handle('getReviewCurve', (e, days) => db.getReviewCurve(days))
+ipcMain.handle('exportAllZip', () => db.exportAllZip())
+ipcMain.handle('getKbGraph', () => db.getKbGraph())
 ipcMain.handle('getRecentRecords', (e, limit) => db.getRecentRecords(limit))
 ipcMain.handle('clearUserData', () => db.clearUserData())
 ipcMain.handle('exportData', () => db.exportData())
@@ -349,6 +415,15 @@ ipcMain.handle('xpDetail', () => db.xpDetail())
 ipcMain.handle('reviewDueStats', () => db.reviewDueStats())
 ipcMain.handle('saveKbScroll', (e, docId, page) => db.saveKbScroll(docId, page))
 ipcMain.handle('listBackups', () => db.listBackups())
+ipcMain.handle('cleanupOrphanImages', () => db.cleanupOrphanImages())
+ipcMain.handle('getDbStatus', () => db.getDbStatus())
+ipcMain.handle('getWeakPoints', (e, limit) => db.getWeakPoints(limit))
+ipcMain.handle('getCategoryAccuracy', () => db.getCategoryAccuracy())
+ipcMain.handle('saveAudio', (e, buf, ext) => db.saveAudio(buf, ext))
+ipcMain.handle('getAudioUrl', (e, name) => db.getAudioUrl(name))
+ipcMain.handle('exportWrongBook', () => db.exportWrongBookMarkdown())
+ipcMain.handle('exportNotes', () => db.exportNotesMarkdown())
+ipcMain.handle('openPath', (e, p) => { try { shell.openPath(p) } catch (err) { logger.error('openPath 失败 ' + (err && err.message)) } })
 ipcMain.handle('restoreBackup', (e, file) => {
   const r = db.restoreBackup(file)
   if (r.ok) setTimeout(() => { try { app.relaunch(); app.exit(0) } catch (err) { app.exit(0) } }, 600)
@@ -473,33 +548,87 @@ ipcMain.handle('syncDisconnect', () => {
   return { ok: true }
 })
 
-// 同步编排：pull 合并 → push 全量（收敛模型，保证多设备最终一致）。失败自动重试 2 次。
+// 同步编排（增量 + 多文件分块）：
+//   1) 先抓取「本地自上次同步后的增量」——必须在拉取远端并合并之前，避免把远端行重复导出；
+//   2) 拉远端并合并进本地（让本机 app 看到远端数据）；
+//   3) 把本地增量合并进「现有 gist 完整快照」得到新完整快照（保持收敛模型，pull 端 mergeRemote 照常工作）；
+//   4) 分块编码上传，绕开 Gist 单文件 1MB 上限。
+// 失败自动重试 2 次。
 async function runSync(quiet = false) {
   const token = loadToken()
   if (!token) throw new Error('未连接 GitHub，请先在「云同步」中连接')
   let gistId = db.getSetting('sync_gist_id')
+  const lastSync = Number(db.getSetting('sync_last_sync') || 0)
 
-  // 1) 拉远端并合并进本地（若无 gistId 说明还没建过，跳过 pull）
+  // 1) 本地增量（首次 lastSync=0 → exportSync 返回全量）；图片二进制单独导出（不再内嵌快照）
+  const localInc = db.exportSync(lastSync)
+  const localImages = db.exportImageFiles(lastSync)
+
+  // 2) 拉远端并合并进本地（返回各表合并数量，供 UI 展示摘要）
+  let gistContent = null
+  let oldFileKeys = []
   let merge = null
+  let oldImgManifest = null
   if (gistId) {
     const g = await syncGithub.getGist(token, gistId)
-    if (g.content) merge = db.mergeRemote(g.content)
+    if (g.content) { merge = db.mergeRemote(g.content); gistContent = g.content }
+    if (g.images && g.images.length) db.restoreImages(g.images.map(im => ({ name: im.name, b64: im.buffer.toString('base64') }))) // 还原远端图片到本地图床
+    oldFileKeys = g.fileKeys || []
+    oldImgManifest = g.imgManifest || null
   }
 
-  // 2) 导出本地全量快照，压缩后推送（TKZ1: gzip+base64，绕开 Gist 1MB 截断）
-  const local = db.exportSync()
-  const payload = syncGithub.encodeSnapshot(local)
+  // 3) 本地增量并入现有 gist 快照（无 gist 时 localInc 即全量）
+  let full
+  if (gistContent) {
+    const existing = JSON.parse(gistContent)
+    full = syncMerge.mergeSnapshots(existing, localInc)
+  } else {
+    full = localInc
+  }
+
+  // 4) 快照 JSON 分块编码（已不含图片 base64，体积大幅瘦身）
+  const { files: jsonChunks, count } = syncGithub.encodeSnapshotChunks(JSON.stringify(full))
+
+  // 5) 图片独立文件编码；未变更（hash 一致且远端文件仍在）的图片跳过重传
+  const { files: imgFiles, index } = syncGithub.encodeImageFiles(localImages)
+  const oldImgKeys = new Set(oldFileKeys.filter(k => k.startsWith(syncGithub.IMG_PREFIX) && k !== syncGithub.IMG_INDEX))
+  const oldEntries = new Map((oldImgManifest && oldImgManifest.entries || []).map(e => [e.name, e]))
+  for (const e of (JSON.parse(index).entries || [])) {
+    const old = oldEntries.get(e.name)
+    if (old && old.hash === e.hash) {
+      const keys = e.parts > 1
+        ? Array.from({ length: e.parts }, (_, i) => `${e.key}.${i}`)
+        : [e.key]
+      if (keys.every(k => oldImgKeys.has(k))) keys.forEach(k => oldImgKeys.delete(k)) // 命中→跳过重传
+    }
+  }
+  const uploadFiles = {
+    ...jsonChunks,
+    ...imgFiles,
+    [syncGithub.IMG_INDEX]: { content: index }
+  }
+  // 需删除的旧文件：旧分块 + 旧单文件 + 未被跳过的旧图片（清单始终重写，不入删除集）
+  const deleteKeys = oldFileKeys.filter(k =>
+    k.startsWith(syncGithub.CHUNK_BASE) ||
+    k === syncGithub.FILE ||
+    oldImgKeys.has(k)
+  )
+
   if (!gistId) {
-    const r = await syncGithub.createGist(token, payload)
+    const r = await syncGithub.createGist(token, uploadFiles)
     gistId = r.gistId
     db.setSetting('sync_gist_id', gistId)
   } else {
-    await syncGithub.updateGist(token, gistId, payload)
+    await syncGithub.updateGist(token, gistId, uploadFiles, deleteKeys)
   }
 
   const now = Date.now()
   db.setSetting('sync_last_sync', String(now))
-  return { ok: true, lastSync: now, gistId, merge }
+  logger.info('runSync 完成', {
+    chunks: count, images: localImages.length,
+    mergedQuestions: merge && merge.questions, conflicts: merge && merge.conflicts
+  })
+  return { ok: true, lastSync: now, gistId, chunks: count, images: localImages.length, merge }
 }
 
 ipcMain.handle('syncNow', async () => {

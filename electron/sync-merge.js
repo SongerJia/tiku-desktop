@@ -75,4 +75,70 @@ function mergeTables(local, remote) {
   return { categories, questions, answerRecords, wrongBooks, favorites, notes }
 }
 
-module.exports = { indexByCid, pickWinner, lwwMerge, applyFk, mergeTables }
+// 快照级合并：把「本地增量快照」并入「现有 gist 完整快照」，产出新的完整快照。
+// 用于推送时保持 gist 始终是包含多端数据的完整收敛态（pull 端 mergeRemote 依旧照常工作）。
+// 规则与 mergeRemote/db.js 完全一致：client_id 身份 + updated_at 大者胜（相等取 incoming）。
+//
+// 快照结构（见 db.js exportSync）：
+//   - ARRAY_TABLES：含 client_id 的行数组，逐行 LWW
+//   - DOC_SCOPED：{ [docCid]: 行数组 }，按所属文档的 LWW 胜者整体取用（文档级重建）
+//   - SET_KEYS：无 client_id、按业务键去重的数组（incoming 覆盖 existing）
+const SNAP_ARRAY_TABLES = [
+  'categories', 'questions', 'answerRecords', 'wrongBooks', 'favorites', 'notes',
+  'papers', 'paperQuestions', 'xpLogs', 'habits', 'habitChecks', 'reviewLogs',
+  'focusSessions', 'cards', 'materials', 'kbDocs', 'kbHighlights', 'kbDocLinks'
+]
+const SNAP_DOC_SCOPED = ['kbBlocksByCid', 'kbTagsByCid', 'kbLinksByCid']
+const SNAP_SET_KEYS = [
+  { key: 'questionTags', idOf: (r) => r.tag + '|' + r.question_cid },
+  { key: 'kbFiles', idOf: (r) => r.relPath }
+]
+
+function mergeByKey(existingArr, incomingArr, idOf) {
+  const map = new Map()
+  for (const r of existingArr || []) if (r) map.set(idOf(r), r)
+  for (const r of incomingArr || []) if (r) map.set(idOf(r), r) // incoming 覆盖
+  return Array.from(map.values())
+}
+
+function mergeSnapshots(existing, incoming) {
+  existing = existing || {}
+  incoming = incoming || {}
+  const out = { ...existing } // 先以 existing 为基底，下面逐键覆盖
+
+  // 1) 行数组表：逐 client_id LWW
+  for (const key of SNAP_ARRAY_TABLES) {
+    out[key] = lwwMerge(existing[key] || [], incoming[key] || [])
+  }
+
+  // 2) 文档作用域子表：按所属文档 LWW 胜者整体取用
+  const eDocs = indexByCid(existing.kbDocs)
+  const iDocs = indexByCid(incoming.kbDocs)
+  for (const key of SNAP_DOC_SCOPED) {
+    const eMap = existing[key] || {}
+    const iMap = incoming[key] || {}
+    const merged = {}
+    const cids = new Set([...Object.keys(eMap), ...Object.keys(iMap)])
+    for (const cid of cids) {
+      const winnerDoc = pickWinner(eDocs.get(cid), iDocs.get(cid))
+      const src = winnerDoc === iDocs.get(cid) ? iMap[cid] : eMap[cid]
+      if (Array.isArray(src) && src.length) merged[cid] = src
+    }
+    out[key] = merged
+  }
+
+  // 3) 按业务键去重（incoming 覆盖）
+  for (const { key, idOf } of SNAP_SET_KEYS) {
+    out[key] = mergeByKey(existing[key], incoming[key], idOf)
+  }
+
+  // 4) 元信息取较新一方；保留 existing/incoming 中其它未知键
+  out.version = incoming.version || existing.version
+  out.kind = incoming.kind || existing.kind
+  out.exportedAt = incoming.exportedAt || existing.exportedAt
+  for (const k of Object.keys(existing)) if (!(k in out)) out[k] = existing[k]
+  for (const k of Object.keys(incoming)) if (!(k in out)) out[k] = incoming[k]
+  return out
+}
+
+module.exports = { indexByCid, pickWinner, lwwMerge, applyFk, mergeTables, mergeSnapshots }
