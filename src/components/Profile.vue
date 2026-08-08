@@ -13,6 +13,7 @@ import ChapterProgress from './ChapterProgress.vue'
 import AboutModal from './AboutModal.vue'
 import BackupModal from './BackupModal.vue'
 import XpDetailModal from './XpDetailModal.vue'
+import CategoryManager from './CategoryManager.vue'
 
 const emit = defineEmits(['reset', 'start', 'open-bank'])
 
@@ -37,6 +38,7 @@ const showChapter = ref(false)
 const showAbout = ref(false)
 const showBackup = ref(false)
 const showXpDetail = ref(false)
+const showCats = ref(false)
 
 onMounted(async () => {
   try {
@@ -571,6 +573,11 @@ onMounted(async () => {
         <span class="sub">自动备份列表 · 一键恢复</span>
         <span class="arrow">›</span>
       </div>
+      <div class="list-item" @click="showCats = true">
+        <span class="title">科目管理</span>
+        <span class="sub">新建 / 改名 / 删除科目与章节</span>
+        <span class="arrow">›</span>
+      </div>
       <div class="list-item" @click="cleanupImages">
         <span class="title">清理无用图片</span>
         <span class="sub">回收未使用的题图，释放存储空间</span>
@@ -650,6 +657,7 @@ onMounted(async () => {
     <ChapterProgress :show="showChapter" @close="showChapter = false" />
     <AboutModal :show="showAbout" @close="showAbout = false" />
     <BackupModal :show="showBackup" @close="showBackup = false" />
+    <CategoryManager :show="showCats" @close="showCats = false" />
     <XpDetailModal :show="showXpDetail" @close="showXpDetail = false" />
   </div>
 </template>
