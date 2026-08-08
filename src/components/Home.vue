@@ -215,8 +215,44 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
       <div class="focus-sub">本周目标 7 小时 · 每专注 25 分钟休息一下 🌿</div>
     </div>
 
-    <!-- 近 7 天学习趋势 -->
-    <div class="card trend-card" v-if="weeklyTrend.length">
+    <!-- 近 7 天趋势 + 学习日历（都有数据时左右两块） -->
+    <div v-if="weeklyTrend.length && heatmap.length" class="card duo-card">
+      <div class="duo-row">
+        <div class="duo-block">
+          <div class="duo-title"><Icon name="stats" :size="14"/> 近 7 天答题趋势</div>
+          <svg class="trend-svg" viewBox="0 0 280 96" preserveAspectRatio="xMidYMid meet">
+            <line x1="6" y1="84" x2="274" y2="84" stroke="var(--line)" stroke-width="1"/>
+            <g v-for="(b, i) in trendBars" :key="i">
+              <rect
+                :x="14 + i * 38" :y="84 - b.h" width="24" :height="b.h"
+                :rx="b.h ? 4 : 0"
+                :fill="b.isToday ? 'var(--brand)' : 'rgba(91,124,250,0.42)'"
+              />
+              <text v-if="b.count" :x="26 + i * 38" :y="80 - b.h" text-anchor="middle" class="trend-v">{{ b.count }}</text>
+              <text :x="26 + i * 38" y="96" text-anchor="middle" class="trend-x" :class="{ on: b.isToday }">{{ b.label }}</text>
+            </g>
+          </svg>
+        </div>
+        <div class="duo-block">
+          <div class="duo-title"><Icon name="fire" :size="14"/> 学习日历 <span class="heat-streak">🔥 连续 {{ heatStreak }} 天</span></div>
+          <div class="heat-grid">
+            <div
+              v-for="(d, i) in heatmap"
+              :key="i"
+              class="heat-cell"
+              :class="'lvl-' + heatLevel(d.count)"
+              :title="d.date + (d.isToday ? '（今天）' : '') + ' · ' + d.count + ' 题' + (d.focus ? ' · 专注 ' + d.focus + ' 分钟' : '')"
+            ></div>
+          </div>
+          <div class="heat-legend">
+            <span class="lg-text">少</span>
+            <i class="heat-cell lvl-0"></i><i class="heat-cell lvl-1"></i><i class="heat-cell lvl-2"></i><i class="heat-cell lvl-3"></i><i class="heat-cell lvl-4"></i>
+            <span class="lg-text">多</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div v-else-if="weeklyTrend.length" class="card trend-card">
       <div class="card-title"><Icon name="stats" :size="14"/> 近 7 天答题趋势</div>
       <svg class="trend-svg" viewBox="0 0 280 96" preserveAspectRatio="xMidYMid meet">
         <line x1="6" y1="84" x2="274" y2="84" stroke="var(--line)" stroke-width="1"/>
@@ -230,6 +266,26 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
           <text :x="26 + i * 38" y="96" text-anchor="middle" class="trend-x" :class="{ on: b.isToday }">{{ b.label }}</text>
         </g>
       </svg>
+    </div>
+    <div v-else-if="heatmap.length" class="card heat-card">
+      <div class="card-title">
+        <Icon name="fire" :size="14"/> 学习日历
+        <span class="heat-streak">🔥 连续打卡 {{ heatStreak }} 天</span>
+      </div>
+      <div class="heat-grid">
+        <div
+          v-for="(d, i) in heatmap"
+          :key="i"
+          class="heat-cell"
+          :class="'lvl-' + heatLevel(d.count)"
+          :title="d.date + (d.isToday ? '（今天）' : '') + ' · ' + d.count + ' 题' + (d.focus ? ' · 专注 ' + d.focus + ' 分钟' : '')"
+        ></div>
+      </div>
+      <div class="heat-legend">
+        <span class="lg-text">少</span>
+        <i class="heat-cell lvl-0"></i><i class="heat-cell lvl-1"></i><i class="heat-cell lvl-2"></i><i class="heat-cell lvl-3"></i><i class="heat-cell lvl-4"></i>
+        <span class="lg-text">多</span>
+      </div>
     </div>
 
     <!-- 薄弱点 TopN + 薄弱章节 -->
@@ -251,28 +307,6 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
         </div>
       </div>
       <div v-if="!weakPoints.length && !weakAccuracy.length" class="weak-empty">暂无薄弱点，继续保持！</div>
-    </div>
-
-    <!-- 学习日历热力图 -->
-    <div class="card heat-card" v-if="heatmap.length">
-      <div class="card-title">
-        <Icon name="fire" :size="14"/> 学习日历
-        <span class="heat-streak">🔥 连续打卡 {{ heatStreak }} 天</span>
-      </div>
-      <div class="heat-grid">
-        <div
-          v-for="(d, i) in heatmap"
-          :key="i"
-          class="heat-cell"
-          :class="'lvl-' + heatLevel(d.count)"
-          :title="d.date + (d.isToday ? '（今天）' : '') + ' · ' + d.count + ' 题' + (d.focus ? ' · 专注 ' + d.focus + ' 分钟' : '')"
-        ></div>
-      </div>
-      <div class="heat-legend">
-        <span class="lg-text">少</span>
-        <i class="heat-cell lvl-0"></i><i class="heat-cell lvl-1"></i><i class="heat-cell lvl-2"></i><i class="heat-cell lvl-3"></i><i class="heat-cell lvl-4"></i>
-        <span class="lg-text">多</span>
-      </div>
     </div>
 
     <!-- 每日任务 Quest -->
@@ -573,6 +607,14 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
 /* 学习日历热力图（GitHub 风格） */
 .heat-card { max-width: 100%; }
 .heat-streak { margin-left: auto; font-size: 12px; color: var(--brand); font-weight: 600; }
+/* 左右并排（duo 容器）时热力图紧凑化 */
+.duo-block .duo-title { display: flex; align-items: center; gap: 4px; }
+.duo-block .heat-streak { font-size: 11px; }
+.duo-block .heat-grid {
+  grid-template-rows: repeat(7, 10px);
+  grid-auto-columns: 10px;
+}
+.duo-block .heat-cell { width: 10px; height: 10px; }
 .heat-grid {
   display: grid;
   grid-template-rows: repeat(7, 12px);
