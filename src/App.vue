@@ -35,7 +35,7 @@ const tabs = [
 const currentTab = ref('home')
 const currentSubject = ref({ id: null, name: '请选择科目' })
 const showSubjectPicker = ref(false)
-const quiz = ref({ active: false, categoryId: null, subjectId: null, mode: 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null, tags: null })
+const quiz = ref({ active: false, categoryId: null, subjectId: null, mode: 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null, tags: null, questionId: null, daily: false })
 // 练习设置弹层：所有「开始刷题」入口先到这里配置范围/方式/考试参数
 const setup = ref({ active: false, categoryId: null, subjectId: null, presetMode: 'practice', scopeLabel: '' })
 // 题库管理（导入/录题/编辑/删除）
@@ -196,7 +196,26 @@ function startQuiz({ categoryId, mode }) {
   quiz.value = { active: true, categoryId, subjectId: null, mode: mode || 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null, tags: null }
 }
 function exitQuiz() {
-  quiz.value = { active: false, categoryId: null, subjectId: null, mode: 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null, tags: null }
+  quiz.value = { active: false, categoryId: null, subjectId: null, mode: 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null, tags: null, questionId: null, daily: false }
+  homeRefresh.value++ // 答题回来刷新首页（每日一题卡片状态等）
+}
+
+// 每日一题：直接进入该题作答（跳过练习设置弹层），答完由 Quiz 自动提交连击
+function startDailyPuzzle(question) {
+  quiz.value = {
+    active: true,
+    categoryId: question.category_id || null,
+    subjectId: null,
+    mode: 'practice',
+    order: 'sequential',
+    limit: 1,
+    durationMin: null,
+    recite: false,
+    paperId: null,
+    tags: null,
+    questionId: question.id,
+    daily: true
+  }
 }
 
 // 模拟卷：组卷生成后直接用 paperId 进入考试模式
@@ -306,12 +325,14 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
           :paperId="quiz.paperId"
           :tags="quiz.tags"
           :resume="quiz.resume"
+          :questionId="quiz.questionId"
+          :daily="quiz.daily"
           @exit="exitQuiz"
         />
         <template v-else>
           <Transition name="fade" mode="out-in">
             <div :key="currentTab" class="tab-page">
-              <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" />
+              <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" />
               <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" @start="onStart" />
               <KbLibrary v-else-if="currentTab === 'kb'" />
               <Stats v-else-if="currentTab === 'stats'" />

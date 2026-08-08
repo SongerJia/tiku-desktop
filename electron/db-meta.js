@@ -93,5 +93,75 @@ module.exports = function metaModule(ctx) {
   // ---- 题库管理方法（导入/列表/增删改/统计/导出）已抽到 electron/db-bank.js（init 中合并）----
 
   // ---- 同步/备份方法（导出/增量快照/图片/LWW 合并/导入恢复）已抽到 electron/db-sync.js（init 中合并）----
+
+    // ============ 每日一题 + 连击（settings KV 存储，纯本地激励不进云同步） ============
+    _puzzleDateKey() {
+      const d = new Date()
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+    },
+    _puzzleRead() {
+      try {
+        const r = sqlite.prepare("SELECT value FROM settings WHERE key='daily_puzzle'").get()
+        return r && r.value ? JSON.parse(r.value) : {}
+      } catch (e) { return {} }
+    },
+    _puzzleSave(st) {
+      sqlite.prepare("INSERT OR REPLACE INTO settings (key,value) VALUES ('daily_puzzle',?)").run(JSON.stringify(st))
+    },
+
+    // 取今日题：当天已选过则返回原题（含已答结果）；跨天自动换新题，
+    // 昨天未答则连击清零，期数 +1。选题优先近期错题，否则随机（全题型，主观题答完自评）。
+    getDailyPuzzle() {
+      const today = this._puzzleDateKey()
+      const st = this._puzzleRead()
+      if (st.date === today && st.qid) {
+        const q = this.getQuestionById(st.qid)
+        if (q) { q.categoryName = this._puzzleCatName(q.category_id); return { question: q, state: st } }
+        // 题被删了 → 重新选
+      }
+      if (st.date && !st.answered) st.streak = 0 // 昨天没答，连击清零
+      const period = (st.period || 0) + 1
+      const q = this._pickDailyQuestion(st.qid)
+      if (!q) return { question: null, state: { date: today, qid: null, answered: false, correct: null, streak: st.streak || 0, bestStreak: st.bestStreak || 0, period } }
+      const ns = { date: today, qid: q.id, answered: false, correct: null, streak: st.streak || 0, bestStreak: st.bestStreak || 0, period, lastAnswerDate: st.lastAnswerDate || null }
+      this._puzzleSave(ns)
+      q.categoryName = this._puzzleCatName(q.category_id)
+      return { question: q, state: ns }
+    },
+
+    // 提交今日作答：答对连击 +1（刷新最佳），答错不涨不清零；仅当天未答可提交。
+    submitDailyPuzzle(questionId, correct) {
+      const today = this._puzzleDateKey()
+      const st = this._puzzleRead()
+      if (!st.qid || String(st.qid) !== String(questionId)) return { ok: false, error: '不是今日题目' }
+      if (st.answered) return { ok: false, error: '今日已作答' }
+      st.answered = true
+      st.correct = !!correct
+      st.lastAnswerDate = today
+      if (correct) {
+        st.streak = (st.streak || 0) + 1
+        st.bestStreak = Math.max(st.bestStreak || 0, st.streak)
+      }
+      this._puzzleSave(st)
+      return { ok: true, state: st }
+    },
+
+    _pickDailyQuestion(excludeId) {
+      // 优先近期错题（主观题也合适，答完自评）
+      const wrong = sqlite.prepare(
+        "SELECT w.question_id FROM wrong_books w JOIN questions q ON q.id=w.question_id " +
+        "WHERE w.user_id=? AND w.status='wrong' AND w.deleted=0 AND q.deleted=0 ORDER BY RANDOM() LIMIT 1"
+      ).get(LOCAL_USER)
+      if (wrong) return sqlite.prepare('SELECT * FROM questions WHERE id=? AND deleted=0').get(wrong.question_id)
+      return excludeId
+        ? sqlite.prepare('SELECT * FROM questions WHERE deleted=0 AND id<>? ORDER BY RANDOM() LIMIT 1').get(excludeId)
+        : sqlite.prepare('SELECT * FROM questions WHERE deleted=0 ORDER BY RANDOM() LIMIT 1').get()
+    },
+
+    _puzzleCatName(categoryId) {
+      if (!categoryId) return ''
+      const r = sqlite.prepare('SELECT name FROM categories WHERE id=?').get(categoryId)
+      return r ? r.name : ''
+    }
   }
 }

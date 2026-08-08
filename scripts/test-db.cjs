@@ -371,6 +371,23 @@ try {
   db.clearUserData()
   ok('clearUserData 清空学习数据', db.getSummary().today === 0 && db.getWrongBook().length === 0 && db.listNotes().length === 0)
 
+  // 28) 每日一题 + 连击（db-meta.js）
+  const dp1 = db.getDailyPuzzle()
+  const todayKey = db._puzzleDateKey()
+  ok('getDailyPuzzle 返回题目+未答状态', !!dp1.question && dp1.state && dp1.state.date === todayKey && dp1.state.answered === false)
+  const dr1 = db.submitDailyPuzzle(dp1.question.id, true)
+  ok('submitDailyPuzzle 答对连击+1', dr1.ok === true && dr1.state.answered === true && dr1.state.streak === 1 && dr1.state.bestStreak === 1)
+  const dr2 = db.submitDailyPuzzle(dp1.question.id, false)
+  ok('submitDailyPuzzle 重复提交拒绝', dr2.ok === false)
+  const dp1b = db.getDailyPuzzle()
+  ok('getDailyPuzzle 当天返回已答结果', dp1b.state.answered === true && dp1b.state.streak === 1)
+  // 模拟跨天且昨天未答 → 连击清零、期数 +1、换新题
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+  db.setSetting('daily_puzzle', JSON.stringify({ date: yesterday, qid: dp1.question.id, answered: false, correct: null, streak: 5, bestStreak: 9, period: 3 }))
+  const dp2 = db.getDailyPuzzle()
+  ok('getDailyPuzzle 跨天未答连击清零+期数+1', dp2.state.streak === 0 && dp2.state.period === 4 && dp2.state.date !== yesterday)
+  ok('getDailyPuzzle 跨天换新题', !!dp2.question && dp2.question.id !== dp1.question.id)
+
   console.log(`\ndb 集成测试：${pass} 通过 / ${fail} 失败`)
 } catch (e) {
   fail++

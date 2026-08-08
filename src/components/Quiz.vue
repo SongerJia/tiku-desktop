@@ -22,6 +22,10 @@ const props = defineProps({
   paperId: { default: null },
   // 标签筛选：仅练习带指定标签的题（AND 语义，由 db 层解析）
   tags: { default: null },
+  // 每日一题等指定单题：传题 id 时直接作答该题（与随机抽题互斥）
+  questionId: { default: null },
+  // 每日一题标记：答完自动把结果提交给每日一题连击
+  daily: { default: false },
   wide: { default: false },
   // 断点续做：传 { questions, idx } 直接恢复练习
   resume: { default: null }
@@ -179,6 +183,10 @@ onMounted(async () => {
     const paper = await tiku.getPaper(props.paperId)
     list = (paper.questions || []).map(p => ({ ...p, id: p.questionId, paperScore: p.score }))
     paperScore.value = paper.totalScore || 0
+  } else if (props.questionId) {
+    // 每日一题等指定单题：直接取该题作答
+    const q = await tiku.getQuestionById(Number(props.questionId))
+    list = q ? [q] : []
   } else {
     list = await tiku.getQuestions({
       categoryId: props.categoryId,
@@ -245,6 +253,12 @@ function submitEssayDraft() {
 }
 
 // 问答题：用户自评对错（selfGrade 决定本题是否计入正确）
+async function reportDailyIfNeeded(correct) {
+  if (props.daily && q.value) {
+    try { await tiku.submitDailyPuzzle(q.value.id, correct) } catch (e) { /* 提交失败不影响答题 */ }
+  }
+}
+
 async function submitEssay(grade) {
   if (!q.value || result.value) return
   const res = await tiku.submitAnswer({
@@ -255,6 +269,7 @@ async function submitEssay(grade) {
     selfGrade: grade
   })
   result.value = res
+  await reportDailyIfNeeded(res.isCorrect)
   results.value = { ...results.value, [idx.value]: res }
   if (res.isCorrect) {
     sessionCorrect.value++
@@ -281,6 +296,7 @@ async function submit() {
     mode: props.mode
   })
   result.value = res
+  await reportDailyIfNeeded(res.isCorrect)
   results.value = { ...results.value, [idx.value]: res }
   celebrate() // 成就/升级即时庆祝
   if (res.isCorrect) {

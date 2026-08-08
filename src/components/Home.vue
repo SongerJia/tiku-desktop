@@ -9,11 +9,14 @@ import ReviewPanel from './ReviewPanel.vue'
 import CardsPanel from './CardsPanel.vue'
 
 const props = defineProps({ subject: Object, refreshKey: { default: 0 } })
-const emit = defineEmits(['start', 'start-mock', 'goto'])
+const emit = defineEmits(['start', 'start-mock', 'goto', 'daily'])
 
 const summary = ref({ total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0 })
 const dailyGoal = ref(0)
 const loading = ref(true)
+// 每日一题：{ question, state } state: { date, qid, answered, correct, streak, bestStreak, period }
+const dailyPuzzle = ref(null)
+const dailyAnalysisOpen = ref(false)
 const weeklyTrend = ref([])
 const heatmap = ref([])
 const heatStreak = computed(() => summary.value.streak || 0)
@@ -80,7 +83,16 @@ async function load() {
   try { heatmap.value = await tiku.getActivityHeatmap(120) } catch (e) { heatmap.value = [] }
   try { examDate.value = (await tiku.getSetting('exam_date')) || '' } catch (e) { examDate.value = '' }
   try { weakAccuracy.value = (await tiku.getCategoryAccuracy()).slice(0, 3) } catch (e) { weakAccuracy.value = [] }
+  try { dailyPuzzle.value = await tiku.getDailyPuzzle() } catch (e) { dailyPuzzle.value = null }
+  dailyAnalysisOpen.value = false
   loading.value = false
+}
+
+function typeLabel(t) {
+  return ({ single: '单选题', multiple: '多选题', judge: '判断题', essay: '问答题' })[t] || t || '未知'
+}
+function startDaily() {
+  if (dailyPuzzle.value && dailyPuzzle.value.question) emit('daily', dailyPuzzle.value.question)
 }
 
 async function toggleHabit(h) {
@@ -173,6 +185,42 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
       </div>
       <div class="goal-bar"><div class="goal-fill" :style="{ width: goalPct + '%' }"></div></div>
       <div class="goal-sub">{{ goalPct >= 100 ? '🎉 今日目标已达成！' : '还差 ' + Math.max(0, dailyGoal - summary.today) + ' 题，去刷几道吧' }}</div>
+    </div>
+
+    <!-- 每日一题 + 连击 -->
+    <div class="card daily-card" v-if="dailyPuzzle && dailyPuzzle.question">
+      <div class="daily-head">
+        <span class="daily-title">每日一题 · 第 {{ dailyPuzzle.state.period || 1 }} 期</span>
+        <span class="daily-streak" v-if="dailyPuzzle.state.streak">🔥 连续 {{ dailyPuzzle.state.streak }} 天</span>
+        <span class="daily-streak muted" v-else>今日打卡赢连击</span>
+      </div>
+      <div class="daily-tags">
+        <span class="daily-tag" v-if="dailyPuzzle.question.categoryName">{{ dailyPuzzle.question.categoryName }}</span>
+        <span class="daily-tag">{{ typeLabel(dailyPuzzle.question.type) }}</span>
+      </div>
+      <p class="daily-stem">{{ dailyPuzzle.question.stem }}</p>
+
+      <template v-if="!dailyPuzzle.state.answered">
+        <button class="btn btn-primary" @click="startDaily">开始作答</button>
+        <p class="daily-note">每天一道题 · 答对攒连击，隔天未答会清零</p>
+      </template>
+      <template v-else>
+        <div class="daily-result" :class="dailyPuzzle.state.correct ? 'ok' : 'bad'">
+          {{ dailyPuzzle.state.correct ? '答对了' : '答错了' }} · 本题考「{{ dailyPuzzle.question.categoryName || '本知识点' }}」
+          <span class="daily-best" v-if="dailyPuzzle.state.bestStreak">最佳连击 {{ dailyPuzzle.state.bestStreak }} 天</span>
+        </div>
+        <div class="daily-actions">
+          <button class="btn" @click="dailyAnalysisOpen = !dailyAnalysisOpen">{{ dailyAnalysisOpen ? '收起解析' : '查看解析' }}</button>
+          <button class="btn btn-primary" @click="startDaily">重做一遍</button>
+        </div>
+        <div v-if="dailyAnalysisOpen" class="daily-analysis">
+          <div class="ans-line" v-if="dailyPuzzle.question.answer && dailyPuzzle.question.answer.length">
+            <b>参考答案：</b>{{ dailyPuzzle.question.answer.join('、') }}
+          </div>
+          <div v-if="dailyPuzzle.question.analysis"><b>解析：</b>{{ dailyPuzzle.question.analysis }}</div>
+        </div>
+        <p class="daily-note">明天 0 点换新题，坚持每天打卡</p>
+      </template>
     </div>
 
     <!-- 考试倒计时 + 专注概览（都有数据时左右两块，风格同下方 duo-card） -->
@@ -654,4 +702,23 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
 .focus-bar { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
 .focus-fill { height: 100%; border-radius: 999px; background: var(--brand); transition: width .4s ease; }
 .focus-sub { font-size: 11px; color: var(--muted); }
+
+/* 每日一题 + 连击 */
+.daily-card { display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(91, 124, 250, 0.35); }
+.daily-head { display: flex; align-items: center; justify-content: space-between; }
+.daily-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.daily-streak { font-size: 12px; color: var(--warn); font-weight: 600; }
+.daily-streak.muted { color: var(--muted); font-weight: 400; }
+.daily-tags { display: flex; gap: 6px; }
+.daily-tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; }
+.daily-stem { font-size: 14px; line-height: 1.6; color: var(--text); margin: 2px 0 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.daily-note { font-size: 11px; color: var(--muted); }
+.daily-result { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 8px 12px; border-radius: 8px; }
+.daily-result.ok { background: rgba(44, 229, 168, 0.1); color: var(--ok); }
+.daily-result.bad { background: rgba(255, 77, 109, 0.1); color: var(--bad); }
+.daily-best { margin-left: auto; font-size: 11px; color: var(--muted); }
+.daily-actions { display: flex; gap: 10px; }
+.daily-analysis { font-size: 13px; color: var(--text); background: var(--bg-soft, rgba(127, 127, 127, 0.06)); border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; line-height: 1.7; }
+.daily-analysis b { color: var(--brand); }
+.ans-line { margin-bottom: 4px; }
 </style>
