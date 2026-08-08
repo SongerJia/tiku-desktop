@@ -134,7 +134,7 @@ onMounted(load)
     <div class="panel">
       <!-- 头部 -->
       <div class="head">
-        <span class="title">单词卡</span>
+        <span class="title">记忆卡</span>
         <span class="stats" v-if="mode === 'list'">共 {{ stats.total }} 张 · 今日到期 {{ dueCount }}</span>
         <div class="spacer"></div>
         <button v-if="mode === 'list' && stats.total" class="btn btn-primary review-btn" @click="startReview">
@@ -147,9 +147,9 @@ onMounted(load)
       <div v-if="mode === 'list'" class="body">
         <!-- 添加/编辑表单 -->
         <div class="add-form">
-          <input v-model="form.front" class="input" placeholder="正面（单词 / 问题）" @keyup.enter="saveCard" />
-          <input v-model="form.back" class="input" placeholder="背面（释义 / 答案）" @keyup.enter="saveCard" />
-          <input v-model="form.category" class="input cat-input" placeholder="分类（如：雅思核心）" @keyup.enter="saveCard" />
+          <input v-model="form.front" class="input" placeholder="正面（问题 / 考点）" @keyup.enter="saveCard" />
+          <input v-model="form.back" class="input" placeholder="背面（答案 / 解析）" @keyup.enter="saveCard" />
+          <input v-model="form.category" class="input cat-input" placeholder="分类（如：施工许可）" @keyup.enter="saveCard" />
           <button class="btn btn-primary" @click="saveCard">{{ form.id ? '保存修改' : '添加卡片' }}</button>
           <button v-if="form.id" class="btn" @click="startAdd">取消编辑</button>
           <button class="btn" @click="csvInput && csvInput.click()">导入 CSV</button>
@@ -157,7 +157,7 @@ onMounted(load)
         </div>
 
         <div v-if="!cards.length" class="empty">
-          <p>还没有卡片。背单词从第一张开始：<br />在上面输入「单词 + 释义」即可，复习会按遗忘曲线自动安排（记住 3 天再见 / 忘记明天再来）。</p>
+          <p>还没有卡片。从第一张开始：<br />在上面输入「问题 + 答案」即可（也可从错题/题目一键生成），复习会按遗忘曲线自动安排（记住 3 天再见 / 忘记明天再来）。</p>
         </div>
 
         <div v-else class="card-list">

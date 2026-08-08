@@ -389,7 +389,7 @@ onBeforeUnmount(() => {
         </div>
         <div class="more-item" @click="cardsOpen = true">
           <span class="mi-ico cards"><Icon name="bookmark" :size="16"/></span>
-          <span class="mi-main">单词卡</span>
+          <span class="mi-main">记忆卡</span>
           <span v-if="cardStats.due > 0" class="mi-count due">{{ cardStats.due }} 到期</span>
         </div>
       </div>
