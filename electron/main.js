@@ -341,7 +341,7 @@ ipcMain.handle('getAchievements', () => db.getAchievements())
 // ---- 个人知识库（kb_*）：导入编排 + IPC ----
 // 导入策略：原件复制进 userData/kb/（副本，绝不改原件）；同 hash 去重；
 // MD 按标题切块；PDF 用 pdfjs 抽文本，无文本层时降级（空块 + error，靠文件名/标签兜底）。
-async function importKbPaths(filePaths) {
+async function importKbPaths(filePaths, subjectId) {
   const dir = path.join(app.getPath('userData'), 'kb')
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
   const results = []
@@ -371,7 +371,7 @@ async function importKbPaths(filePaths) {
         blocks = r.blocks || []
         error = r.error
       }
-      const docId = db.addKbDoc({ title, type: ext, relPath: rel, size: raw.length, hash, blocks })
+      const docId = db.addKbDoc({ title, type: ext, relPath: rel, size: raw.length, hash, blocks, subjectId: subjectId || null })
       results.push({ ok: true, docId, title, type: ext, blocks: blocks.length, error })
     } catch (e) {
       results.push({ ok: false, file: src, error: String((e && e.message) || e) })
@@ -380,7 +380,7 @@ async function importKbPaths(filePaths) {
   return results
 }
 
-ipcMain.handle('kbImportFiles', async (e, paths) => {
+ipcMain.handle('kbImportFiles', async (e, paths, subjectId) => {
   let filePaths = paths && paths.length ? paths : null
   if (!filePaths) {
     const win = BrowserWindow.getFocusedWindow()
@@ -392,9 +392,9 @@ ipcMain.handle('kbImportFiles', async (e, paths) => {
     if (res.canceled || !res.filePaths.length) return []
     filePaths = res.filePaths
   }
-  return importKbPaths(filePaths)
+  return importKbPaths(filePaths, subjectId)
 })
-ipcMain.handle('kbList', () => db.getKbDocs())
+ipcMain.handle('kbList', (e, subjectId) => db.getKbDocs(subjectId))
 ipcMain.handle('kbGet', (e, id) => db.getKbDoc(id))
 ipcMain.handle('kbUpdate', (e, id, patch) => db.updateKbDoc(id, patch))
 ipcMain.handle('kbDelete', (e, id) => db.deleteKbDoc(id))

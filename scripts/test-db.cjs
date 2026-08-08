@@ -457,6 +457,22 @@ try {
   ok('getQuestions(wrong+subjectId) 按科目过滤错题', wrongA.some(w => w.id === qA.id) && wrongOther.every(w => w.id !== qA.id))
   db.deleteCategory(subA.id) // 级联清理（含错题残留无碍后续）
 
+  // 33) 知识库按科目归类（第二批）
+  const subB = db.addCategory({ name: '科目维度B', parentId: null })
+  const kbDocA = db.addKbDoc({ title: '科目B文档', type: 'md', relPath: 'subj-b.md', size: 3, subjectId: subB.id })
+  const kbDocFree = db.addKbDoc({ title: '未分类文档', type: 'md', relPath: 'free.md', size: 3 })
+  const kbDocsB = db.getKbDocs(subB.id)
+  const kbDocsAll = db.getKbDocs()
+  ok('addKbDoc 带 subjectId 归属科目', kbDocsB.some(d => d.id === kbDocA) && kbDocsB.every(d => d.id !== kbDocFree))
+  ok('getKbDocs(不传) 返回全部', kbDocsAll.some(d => d.id === kbDocFree))
+  db.updateKbDoc(kbDocFree, { subjectId: subB.id })
+  ok('updateKbDoc 改科目归属', db.getKbDocs(subB.id).some(d => d.id === kbDocFree))
+  const exKb = JSON.parse(db.exportData()).kbDocs
+  ok('exportData kbDocs 含 subject_id 列', Array.isArray(exKb) && Object.prototype.hasOwnProperty.call(exKb[0] || {}, 'subject_id'))
+  db.deleteKbDoc(kbDocA)
+  db.deleteKbDoc(kbDocFree)
+  db.deleteCategory(subB.id)
+
   console.log(`\ndb 集成测试：${pass} 通过 / ${fail} 失败`)
 } catch (e) {
   fail++

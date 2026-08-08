@@ -52,12 +52,12 @@ module.exports = function kbModule(ctx) {
       return sqlite.prepare('SELECT id, title, type FROM kb_docs WHERE hash=? AND deleted=0 LIMIT 1').get(hash) || null
     },
 
-    addKbDoc({ title, type = 'md', relPath, size = 0, hash, blocks = [] }) {
+    addKbDoc({ title, type = 'md', relPath, size = 0, hash, blocks = [], subjectId = null }) {
       const now = Date.now()
       const tx = sqlite.transaction(() => {
         const info = sqlite.prepare(
-          'INSERT INTO kb_docs (title, type, rel_path, size, hash, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,0,?)'
-        ).run(title, type, relPath, size, hash || null, now, now, uuid())
+          'INSERT INTO kb_docs (title, type, rel_path, size, hash, subject_id, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,?,0,?)'
+        ).run(title, type, relPath, size, hash || null, subjectId || null, now, now, uuid())
         const docId = info.lastInsertRowid
         const ins = sqlite.prepare(
           'INSERT INTO kb_blocks (doc_id, seq, heading, content, char_start, char_end) VALUES (?,?,?,?,?,?)'
@@ -80,8 +80,11 @@ module.exports = function kbModule(ctx) {
       return { nodes, links }
     },
 
-    getKbDocs() {
-      const rows = sqlite.prepare('SELECT * FROM kb_docs WHERE deleted=0 ORDER BY updated_at DESC').all()
+    getKbDocs(subjectId) {
+      // subjectId 传具体科目 id → 只返回该科目文档；不传/undefined → 全部
+      const rows = (subjectId
+        ? sqlite.prepare('SELECT * FROM kb_docs WHERE deleted=0 AND subject_id=? ORDER BY updated_at DESC').all(subjectId)
+        : sqlite.prepare('SELECT * FROM kb_docs WHERE deleted=0 ORDER BY updated_at DESC').all())
       const tagStmt = sqlite.prepare('SELECT tag FROM kb_tags WHERE doc_id=? ORDER BY tag')
       const linkStmt = sqlite.prepare('SELECT COUNT(*) AS n FROM kb_links WHERE doc_id=?')
       return rows.map(r => ({
@@ -106,8 +109,9 @@ module.exports = function kbModule(ctx) {
       const title = patch.title != null ? String(patch.title) : cur.title
       const hash = patch.hash != null ? String(patch.hash) : cur.hash
       const size = patch.size != null ? Number(patch.size) : cur.size
-      sqlite.prepare('UPDATE kb_docs SET title=?, hash=?, size=?, updated_at=? WHERE id=?')
-        .run(title, hash, size, Date.now(), id)
+      const subjectId = patch.subjectId !== undefined ? (patch.subjectId || null) : cur.subject_id
+      sqlite.prepare('UPDATE kb_docs SET title=?, hash=?, size=?, subject_id=?, updated_at=? WHERE id=?')
+        .run(title, hash, size, subjectId, Date.now(), id)
       return this.getKbDoc(id)
     },
 

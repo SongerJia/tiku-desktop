@@ -328,6 +328,8 @@ module.exports = function schemaModule(ctx) {
     addColumn('cards', 'source_question_id', 'source_question_id INTEGER')
     // 收藏分组（方向 9：收藏面板按组浏览/标记；fav_group 避开 SQL 关键字 group）
     addColumn('favorites', 'fav_group', "fav_group TEXT DEFAULT ''")
+    // 知识库科目关联（第二批：知识库按科目归类，切换科目维度时文档跟随）
+    addColumn('kb_docs', 'subject_id', 'subject_id INTEGER')
   },
   }
 }

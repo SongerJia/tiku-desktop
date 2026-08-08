@@ -7,6 +7,7 @@ import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
 import KbReader from './KbReader.vue'
 
+const props = defineProps({ subject: { type: Object, default: () => ({ id: null, name: '' }) } })
 const docs = ref([])
 const allTags = ref([])
 const tagFilter = ref(null) // null=全部
@@ -14,6 +15,14 @@ const keyword = ref('')
 const loading = ref(true)
 const reader = ref({ show: false, doc: null })
 const editor = ref({ show: false, doc: null, tags: [], title: '', folder: '' })
+// 知识库科目筛选：默认跟随当前科目，可切「全部科目」
+const subjects = ref([])
+const subjectFilter = ref('current') // 'current' | 'all' | 具体科目 id
+const filterSubjectId = computed(() => {
+  if (subjectFilter.value === 'all') return undefined
+  if (subjectFilter.value === 'current') return props.subject.id || undefined
+  return Number(subjectFilter.value) || undefined
+})
 
 let debounceTimer = null
 
@@ -23,7 +32,7 @@ async function loadList() {
     const hits = await tiku.kbSearch(keyword.value.trim(), 50)
     docs.value = hits.map(h => ({ ...h, tags: [], linkCount: 0 }))
   } else {
-    docs.value = await tiku.kbList()
+    docs.value = await tiku.kbList(filterSubjectId.value)
   }
   loading.value = false
 }
@@ -32,8 +41,13 @@ async function loadTags() {
   allTags.value = await tiku.kbTags()
 }
 
+async function loadSubjects() {
+  try { subjects.value = await tiku.getSubjects() } catch (e) { subjects.value = [] }
+}
+
 onMounted(() => {
   loadTags()
+  loadSubjects()
   loadList()
   loadGraph()
 })
@@ -103,7 +117,7 @@ const groupedDocs = computed(() => {
 })
 
 async function onImport() {
-  const res = (await tiku.kbImportFiles()) || []
+  const res = (await tiku.kbImportFiles(null, filterSubjectId.value)) || []
   const ok = res.filter(r => r.ok)
   const dup = res.filter(r => r.duplicated)
   const failed = res.filter(r => !r.ok)
@@ -204,6 +218,25 @@ function fmtTime(ts) {
           @click="tagFilter = tagFilter === t.tag ? null : t.tag"
         >{{ t.tag }}<span class="kb-tag-n">{{ t.n }}</span></button>
       </div>
+      <div class="kb-subj-row">
+        <button
+          class="filter-chip"
+          :class="{ active: subjectFilter === 'current' }"
+          @click="subjectFilter = 'current'; loadList()"
+        >{{ props.subject.name || '当前科目' }}</button>
+        <button
+          class="filter-chip"
+          :class="{ active: subjectFilter === 'all' }"
+          @click="subjectFilter = 'all'; loadList()"
+        >全部科目</button>
+        <button
+          v-for="s in subjects"
+          :key="s.id"
+          class="filter-chip"
+          :class="{ active: subjectFilter === String(s.id) }"
+          @click="subjectFilter = String(s.id); loadList()"
+        >{{ s.name }}</button>
+      </div>
     </div>
 
     <!-- 知识互链图谱 -->
@@ -295,6 +328,7 @@ function fmtTime(ts) {
 .kb-tools .input { flex: 1; }
 .kb-tag-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .kb-tag-n { font-size: 11px; opacity: .7; margin-left: 4px; }
+.kb-subj-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
 
 .kb-grid {
   display: grid;
