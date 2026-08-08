@@ -23,8 +23,15 @@ const filterSubjectId = computed(() => {
   if (subjectFilter.value === 'current') return props.subject.id || undefined
   return Number(subjectFilter.value) || undefined
 })
-// 列表 chips 排除当前科目（已用第一个 chip 标识当前，避免重复）
-const subjectsOther = computed(() => subjects.value.filter(s => s.id !== props.subject.id))
+// 知识库 chips 只负责"筛选范围"，不再独立显示当前科目（顶部选择器已显示）
+// - subjectFilter='current' → 高亮当前科目对应的 chip
+// - subjectFilter='all' → 高亮「全部科目」chip
+// - subjectFilter=具体 id → 高亮该 chip
+const activeChipKey = computed(() => {
+  if (subjectFilter.value === 'current') return props.subject.id
+  if (subjectFilter.value === 'all') return 'all'
+  return Number(subjectFilter.value)
+})
 
 let debounceTimer = null
 
@@ -226,19 +233,14 @@ function fmtTime(ts) {
       <div class="kb-subj-row">
         <button
           class="filter-chip"
-          :class="{ active: subjectFilter === 'current' }"
-          @click="subjectFilter = 'current'; loadList()"
-        >{{ props.subject.name || '当前科目' }}</button>
-        <button
-          class="filter-chip"
-          :class="{ active: subjectFilter === 'all' }"
+          :class="{ active: activeChipKey === 'all' }"
           @click="subjectFilter = 'all'; loadList()"
         >全部科目</button>
         <button
-          v-for="s in subjectsOther"
+          v-for="s in subjects"
           :key="s.id"
           class="filter-chip"
-          :class="{ active: subjectFilter === String(s.id) }"
+          :class="{ active: activeChipKey === s.id }"
           @click="subjectFilter = String(s.id); loadList()"
         >{{ s.name }}</button>
       </div>
