@@ -241,6 +241,7 @@ async function loadAnalysis() {
         <div v-if="!examHistory.length" class="empty-sm">完成练习 / 模考后，这里会记录你的正确率曲线</div>
       </div>
       <!-- 概览：掌握进度环形 + 数字 -->
+      <div class="duo-row">
       <div class="card overview-card">
         <div class="ring-wrap">
           <svg class="ring" viewBox="0 0 120 120">
@@ -274,7 +275,27 @@ async function loadAnalysis() {
       </div>
       </div>
 
-      <!-- 学习趋势 -->
+      <!-- 学习日历热力图（120 天）—— 与概览并排显示（duo-row）-->
+      <div class="card heat-card" v-if="heatmap.length">
+        <div class="card-title">🔥 学习日历热力图 <span class="heat-streak">连续 {{ heatStreak }} 天</span></div>
+        <div class="heat-grid">
+          <div
+            v-for="(d, i) in heatmap"
+            :key="i"
+            class="heat-cell"
+            :class="'lvl-' + heatLevel(d.count)"
+            :title="d.date + (d.isToday ? '（今天）' : '') + ' · ' + d.count + ' 题' + (d.focus ? ' · 专注 ' + d.focus + ' 分钟' : '')"
+          ></div>
+        </div>
+        <div class="heat-legend">
+          <span class="lg-text">少</span>
+          <i class="heat-cell lvl-0"></i><i class="heat-cell lvl-1"></i><i class="heat-cell lvl-2"></i><i class="heat-cell lvl-3"></i><i class="heat-cell lvl-4"></i>
+          <span class="lg-text">多</span>
+        </div>
+      </div>
+      </div><!-- /duo-row: overview + heatmap 并排 -->
+
+      <!-- 7 天趋势 -->
       <div class="card trend-card">
         <div class="card-title">学习趋势</div>
         <div v-if="!trend.length" class="empty">本周暂无学习记录</div>
@@ -329,25 +350,6 @@ async function loadAnalysis() {
           <span class="dot mid"></span>
           <span class="dot heavy"></span>
           <span>多</span>
-        </div>
-      </div>
-
-      <!-- 学习日历热力图（120 天） -->
-      <div class="card heat-card" v-if="heatmap.length">
-        <div class="card-title">🔥 学习日历热力图 <span class="heat-streak">连续 {{ heatStreak }} 天</span></div>
-        <div class="heat-grid">
-          <div
-            v-for="(d, i) in heatmap"
-            :key="i"
-            class="heat-cell"
-            :class="'lvl-' + heatLevel(d.count)"
-            :title="d.date + (d.isToday ? '（今天）' : '') + ' · ' + d.count + ' 题' + (d.focus ? ' · 专注 ' + d.focus + ' 分钟' : '')"
-          ></div>
-        </div>
-        <div class="heat-legend">
-          <span class="lg-text">少</span>
-          <i class="heat-cell lvl-0"></i><i class="heat-cell lvl-1"></i><i class="heat-cell lvl-2"></i><i class="heat-cell lvl-3"></i><i class="heat-cell lvl-4"></i>
-          <span class="lg-text">多</span>
         </div>
       </div>
 
@@ -569,6 +571,14 @@ async function loadAnalysis() {
 
 /* ===== 全局中心新增：科目切换 / 热力图 / 考试倒计时 / 目标契约 / Quest / 习惯 ===== */
 .stats-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+/* 概览 + 热力图并排 */
+.duo-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.duo-row > .card { flex: 1; min-width: 280px; }
+/* duo 内热力图紧凑化：格子更小，避免横向溢出 */
+.duo-row .heat-card .heat-grid { grid-template-rows: repeat(7, 10px); grid-auto-columns: 10px; }
+.duo-row .heat-card .heat-cell { width: 10px; height: 10px; }
+.duo-row .overview-card { padding: 16px; }
+.duo-row .overview-numbers .num-value { font-size: 20px; }
 .filter-chip {
   background: none; border: 1px solid var(--line); border-radius: 999px;
   font-size: 12px; color: var(--muted); padding: 5px 14px; cursor: pointer; transition: all .15s;
