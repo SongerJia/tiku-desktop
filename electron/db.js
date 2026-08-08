@@ -131,7 +131,7 @@ const api = {
     Object.assign(this, bankModule({ sqlite, LOCAL_USER, uuid, categoryCid, descendantCategoryIds }))
     Object.assign(this, cardsModule({ sqlite, uuid }))
     Object.assign(this, habitsModule({ sqlite, LOCAL_USER, uuid }))
-    Object.assign(this, miscModule({ sqlite, LOCAL_USER, uuid }))
+    Object.assign(this, miscModule({ sqlite, LOCAL_USER, uuid, descendantCategoryIds }))
     Object.assign(this, weakModule({ sqlite, LOCAL_USER, descendantCategoryIds }))
     Object.assign(this, paperModule({ sqlite, LOCAL_USER, uuid, descendantCategoryIds, questionCid }))
     Object.assign(this, exportModule({ sqlite, LOCAL_USER }))

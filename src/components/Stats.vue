@@ -1,6 +1,7 @@
 <script setup>
 import CountUp from './CountUp.vue'
-import { ref, computed, onMounted } from 'vue'
+import Icon from './Icon.vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 import { printHtml } from '../utils/print.js'
@@ -56,6 +57,25 @@ const summary = ref({ total: 0, learned: 0, mastered: 0, streak: 0, activeDays: 
 const trend = ref([])
 const calendar = ref({})
 
+// ---- 全局学习中心：科目范围切换（默认全部，可切单科目）----
+const subjects = ref([])
+const subjectScope = ref('all')
+const filterSubjectId = computed(() => subjectScope.value === 'all' ? undefined : Number(subjectScope.value) || undefined)
+// 从首页搬入的全局区块
+const heatmap = ref([])
+const goalData = ref(null)
+const quest = ref({ tasks: [], claimed: '' })
+const habits = ref([])
+const examDate = ref('')
+const examLeft = computed(() => {
+  if (!examDate.value) return null
+  const target = new Date(examDate.value + 'T00:00:00')
+  const now = new Date(); now.setHours(0, 0, 0, 0)
+  return { date: examDate.value, days: Math.round((target - now) / 86400000) }
+})
+const heatStreak = computed(() => summary.value.streak || 0)
+function heatLevel(c) { return c === 0 ? 0 : c <= 2 ? 1 : c <= 5 ? 2 : c <= 10 ? 3 : 4 }
+
 const now = new Date()
 const year = now.getFullYear()
 const month = now.getMonth() + 1
@@ -80,13 +100,45 @@ const calendarDays = computed(() => {
   return days
 })
 
+// 内容类统计（跟随科目切换）；行为类（XP/契约/Quest/习惯/连击）全局
 async function login() {
   loggedIn.value = true
   loading.value = true
-  summary.value = await tiku.getSummary()
-  trend.value = await tiku.getWeeklyTrend()
-  calendar.value = await tiku.getMonthlyCalendar(year, month)
+  await Promise.all([loadContent(), loadGlobal()])
   loading.value = false
+}
+async function loadContent() {
+  const sid = filterSubjectId.value
+  try { summary.value = await tiku.getSummary(sid) } catch (e) {}
+  try { trend.value = await tiku.getWeeklyTrend(sid) } catch (e) { trend.value = [] }
+  try { heatmap.value = await tiku.getActivityHeatmap(120, sid) } catch (e) { heatmap.value = [] }
+  try { calendar.value = await tiku.getMonthlyCalendar(year, month, sid) } catch (e) { calendar.value = {} }
+  try { catAccuracy.value = await tiku.getCategoryAccuracy(sid) } catch (e) { catAccuracy.value = [] }
+}
+async function loadGlobal() {
+  try { subjects.value = await tiku.getSubjects() } catch (e) { subjects.value = [] }
+  try { goalData.value = await tiku.getGoalContract() } catch (e) { goalData.value = null }
+  try {
+    const q = await tiku.checkQuests()
+    quest.value = { tasks: q.tasks, claimed: q.claimed.join('、') }
+  } catch (e) { quest.value = { tasks: [], claimed: '' } }
+  try { habits.value = await tiku.listHabits() } catch (e) { habits.value = [] }
+  try { examDate.value = (await tiku.getSetting('exam_date')) || '' } catch (e) { examDate.value = '' }
+}
+
+watch(filterSubjectId, () => { if (loggedIn.value) loadContent() }) // 切科目只刷新内容类
+
+async function toggleHabit(h) {
+  if (h.checkedToday) { await tiku.uncheckHabit(h.id) }
+  else { await tiku.checkHabit(h.id) }
+  habits.value = await tiku.listHabits()
+}
+
+async function claimGoal() {
+  try {
+    const r = await tiku.claimGoalReward()
+    if (r.ok) goalData.value = await tiku.getGoalContract()
+  } catch (e) {}
 }
 
 onMounted(async () => {
@@ -146,6 +198,23 @@ async function loadAnalysis() {
     <div class="stats-head">
       <h2 class="stats-title">学习统计</h2>
       <button class="btn btn-primary report-btn" @click="exportReport">导出学习周报</button>
+    </div>
+
+    <!-- 科目范围切换：内容类统计跟随，行为类全局 -->
+    <div class="stats-scope" v-if="loggedIn">
+      <button
+        class="filter-chip"
+        :class="{ active: subjectScope === 'all' }"
+        @click="subjectScope = 'all'"
+      >全部科目</button>
+      <button
+        v-for="s in subjects"
+        :key="s.id"
+        class="filter-chip"
+        :class="{ active: subjectScope === String(s.id) }"
+        @click="subjectScope = String(s.id)"
+      >{{ s.name }}</button>
+      <span class="scope-hint">内容类统计（题数/趋势/日历/正确率）随范围切换 · XP/契约/习惯 始终全局</span>
     </div>
 
     <div v-if="loggedIn">
@@ -260,6 +329,78 @@ async function loadAnalysis() {
           <span class="dot mid"></span>
           <span class="dot heavy"></span>
           <span>多</span>
+        </div>
+      </div>
+
+      <!-- 学习日历热力图（120 天） -->
+      <div class="card heat-card" v-if="heatmap.length">
+        <div class="card-title">🔥 学习日历热力图 <span class="heat-streak">连续 {{ heatStreak }} 天</span></div>
+        <div class="heat-grid">
+          <div
+            v-for="(d, i) in heatmap"
+            :key="i"
+            class="heat-cell"
+            :class="'lvl-' + heatLevel(d.count)"
+            :title="d.date + (d.isToday ? '（今天）' : '') + ' · ' + d.count + ' 题' + (d.focus ? ' · 专注 ' + d.focus + ' 分钟' : '')"
+          ></div>
+        </div>
+        <div class="heat-legend">
+          <span class="lg-text">少</span>
+          <i class="heat-cell lvl-0"></i><i class="heat-cell lvl-1"></i><i class="heat-cell lvl-2"></i><i class="heat-cell lvl-3"></i><i class="heat-cell lvl-4"></i>
+          <span class="lg-text">多</span>
+        </div>
+      </div>
+
+      <!-- 考试倒计时（全局） -->
+      <div class="card exam-card" v-if="examLeft">
+        <div class="exam-head">
+          <span class="exam-label">🎯 考试倒计时</span>
+          <span class="exam-num" :class="{ soon: examLeft.days >= 0 && examLeft.days <= 7 }">{{ examLeft.days >= 0 ? examLeft.days : 0 }}<small> 天</small></span>
+        </div>
+        <div class="exam-sub">{{ examLeft.date }} {{ examLeft.days > 0 ? '· 每天坚持刷题，稳扎稳打' : (examLeft.days === 0 ? '· 就是今天！加油 🎉' : '· 已过考试日，可在「我的」更新日期') }}</div>
+      </div>
+
+      <!-- 目标契约（全局） -->
+      <div class="card goal-c-card" v-if="goalData && goalData.contract">
+        <div class="goal-c-head">
+          <span class="goal-c-title">目标契约 · {{ ({ quiz: '本周刷题', review: '本周复习', focus: '本周专注' })[goalData.contract.type] }}</span>
+          <span class="goal-c-badge" :class="{ done: goalData.achieved }">{{ goalData.achieved ? '已达成 🎉' : '进行中' }}</span>
+        </div>
+        <div class="goal-c-bar"><div class="goal-c-fill" :style="{ width: Math.min(100, Math.round((goalData.progress / goalData.contract.value) * 100)) + '%' }"></div></div>
+        <div class="goal-c-meta">
+          <span>已完成 {{ goalData.progress }} / {{ goalData.contract.value }}</span>
+          <span>{{ Math.min(100, Math.round((goalData.progress / goalData.contract.value) * 100)) }}%</span>
+        </div>
+        <div v-if="goalData.achieved && !goalData.contract.claimed" class="goal-c-claim-row">
+          <button class="btn btn-primary" @click="claimGoal">领取 +50 XP</button>
+        </div>
+        <div v-else-if="goalData.achieved" class="goal-c-claimed">+50 XP 已领取</div>
+      </div>
+
+      <!-- 每日任务 Quest（全局） -->
+      <div class="card quest-card">
+        <div class="card-title">每日任务 <span class="quest-xp">每个 +20 XP</span></div>
+        <div v-if="quest.claimed" class="quest-claimed">🎉 {{ quest.claimed }} 已完成，XP 已到账</div>
+        <div class="quest-list">
+          <div v-for="t in quest.tasks" :key="t.key" class="quest-item" :class="{ done: t.done }">
+            <span class="quest-check"><Icon v-if="t.done" name="check" :size="14"/><i v-else class="hollow"></i></span>
+            <span class="quest-name">{{ t.name }}</span>
+            <span class="quest-state">{{ t.done ? '已完成' : '待完成' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 习惯打卡（全局） -->
+      <div class="card habit-list-card">
+        <div class="card-title">我的习惯 <span class="quest-xp">每天打卡 +5 XP</span></div>
+        <div v-if="!habits.length" class="empty-sm">还没有习惯，在「我的 → 习惯管理」添加一个吧</div>
+        <div v-else class="habit-list">
+          <div v-for="h in habits" :key="h.id" class="habit-item" :class="{ done: h.checkedToday }" @click="toggleHabit(h)">
+            <span class="habit-icon">{{ h.icon }}</span>
+            <span class="habit-name">{{ h.name }}</span>
+            <span class="habit-streak">🔥 {{ h.streak }} 天</span>
+            <span class="habit-check"><Icon v-if="h.checkedToday" name="check" :size="14"/><i v-else class="hollow"></i></span>
+          </div>
         </div>
       </div>
       </div>
@@ -425,4 +566,74 @@ async function loadAnalysis() {
 .hist-title { margin-top: 12px; }
 .hist { width: 100%; max-width: 320px; display: block; }
 .empty-sm { font-size: 12px; color: var(--muted); padding: 8px 0; }
+
+/* ===== 全局中心新增：科目切换 / 热力图 / 考试倒计时 / 目标契约 / Quest / 习惯 ===== */
+.stats-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.filter-chip {
+  background: none; border: 1px solid var(--line); border-radius: 999px;
+  font-size: 12px; color: var(--muted); padding: 5px 14px; cursor: pointer; transition: all .15s;
+}
+.filter-chip.active { background: var(--brand); border-color: var(--brand); color: #021018; font-weight: 600; }
+.scope-hint { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+.heat-card .heat-streak { margin-left: 6px; font-size: 11px; color: var(--brand); font-weight: 600; }
+.heat-grid {
+  display: grid; grid-template-rows: repeat(7, 12px); grid-auto-flow: column; grid-auto-columns: 12px;
+  gap: 3px; overflow-x: auto; padding-bottom: 4px;
+}
+.heat-cell { width: 12px; height: 12px; border-radius: 3px; background: var(--line); transition: transform .12s ease; }
+.heat-cell:hover { transform: scale(1.25); }
+.heat-cell.lvl-1 { background: rgba(91,124,250,0.35); }
+.heat-cell.lvl-2 { background: rgba(91,124,250,0.6); }
+.heat-cell.lvl-3 { background: rgba(91,124,250,0.84); }
+.heat-cell.lvl-4 { background: var(--brand); }
+.heat-legend { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 11px; color: var(--muted); }
+.heat-legend .heat-cell { cursor: default; }
+.lg-text { margin: 0 2px; }
+
+.exam-card { display: flex; flex-direction: column; gap: 6px; }
+.exam-head { display: flex; align-items: center; justify-content: space-between; }
+.exam-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.exam-num { font-size: 22px; font-weight: 800; color: var(--brand); }
+.exam-num small { font-size: 12px; font-weight: 500; color: var(--muted); }
+.exam-num.soon { color: var(--bad); animation: stblink 1s steps(2) infinite; }
+.exam-sub { font-size: 12px; color: var(--muted); }
+@keyframes stblink { 50% { opacity: .55; } }
+
+.goal-c-card { display: flex; flex-direction: column; gap: 8px; }
+.goal-c-head { display: flex; align-items: center; justify-content: space-between; }
+.goal-c-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.goal-c-badge { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
+.goal-c-badge.done { color: var(--ok); border-color: rgba(44,196,138,.4); }
+.goal-c-bar { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.goal-c-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--brand), var(--brand2, #7b46c4)); transition: width .4s; }
+.goal-c-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.goal-c-claim-row { margin-top: 2px; }
+.goal-c-claimed { font-size: 12px; color: var(--ok); font-weight: 600; }
+
+.quest-xp { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+.quest-claimed { font-size: 12px; color: var(--ok); margin-bottom: 8px; }
+.quest-list { display: flex; flex-direction: column; gap: 8px; }
+.quest-item {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
+}
+.quest-item.done { border-color: rgba(44, 229, 168, 0.4); background: rgba(44, 229, 168, 0.05); }
+.quest-check { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--muted); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: var(--muted); }
+.quest-item.done .quest-check { border-color: var(--ok); color: var(--ok); }
+.quest-name { flex: 1; font-size: 13px; color: var(--text); }
+.quest-state { font-size: 11px; color: var(--muted); }
+
+.habit-list { display: flex; flex-direction: column; gap: 6px; }
+.habit-item {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; cursor: pointer; transition: all .15s;
+}
+.habit-item:hover { border-color: var(--brand); }
+.habit-item.done { border-color: rgba(44, 229, 168, 0.4); background: rgba(44, 229, 168, 0.05); }
+.habit-icon { font-size: 16px; }
+.habit-name { flex: 1; font-size: 13px; color: var(--text); }
+.habit-streak { font-size: 12px; color: var(--warn); font-weight: 600; }
+.habit-check .hollow { display: inline-block; width: 12px; height: 12px; border: 1.5px solid var(--line); border-radius: 50%; }
+.habit-item.done .habit-check { color: var(--ok); }
 </style>

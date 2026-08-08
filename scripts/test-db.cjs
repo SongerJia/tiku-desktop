@@ -459,6 +459,12 @@ try {
   const sumA = db.getSummary(subA.id)
   const sumAll = db.getSummary()
   ok('getSummary(subjectId) 知识卡片数按科目统计', sumA.total === 1 && sumAll.total >= 1 && sumAll.total > sumA.total)
+  // 趋势/热力图/周报按科目过滤
+  const trendA = db.getWeeklyTrend(subA.id)
+  const trendAll = db.getWeeklyTrend()
+  ok('getWeeklyTrend(subjectId) 按科目过滤答题', trendA.some(d => d.count >= 1) && trendA.every((d, i) => d.count <= (trendAll[i]?.count || 0)))
+  ok('getActivityHeatmap(subjectId) 按科目过滤', db.getActivityHeatmap(120, subA.id).some(d => d.count >= 1))
+  ok('getWeeklyReport(subjectId) 按科目统计本周', db.getWeeklyReport(subA.id).answered >= 1)
   db.deleteCategory(subA.id) // 级联清理（含错题残留无碍后续）
 
   // 空科目边界：新建科目无章节时拉题应返回空（防止 IN() SQL 报错）

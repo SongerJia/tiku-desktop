@@ -94,7 +94,16 @@ module.exports = function statsModule(ctx) {
     },
 
     getSummary(subjectId) {
-      // 知识卡片总数：传当前科目 → 只统计该科目下的题（内容维度跟科目走）；不传 → 全局
+      // 内容/行为维度：传当前科目 → 题数/已学/掌握/今日/错题都按该科目过滤（首页科目视图）；不传 → 全局
+      const scopeSql = (alias, cols = 'COUNT(*) AS n') => {
+        if (!subjectId) return { sql: '', params: [] }
+        const ids = descendantCategoryIds(subjectId)
+        if (!ids.length) return { sql: ' AND 1=0', params: [] }
+        return {
+          sql: ` AND ${alias}.category_id IN (${ids.map(() => '?').join(',')})`,
+          params: ids
+        }
+      }
       let total = 0
       if (subjectId) {
         const ids = descendantCategoryIds(subjectId)
@@ -104,12 +113,12 @@ module.exports = function statsModule(ctx) {
       } else {
         total = sqlite.prepare('SELECT COUNT(*) AS n FROM questions WHERE deleted=0').get().n
       }
-      const learned = sqlite.prepare('SELECT COUNT(DISTINCT question_id) AS n FROM answer_records WHERE user_id=? AND deleted=0').get(LOCAL_USER).n
-      const mastered = sqlite.prepare(`SELECT COUNT(DISTINCT question_id) AS n FROM answer_records
-        WHERE user_id=? AND deleted=0 AND is_correct=1`).get(LOCAL_USER).n
+      const sc = scopeSql('q')
+      const learned = sqlite.prepare(`SELECT COUNT(DISTINCT ar.question_id) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0${sc.sql}`).get(LOCAL_USER, ...sc.params).n
+      const mastered = sqlite.prepare(`SELECT COUNT(DISTINCT ar.question_id) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.is_correct=1${sc.sql}`).get(LOCAL_USER, ...sc.params).n
       const todayStart = new Date().setHours(0, 0, 0, 0)
-      const today = sqlite.prepare('SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=?').get(LOCAL_USER, todayStart).n
-      const wrongCount = sqlite.prepare("SELECT COUNT(*) AS n FROM wrong_books WHERE user_id=? AND status='wrong' AND deleted=0").get(LOCAL_USER).n
+      const today = sqlite.prepare(`SELECT COUNT(*) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=?${sc.sql}`).get(LOCAL_USER, todayStart, ...sc.params).n
+      const wrongCount = sqlite.prepare(`SELECT COUNT(*) AS n FROM wrong_books wb JOIN questions q ON q.id=wb.question_id WHERE wb.user_id=? AND wb.status='wrong' AND wb.deleted=0 AND q.deleted=0${sc.sql}`).get(LOCAL_USER, ...sc.params).n
 
       const localDateKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       const dayRows = sqlite.prepare("SELECT DISTINCT DATE(created_at/1000, 'unixepoch', 'localtime') AS day FROM answer_records WHERE user_id=? AND deleted=0").all(LOCAL_USER)
@@ -129,7 +138,7 @@ module.exports = function statsModule(ctx) {
       return { total, learned, mastered, today, wrongCount, activeDays, streak }
     },
 
-    getWeeklyTrend() {
+    getWeeklyTrend(subjectId) {
       const days = []
       const now = new Date()
       for (let i = 6; i >= 0; i--) {
@@ -138,8 +147,15 @@ module.exports = function statsModule(ctx) {
         d.setHours(0, 0, 0, 0)
         const start = d.getTime()
         const end = start + 24 * 60 * 60 * 1000
-        const row = sqlite.prepare('SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=? AND created_at<?')
-          .get(LOCAL_USER, start, end)
+        let sql = 'SELECT COUNT(*) AS n FROM answer_records ar WHERE ar.user_id=? AND ar.deleted=0 AND ar.created_at>=? AND ar.created_at<?'
+        const params = [LOCAL_USER, start, end]
+        if (subjectId) {
+          const ids = descendantCategoryIds(subjectId)
+          if (!ids.length) { days.push({ date: d.toISOString().slice(0, 10), count: 0 }); continue }
+          sql = 'SELECT COUNT(*) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=? AND ar.created_at<? AND q.category_id IN (' + ids.map(() => '?').join(',') + ')'
+          params.push(...ids)
+        }
+        const row = sqlite.prepare(sql).get(...params)
         days.push({ date: d.toISOString().slice(0, 10), count: row.n || 0 })
       }
       return days
@@ -158,13 +174,21 @@ module.exports = function statsModule(ctx) {
     },
 
     // 近 N 天每日答题量（学习日历热力图数据源）。返回 [{date:'YYYY-MM-DD', count, isToday}]，含今天。
-    getActivityHeatmap(days = 120) {
+    getActivityHeatmap(days = 120, subjectId) {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       const start = today.getTime() - (days - 1) * 86400000
-      const rows = sqlite.prepare(`SELECT DATE(created_at/1000, 'unixepoch', 'localtime') AS day, COUNT(*) AS n
-        FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=?
-        GROUP BY day`).all(LOCAL_USER, start)
+      let aSql = `SELECT DATE(ar.created_at/1000, 'unixepoch', 'localtime') AS day, COUNT(*) AS n
+        FROM answer_records ar WHERE ar.user_id=? AND ar.deleted=0 AND ar.created_at>=?`
+      const aParams = [LOCAL_USER, start]
+      if (subjectId) {
+        const ids = descendantCategoryIds(subjectId)
+        if (!ids.length) { return [] }
+        aSql += ' AND ar.question_id IN (SELECT id FROM questions WHERE deleted=0 AND category_id IN (' + ids.map(() => '?').join(',') + '))'
+        aParams.push(...ids)
+      }
+      aSql += ' GROUP BY day'
+      const rows = sqlite.prepare(aSql).all(...aParams)
       const map = {}
       rows.forEach(r => { map[r.day] = r.n })
       // 专注分钟叠加（focus_sessions 无 user_id，全局）

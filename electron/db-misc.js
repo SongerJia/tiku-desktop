@@ -1,7 +1,7 @@
 // 高亮批注 / 文档双链 / 错题原因 / 学习周报 模块（杂项聚合）。
 // 从 db.js 拆出（拆分渐进一步）：ctx 注入 sqlite/LOCAL_USER/uuid；this 互调（getSummary/kbStats/xpStats）合并后指向 api。
 module.exports = function miscModule(ctx) {
-  const { sqlite, LOCAL_USER, uuid } = ctx
+  const { sqlite, LOCAL_USER, uuid, descendantCategoryIds } = ctx
 
   return {
     getHighlightsForDoc(docId) {
@@ -50,26 +50,46 @@ module.exports = function miscModule(ctx) {
     },
 
     // ---- 学习周报（聚合近 7 天，前端拼 HTML 导出 PDF）----
-    getWeeklyReport() {
+    getWeeklyReport(subjectId) {
       const now = new Date()
       const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7).getTime()
-      const q = sqlite.prepare(
-        'SELECT COUNT(*) AS n, COALESCE(SUM(is_correct),0) AS c FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=?'
-      ).get(LOCAL_USER, weekStart)
+      let qSql = 'SELECT COUNT(*) AS n, COALESCE(SUM(ar.is_correct),0) AS c FROM answer_records ar WHERE ar.user_id=? AND ar.deleted=0 AND ar.created_at>=?'
+      const qParams = [LOCAL_USER, weekStart]
+      if (subjectId) {
+        const ids = descendantCategoryIds(subjectId)
+        if (ids.length) {
+          qSql = 'SELECT COUNT(*) AS n, COALESCE(SUM(ar.is_correct),0) AS c FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=? AND q.category_id IN (' + ids.map(() => '?').join(',') + ')'
+          qParams.push(...ids)
+        } else {
+          qSql = 'SELECT 0 AS n, 0 AS c'
+        }
+      }
+      const q = sqlite.prepare(qSql).get(...qParams)
       const xp = sqlite.prepare('SELECT COALESCE(SUM(xp),0) AS n FROM xp_logs WHERE deleted=0 AND created_at>=?').get(weekStart).n
       const focus = sqlite.prepare('SELECT COALESCE(SUM(minutes),0) AS n FROM focus_sessions WHERE deleted=0 AND created_at>=?').get(weekStart).n
       const review = sqlite.prepare('SELECT COUNT(*) AS n FROM review_logs WHERE created_at>=?').get(weekStart).n
       const habits = sqlite.prepare('SELECT COUNT(DISTINCT habit_id) AS h, COUNT(*) AS c FROM habit_checks WHERE check_date>=?').get(new Date(weekStart).toISOString().slice(0, 10))
-      const s = this.getSummary()
+      const s = this.getSummary(subjectId)
       const kb = this.kbStats()
       const x = this.xpStats()
-      // 近 7 天每日答题数
+      // 近 7 天每日答题数（按科目过滤）
       const daily = []
       for (let i = 6; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
         const start = d.setHours(0, 0, 0, 0)
         const end = start + 86400000
-        const n = sqlite.prepare('SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=? AND created_at<?').get(LOCAL_USER, start, end).n
+        let dSql = 'SELECT COUNT(*) AS n FROM answer_records ar WHERE ar.user_id=? AND ar.deleted=0 AND ar.created_at>=? AND ar.created_at<?'
+        const dParams = [LOCAL_USER, start, end]
+        if (subjectId) {
+          const ids = descendantCategoryIds(subjectId)
+          if (ids.length) {
+            dSql = 'SELECT COUNT(*) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=? AND ar.created_at<? AND q.category_id IN (' + ids.map(() => '?').join(',') + ')'
+            dParams.push(...ids)
+          } else {
+            dSql = 'SELECT 0 AS n'
+          }
+        }
+        const n = sqlite.prepare(dSql).get(...dParams).n
         daily.push({ date: `${d.getMonth() + 1}/${d.getDate()}`, n })
       }
       return {

@@ -19,9 +19,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getStats: () => ipcRenderer.invoke('getStats'),
   getSummary: (subjectId) => ipcRenderer.invoke('getSummary', subjectId),
   getChapterProgress: () => ipcRenderer.invoke('getChapterProgress'),
-  getWeeklyTrend: () => ipcRenderer.invoke('getWeeklyTrend'),
+  getWeeklyTrend: (subjectId) => ipcRenderer.invoke('getWeeklyTrend', subjectId),
   getMonthlyCalendar: (year, month) => ipcRenderer.invoke('getMonthlyCalendar', year, month),
-  getActivityHeatmap: (days) => ipcRenderer.invoke('getActivityHeatmap', days),
+  getActivityHeatmap: (days, subjectId) => ipcRenderer.invoke('getActivityHeatmap', days, subjectId),
   markMastered: (questionId) => ipcRenderer.invoke('markMastered', questionId),
   rateReview: (questionId, quality) => ipcRenderer.invoke('rateReview', questionId, quality),
   getReviewCurve: (days) => ipcRenderer.invoke('getReviewCurve', days),
@@ -144,5 +144,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCardReview: (limit) => ipcRenderer.invoke('getCardReview', limit),
   cardsStats: () => ipcRenderer.invoke('cardsStats'),
   setWrongReason: (questionId, reason) => ipcRenderer.invoke('setWrongReason', questionId, reason),
-  getWeeklyReport: () => ipcRenderer.invoke('getWeeklyReport')
+  getWeeklyReport: (subjectId) => ipcRenderer.invoke('getWeeklyReport', subjectId)
 })

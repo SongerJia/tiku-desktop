@@ -16,37 +16,14 @@ const dailyGoal = ref(0)
 const loading = ref(true)
 // 欢迎卡仅首次启动显示（localStorage 标记，本机偏好不进云）
 const showWelcome = ref(false)
-const showData = ref(false) // 学习数据折叠卡（趋势/日历/薄弱点默认收起）
 // 每日一题：{ question, state } state: { date, qid, answered, correct, streak, bestStreak, period }
 const dailyPuzzle = ref(null)
 const dailyAnalysisOpen = ref(false)
-// 目标契约：{ contract, progress, achieved, lastMissed }
-const goalData = ref(null)
-const goalType = ref('quiz')
-const goalValue = ref(100)
 // 今日任务单：到期复习 / 每日一题 / 今日目标 / 未读文档
 const dueReviews = ref(0)
 const kbUnread = ref(0)
-const goalLabel = computed(() => ({ quiz: '本周刷题', review: '本周复习', focus: '本周专注' })[goalType.value] || '本周刷题')
-const goalUnit = computed(() => ({ quiz: '题', review: '条', focus: '分钟' })[goalType.value] || '题')
-const goalDaysLeft = computed(() => {
-  const d = new Date()
-  const dow = (d.getDay() + 6) % 7 // 周一=0
-  return 7 - dow
-})
-const weeklyTrend = ref([])
-const heatmap = ref([])
-const heatStreak = computed(() => summary.value.streak || 0)
-// 考试倒计时 + 专注概览
-const examDate = ref('')
+// 番茄专注（工具，留在首页）
 const focusWeek = ref(0)
-const examLeft = computed(() => {
-  if (!examDate.value) return null
-  const target = new Date(examDate.value + 'T00:00:00')
-  const now = new Date(); now.setHours(0, 0, 0, 0)
-  return { date: examDate.value, days: Math.round((target - now) / 86400000) }
-})
-function heatLevel(c) { return c === 0 ? 0 : c <= 2 ? 1 : c <= 5 ? 2 : c <= 10 ? 3 : 4 }
 const weakPoints = ref([])
 const weakAccuracy = ref([])
 
@@ -64,12 +41,7 @@ function dismissWelcome() {
   try { localStorage.setItem('tiku_welcome_shown', '1') } catch (e) {}
 }
 
-// 学习数据折叠卡：趋势/日历/薄弱点/考试倒计时任一有数据即可展开
-const hasData = computed(() =>
-  weeklyTrend.value.length || heatmap.value.length ||
-  weakPoints.value.length || weakAccuracy.value.length || !!examLeft.value
-)
-
+// 学习数据折叠卡已移除：全局数据搬统计页，首页只留薄弱点（科目）
 const goalPct = computed(() => dailyGoal.value ? Math.min(100, Math.round((summary.value.today / dailyGoal.value) * 100)) : 0)
 
 // 今日任务单：按优先级聚合可点击任务（实时判定，完成即消失）
@@ -97,24 +69,7 @@ const taskItems = computed(() => {
   return items
 })
 
-// 近 7 天答题趋势（getWeeklyTrend 返回每日计数），纯 SVG 柱状图，无第三方依赖
-const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
-const todayKey = new Date().toISOString().slice(0, 10)
-const trendMax = computed(() => Math.max(1, ...weeklyTrend.value.map(d => d.count)))
-const trendBars = computed(() => weeklyTrend.value.map(d => {
-  const count = d.count || 0
-  return {
-    label: WEEKDAYS[new Date(d.date + 'T00:00:00').getDay()],
-    count,
-    h: count ? Math.round((count / trendMax.value) * 52) + 4 : 0,
-    isToday: d.date === todayKey
-  }
-}))
-
-// 每日任务 Quest + 习惯打卡 + 每日回顾 + 番茄钟
-const tasks = ref([])
-const habits = ref([])
-const questClaimed = ref('')
+// 每日回顾 + 番茄钟
 const reviewOpen = ref(false)
 const cardsOpen = ref(false)
 const cardStats = ref({ total: 0, due: 0 })
@@ -134,44 +89,15 @@ async function load() {
   loading.value = true
   summary.value = await tiku.getSummary(props.subject.id)
   try { dailyGoal.value = Number(await tiku.getSetting('daily_goal')) || 0 } catch (e) { dailyGoal.value = 0 }
-  try {
-    const q = await tiku.checkQuests()
-    tasks.value = q.tasks
-    questClaimed.value = q.claimed.join('、')
-  } catch (e) { /* 任务失败不阻塞 */ }
-  try { habits.value = await tiku.listHabits() } catch (e) { habits.value = [] }
   try { const fs = await tiku.focusStats(); focusToday.value = fs.today; focusWeek.value = fs.week } catch (e) { focusToday.value = 0 }
   try { cardStats.value = await tiku.cardsStats() } catch (e) {}
-  try { weeklyTrend.value = await tiku.getWeeklyTrend() } catch (e) { weeklyTrend.value = [] }
   try { weakPoints.value = await tiku.getWeakPoints(5, props.subject.id) } catch (e) { weakPoints.value = [] }
-  try { heatmap.value = await tiku.getActivityHeatmap(120) } catch (e) { heatmap.value = [] }
-  try { examDate.value = (await tiku.getSetting('exam_date')) || '' } catch (e) { examDate.value = '' }
   try { weakAccuracy.value = (await tiku.getCategoryAccuracy(props.subject.id)).slice(0, 3) } catch (e) { weakAccuracy.value = [] }
   try { dailyPuzzle.value = await tiku.getDailyPuzzle(props.subject.id) } catch (e) { dailyPuzzle.value = null }
-  try { goalData.value = await tiku.getGoalContract() } catch (e) { goalData.value = null }
   try { dueReviews.value = (await tiku.reviewDueStats(props.subject.id)).due || 0 } catch (e) { dueReviews.value = 0 }
   try { kbUnread.value = (await tiku.kbStats()).unread || 0 } catch (e) { kbUnread.value = 0 }
   dailyAnalysisOpen.value = false
   loading.value = false
-}
-
-async function setGoal() {
-  const v = Math.max(1, Math.round(Number(goalValue.value) || 0))
-  try {
-    const r = await tiku.setGoalContract({ type: goalType.value, value: v })
-    goalData.value = r.contract
-    showToast(`已立约：${goalLabel.value} ${v} ${goalUnit.value}，加油！`, 'ok')
-  } catch (e) { showToast('立约失败：' + (e.message || '未知错误'), 'err') }
-}
-
-async function claimGoal() {
-  try {
-    const r = await tiku.claimGoalReward()
-    if (r.ok) {
-      showToast(`目标达成，+${r.xp} XP 🎉`, 'ok')
-      goalData.value = await tiku.getGoalContract()
-    }
-  } catch (e) { showToast('领取失败：' + (e.message || '未知错误'), 'err') }
 }
 
 function typeLabel(t) {
@@ -179,23 +105,6 @@ function typeLabel(t) {
 }
 function startDaily() {
   if (dailyPuzzle.value && dailyPuzzle.value.question) emit('daily', dailyPuzzle.value.question)
-}
-
-async function toggleHabit(h) {
-  if (h.checkedToday) {
-    await tiku.uncheckHabit(h.id)
-    showToast(`已取消「${h.name}」打卡`)
-  } else {
-    await tiku.checkHabit(h.id)
-    showToast(`「${h.name}」打卡成功，+5 XP，连续 ${h.streak + 1} 天`, 'ok')
-  }
-  habits.value = await tiku.listHabits()
-}
-
-function onTaskClick(t) {
-  if (t.key === 'quiz20') emit('start', { mode: 'practice' })
-  else if (t.key === 'review5') reviewOpen.value = true
-  else emit('goto', 'kb') // 阅读任务：直接跳知识库
 }
 
 // 番茄钟
@@ -341,8 +250,8 @@ onBeforeUnmount(() => {
       </div>
       <div class="stat-sep"></div>
       <div class="stat-item">
-        <span class="stat-num fire"><CountUp :value="summary.streak || 0" /></span>
-        <span class="stat-label">连续打卡</span>
+        <span class="stat-num ok"><CountUp :value="summary.mastered || 0" /></span>
+        <span class="stat-label">已掌握</span>
       </div>
       <div v-if="dailyGoal" class="stat-goal">
         <div class="stat-goal-top">
@@ -404,177 +313,25 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- 学习数据（可折叠：趋势 / 日历 / 薄弱点 / 考试倒计时，默认收起） -->
-    <div v-if="!loading && hasData" class="card data-fold">
-      <div class="fold-head" @click="showData = !showData">
-        <span class="fold-title"><Icon name="chart" :size="14"/> 学习数据</span>
-        <span v-if="examLeft" class="fold-badge" :class="{ soon: examLeft.days >= 0 && examLeft.days <= 7 }">🎯 考试还有 {{ examLeft.days >= 0 ? examLeft.days : 0 }} 天</span>
-        <span class="fold-arrow">{{ showData ? '▾' : '▸' }}</span>
-      </div>
-      <template v-if="showData">
-        <!-- 7 天趋势 + 学习日历（左右两块） -->
-        <div v-if="weeklyTrend.length || heatmap.length" class="duo-row fold-inner">
-          <div v-if="weeklyTrend.length" class="duo-block">
-            <div class="duo-title"><Icon name="chart" :size="14"/> 近 7 天答题趋势</div>
-            <svg class="trend-svg" viewBox="0 0 280 96" preserveAspectRatio="xMidYMid meet">
-              <line x1="6" y1="84" x2="274" y2="84" stroke="var(--line)" stroke-width="1"/>
-              <g v-for="(b, i) in trendBars" :key="i">
-                <rect
-                  :x="14 + i * 38" :y="84 - b.h" width="24" :height="b.h"
-                  :rx="b.h ? 4 : 0"
-                  :fill="b.isToday ? 'var(--brand)' : 'rgba(91,124,250,0.42)'"
-                />
-                <text v-if="b.count" :x="26 + i * 38" :y="80 - b.h" text-anchor="middle" class="trend-v">{{ b.count }}</text>
-                <text :x="26 + i * 38" y="96" text-anchor="middle" class="trend-x" :class="{ on: b.isToday }">{{ b.label }}</text>
-              </g>
-            </svg>
-          </div>
-          <div v-if="heatmap.length" class="duo-block">
-            <div class="duo-title"><Icon name="fire" :size="14"/> 学习日历 <span class="heat-streak">🔥 连续 {{ heatStreak }} 天</span></div>
-            <div class="heat-grid">
-              <div
-                v-for="(d, i) in heatmap"
-                :key="i"
-                class="heat-cell"
-                :class="'lvl-' + heatLevel(d.count)"
-                :title="d.date + (d.isToday ? '（今天）' : '') + ' · ' + d.count + ' 题' + (d.focus ? ' · 专注 ' + d.focus + ' 分钟' : '')"
-              ></div>
-            </div>
-            <div class="heat-legend">
-              <span class="lg-text">少</span>
-              <i class="heat-cell lvl-0"></i><i class="heat-cell lvl-1"></i><i class="heat-cell lvl-2"></i><i class="heat-cell lvl-3"></i><i class="heat-cell lvl-4"></i>
-              <span class="lg-text">多</span>
-            </div>
-          </div>
-        </div>
-        <!-- 薄弱点 TopN + 薄弱章节 -->
-        <div v-if="weakPoints.length || weakAccuracy.length" class="weak-card fold-inner">
-          <div class="weak-head"><Icon name="info" :size="14"/> 待攻克薄弱点</div>
-          <div v-if="weakPoints.length" class="weak-list">
-            <div v-for="w in weakPoints" :key="w.id" class="weak-item" @click="emit('goto', 'bank')">
-              <span class="weak-stem">{{ w.stem || '（空题干）' }}</span>
-              <span class="weak-meta">
-                <span class="weak-tag" v-if="w.cat">{{ w.cat }}</span>
-                <span class="weak-count">错 {{ w.wrong_count }} 次</span>
-              </span>
-            </div>
-          </div>
-          <div v-if="weakAccuracy.length" class="weak-cats">
-            <div v-for="a in weakAccuracy" :key="a.cat" class="weak-cat">
-              <span class="weak-cat-name">{{ a.cat }}</span>
-              <span class="weak-cat-rate" :class="{ low: a.rate < 60 }">正确率 {{ a.rate }}%</span>
-            </div>
-          </div>
-          <div v-if="!weakPoints.length && !weakAccuracy.length" class="weak-empty">暂无薄弱点，继续保持！</div>
-        </div>
-      </template>
-    </div>
-
-    <!-- 每日一题 + 连击 -->
-    <div class="card daily-card" v-if="dailyPuzzle && dailyPuzzle.question">
-      <div class="daily-head">
-        <span class="daily-title">每日一题 · 第 {{ dailyPuzzle.state.period || 1 }} 期</span>
-        <span class="daily-streak" v-if="dailyPuzzle.state.streak">🔥 连续 {{ dailyPuzzle.state.streak }} 天</span>
-        <span class="daily-streak muted" v-else>今日打卡赢连击</span>
-      </div>
-      <div class="daily-tags">
-        <span class="daily-tag" v-if="dailyPuzzle.question.categoryName">{{ dailyPuzzle.question.categoryName }}</span>
-        <span class="daily-tag">{{ typeLabel(dailyPuzzle.question.type) }}</span>
-      </div>
-      <p class="daily-stem">{{ dailyPuzzle.question.stem }}</p>
-
-      <template v-if="!dailyPuzzle.state.answered">
-        <button class="btn btn-primary" @click="startDaily">开始作答</button>
-        <p class="daily-note">每天一道题 · 答对攒连击，隔天未答会清零</p>
-      </template>
-      <template v-else>
-        <div class="daily-result" :class="dailyPuzzle.state.correct ? 'ok' : 'bad'">
-          {{ dailyPuzzle.state.correct ? '答对了' : '答错了' }} · 本题考「{{ dailyPuzzle.question.categoryName || '本知识点' }}」
-          <span class="daily-best" v-if="dailyPuzzle.state.bestStreak">最佳连击 {{ dailyPuzzle.state.bestStreak }} 天</span>
-        </div>
-        <div class="daily-actions">
-          <button class="btn" @click="dailyAnalysisOpen = !dailyAnalysisOpen">{{ dailyAnalysisOpen ? '收起解析' : '查看解析' }}</button>
-          <button class="btn btn-primary" @click="startDaily">重做一遍</button>
-        </div>
-        <div v-if="dailyAnalysisOpen" class="daily-analysis">
-          <div class="ans-line" v-if="dailyPuzzle.question.answer && dailyPuzzle.question.answer.length">
-            <b>参考答案：</b>{{ dailyPuzzle.question.answer.join('、') }}
-          </div>
-          <div v-if="dailyPuzzle.question.analysis"><b>解析：</b>{{ dailyPuzzle.question.analysis }}</div>
-        </div>
-        <p class="daily-note">明天 0 点换新题，坚持每天打卡</p>
-      </template>
-    </div>
-
-    <!-- 目标契约（每周 flag） -->
-    <div class="card goal-c-card">
-      <template v-if="goalData && goalData.contract">
-        <div class="goal-c-head">
-          <span class="goal-c-title">目标契约 · {{ ({ quiz: '本周刷题', review: '本周复习', focus: '本周专注' })[goalData.contract.type] }}</span>
-          <span class="goal-c-badge" :class="{ done: goalData.achieved }">{{ goalData.achieved ? '已达成 🎉' : '还差 ' + goalDaysLeft + ' 天' }}</span>
-        </div>
-        <div v-if="goalData.lastMissed" class="goal-c-miss">上周还差 {{ goalData.lastMissed.missedBy }} {{ ({ quiz: '题', review: '条', focus: '分钟' })[goalData.lastMissed.type] }}，这周重新出发 💪</div>
-        <div class="goal-c-bar">
-          <div class="goal-c-fill" :style="{ width: Math.min(100, Math.round((goalData.progress / goalData.contract.value) * 100)) + '%' }"></div>
-        </div>
-        <div class="goal-c-meta">
-          <span>已完成 {{ goalData.progress }} / {{ goalData.contract.value }} {{ ({ quiz: '题', review: '条', focus: '分钟' })[goalData.contract.type] }}</span>
-          <span>{{ Math.min(100, Math.round((goalData.progress / goalData.contract.value) * 100)) }}%</span>
-        </div>
-        <div v-if="goalData.achieved && !goalData.contract.claimed" class="goal-c-claim-row">
-          <button class="btn btn-primary" @click="claimGoal">领取 +50 XP</button>
-        </div>
-        <div v-else-if="goalData.achieved" class="goal-c-claimed">+50 XP 已领取</div>
-      </template>
-      <template v-else>
-        <div class="goal-c-head">
-          <span class="goal-c-title">目标契约 · 立个本周 flag</span>
-          <span class="goal-c-badge">周一自动重来</span>
-        </div>
-        <p class="goal-c-label">本周想完成什么？</p>
-        <div class="goal-c-chips">
-          <button class="goal-c-chip" :class="{ on: goalType === 'quiz' }" @click="goalType = 'quiz'">本周刷题</button>
-          <button class="goal-c-chip" :class="{ on: goalType === 'review' }" @click="goalType = 'review'">本周复习</button>
-          <button class="goal-c-chip" :class="{ on: goalType === 'focus' }" @click="goalType = 'focus'">本周专注</button>
-        </div>
-        <div class="goal-c-row">
-          <input v-model.number="goalValue" type="number" min="1" class="input" placeholder="目标值" />
-          <span class="goal-c-unit">{{ goalUnit }}</span>
-          <button class="btn btn-primary" @click="setGoal">立约</button>
-        </div>
-      </template>
-    </div>
-
-    <!-- 日常 duo：每日任务 ｜ 习惯打卡（左右两块） -->
-    <div class="card duo-card">
-      <div class="duo-row">
-        <div class="duo-block">
-          <div class="duo-title"><Icon name="paper" :size="14"/> 每日任务 <span class="quest-xp">每个 +20 XP</span></div>
-          <div v-if="questClaimed" class="quest-claimed">🎉 {{ questClaimed }} 已完成，XP 已到账</div>
-          <div class="quest-list">
-            <div v-for="t in tasks" :key="t.key" class="quest-item" :class="{ done: t.done }" @click="onTaskClick(t)">
-              <span class="quest-check"><Icon v-if="t.done" name="check" :size="14"/><i v-else class="hollow"></i></span>
-              <span class="quest-name">{{ t.name }}</span>
-              <span class="quest-state">{{ t.done ? '已完成' : '去做' }}</span>
-            </div>
-          </div>
-        </div>
-        <div class="duo-block">
-          <div class="duo-title"><Icon name="refresh" :size="14"/> 我的习惯 <span class="quest-xp">每天打卡 +5 XP</span></div>
-          <div v-if="!habits.length" class="habit-empty">还没有习惯。在「我的 → 习惯管理」添加一个（如：雅思刷题 / 健身 / 阅读），每天打卡攒连续天数。</div>
-          <div v-else class="habit-list">
-            <div v-for="h in habits" :key="h.id" class="habit-item" :class="{ done: h.checkedToday }" @click="toggleHabit(h)">
-              <span class="habit-icon">{{ h.icon }}</span>
-              <span class="habit-name">{{ h.name }}</span>
-              <span class="habit-streak"><Icon name="fire" :size="14"/> {{ h.streak }} 天</span>
-              <span class="habit-week">
-                <i v-for="(ok, i) in h.week" :key="i" :class="{ on: ok }"></i>
-              </span>
-              <span class="habit-check"><Icon v-if="h.checkedToday" name="check" :size="14"/><i v-else class="hollow"></i></span>
-            </div>
-          </div>
+    <!-- 薄弱点（当前科目） -->
+    <div v-if="!loading && (weakPoints.length || weakAccuracy.length)" class="card weak-card">
+      <div class="card-title"><Icon name="info" :size="14"/> 待攻克薄弱点</div>
+      <div v-if="weakPoints.length" class="weak-list">
+        <div v-for="w in weakPoints" :key="w.id" class="weak-item" @click="emit('goto', 'bank')">
+          <span class="weak-stem">{{ w.stem || '（空题干）' }}</span>
+          <span class="weak-meta">
+            <span class="weak-tag" v-if="w.cat">{{ w.cat }}</span>
+            <span class="weak-count">错 {{ w.wrong_count }} 次</span>
+          </span>
         </div>
       </div>
+      <div v-if="weakAccuracy.length" class="weak-cats">
+        <div v-for="a in weakAccuracy" :key="a.cat" class="weak-cat">
+          <span class="weak-cat-name">{{ a.cat }}</span>
+          <span class="weak-cat-rate" :class="{ low: a.rate < 60 }">正确率 {{ a.rate }}%</span>
+        </div>
+      </div>
+      <div v-if="!weakPoints.length && !weakAccuracy.length" class="weak-empty">暂无薄弱点，继续保持！</div>
     </div>
 
     <!-- 每日回顾 + 番茄专注（专注概览已并入） -->
