@@ -157,11 +157,13 @@ function typeLabel(t) {
 .q-card:active { transform: scale(0.99); }
 .q-meta {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   flex: 1;
+  min-width: 0;
   overflow: hidden;
 }
+.q-meta .badge { white-space: nowrap; flex-shrink: 0; }
 .q-stem {
   font-size: 14px;
   color: var(--text);
@@ -170,6 +172,7 @@ function typeLabel(t) {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  min-width: 0;
 }
 .q-arrow { font-size: 20px; color: var(--brand); margin-left: 8px; text-shadow: var(--glow-soft); }
 </style>
