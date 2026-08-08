@@ -57,10 +57,21 @@ const summary = ref({ total: 0, learned: 0, mastered: 0, streak: 0, activeDays: 
 const trend = ref([])
 const calendar = ref({})
 
-// ---- 全局学习中心：科目范围切换（默认全部，可切单科目）----
+// ---- 全局学习中心：科目范围切换（默认跟随顶部科目，可切全部/单科目）----
+const props = defineProps({ subject: { type: Object, default: () => ({ id: null, name: '' }) } })
 const subjects = ref([])
-const subjectScope = ref('all')
-const filterSubjectId = computed(() => subjectScope.value === 'all' ? undefined : Number(subjectScope.value) || undefined)
+const subjectScope = ref('current') // 'current'(跟随顶部) | 'all' | 具体科目 id
+const filterSubjectId = computed(() => {
+  if (subjectScope.value === 'all') return undefined
+  if (subjectScope.value === 'current') return props.subject.id || undefined
+  return Number(subjectScope.value) || undefined
+})
+// chips 高亮：'current' → 高亮当前科目对应的 chip；'all' → 高亮「全部科目」；具体 id → 高亮该 chip
+const activeChipKey = computed(() => {
+  if (subjectScope.value === 'current') return props.subject.id
+  if (subjectScope.value === 'all') return 'all'
+  return Number(subjectScope.value)
+})
 // 从首页搬入的全局区块
 const heatmap = ref([])
 const goalData = ref(null)
@@ -127,6 +138,8 @@ async function loadGlobal() {
 }
 
 watch(filterSubjectId, () => { if (loggedIn.value) loadContent() }) // 切科目只刷新内容类
+// 顶部科目变化：若统计页仍处于「跟随顶部」状态则刷新
+watch(() => props.subject.id, () => { if (loggedIn.value && subjectScope.value === 'current') loadContent() })
 
 async function toggleHabit(h) {
   if (h.checkedToday) { await tiku.uncheckHabit(h.id) }
@@ -200,21 +213,21 @@ async function loadAnalysis() {
       <button class="btn btn-primary report-btn" @click="exportReport">导出学习周报</button>
     </div>
 
-    <!-- 科目范围切换：内容类统计跟随，行为类全局 -->
+    <!-- 科目范围切换：内容类统计跟随，行为类全局；默认跟随顶部科目 -->
     <div class="stats-scope" v-if="loggedIn">
       <button
         class="filter-chip"
-        :class="{ active: subjectScope === 'all' }"
+        :class="{ active: activeChipKey === 'all' }"
         @click="subjectScope = 'all'"
       >全部科目</button>
       <button
         v-for="s in subjects"
         :key="s.id"
         class="filter-chip"
-        :class="{ active: subjectScope === String(s.id) }"
+        :class="{ active: activeChipKey === s.id }"
         @click="subjectScope = String(s.id)"
       >{{ s.name }}</button>
-      <span class="scope-hint">内容类统计（题数/趋势/日历/正确率）随范围切换 · XP/契约/习惯 始终全局</span>
+      <span class="scope-hint">跟随顶部科目 · XP/契约/习惯 始终全局</span>
     </div>
 
     <div v-if="loggedIn">
