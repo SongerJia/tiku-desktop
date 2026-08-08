@@ -175,8 +175,28 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
       <div class="goal-sub">{{ goalPct >= 100 ? '🎉 今日目标已达成！' : '还差 ' + Math.max(0, dailyGoal - summary.today) + ' 题，去刷几道吧' }}</div>
     </div>
 
-    <!-- 考试倒计时 -->
-    <div class="card exam-count-card" v-if="examLeft">
+    <!-- 考试倒计时 + 专注概览（都有数据时左右两块，风格同下方 duo-card） -->
+    <div v-if="examLeft && focusWeek > 0" class="card duo-card">
+      <div class="duo-row">
+        <div class="duo-block">
+          <div class="duo-title">🎯 考试倒计时</div>
+          <div class="exam-count-num" :class="{ soon: examLeft.days <= 7 && examLeft.days >= 0 }">
+            {{ examLeft.days >= 0 ? examLeft.days : 0 }}<small> 天</small>
+          </div>
+          <div class="duo-sub">{{ examLeft.date }} {{ examLeft.days > 0 ? '· 每天坚持刷题，稳扎稳打' : (examLeft.days === 0 ? '· 就是今天！加油 🎉' : '· 已过考试日，可在「我的」更新日期') }}</div>
+        </div>
+        <div class="duo-block">
+          <div class="duo-title">🍅 专注概览</div>
+          <div class="focus-nums">
+            <span class="fn-item"><b>{{ focusToday }}</b><small>今日分钟</small></span>
+            <span class="fn-item"><b>{{ focusWeek }}</b><small>本周分钟</small></span>
+          </div>
+          <div class="focus-bar"><div class="focus-fill" :style="{ width: Math.min(100, Math.round(focusWeek / 420 * 100)) + '%' }"></div></div>
+          <div class="duo-sub">本周目标 7 小时 · 每专注 25 分钟休息一下 🌿</div>
+        </div>
+      </div>
+    </div>
+    <div v-else-if="examLeft" class="card exam-count-card">
       <div class="exam-count-top">
         <span class="exam-count-label">🎯 考试倒计时</span>
         <span class="exam-count-num" :class="{ soon: examLeft.days <= 7 && examLeft.days >= 0 }">
@@ -184,6 +204,15 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
         </span>
       </div>
       <div class="exam-count-sub">{{ examLeft.date }} {{ examLeft.days > 0 ? '· 每天坚持刷题，稳扎稳打' : (examLeft.days === 0 ? '· 就是今天！加油 🎉' : '· 已过考试日，可在「我的」更新日期') }}</div>
+    </div>
+    <div v-else-if="focusWeek > 0" class="card focus-sum-card">
+      <div class="card-title">🍅 专注概览</div>
+      <div class="focus-nums">
+        <span class="fn-item"><b>{{ focusToday }}</b><small>今日分钟</small></span>
+        <span class="fn-item"><b>{{ focusWeek }}</b><small>本周分钟</small></span>
+      </div>
+      <div class="focus-bar"><div class="focus-fill" :style="{ width: Math.min(100, Math.round(focusWeek / 420 * 100)) + '%' }"></div></div>
+      <div class="focus-sub">本周目标 7 小时 · 每专注 25 分钟休息一下 🌿</div>
     </div>
 
     <!-- 近 7 天学习趋势 -->
@@ -274,17 +303,6 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
           <span class="habit-check"><Icon v-if="h.checkedToday" name="check" :size="14"/><i v-else class="hollow"></i></span>
         </div>
       </div>
-    </div>
-
-    <!-- 专注概览 -->
-    <div class="card focus-sum-card" v-if="focusWeek > 0">
-      <div class="card-title">🍅 专注概览</div>
-      <div class="focus-nums">
-        <span class="fn-item"><b>{{ focusToday }}</b><small>今日分钟</small></span>
-        <span class="fn-item"><b>{{ focusWeek }}</b><small>本周分钟</small></span>
-      </div>
-      <div class="focus-bar"><div class="focus-fill" :style="{ width: Math.min(100, Math.round(focusWeek / 420 * 100)) + '%' }"></div></div>
-      <div class="focus-sub">本周目标 7 小时 · 每专注 25 分钟休息一下 🌿</div>
     </div>
 
     <!-- 每日回顾 + 专注 -->
@@ -439,6 +457,15 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
 
 /* 每日回顾 + 专注 */
 .duo-row { display: flex; gap: 14px; }
+.duo-block {
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 .duo-left {
   flex: 1;
   border: 1px solid var(--line);
