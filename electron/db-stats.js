@@ -1,0 +1,190 @@
+// 学习统计 / 趋势 / 成就指标模块。
+// 从 db.js 拆出（拆分渐进一步）：依赖 sqlite，经 ctx 注入；this 互调（getSummary/kbStats/getSetting）在合并后指向 api。
+module.exports = function statsModule(ctx) {
+  const { sqlite, LOCAL_USER, uuid } = ctx
+
+  return {
+    getStats() {
+      const overall = sqlite.prepare('SELECT COUNT(*) AS n, SUM(is_correct) AS c FROM answer_records WHERE user_id=? AND deleted=0').get(LOCAL_USER)
+      const total = overall.n || 0
+      const correct = overall.c || 0
+      const rate = total ? Math.round((correct / total) * 100) : 0
+
+      const perCat = sqlite.prepare(`SELECT cat.name AS cat, COUNT(*) AS n, SUM(ar.is_correct) AS c
+        FROM answer_records ar
+        JOIN questions q ON q.id=ar.question_id
+        JOIN categories cat ON cat.id=q.category_id
+        WHERE ar.user_id=? AND ar.deleted=0
+        GROUP BY cat.id`).all(LOCAL_USER)
+        .map(r => ({ ...r, rate: r.n ? Math.round(((r.c || 0) / r.n) * 100) : 0 }))
+
+      const wrongCount = sqlite.prepare("SELECT COUNT(*) AS n FROM wrong_books WHERE user_id=? AND status='wrong' AND deleted=0").get(LOCAL_USER).n
+      const favCount = sqlite.prepare('SELECT COUNT(*) AS n FROM favorites WHERE user_id=? AND deleted=0').get(LOCAL_USER).n
+
+      return { total, correct, rate, wrongCount, favCount, perCat }
+    },
+
+    // 薄弱点 TopN：错题本中 wrong_count 最高、且临近复习的题目（精准定位该补的短板）
+    getWeakPoints(limit = 5) {
+      const rows = sqlite.prepare(`
+        SELECT q.id, q.stem, q.category_id, c.name AS cat,
+               wb.wrong_count, wb.reviewed_count, wb.ease, wb.interval, wb.next_review_at
+        FROM wrong_books wb
+        JOIN questions q ON q.id = wb.question_id
+        LEFT JOIN categories c ON c.id = q.category_id
+        WHERE wb.user_id = ? AND wb.status = 'wrong' AND wb.deleted = 0 AND q.deleted = 0
+        ORDER BY wb.wrong_count DESC, wb.next_review_at ASC
+        LIMIT ?
+      `).all(LOCAL_USER, limit)
+      return rows.map(r => ({
+        ...r,
+        stem: (r.stem || '').replace(/\s+/g, ' ').slice(0, 60)
+      }))
+    },
+
+    // 全科目正确率排行（用于薄弱章节对比）：返回 [{cat, n, c, rate}] 按正确率升序
+    getCategoryAccuracy() {
+      const rows = sqlite.prepare(`SELECT cat.name AS cat, COUNT(*) AS n, SUM(ar.is_correct) AS c
+        FROM answer_records ar
+        JOIN questions q ON q.id=ar.question_id
+        JOIN categories cat ON cat.id=q.category_id
+        WHERE ar.user_id=? AND ar.deleted=0 AND cat.level=2
+        GROUP BY cat.id`).all(LOCAL_USER)
+      return rows
+        .map(r => ({ cat: r.cat, n: r.n, c: r.c || 0, rate: r.n ? Math.round((r.c || 0) / r.n * 100) : 0 }))
+        .sort((a, b) => a.rate - b.rate)
+    },
+
+    // 游戏化成就所需的全部原始指标（成就定义在前端，按阈值派生「已解锁」状态）
+    getAchievements() {
+      const s = this.getSummary()
+      const totalAnswered = sqlite.prepare('SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0').get(LOCAL_USER).n
+      const correctCount = sqlite.prepare('SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND is_correct=1').get(LOCAL_USER).n
+      const essayCount = sqlite.prepare(
+        "SELECT COUNT(*) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.type='essay'"
+      ).get(LOCAL_USER).n
+      const papersCount = sqlite.prepare('SELECT COUNT(*) AS n FROM papers WHERE deleted=0').get().n
+      const notesCount = sqlite.prepare("SELECT COUNT(*) AS n FROM notes WHERE user_id=? AND deleted=0 AND TRIM(IFNULL(content,''))<>''").get(LOCAL_USER).n
+      const tagsUsed = sqlite.prepare('SELECT COUNT(DISTINCT tag) AS n FROM question_tags').get().n
+      const favCount = sqlite.prepare('SELECT COUNT(*) AS n FROM favorites WHERE user_id=? AND deleted=0').get(LOCAL_USER).n
+      const kb = this.kbStats()
+      return {
+        streak: s.streak, today: s.today, activeDays: s.activeDays,
+        totalAnswered, mastered: s.mastered, wrongCount: s.wrongCount,
+        correctCount, essayCount,
+        papersCount, notesCount, tagsUsed, favCount,
+        kbDocs: kb.docs, kbBlocks: kb.blocks, kbLinks: kb.links, kbReadCount: kb.readCount,
+        dailyGoal: Number(this.getSetting('daily_goal') || 0)
+      }
+    },
+
+    getSummary() {
+      const total = sqlite.prepare('SELECT COUNT(*) AS n FROM questions WHERE deleted=0').get().n
+      const learned = sqlite.prepare('SELECT COUNT(DISTINCT question_id) AS n FROM answer_records WHERE user_id=? AND deleted=0').get(LOCAL_USER).n
+      const mastered = sqlite.prepare(`SELECT COUNT(DISTINCT question_id) AS n FROM answer_records
+        WHERE user_id=? AND deleted=0 AND is_correct=1`).get(LOCAL_USER).n
+      const todayStart = new Date().setHours(0, 0, 0, 0)
+      const today = sqlite.prepare('SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=?').get(LOCAL_USER, todayStart).n
+      const wrongCount = sqlite.prepare("SELECT COUNT(*) AS n FROM wrong_books WHERE user_id=? AND status='wrong' AND deleted=0").get(LOCAL_USER).n
+
+      const localDateKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const dayRows = sqlite.prepare("SELECT DISTINCT DATE(created_at/1000, 'unixepoch', 'localtime') AS day FROM answer_records WHERE user_id=? AND deleted=0").all(LOCAL_USER)
+      const daySet = new Set(dayRows.map(r => r.day))
+      const activeDays = daySet.size
+      let streak = 0
+      const cursor = new Date()
+      cursor.setHours(0, 0, 0, 0)
+      if (!daySet.has(localDateKey(cursor))) cursor.setDate(cursor.getDate() - 1)
+      for (let i = 0; ; i++) {
+        const d = new Date(cursor)
+        d.setDate(cursor.getDate() - i)
+        if (daySet.has(localDateKey(d))) streak++
+        else break
+      }
+
+      return { total, learned, mastered, today, wrongCount, activeDays, streak }
+    },
+
+    getWeeklyTrend() {
+      const days = []
+      const now = new Date()
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now)
+        d.setDate(d.getDate() - i)
+        d.setHours(0, 0, 0, 0)
+        const start = d.getTime()
+        const end = start + 24 * 60 * 60 * 1000
+        const row = sqlite.prepare('SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=? AND created_at<?')
+          .get(LOCAL_USER, start, end)
+        days.push({ date: d.toISOString().slice(0, 10), count: row.n || 0 })
+      }
+      return days
+    },
+
+    getMonthlyCalendar(year, month) {
+      const start = new Date(year, month - 1, 1).getTime()
+      const end = new Date(year, month, 1).getTime()
+      const rows = sqlite.prepare(`SELECT DATE(created_at/1000, 'unixepoch', 'localtime') AS day, COUNT(*) AS n
+        FROM answer_records
+        WHERE user_id=? AND deleted=0 AND created_at>=? AND created_at<?
+        GROUP BY day`).all(LOCAL_USER, start, end)
+      const map = {}
+      rows.forEach(r => { map[r.day] = r.n })
+      return map
+    },
+
+    // 近 N 天每日答题量（学习日历热力图数据源）。返回 [{date:'YYYY-MM-DD', count, isToday}]，含今天。
+    getActivityHeatmap(days = 120) {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const start = today.getTime() - (days - 1) * 86400000
+      const rows = sqlite.prepare(`SELECT DATE(created_at/1000, 'unixepoch', 'localtime') AS day, COUNT(*) AS n
+        FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=?
+        GROUP BY day`).all(LOCAL_USER, start)
+      const map = {}
+      rows.forEach(r => { map[r.day] = r.n })
+      // 专注分钟叠加（focus_sessions 无 user_id，全局）
+      const fRows = sqlite.prepare(`SELECT DATE(created_at/1000, 'unixepoch', 'localtime') AS day, COALESCE(SUM(minutes),0) AS m
+        FROM focus_sessions WHERE deleted=0 AND created_at>=? GROUP BY day`).all(start)
+      const fMap = {}
+      fRows.forEach(r => { fMap[r.day] = r.m })
+      const out = []
+      for (let i = 0; i < days; i++) {
+        const d = new Date(start + i * 86400000)
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        out.push({ date: key, count: map[key] || 0, focus: fMap[key] || 0, isToday: i === days - 1 })
+      }
+      return out
+    },
+
+    // 复习节奏（记忆曲线数据）：未来 N 天到期分布 + 在复习错题的逐题节奏
+    getReviewCurve(days = 30) {
+      const now = Date.now()
+      const rows = sqlite.prepare(`SELECT id, question_id, next_review_at, ease, interval, reviewed_count, status
+        FROM wrong_books WHERE user_id=? AND deleted=0 AND status='wrong' AND next_review_at>?`)
+        .all(LOCAL_USER, now)
+      const dayMs = 86400000
+      const dist = []
+      for (let i = 0; i < days; i++) {
+        const s = now + i * dayMs
+        const e = s + dayMs
+        dist.push({ date: new Date(s).toISOString().slice(0, 10), count: rows.filter(r => r.next_review_at >= s && r.next_review_at < e).length })
+      }
+      const items = rows.map(r => ({
+        questionId: r.question_id,
+        next: new Date(r.next_review_at).toISOString().slice(0, 10),
+        interval: r.interval,
+        ease: Math.round(r.ease * 100) / 100,
+        reviewed: r.reviewed_count
+      })).sort((a, b) => a.next.localeCompare(b.next))
+      return { dist, items }
+    },
+
+    getRecentRecords(limit = 5) {
+      return sqlite.prepare(`SELECT ar.*, q.stem
+        FROM answer_records ar JOIN questions q ON q.id=ar.question_id
+        WHERE ar.user_id=? AND ar.deleted=0
+        ORDER BY ar.created_at DESC LIMIT ?`).all(LOCAL_USER, limit)
+    }
+  }
+}
