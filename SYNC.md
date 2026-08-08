@@ -153,7 +153,9 @@ for (const nb of merged.notes) {
 |---|---|
 | `electron/sync-github.js` | GitHub REST 封装：`validateToken` / `createGist` / `updateGist` / `getGist`（Node 全局 `fetch`，统一错误） |
 | `electron/sync-merge.js` | **纯函数** `lwwMerge` / `applyFk` / `mergeTables`，无 DB 依赖，供单测 |
-| `electron/db.js` | `exportSync()`（全量快照含软删）、`mergeRemote(json)`（按 client_id upsert + LWW + 外键解析）、`backfillClientIds()`（老库补齐 client_id/*_cid）、`getSetting/setSetting` |
+| `electron/db.js` | `exportSync()`（全量快照含软删，图片二进制**不**内嵌）、`exportImageFiles(since)`（独立导出在用图 `{name,buffer,sha256}`，增量仅含变更题图）、`mergeRemote(json)`（按 client_id upsert + LWW + 外键解析）、`restoreImages(list)`（图片落盘 `userData/images`）、`backfillClientIds()`（老库补齐 client_id/*_cid）、`getSetting/setSetting` |
+
+> **图片已独立存储（快照瘦身）：** 题目图片二进制**不再**内嵌进 JSON 快照，改为独立 Gist 文件——`tiku-img.0`/`tiku-img.1`…（每图 gzip+base64，>1MB 自动分块）+ `tiku-img-index.json`（文件名→sha256/分块清单）。`exportImageFiles(since)` 仅导出在用图，增量模式只含变更题图；`runSync` 比对 sha256，未变更图片跳过重传；拉取时 `decodeImageFiles` 解码后 `restoreImages` 落盘 `userData/images`，已存在不覆盖。旧版内嵌 `images` 字段仍保留兜底兼容（不会裂图）。
 | `electron/main.js` | `syncGetConfig` / `syncConnect` / `syncDisconnect` / `syncNow` 编排 + token 安全存储 |
 | `electron/preload.js` + `src/api/tiku.js` | 暴露上述四个 sync 方法（三层同名） |
 | `src/components/Profile.vue` | 「云同步（GitHub）」卡片：输入 Token、连接、立即同步、断开 |

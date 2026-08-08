@@ -52,7 +52,7 @@
 | **题目图片** | 题干配图（多图），录入/答题渲染，随题库备份 | ✅ 完成 | `questions.images_json` + `userData/images` 本地图床；`saveImage`/`getImage` |
 | **题目笔记** | 每题个人批注，答题页/题库页内联编辑，Profile「我的笔记」汇总 | ✅ 完成 | `notes` 表 + `getNote`/`saveNote`/`listNotes`/`getNotedQuestionIds` |
 | **背题模式** | 直接看答案不判分，可叠加任意范围（如背错题） | ✅ 完成 | 与题库范围正交的开关，与考试互斥 |
-| **智能复习** | 艾宾浩斯曲线安排错题重现（间隔 1/2/4/7/15/30/60 天，连对 3 次毕业） | ✅ 完成 | `wrong_books.next_review_at` 已实现，「复习」范围可用 |
+| **智能复习** | SM-2 间隔重复算法：按每次作答质量（0–5）动态计算 `ease`/`interval`，连对毕业；复习间隔不再固定写死 | ✅ 完成 | `wrong_books.next_review_at` 新增 `ease`/`interval` 列；`scheduleNextReview(state, quality)` 按质量分复利增长，「复习」范围可用 |
 | **标签系统** | 题目打标签（高频/易错/必背…），题库按标签筛选、练习按标签范围 | ✅ 完成 | `question_tags` 表 + `setQuestionTags`/`listTags`/`getQuestionTags`；标签随同步传播 |
 | **弱点强化** | 按正确率/错题数加权自动抽取最薄弱的题练习 | ✅ 完成 | `getWeakQuestions`；练习设置新增「弱点强化」范围 |
 | **错题深度分析** | 薄弱章节自动识别（正确率升序）+ 相似题推荐 + 交卷逐题解析页 | ✅ 完成 | `getWeakChapters`/`getSimilarQuestions`；Quiz 交卷后可看「你的答案 vs 正确答案 + 解析」 |
@@ -60,7 +60,7 @@
 | **游戏化成就** | 成就墙（10 项）+ 每日目标进度 + 首页今日进度卡 | ✅ 完成 | `getAchievements`；成就阈值在前端派生；目标存 `settings.daily_goal` |
 | **题目批量操作** | 多选题目批量移动章节/打标签/改难度/删除 | ✅ 完成 | `batchUpdateQuestions`/`batchDeleteQuestions`；软删兼容同步 |
 | **浅色主题 + 字号** | 护眼浅色主题、字号 80%–140% 全局缩放 | ✅ 完成 | `data-theme="light"` 覆盖 CSS 变量 + `documentElement.zoom`；存 `settings.theme/font_scale` |
-| **图片跨设备同步** | 修复：题图随 Gist 快照一并跨设备（原仅传文件名会裂图） | ✅ 完成 | `exportSync` 内嵌图片 base64、`mergeRemote` 还原到 `userData/images` |
+| **图片跨设备同步** | 题图独立存储跨设备（原仅传文件名会裂图，也不再把 base64 塞进 JSON 快照） | ✅ 完成 | 图片二进制独立存为 Gist 文件（`tiku-img.*`，gzip+base64，>1MB 自动分块）+ `tiku-img-index.json` 清单；`exportImageFiles`/`restoreImages`；`runSync` 按 sha256 跳过重传 |
 | **个人知识库** | 知识文档（md/pdf）入库、MD 按标题切块 / PDF 逐页抽文本、全文检索、知识库 Tab（列表/搜索/标签/**全屏三栏阅读**：Vditor IR 编辑 + pdfjs 懒渲染）、**题目↔文档双向联动**（解析页「相关文档」+ 文档页「相关题目」+ L2 自动推荐） | ✅ 完成 | `kb_docs`/`kb_blocks`/`kb_tags`/`kb_links` 四表 + `electron/kbExtract.js` + LIKE 检索 + `getSuggestedDocsForQuestion`/`getSuggestedQuestionsForDoc`（共享标签 + 题干/块关键词，零 ML） |
 | **统一搜索** | 顶部搜索按钮一处搜题目 + 知识文档（双组结果，题目速览 / 文档阅读直达） | ✅ 完成 | `UnifiedSearch.vue` + `SimpleQuestion.vue`；并行 `listQuestions(keyword)` + `kbSearch` |
 | **知识库跨设备同步** | 知识库随 Gist 快照同步：MD 文本 base64 内嵌跨设备还原；PDF 仅同步元数据+文件名（换设备重导原件）；子表/文件跟随远端胜出的文档重建 | ✅ 完成（阶段 E） | `exportSync` 加 `kbDocs/kbBlocksByCid/kbTagsByCid/kbLinksByCid/kbFiles`；`mergeRemote` LWW + rel_path 冲突换名兜底 |
@@ -225,7 +225,7 @@ npm run dist
 | `favorites` | 收藏 |
 | `settings` | 键值配置（如当前科目 `current_subject`） |
 
-> 此外 `papers` / `paper_questions` 两表已建（模拟卷组卷），`questions.images_json` 已加（题目图片），`question_tags` 表已建（标签系统），均经 `migrateSchema` 的 `ALTER` 兜底老库升级。题图二进制在同步时由 `exportSync` 内嵌为 base64 一并随快照传播。
+> 此外 `papers` / `paper_questions` 两表已建（模拟卷组卷），`questions.images_json` 已加（题目图片），`question_tags` 表已建（标签系统），均经 `migrateSchema` 的 `ALTER` 兜底老库升级。题图二进制**不再**内嵌进同步 JSON 快照，而是独立存为 Gist 文件（`tiku-img.*`，gzip+base64，超 1MB 自动分块，配 `tiku-img-index.json` 清单），`runSync` 按 sha256 跳过重传，拉取时落盘 `userData/images`。
 
 ### 学习反馈层（v0.6.0 新增，全部带 client_id 随同步）
 | 表 | 作用 |
@@ -331,7 +331,7 @@ node --check electron/main.js && node --check electron/preload.js
 ### Phase 2：账户云同步 —— 已落地「轻量 GitHub Gist 方案」
 > 已**完成**并可用。选择零后端方案（不用部署 Spring Boot），详见仓库内 `SYNC.md`（GitHub Gist 同步方案）。
 1. 七张表已加 `client_id` 与 `*_cid` 外键列；`backfillClientIds` 给老数据补齐身份。
-2. `exportSync()` 导出全量快照（含软删行），`mergeRemote()` 按 `client_id` upsert + `updated_at` last-write-wins + 外键按 cid 解析。
+2. `exportSync()` 导出全量快照（含软删行，图片二进制不再内嵌），`mergeRemote()` 按 `client_id` upsert + `updated_at` last-write-wins + 外键按 cid 解析；图片由 `exportImageFiles()` 独立导出、`restoreImages()` 落盘。
 3. `electron/sync-github.js` 调 GitHub API 把快照存进私有 Gist；主进程用 `safeStorage` 加密存 token；Profile 页「云同步（GitHub）」卡片连接/同步/断开。
 
 ### 知识库跨设备同步（阶段 E，已完成）
