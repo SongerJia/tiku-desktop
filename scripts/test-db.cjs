@@ -457,6 +457,12 @@ try {
   ok('getQuestions(wrong+subjectId) 按科目过滤错题', wrongA.some(w => w.id === qA.id) && wrongOther.every(w => w.id !== qA.id))
   db.deleteCategory(subA.id) // 级联清理（含错题残留无碍后续）
 
+  // 空科目边界：新建科目无章节时拉题应返回空（防止 IN() SQL 报错）
+  const emptySub = db.addCategory({ name: '空科目', parentId: null })
+  const emptyRes = db.getQuestions({ subjectId: emptySub.id })
+  ok('getQuestions(空科目) 返回空数组', Array.isArray(emptyRes) && emptyRes.length === 0)
+  db.deleteCategory(emptySub.id)
+
   // 33) 知识库按科目归类（第二批）
   const subB = db.addCategory({ name: '科目维度B', parentId: null })
   const kbDocA = db.addKbDoc({ title: '科目B文档', type: 'md', relPath: 'subj-b.md', size: 3, subjectId: subB.id })

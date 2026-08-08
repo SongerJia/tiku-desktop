@@ -33,6 +33,7 @@ async function fetchQuestions() {
   loading.value = true
   visibleCount.value = PAGE
   questions.value = await tiku.getQuestions({
+    subjectId: props.subject.id || undefined,
     categoryId: currentChapterId.value,
     keyword: keyword.value.trim() || undefined
   })
