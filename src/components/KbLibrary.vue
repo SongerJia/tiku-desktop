@@ -1,6 +1,6 @@
 <script setup>
 import Icon from './Icon.vue'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
@@ -15,23 +15,8 @@ const keyword = ref('')
 const loading = ref(true)
 const reader = ref({ show: false, doc: null })
 const editor = ref({ show: false, doc: null, tags: [], title: '', folder: '', subjectId: null })
-// 知识库科目筛选：默认跟随当前科目，可切「全部科目」
-const subjects = ref([])
-const subjectFilter = ref('current') // 'current' | 'all' | 具体科目 id
-const filterSubjectId = computed(() => {
-  if (subjectFilter.value === 'all') return undefined
-  if (subjectFilter.value === 'current') return props.subject.id || undefined
-  return Number(subjectFilter.value) || undefined
-})
-// 知识库 chips 只负责"筛选范围"，不再独立显示当前科目（顶部选择器已显示）
-// - subjectFilter='current' → 高亮当前科目对应的 chip
-// - subjectFilter='all' → 高亮「全部科目」chip
-// - subjectFilter=具体 id → 高亮该 chip
-const activeChipKey = computed(() => {
-  if (subjectFilter.value === 'current') return props.subject.id
-  if (subjectFilter.value === 'all') return 'all'
-  return Number(subjectFilter.value)
-})
+// 知识库完全跟随顶部科目：顶部切科目时刷新本页文档（id=null=全部科目）
+const filterSubjectId = computed(() => props.subject.id || undefined)
 
 let debounceTimer = null
 
@@ -50,13 +35,10 @@ async function loadTags() {
   allTags.value = await tiku.kbTags()
 }
 
-async function loadSubjects() {
-  try { subjects.value = await tiku.getSubjects() } catch (e) { subjects.value = [] }
-}
+watch(() => props.subject.id, loadList) // 顶部切科目 → 知识库跟随
 
 onMounted(() => {
   loadTags()
-  loadSubjects()
   loadList()
   loadGraph()
 })
@@ -230,20 +212,6 @@ function fmtTime(ts) {
           @click="tagFilter = tagFilter === t.tag ? null : t.tag"
         >{{ t.tag }}<span class="kb-tag-n">{{ t.n }}</span></button>
       </div>
-      <div class="kb-subj-row">
-        <button
-          class="filter-chip"
-          :class="{ active: activeChipKey === 'all' }"
-          @click="subjectFilter = 'all'; loadList()"
-        >全部科目</button>
-        <button
-          v-for="s in subjects"
-          :key="s.id"
-          class="filter-chip"
-          :class="{ active: activeChipKey === s.id }"
-          @click="subjectFilter = String(s.id); loadList()"
-        >{{ s.name }}</button>
-      </div>
     </div>
 
     <!-- 知识互链图谱 -->
@@ -340,7 +308,6 @@ function fmtTime(ts) {
 .kb-tools .input { flex: 1; }
 .kb-tag-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .kb-tag-n { font-size: 11px; opacity: .7; margin-left: 4px; }
-.kb-subj-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
 
 .kb-grid {
   display: grid;
