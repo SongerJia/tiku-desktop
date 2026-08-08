@@ -23,6 +23,8 @@ const filterSubjectId = computed(() => {
   if (subjectFilter.value === 'current') return props.subject.id || undefined
   return Number(subjectFilter.value) || undefined
 })
+// 列表 chips 排除当前科目（已用第一个 chip 标识当前，避免重复）
+const subjectsOther = computed(() => subjects.value.filter(s => s.id !== props.subject.id))
 
 let debounceTimer = null
 
@@ -233,7 +235,7 @@ function fmtTime(ts) {
           @click="subjectFilter = 'all'; loadList()"
         >全部科目</button>
         <button
-          v-for="s in subjects"
+          v-for="s in subjectsOther"
           :key="s.id"
           class="filter-chip"
           :class="{ active: subjectFilter === String(s.id) }"
