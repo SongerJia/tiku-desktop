@@ -421,6 +421,22 @@ try {
   ok('kbStats unread 计数新增', db.kbStats().unread >= 1)
   db.deleteKbDoc(unreadDoc)
 
+  // 31) 收藏分组 + 卡片自动生成（方向 9/10）
+  db.toggleFavorite(q.id, '考前重点')
+  const favs = db.getFavorites()
+  const favIt = favs.find(f => f.question_id === q.id)
+  ok('toggleFavorite 带分组收藏', !!favIt && favIt.fav_group === '考前重点')
+  db.setFavoriteGroup(q.id, '易错')
+  ok('setFavoriteGroup 改分组', db.getFavorites().find(f => f.question_id === q.id).fav_group === '易错')
+  db.toggleFavorite(q.id) // 取消
+  ok('toggleFavorite 取消收藏', !db.getFavorites().some(f => f.question_id === q.id))
+  const cg1 = db.addCardFromQuestion(q.id)
+  ok('addCardFromQuestion 生成记忆卡', cg1.ok === true && cg1.duplicate === false)
+  const cg2 = db.addCardFromQuestion(q.id)
+  ok('addCardFromQuestion 同题去重', cg2.ok === true && cg2.duplicate === true)
+  const cardFromQ = db.listCards().find(c => c.source_question_id === q.id)
+  ok('卡片含来源与卡组', !!cardFromQ && cardFromQ.front.length > 0 && cardFromQ.back.includes('【答案】'))
+
   console.log(`\ndb 集成测试：${pass} 通过 / ${fail} 失败`)
 } catch (e) {
   fail++

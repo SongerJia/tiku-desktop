@@ -10,7 +10,8 @@
       (function () {
         try {
           var t = localStorage.getItem('tiku_theme')
-          document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'dark')
+          if (t !== 'light' && t !== 'eye') t = 'dark'
+          document.documentElement.setAttribute('data-theme', t)
           var z = parseFloat(localStorage.getItem('tiku_font_scale'))
           if (z && z > 0) document.documentElement.style.zoom = z
         } catch (e) {}

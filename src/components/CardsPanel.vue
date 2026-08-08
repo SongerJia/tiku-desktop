@@ -167,6 +167,7 @@ onMounted(load)
               <div class="card-back">{{ c.back }}</div>
             </div>
             <div class="card-meta">
+              <span v-if="c.source_question_id" class="cat-badge src">来自题目</span>
               <span v-if="c.category" class="cat-badge">{{ c.category }}</span>
               <span class="state" :class="{ due: c.due }">
                 {{ c.due ? '待复习' : (c.review_count ? '已安排' : '新卡') }}{{ c.review_count ? ' · 记过 ' + c.review_count + ' 次' : '' }}{{ c.lapses ? ' · 忘过 ' + c.lapses + ' 次' : '' }}

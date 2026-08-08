@@ -103,7 +103,13 @@ const focusMinutes = ref(25)
 const focusLeft = ref(0)
 const focusRunning = ref(false)
 const focusToday = ref(0)
+const focusPhase = ref('work')   // 'work' 25 分钟 | 'break' 5 分钟（番茄循环）
+const pomodoroCount = ref(0)     // 本日完成的番茄数（会话内累计）
+const paused = ref(false)
+const noiseOn = ref(false)       // 白噪音开关
 let focusTimer = null
+let noiseCtx = null
+let noiseSrc = null
 
 async function load() {
   loading.value = true
@@ -181,26 +187,98 @@ const focusText = computed(() => {
 })
 function startFocus() {
   if (focusRunning.value) return
-  focusLeft.value = focusMinutes.value * 60
+  focusPhase.value = 'work'
+  focusLeft.value = 25 * 60
   focusRunning.value = true
-  focusTimer = setInterval(() => {
-    focusLeft.value--
-    if (focusLeft.value <= 0) stopFocus(true)
-  }, 1000)
+  paused.value = false
+  focusTimer = setInterval(tick, 1000)
+}
+function tick() {
+  if (paused.value) return
+  focusLeft.value--
+  if (focusLeft.value <= 0) phaseComplete()
+}
+async function phaseComplete() {
+  if (focusPhase.value === 'work') {
+    // 完成一个番茄：记账 25 分钟，进入 5 分钟休息（自动衔接下一轮）
+    pomodoroCount.value++
+    try {
+      await tiku.addFocusSession(25)
+      const fs = await tiku.focusStats()
+      focusToday.value = fs.today
+    } catch (e) {}
+    showToast(`🍅 第 ${pomodoroCount.value} 个番茄完成，+50 XP，休息一下`, 'ok')
+    focusPhase.value = 'break'
+    focusLeft.value = 5 * 60
+  } else {
+    // 休息结束自动开始下一轮
+    focusPhase.value = 'work'
+    focusLeft.value = 25 * 60
+    showToast(`休息结束，开始第 ${pomodoroCount.value + 1} 个番茄 💪`, 'ok')
+  }
+}
+function pauseFocus() {
+  paused.value = !paused.value
+}
+function skipBreak() {
+  if (focusPhase.value === 'break') {
+    focusPhase.value = 'work'
+    focusLeft.value = 25 * 60
+  }
 }
 async function stopFocus(completed = false) {
   clearInterval(focusTimer)
   focusTimer = null
   focusRunning.value = false
-  if (completed) {
+  paused.value = false
+  stopNoise()
+  if (completed && focusPhase.value === 'work') {
     await tiku.addFocusSession(focusMinutes.value)
-    showToast(`专注 ${focusMinutes.value} 分钟完成，+${focusMinutes.value * 2} XP`, 'ok')
     const fs = await tiku.focusStats()
     focusToday.value = fs.today
   }
   focusLeft.value = 0
 }
-onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
+// 白噪音：Web Audio 本地生成粉噪（无需外部文件）
+function startNoise() {
+  if (noiseCtx) return
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext
+    noiseCtx = new AC()
+    const size = 2 * noiseCtx.sampleRate
+    const buffer = noiseCtx.createBuffer(1, size, noiseCtx.sampleRate)
+    const data = buffer.getChannelData(0)
+    let last = 0
+    for (let i = 0; i < size; i++) {
+      const white = Math.random() * 2 - 1
+      last = (last + 0.02 * white) / 1.02 // 一阶低通近似粉噪
+      data[i] = last * 3.5
+    }
+    const src = noiseCtx.createBufferSource()
+    src.buffer = buffer
+    src.loop = true
+    const gain = noiseCtx.createGain()
+    gain.gain.value = 0.05
+    src.connect(gain).connect(noiseCtx.destination)
+    src.start()
+    noiseSrc = src
+  } catch (e) { /* 音频不可用则静默 */ }
+}
+function stopNoise() {
+  try { if (noiseSrc) noiseSrc.stop() } catch (e) {}
+  try { if (noiseCtx) noiseCtx.close() } catch (e) {}
+  noiseSrc = null
+  noiseCtx = null
+}
+function toggleNoise() {
+  noiseOn.value = !noiseOn.value
+  if (noiseOn.value) startNoise()
+  else stopNoise()
+}
+onBeforeUnmount(() => {
+  if (focusTimer) clearInterval(focusTimer)
+  stopNoise()
+})
 </script>
 
 <template>
@@ -519,13 +597,22 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
           <span class="duo-sub">主动回忆 · 对抗遗忘</span>
         </div>
         <div class="duo-right">
-          <span class="duo-title"><Icon name="clock" :size="14"/> 专注 {{ focusMinutes }} 分钟</span>
+          <span class="duo-title">
+            <Icon name="clock" :size="14"/>
+            <template v-if="!focusRunning">番茄专注 · 25+5 循环</template>
+            <template v-else>{{ focusPhase === 'work' ? `🍅 第 ${pomodoroCount + 1} 轮 · 工作中` : '☕ 休息中 · 5 分钟' }}</template>
+          </span>
           <div class="focus-ctrl">
-            <span v-if="focusRunning" class="focus-time">{{ focusText }}</span>
+            <span v-if="focusRunning" class="focus-time" :class="{ break: focusPhase === 'break' }">{{ focusText }}</span>
             <button v-if="!focusRunning" class="btn btn-primary" @click="startFocus">开始</button>
-            <button v-else class="btn" @click="stopFocus(false)">停止</button>
+            <template v-else>
+              <button class="btn" @click="pauseFocus">{{ paused ? '继续' : '暂停' }}</button>
+              <button v-if="focusPhase === 'break'" class="btn" @click="skipBreak">跳过休息</button>
+              <button class="btn" @click="stopFocus(false)">停止</button>
+            </template>
+            <button class="btn noise-btn" :class="{ on: noiseOn }" @click="toggleNoise">🎧 白噪音</button>
           </div>
-          <span class="duo-sub">今日已专注 {{ focusToday }} 分钟</span>
+          <span class="duo-sub">今日已专注 {{ focusToday }} 分钟 · 已完成 {{ pomodoroCount }} 个番茄</span>
         </div>
       </div>
     </div>
@@ -696,6 +783,9 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
 .duo-sub { font-size: 11px; color: var(--muted); }
 .focus-ctrl { display: flex; align-items: center; gap: 8px; }
 .focus-time { font-size: 20px; font-weight: 600; color: var(--brand); font-variant-numeric: tabular-nums; }
+.focus-time.break { color: var(--warn); }
+.noise-btn { font-size: 12px; padding: 5px 10px; }
+.noise-btn.on { background: rgba(44, 229, 168, 0.14); color: var(--ok); border-color: rgba(44, 229, 168, 0.4); }
 
 .shortcuts .shortcut-grid {
   display: grid;

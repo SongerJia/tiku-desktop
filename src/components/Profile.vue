@@ -401,9 +401,16 @@ onMounted(async () => {
       <div class="card-title">偏好设置</div>
       <div class="pref-row">
         <span class="pref-label">主题</span>
-        <div class="seg">
-          <button :class="{ on: theme === 'dark' }" @click="setTheme('dark')">暗色</button>
-          <button :class="{ on: theme === 'light' }" @click="setTheme('light')">浅色</button>
+        <div class="theme-palette">
+          <button class="theme-swatch" :class="{ on: theme === 'dark' }" @click="setTheme('dark')">
+            <i class="sw-dot" style="background:#1a1f2e"></i><span>深色</span>
+          </button>
+          <button class="theme-swatch" :class="{ on: theme === 'light' }" @click="setTheme('light')">
+            <i class="sw-dot" style="background:#eef1f6"></i><span>浅色</span>
+          </button>
+          <button class="theme-swatch" :class="{ on: theme === 'eye' }" @click="setTheme('eye')">
+            <i class="sw-dot" style="background:#e9f0e6"></i><span>护眼绿</span>
+          </button>
         </div>
       </div>
       <div class="pref-row">
@@ -944,4 +951,14 @@ onMounted(async () => {
 .cl-key { flex: 0 0 auto; color: var(--muted); }
 .cl-times { flex: 1; color: var(--muted); text-align: right; }
 .cl-note { margin-top: 6px; font-size: 10px; color: var(--muted); }
+
+/* 主题色板（方向 12） */
+.theme-palette { display: flex; gap: 8px; }
+.theme-swatch {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  font-size: 11px; color: var(--muted); background: transparent; border: 1px solid var(--line);
+  border-radius: 10px; padding: 8px 10px; cursor: pointer; transition: all .15s;
+}
+.theme-swatch.on { border-color: var(--brand); color: var(--text); box-shadow: var(--glow-soft); }
+.sw-dot { width: 30px; height: 22px; border-radius: 6px; border: 1px solid var(--line); }
 </style>

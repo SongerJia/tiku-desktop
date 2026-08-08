@@ -12,6 +12,29 @@ module.exports = function cardsModule(ctx) {
       return { ok: true }
     },
 
+    // 从题目一键生成记忆卡（方向 10）：正面=题干（截断），背面=答案+解析，卡组=章节名；同题去重。
+    addCardFromQuestion(questionId) {
+      const q = this.getQuestionById(Number(questionId))
+      if (!q) return { ok: false, error: '题目不存在' }
+      const dup = sqlite.prepare('SELECT id FROM cards WHERE source_question_id=? AND deleted=0').get(q.id)
+      if (dup) return { ok: true, duplicate: true, cardId: dup.id }
+      const front = String(q.stem || '').trim().slice(0, 80)
+      if (!front) return { ok: false, error: '题干为空' }
+      const ans = Array.isArray(q.answer) && q.answer.length ? '【答案】' + q.answer.join('、') : ''
+      const analysis = q.analysis ? '【解析】' + q.analysis : ''
+      const back = [ans, analysis].filter(Boolean).join('\n') || '（无答案，自行补充）'
+      let category = ''
+      if (q.category_id) {
+        const c = sqlite.prepare('SELECT name FROM categories WHERE id=?').get(q.category_id)
+        if (c) category = c.name
+      }
+      const now = Date.now()
+      sqlite.prepare('INSERT INTO cards (front, back, category, source_question_id, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,0,?)')
+        .run(front, back, category, q.id, now, now, uuid())
+      this.logXp(2, 'card', 'new')
+      return { ok: true, duplicate: false, cardId: sqlite.prepare('SELECT last_insert_rowid() AS id').get().id }
+    },
+
     listCards() {
       const dueNow = Date.now()
       return sqlite.prepare(

@@ -380,6 +380,41 @@ button:focus:not(:focus-visible) { outline: none; }
 [data-theme="light"] .input { background: rgba(255, 255, 255, 0.7); }
 [data-theme="light"] .sync-input { background: #fff; }
 
+/* 护眼主题（方向 12）：低对比绿色调，柔和背景 + 弱化高光，久看不累 */
+[data-theme="eye"] {
+  --brand: #3a7d5a;
+  --brand2: #4d8f6e;
+  --brand-light: rgba(58, 125, 90, 0.13);
+  --brand-dark: #2e6649;
+  --bg: #e9f0e6;
+  --card: rgba(255, 255, 255, 0.86);
+  --card-solid: #f2f7ef;
+  --text: #25352c;
+  --muted: #5f7366;
+  --line: rgba(58, 125, 90, 0.18);
+  --ok: #1f8a5b;
+  --bad: #d1544e;
+  --warn: #b07a2e;
+  --glow: 0 0 14px rgba(58, 125, 90, 0.2);
+  --glow-soft: 0 0 10px rgba(58, 125, 90, 0.12);
+  --shadow: 0 8px 28px rgba(30, 60, 45, 0.1);
+  --sidebar-bg: rgba(242, 247, 239, 0.92);
+  --topbar-bg: rgba(242, 247, 239, 0.78);
+  --side-active-bg: rgba(58, 125, 90, 0.15);
+  --modal-mask: rgba(242, 247, 239, 0.72);
+  --modal-blur: 14px;
+  --input-solid-bg: rgba(255, 255, 255, 0.92);
+  --toast-bg: rgba(255, 255, 255, 0.95);
+}
+[data-theme="eye"] .app {
+  background-image:
+    radial-gradient(circle at 16% 10%, rgba(58, 125, 90, 0.05), transparent 40%),
+    radial-gradient(circle at 84% 90%, rgba(58, 125, 90, 0.05), transparent 44%);
+}
+[data-theme="eye"] .input { background: rgba(255, 255, 255, 0.7); }
+[data-theme="eye"] .sync-input { background: #fff; }
+[data-theme="eye"] .skeleton { background: rgba(58, 125, 90, 0.08); }
+
 /* 字号调节：通过 JS 设置 documentElement.style.zoom，故此处无需额外规则 */
 
 /* ===== 打印（模拟卷/错题导出 PDF）===== */

@@ -2,12 +2,37 @@
 import { ref, computed, onMounted } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { printHtml } from '../utils/print.js'
+import { showToast } from '../utils/toast.js'
 
 const emit = defineEmits(['start'])
 const items = ref([])
 const weakChapters = ref([])
 const similarMap = ref({})   // question_id -> 相似题列表
 const expanded = ref(new Set())
+
+// 错题自动分组（方向 5）：全部 / 今日到期 / 本周到期 / 常错 Top
+const wrongGroup = ref('all')
+const groupCounts = computed(() => {
+  const now = Date.now()
+  const week = now + 7 * 86400000
+  let today = 0, weekN = 0, stubborn = 0
+  items.value.forEach(it => {
+    if (it.next_review_at && it.next_review_at <= now) today++
+    if (it.next_review_at && it.next_review_at <= week) weekN++
+    if (it.wrong_count >= 3) stubborn++
+  })
+  return { all: items.value.length, today, week: weekN, stubborn }
+})
+const filteredItems = computed(() => {
+  const now = Date.now()
+  const week = now + 7 * 86400000
+  return items.value.filter(it => {
+    if (wrongGroup.value === 'today') return it.next_review_at && it.next_review_at <= now
+    if (wrongGroup.value === 'week') return it.next_review_at && it.next_review_at <= week
+    if (wrongGroup.value === 'stubborn') return it.wrong_count >= 3
+    return true
+  })
+})
 
 onMounted(async () => {
   items.value = await tiku.getWrongBook()
@@ -24,6 +49,19 @@ const stemByQid = computed(() => { const m = {}; items.value.forEach(i => { if (
 const curveTop = computed(() => (reviewCurve.value.items || []).slice(0, 8).map(it => ({ ...it, stem: stemByQid.value[it.questionId] || '（题目已删除）' })))
 async function loadReviewCurve() {
   try { reviewCurve.value = await tiku.getReviewCurve(30) } catch (e) { reviewCurve.value = { dist: [], items: [] } }
+}
+
+// 一键生成记忆卡（方向 10）
+const cardBusy = ref(new Set())
+async function genCard(it) {
+  if (cardBusy.value.has(it.question_id)) return
+  cardBusy.value = new Set(cardBusy.value).add(it.question_id)
+  try {
+    const r = await tiku.addCardFromQuestion(it.question_id)
+    if (r.ok) showToast(r.duplicate ? '该题已有记忆卡（未重复生成）' : '已生成记忆卡，可在「卡片记忆」复习', 'ok')
+    else showToast('生成失败：' + (r.error || '未知错误'), 'err')
+  } catch (e) { showToast('生成失败：' + (e.message || '未知错误'), 'err') }
+  cardBusy.value = new Set(cardBusy.value); cardBusy.value.delete(it.question_id)
 }
 
 const typeLabel = (t) => ({ single: '单选', multiple: '多选', judge: '判断', essay: '问答' }[t] || t)
@@ -98,6 +136,14 @@ async function toggleSimilar(qid) {
       <button v-if="items.length" class="ghost" @click="exportWrongPdf">导出错题PDF</button>
     </div>
 
+    <!-- 错题分组（今日/本周/常错） -->
+    <div v-if="items.length" class="wb-groups">
+      <button class="wb-group" :class="{ on: wrongGroup === 'all' }" @click="wrongGroup = 'all'">全部 <em>{{ groupCounts.all }}</em></button>
+      <button class="wb-group" :class="{ on: wrongGroup === 'today' }" @click="wrongGroup = 'today'">今日到期 <em>{{ groupCounts.today }}</em></button>
+      <button class="wb-group" :class="{ on: wrongGroup === 'week' }" @click="wrongGroup = 'week'">本周到期 <em>{{ groupCounts.week }}</em></button>
+      <button class="wb-group" :class="{ on: wrongGroup === 'stubborn' }" @click="wrongGroup = 'stubborn'">常错 Top <em>{{ groupCounts.stubborn }}</em></button>
+    </div>
+
     <!-- 复习节奏（记忆曲线） -->
     <div v-if="dueTotal" class="curve-card">
       <div class="curve-title">📈 复习节奏 · 未来 30 天到期 {{ dueTotal }} 题</div>
@@ -115,7 +161,8 @@ async function toggleSimilar(qid) {
     </div>
 
     <p v-if="!items.length" class="empty">暂无活跃错题，继续保持！</p>
-    <div v-for="it in items" :key="it.question_id" class="card">
+    <p v-else-if="!filteredItems.length" class="empty">该分组下暂无错题</p>
+    <div v-for="it in filteredItems" :key="it.question_id" class="card">
       <div class="stem">{{ it.stem }}</div>
       <div class="meta">答错 {{ it.wrong_count }} 次 · 已复习 {{ it.reviewed_count }} 次 <span v-if="it.wrong_count >= 3" class="stubborn">顽固 · 每日回顾优先</span></div>
       <div class="reason-row">
@@ -127,6 +174,7 @@ async function toggleSimilar(qid) {
       </div>
       <div class="actions">
         <button class="primary" @click="emit('start', { mode: 'wrong' })">复习这批错题</button>
+        <button class="ghost" @click="genCard(it)">生成记忆卡</button>
         <button class="ghost" @click="toggleSimilar(it.question_id)">
           {{ expanded.has(it.question_id) ? '收起相似题' : '相似题推荐' }}
         </button>
@@ -157,6 +205,11 @@ async function toggleSimilar(qid) {
 .cv-stem { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .cv-meta { flex: 0 0 auto; color: var(--muted); font-size: 11px; }
 .weak-chapters { margin-bottom: 12px; border: 1px solid rgba(255, 77, 109, 0.3); border-radius: 10px; padding: 10px 12px; background: rgba(255, 77, 109, 0.06); }
+.wb-groups { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.wb-group { font-size: 12px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 5px; }
+.wb-group em { font-style: normal; font-size: 11px; opacity: .8; }
+.wb-group.on { background: rgba(255, 77, 109, 0.12); color: var(--bad); border-color: rgba(255, 77, 109, 0.4); font-weight: 600; }
+.wb-group.on em { opacity: 1; }
 .wc-title { font-size: 12px; color: var(--bad); margin-bottom: 8px; font-weight: 600; }
 .wc-list { display: flex; flex-direction: column; gap: 6px; }
 .wc-item { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 6px 8px; border-radius: 8px; transition: background .15s; }

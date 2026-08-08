@@ -324,6 +324,10 @@ module.exports = function schemaModule(ctx) {
     addColumn('kb_docs', 'last_page', 'last_page INTEGER DEFAULT 0') // PDF 阅读位置记忆
     // 错题原因标签（粗心/知识点不懂/时间不够…）
     addColumn('wrong_books', 'reason', 'reason TEXT DEFAULT \'\'')
+    // 卡片来源题目（方向 10：错题/题目一键生成记忆卡，用于去重与来源标记）
+    addColumn('cards', 'source_question_id', 'source_question_id INTEGER')
+    // 收藏分组（方向 9：收藏面板按组浏览/标记；fav_group 避开 SQL 关键字 group）
+    addColumn('favorites', 'fav_group', "fav_group TEXT DEFAULT ''")
   },
   }
 }
