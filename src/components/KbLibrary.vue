@@ -14,7 +14,7 @@ const tagFilter = ref(null) // null=全部
 const keyword = ref('')
 const loading = ref(true)
 const reader = ref({ show: false, doc: null })
-const editor = ref({ show: false, doc: null, tags: [], title: '', folder: '' })
+const editor = ref({ show: false, doc: null, tags: [], title: '', folder: '', subjectId: null })
 // 知识库科目筛选：默认跟随当前科目，可切「全部科目」
 const subjects = ref([])
 const subjectFilter = ref('current') // 'current' | 'all' | 具体科目 id
@@ -160,7 +160,7 @@ async function onDelete(doc) {
 }
 
 function openEditor(doc) {
-  editor.value = { show: true, doc, tags: [...(doc.tags || [])], title: doc.title, folder: doc.folder || '' }
+  editor.value = { show: true, doc, tags: [...(doc.tags || [])], title: doc.title, folder: doc.folder || '', subjectId: doc.subject_id ?? null }
 }
 
 function addEditorTag() {
@@ -177,6 +177,9 @@ async function saveEditor() {
   const title = editor.value.title.trim()
   if (title && title !== editor.value.doc.title) await tiku.kbUpdate(editor.value.doc.id, { title })
   if ((editor.value.folder || '') !== (editor.value.doc.folder || '')) await tiku.kbMove(editor.value.doc.id, editor.value.folder)
+  if ((editor.value.subjectId ?? null) !== (editor.value.doc.subject_id ?? null)) {
+    await tiku.kbUpdate(editor.value.doc.id, { subjectId: editor.value.subjectId || null })
+  }
   await tiku.kbSetTags(editor.value.doc.id, editor.value.tags)
   editor.value.show = false
   await loadTags()
@@ -303,6 +306,11 @@ function fmtTime(ts) {
         <input v-model="editor.title" class="input" />
         <label class="kb-lab">文件夹</label>
         <input v-model="editor.folder" class="input" placeholder="留空=未分类（输入新名字即创建文件夹）" />
+        <label class="kb-lab">所属科目</label>
+        <select v-model="editor.subjectId" class="input">
+          <option :value="null">未分类</option>
+          <option v-for="s in subjects" :key="s.id" :value="s.id">{{ s.name }}</option>
+        </select>
         <label class="kb-lab">标签</label>
         <div class="kb-edit-tags">
           <span v-for="t in editor.tags" :key="t" class="q-tag" @click="removeEditorTag(t)">{{ t }} <Icon name="x" :size="14"/></span>
