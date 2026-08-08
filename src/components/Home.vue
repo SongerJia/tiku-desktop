@@ -17,6 +17,17 @@ const loading = ref(true)
 // 每日一题：{ question, state } state: { date, qid, answered, correct, streak, bestStreak, period }
 const dailyPuzzle = ref(null)
 const dailyAnalysisOpen = ref(false)
+// 目标契约：{ contract, progress, achieved, lastMissed }
+const goalData = ref(null)
+const goalType = ref('quiz')
+const goalValue = ref(100)
+const goalLabel = computed(() => ({ quiz: '本周刷题', review: '本周复习', focus: '本周专注' })[goalType.value] || '本周刷题')
+const goalUnit = computed(() => ({ quiz: '题', review: '条', focus: '分钟' })[goalType.value] || '题')
+const goalDaysLeft = computed(() => {
+  const d = new Date()
+  const dow = (d.getDay() + 6) % 7 // 周一=0
+  return 7 - dow
+})
 const weeklyTrend = ref([])
 const heatmap = ref([])
 const heatStreak = computed(() => summary.value.streak || 0)
@@ -84,8 +95,28 @@ async function load() {
   try { examDate.value = (await tiku.getSetting('exam_date')) || '' } catch (e) { examDate.value = '' }
   try { weakAccuracy.value = (await tiku.getCategoryAccuracy()).slice(0, 3) } catch (e) { weakAccuracy.value = [] }
   try { dailyPuzzle.value = await tiku.getDailyPuzzle() } catch (e) { dailyPuzzle.value = null }
+  try { goalData.value = await tiku.getGoalContract() } catch (e) { goalData.value = null }
   dailyAnalysisOpen.value = false
   loading.value = false
+}
+
+async function setGoal() {
+  const v = Math.max(1, Math.round(Number(goalValue.value) || 0))
+  try {
+    const r = await tiku.setGoalContract({ type: goalType.value, value: v })
+    goalData.value = r.contract
+    showToast(`已立约：${goalLabel.value} ${v} ${goalUnit.value}，加油！`, 'ok')
+  } catch (e) { showToast('立约失败：' + (e.message || '未知错误'), 'err') }
+}
+
+async function claimGoal() {
+  try {
+    const r = await tiku.claimGoalReward()
+    if (r.ok) {
+      showToast(`目标达成，+${r.xp} XP 🎉`, 'ok')
+      goalData.value = await tiku.getGoalContract()
+    }
+  } catch (e) { showToast('领取失败：' + (e.message || '未知错误'), 'err') }
 }
 
 function typeLabel(t) {
@@ -220,6 +251,45 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
           <div v-if="dailyPuzzle.question.analysis"><b>解析：</b>{{ dailyPuzzle.question.analysis }}</div>
         </div>
         <p class="daily-note">明天 0 点换新题，坚持每天打卡</p>
+      </template>
+    </div>
+
+    <!-- 目标契约（每周 flag） -->
+    <div class="card goal-c-card">
+      <template v-if="goalData && goalData.contract">
+        <div class="goal-c-head">
+          <span class="goal-c-title">目标契约 · {{ ({ quiz: '本周刷题', review: '本周复习', focus: '本周专注' })[goalData.contract.type] }}</span>
+          <span class="goal-c-badge" :class="{ done: goalData.achieved }">{{ goalData.achieved ? '已达成 🎉' : '还差 ' + goalDaysLeft + ' 天' }}</span>
+        </div>
+        <div v-if="goalData.lastMissed" class="goal-c-miss">上周还差 {{ goalData.lastMissed.missedBy }} {{ ({ quiz: '题', review: '条', focus: '分钟' })[goalData.lastMissed.type] }}，这周重新出发 💪</div>
+        <div class="goal-c-bar">
+          <div class="goal-c-fill" :style="{ width: Math.min(100, Math.round((goalData.progress / goalData.contract.value) * 100)) + '%' }"></div>
+        </div>
+        <div class="goal-c-meta">
+          <span>已完成 {{ goalData.progress }} / {{ goalData.contract.value }} {{ ({ quiz: '题', review: '条', focus: '分钟' })[goalData.contract.type] }}</span>
+          <span>{{ Math.min(100, Math.round((goalData.progress / goalData.contract.value) * 100)) }}%</span>
+        </div>
+        <div v-if="goalData.achieved && !goalData.contract.claimed" class="goal-c-claim-row">
+          <button class="btn btn-primary" @click="claimGoal">领取 +50 XP</button>
+        </div>
+        <div v-else-if="goalData.achieved" class="goal-c-claimed">+50 XP 已领取</div>
+      </template>
+      <template v-else>
+        <div class="goal-c-head">
+          <span class="goal-c-title">目标契约 · 立个本周 flag</span>
+          <span class="goal-c-badge">周一自动重来</span>
+        </div>
+        <p class="goal-c-label">本周想完成什么？</p>
+        <div class="goal-c-chips">
+          <button class="goal-c-chip" :class="{ on: goalType === 'quiz' }" @click="goalType = 'quiz'">本周刷题</button>
+          <button class="goal-c-chip" :class="{ on: goalType === 'review' }" @click="goalType = 'review'">本周复习</button>
+          <button class="goal-c-chip" :class="{ on: goalType === 'focus' }" @click="goalType = 'focus'">本周专注</button>
+        </div>
+        <div class="goal-c-row">
+          <input v-model.number="goalValue" type="number" min="1" class="input" placeholder="目标值" />
+          <span class="goal-c-unit">{{ goalUnit }}</span>
+          <button class="btn btn-primary" @click="setGoal">立约</button>
+        </div>
       </template>
     </div>
 
@@ -721,4 +791,24 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
 .daily-analysis { font-size: 13px; color: var(--text); background: var(--bg-soft, rgba(127, 127, 127, 0.06)); border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; line-height: 1.7; }
 .daily-analysis b { color: var(--brand); }
 .ans-line { margin-bottom: 4px; }
+
+/* 目标契约 */
+.goal-c-card { display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(255, 165, 42, 0.3); }
+.goal-c-head { display: flex; align-items: center; justify-content: space-between; }
+.goal-c-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.goal-c-badge { font-size: 12px; color: var(--warn); border: 1px solid rgba(255, 165, 42, 0.4); border-radius: 999px; padding: 2px 10px; }
+.goal-c-badge.done { color: var(--ok); border-color: rgba(44, 229, 168, 0.4); }
+.goal-c-miss { font-size: 12px; color: var(--muted); background: rgba(255, 165, 42, 0.08); border-radius: 8px; padding: 6px 10px; }
+.goal-c-bar { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.goal-c-fill { height: 100%; border-radius: 999px; background: var(--warn); transition: width .4s ease; }
+.goal-c-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.goal-c-claim-row { margin-top: 2px; }
+.goal-c-claimed { font-size: 12px; color: var(--ok); }
+.goal-c-label { font-size: 13px; color: var(--text); margin: 2px 0 0; }
+.goal-c-chips { display: flex; gap: 8px; }
+.goal-c-chip { font-size: 12px; padding: 5px 14px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; transition: all .15s; }
+.goal-c-chip.on { background: rgba(255, 165, 42, 0.15); color: var(--warn); border-color: rgba(255, 165, 42, 0.45); font-weight: 600; }
+.goal-c-row { display: flex; align-items: center; gap: 8px; }
+.goal-c-row .input { flex: 1; }
+.goal-c-unit { font-size: 12px; color: var(--muted); }
 </style>

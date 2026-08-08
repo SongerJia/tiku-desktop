@@ -185,6 +185,72 @@ module.exports = function statsModule(ctx) {
         FROM answer_records ar JOIN questions q ON q.id=ar.question_id
         WHERE ar.user_id=? AND ar.deleted=0
         ORDER BY ar.created_at DESC LIMIT ?`).all(LOCAL_USER, limit)
+    },
+
+    // ============ 目标契约（方向 3：本周 flag，settings KV 存储，不进云同步） ============
+    _goalWeekStart() {
+      const d = new Date()
+      const dow = (d.getDay() + 6) % 7 // 周一 = 0
+      const w = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow)
+      w.setHours(0, 0, 0, 0)
+      return w.getTime()
+    },
+    _goalProgress(type, weekStartMs) {
+      if (type === 'quiz') {
+        return sqlite.prepare('SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=?').get(LOCAL_USER, weekStartMs).n
+      }
+      if (type === 'review') {
+        return sqlite.prepare('SELECT COUNT(*) AS n FROM review_logs WHERE created_at>=?').get(weekStartMs).n
+      }
+      if (type === 'focus') {
+        return sqlite.prepare('SELECT COALESCE(SUM(minutes),0) AS n FROM focus_sessions WHERE deleted=0 AND created_at>=?').get(weekStartMs).n
+      }
+      return 0
+    },
+
+    // 读当前契约：跨周自动重置（上周未达成记 lastMissed 提示）、重算进度、达标即标记 achieved。
+    getGoalContract() {
+      let c = {}
+      try { c = JSON.parse(this.getSetting('goal_contract') || '{}') } catch (e) {}
+      const wk = this._goalWeekStart()
+      if (c.type) {
+        if (c.weekStart && c.weekStart < wk) {
+          if (!c.achieved) {
+            c.lastMissed = { type: c.type, value: c.value, missedBy: Math.max(0, (c.value || 0) - (c.progress || 0)) }
+          }
+          c.weekStart = wk
+          c.progress = 0
+          c.achieved = false
+          c.claimed = false
+        }
+        const progress = this._goalProgress(c.type, wk)
+        c.progress = progress
+        if (!c.achieved && progress >= c.value) c.achieved = true
+        this.setSetting('goal_contract', JSON.stringify(c))
+      }
+      return c.type
+        ? { contract: c, progress: c.progress, achieved: c.achieved, lastMissed: c.lastMissed || null }
+        : { contract: null, progress: 0, achieved: false, lastMissed: null }
+    },
+
+    // 立约/换约：重置本周状态（类型+目标值，进度从 0 开始）
+    setGoalContract({ type, value } = {}) {
+      const t = ['quiz', 'review', 'focus'].includes(type) ? type : 'quiz'
+      const v = Math.max(1, Math.round(Number(value) || 0))
+      const c = { type: t, value: v, weekStart: this._goalWeekStart(), progress: 0, achieved: false, claimed: false, lastMissed: null }
+      this.setSetting('goal_contract', JSON.stringify(c))
+      return { ok: true, contract: this.getGoalContract() }
+    },
+
+    // 达成领奖：一次性 +50 XP（source 'goal'）
+    claimGoalReward() {
+      let c = {}
+      try { c = JSON.parse(this.getSetting('goal_contract') || '{}') } catch (e) {}
+      if (!c.type || !c.achieved || c.claimed) return { ok: false, error: '未达成或已领取' }
+      c.claimed = true
+      this.setSetting('goal_contract', JSON.stringify(c))
+      this.logXp(50, 'goal', '目标契约达成')
+      return { ok: true, xp: 50 }
     }
   }
 }
