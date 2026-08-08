@@ -6,9 +6,12 @@ import Icon from './Icon.vue'
 const props = defineProps({
   show: Boolean,
   wide: Boolean,
-  preset: { type: Object, default: () => ({ categoryId: null, subjectId: null, presetMode: 'practice', scopeLabel: '' }) }
+  preset: { type: Object, default: () => ({ categoryId: null, subjectId: null, presetMode: 'practice', subjectName: '', scopeLabel: '' }) }
 })
 const emit = defineEmits(['confirm', 'cancel', 'resume'])
+
+// 科目范围：默认跟随当前科目（内容闭环按科目维度），可切「全部科目」
+const subjectScope = ref(props.preset.subjectId ? 'current' : 'all')
 
 // 断点续做 + 智能复习到期提示
 const resumeSession = ref(null)
@@ -34,7 +37,7 @@ const selTags = ref([])
 onMounted(async () => {
   try { allTags.value = (await tiku.listTags()).map(t => t.tag) } catch (e) { allTags.value = [] }
   try { resumeSession.value = await tiku.getResumeSession() } catch (e) { resumeSession.value = null }
-  try { reviewDue.value = await tiku.reviewDueStats() } catch (e) { reviewDue.value = null }
+  try { reviewDue.value = await tiku.reviewDueStats(props.preset.subjectId) } catch (e) { reviewDue.value = null }
 })
 function toggleTag(t) {
   const i = selTags.value.indexOf(t)
@@ -70,7 +73,7 @@ function pickScope(s) {
 function confirm() {
   const cfg = {
     categoryId: props.preset.categoryId,
-    subjectId: props.preset.subjectId,
+    subjectId: subjectScope.value === 'all' ? null : props.preset.subjectId,
     mode: scope.value,
     order: order.value,
     limit: limit.value ? Number(limit.value) : (isExam.value ? 50 : null),
@@ -100,6 +103,15 @@ function confirm() {
         <!-- 智能复习到期提示 -->
         <div v-if="scope === 'review-due' && reviewDue" class="due-hint">
           <Icon name="clock" :size="13"/> 今日到期 <b>{{ reviewDue.due }}</b> 题 · 预计 {{ reviewDue.estMinutes }} 分钟
+        </div>
+
+        <!-- 科目范围（内容闭环默认跟随当前科目，可切全部） -->
+        <div class="section" v-if="props.preset.subjectName">
+          <div class="sec-title">科目范围</div>
+          <div class="seg">
+            <button :class="{ on: subjectScope === 'current' }" @click="subjectScope = 'current'">{{ props.preset.subjectName }}</button>
+            <button :class="{ on: subjectScope === 'all' }" @click="subjectScope = 'all'">全部科目</button>
+          </div>
         </div>
 
         <!-- 范围 -->
@@ -253,6 +265,9 @@ function confirm() {
 
 .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .chips.row { grid-template-columns: repeat(2, 1fr); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { background: none; border: none; color: var(--muted); padding: 6px 16px; font-size: 13px; cursor: pointer; }
+.seg button.on { background: var(--brand); color: #021018; font-weight: 600; }
 .chip {
   display: flex;
   flex-direction: column;

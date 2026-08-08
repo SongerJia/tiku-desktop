@@ -1,7 +1,7 @@
 // XP / 激励 / 每日任务 / 复习到期统计模块。
 // 从 db.js 拆出（拆分渐进一步）：依赖 sqlite，经 ctx 注入；方法互调走 this（合并后 this=api）。
 module.exports = function gamifyModule(ctx) {
-  const { sqlite, LOCAL_USER, uuid } = ctx
+  const { sqlite, LOCAL_USER, uuid, descendantCategoryIds } = ctx
 
   return {
     logXp(xp, source, note = '') {
@@ -54,10 +54,19 @@ module.exports = function gamifyModule(ctx) {
     },
 
     // ---- 复习到期统计（智能复习入口提示）----
-    reviewDueStats() {
-      const due = sqlite.prepare(
-        "SELECT COUNT(*) AS n FROM wrong_books WHERE user_id=? AND status='wrong' AND deleted=0 AND (next_review_at IS NULL OR next_review_at<=?)"
-      ).get(LOCAL_USER, Date.now()).n
+    reviewDueStats(subjectId) {
+      // 支持按科目统计到期错题（内容闭环跟科目走）；不传则全局
+      let sql = "SELECT COUNT(*) AS n FROM wrong_books wb JOIN questions q ON q.id=wb.question_id " +
+        "WHERE wb.user_id=? AND wb.status='wrong' AND wb.deleted=0 AND q.deleted=0 " +
+        "AND (wb.next_review_at IS NULL OR wb.next_review_at<=?)"
+      const params = [LOCAL_USER, Date.now()]
+      if (subjectId) {
+        const ids = descendantCategoryIds(subjectId)
+        if (!ids.length) return { due: 0, estMinutes: 1 }
+        sql += ' AND q.category_id IN (' + ids.map(() => '?').join(',') + ')'
+        params.push(...ids)
+      }
+      const due = sqlite.prepare(sql).get(...params).n
       return { due, estMinutes: Math.max(1, Math.ceil(due / 10)) } // 按 10 题/分钟估
     },
 

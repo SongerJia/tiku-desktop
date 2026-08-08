@@ -437,6 +437,26 @@ try {
   const cardFromQ = db.listCards().find(c => c.source_question_id === q.id)
   ok('卡片含来源与卡组', !!cardFromQ && cardFromQ.front.length > 0 && cardFromQ.back.includes('【答案】'))
 
+  // 32) 科目维度（内容闭环跟科目走）
+  const subA = db.addCategory({ name: '科目维度A', parentId: null })
+  const subACh = db.addCategory({ name: '科目维度A·章节', parentId: subA.id })
+  const qA = db.addQuestion({ categoryId: subACh.id, type: 'single', stem: '科目维度A题', options: ['对', '错'], answer: [0] })
+  db.submitAnswer({ questionId: qA.id, selected: [], durationMs: 0, mode: 'practice' }) // 答错入错题本
+  const wpA = db.getWeakPoints(10, subA.id)
+  const wpOther = db.getWeakPoints(10, cats[0].id)
+  ok('getWeakPoints(subjectId) 只含该科目错题', wpA.some(w => w.id === qA.id) && wpOther.every(w => w.id !== qA.id))
+  ok('reviewDueStats(subjectId) 科目参数正常', typeof db.reviewDueStats(subA.id).due === 'number' && typeof db.reviewDueStats(cats[0].id).due === 'number')
+  // 每日一题优先当前科目：重置到昨天未答，抽题应落在 subA 的错题 qA 上
+  const y2 = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+  db.setSetting('daily_puzzle', JSON.stringify({ date: y2, qid: null, answered: false, correct: null, streak: 0, bestStreak: 0, period: 6 }))
+  const dpS = db.getDailyPuzzle(subA.id)
+  ok('getDailyPuzzle(subjectId) 优先当前科目错题', !!dpS.question && dpS.question.id === qA.id)
+  // 科目维度题集：getQuestions wrong 模式按科目过滤
+  const wrongA = db.getQuestions({ mode: 'wrong', subjectId: subA.id, limit: 20 })
+  const wrongOther = db.getQuestions({ mode: 'wrong', subjectId: cats[0].id, limit: 20 })
+  ok('getQuestions(wrong+subjectId) 按科目过滤错题', wrongA.some(w => w.id === qA.id) && wrongOther.every(w => w.id !== qA.id))
+  db.deleteCategory(subA.id) // 级联清理（含错题残留无碍后续）
+
   console.log(`\ndb 集成测试：${pass} 通过 / ${fail} 失败`)
 } catch (e) {
   fail++

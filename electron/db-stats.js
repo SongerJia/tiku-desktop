@@ -1,7 +1,7 @@
 // 学习统计 / 趋势 / 成就指标模块。
 // 从 db.js 拆出（拆分渐进一步）：依赖 sqlite，经 ctx 注入；this 互调（getSummary/kbStats/getSetting）在合并后指向 api。
 module.exports = function statsModule(ctx) {
-  const { sqlite, LOCAL_USER, uuid } = ctx
+  const { sqlite, LOCAL_USER, uuid, descendantCategoryIds } = ctx
 
   return {
     getStats() {
@@ -25,17 +25,24 @@ module.exports = function statsModule(ctx) {
     },
 
     // 薄弱点 TopN：错题本中 wrong_count 最高、且临近复习的题目（精准定位该补的短板）
-    getWeakPoints(limit = 5) {
-      const rows = sqlite.prepare(`
+    getWeakPoints(limit = 5, subjectId) {
+      let sql = `
         SELECT q.id, q.stem, q.category_id, c.name AS cat,
                wb.wrong_count, wb.reviewed_count, wb.ease, wb.interval, wb.next_review_at
         FROM wrong_books wb
         JOIN questions q ON q.id = wb.question_id
         LEFT JOIN categories c ON c.id = q.category_id
-        WHERE wb.user_id = ? AND wb.status = 'wrong' AND wb.deleted = 0 AND q.deleted = 0
-        ORDER BY wb.wrong_count DESC, wb.next_review_at ASC
-        LIMIT ?
-      `).all(LOCAL_USER, limit)
+        WHERE wb.user_id = ? AND wb.status = 'wrong' AND wb.deleted = 0 AND q.deleted = 0`
+      const params = [LOCAL_USER]
+      if (subjectId) {
+        const ids = descendantCategoryIds(subjectId)
+        if (!ids.length) return []
+        sql += ' AND q.category_id IN (' + ids.map(() => '?').join(',') + ')'
+        params.push(...ids)
+      }
+      sql += ' ORDER BY wb.wrong_count DESC, wb.next_review_at ASC LIMIT ?'
+      params.push(limit)
+      const rows = sqlite.prepare(sql).all(...params)
       return rows.map(r => ({
         ...r,
         stem: (r.stem || '').replace(/\s+/g, ' ').slice(0, 60)
@@ -43,13 +50,21 @@ module.exports = function statsModule(ctx) {
     },
 
     // 全科目正确率排行（用于薄弱章节对比）：返回 [{cat, n, c, rate}] 按正确率升序
-    getCategoryAccuracy() {
-      const rows = sqlite.prepare(`SELECT cat.name AS cat, COUNT(*) AS n, SUM(ar.is_correct) AS c
+    getCategoryAccuracy(subjectId) {
+      let sql = `SELECT cat.name AS cat, COUNT(*) AS n, SUM(ar.is_correct) AS c
         FROM answer_records ar
         JOIN questions q ON q.id=ar.question_id
         JOIN categories cat ON cat.id=q.category_id
-        WHERE ar.user_id=? AND ar.deleted=0 AND cat.level=2
-        GROUP BY cat.id`).all(LOCAL_USER)
+        WHERE ar.user_id=? AND ar.deleted=0 AND cat.level=2`
+      const params = [LOCAL_USER]
+      if (subjectId) {
+        const ids = descendantCategoryIds(subjectId)
+        if (!ids.length) return []
+        sql += ' AND cat.id IN (' + ids.map(() => '?').join(',') + ')'
+        params.push(...ids)
+      }
+      sql += ' GROUP BY cat.id'
+      const rows = sqlite.prepare(sql).all(...params)
       return rows
         .map(r => ({ cat: r.cat, n: r.n, c: r.c || 0, rate: r.n ? Math.round((r.c || 0) / r.n * 100) : 0 }))
         .sort((a, b) => a.rate - b.rate)

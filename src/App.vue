@@ -37,7 +37,7 @@ const currentSubject = ref({ id: null, name: '请选择科目' })
 const showSubjectPicker = ref(false)
 const quiz = ref({ active: false, categoryId: null, subjectId: null, mode: 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null, tags: null, questionId: null, daily: false })
 // 练习设置弹层：所有「开始刷题」入口先到这里配置范围/方式/考试参数
-const setup = ref({ active: false, categoryId: null, subjectId: null, presetMode: 'practice', scopeLabel: '' })
+const setup = ref({ active: false, categoryId: null, subjectId: null, presetMode: 'practice', subjectName: '', scopeLabel: '' })
 // 题库管理（导入/录题/编辑/删除）
 const showBank = ref(false)
 // 模拟卷组卷 / 我的试卷
@@ -146,13 +146,14 @@ async function onSubjectSelected(subject) {
 // 统一入口：Home/Knowledge/错题本/收藏 都先打开设置弹层
 function onStart(payload = {}) {
   const m = payload.mode || 'practice'
-  // 错题/收藏/智能复习是全局池，不限定科目；其余按当前科目范围
-  const subjectScoped = !['wrong', 'favorite', 'review-due'].includes(m)
+  // 内容闭环（练习/错题/收藏/智能复习等）默认跟随当前科目，弹层内可切「全部科目」；
+  // 未选科目（id=null）时自然为全局。
   setup.value = {
     active: true,
     categoryId: payload.categoryId ?? null,
-    subjectId: subjectScoped ? currentSubject.value.id : null,
+    subjectId: currentSubject.value.id,
     presetMode: m,
+    subjectName: currentSubject.value.name || '',
     scopeLabel: payload.categoryId ? '本章节' : (currentSubject.value.name || '全部')
   }
 }

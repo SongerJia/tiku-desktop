@@ -124,8 +124,8 @@ const api = {
       }
     }
     // sqlite 已赋值，此时再合并依赖它的子模块（ctx 需要真实 sqlite 实例）
-    Object.assign(this, gamify({ sqlite, LOCAL_USER, uuid }))
-    Object.assign(this, statsModule({ sqlite, LOCAL_USER, uuid }))
+    Object.assign(this, gamify({ sqlite, LOCAL_USER, uuid, descendantCategoryIds }))
+    Object.assign(this, statsModule({ sqlite, LOCAL_USER, uuid, descendantCategoryIds }))
     Object.assign(this, quizModule({ sqlite, LOCAL_USER, uuid, questionCid, descendantCategoryIds }))
     Object.assign(this, kbModule({ sqlite, uuid, app }))
     Object.assign(this, bankModule({ sqlite, LOCAL_USER, uuid, categoryCid, descendantCategoryIds }))
@@ -137,7 +137,7 @@ const api = {
     Object.assign(this, exportModule({ sqlite, LOCAL_USER }))
     Object.assign(this, syncModule({ sqlite, LOCAL_USER, uuid }))
     Object.assign(this, schemaModule({ sqlite }))
-    Object.assign(this, metaModule({ sqlite, LOCAL_USER, uuid, sample: require('./sampleData') }))
+    Object.assign(this, metaModule({ sqlite, LOCAL_USER, uuid, sample: require('./sampleData'), descendantCategoryIds }))
     this.initSchema()
     this.migrateSchema()
     this.ensureUser()

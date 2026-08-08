@@ -1,7 +1,7 @@
 // 元数据/初始化模块：backfillClientIds / ensureUser / seedIfEmpty / getSetting / setSetting / clearUserData。
 // 从 db.js 拆出（拆分渐进一步）：ctx 注入 sqlite/LOCAL_USER/uuid/sample。
 module.exports = function metaModule(ctx) {
-  const { sqlite, LOCAL_USER, uuid, sample } = ctx
+  const { sqlite, LOCAL_USER, uuid, sample, descendantCategoryIds } = ctx
 
   return {
   backfillClientIds() {
@@ -111,7 +111,7 @@ module.exports = function metaModule(ctx) {
 
     // 取今日题：当天已选过则返回原题（含已答结果）；跨天自动换新题，
     // 昨天未答则连击清零，期数 +1。选题优先近期错题，否则随机（全题型，主观题答完自评）。
-    getDailyPuzzle() {
+    getDailyPuzzle(subjectId) {
       const today = this._puzzleDateKey()
       const st = this._puzzleRead()
       if (st.date === today && st.qid) {
@@ -121,7 +121,7 @@ module.exports = function metaModule(ctx) {
       }
       if (st.date && !st.answered) st.streak = 0 // 昨天没答，连击清零
       const period = (st.period || 0) + 1
-      const q = this._pickDailyQuestion(st.qid)
+      const q = this._pickDailyQuestion(st.qid, subjectId)
       if (!q) return { question: null, state: { date: today, qid: null, answered: false, correct: null, streak: st.streak || 0, bestStreak: st.bestStreak || 0, period } }
       const ns = { date: today, qid: q.id, answered: false, correct: null, streak: st.streak || 0, bestStreak: st.bestStreak || 0, period, lastAnswerDate: st.lastAnswerDate || null }
       this._puzzleSave(ns)
@@ -146,13 +146,37 @@ module.exports = function metaModule(ctx) {
       return { ok: true, state: st }
     },
 
-    _pickDailyQuestion(excludeId) {
-      // 优先近期错题（主观题也合适，答完自评）
-      const wrong = sqlite.prepare(
-        "SELECT w.question_id FROM wrong_books w JOIN questions q ON q.id=w.question_id " +
-        "WHERE w.user_id=? AND w.status='wrong' AND w.deleted=0 AND q.deleted=0 ORDER BY RANDOM() LIMIT 1"
-      ).get(LOCAL_USER)
+    _pickDailyQuestion(excludeId, subjectId) {
+      // 科目过滤片段：返回 { sql, params }
+      const scopeSql = (alias) => {
+        if (!subjectId) return { sql: '', params: [] }
+        const ids = descendantCategoryIds(subjectId)
+        if (!ids.length) return { sql: ' AND 1=0', params: [] }
+        return { sql: ` AND ${alias}.category_id IN (${ids.map(() => '?').join(',')})`, params: ids }
+      }
+      // 1) 当前科目近期错题（主观题也合适，答完自评）
+      let sql = "SELECT w.question_id FROM wrong_books w JOIN questions q ON q.id=w.question_id " +
+        "WHERE w.user_id=? AND w.status='wrong' AND w.deleted=0 AND q.deleted=0"
+      const params = [LOCAL_USER]
+      const sc = scopeSql('q')
+      sql += sc.sql
+      params.push(...sc.params)
+      sql += ' ORDER BY RANDOM() LIMIT 1'
+      const wrong = sqlite.prepare(sql).get(...params)
       if (wrong) return sqlite.prepare('SELECT * FROM questions WHERE id=? AND deleted=0').get(wrong.question_id)
+      // 2) 当前科目随机（排除当天已用）
+      if (subjectId) {
+        const ids = descendantCategoryIds(subjectId)
+        if (ids.length) {
+          let s2 = 'SELECT * FROM questions WHERE deleted=0 AND category_id IN (' + ids.map(() => '?').join(',') + ')'
+          const p2 = [...ids]
+          if (excludeId) { s2 += ' AND id<>?'; p2.push(excludeId) }
+          s2 += ' ORDER BY RANDOM() LIMIT 1'
+          const q2 = sqlite.prepare(s2).get(...p2)
+          if (q2) return q2
+        }
+      }
+      // 3) 全局回退（科目没题时）
       return excludeId
         ? sqlite.prepare('SELECT * FROM questions WHERE deleted=0 AND id<>? ORDER BY RANDOM() LIMIT 1').get(excludeId)
         : sqlite.prepare('SELECT * FROM questions WHERE deleted=0 ORDER BY RANDOM() LIMIT 1').get()

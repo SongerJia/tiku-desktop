@@ -143,13 +143,13 @@ async function load() {
   try { const fs = await tiku.focusStats(); focusToday.value = fs.today; focusWeek.value = fs.week } catch (e) { focusToday.value = 0 }
   try { cardStats.value = await tiku.cardsStats() } catch (e) {}
   try { weeklyTrend.value = await tiku.getWeeklyTrend() } catch (e) { weeklyTrend.value = [] }
-  try { weakPoints.value = await tiku.getWeakPoints(5) } catch (e) { weakPoints.value = [] }
+  try { weakPoints.value = await tiku.getWeakPoints(5, props.subject.id) } catch (e) { weakPoints.value = [] }
   try { heatmap.value = await tiku.getActivityHeatmap(120) } catch (e) { heatmap.value = [] }
   try { examDate.value = (await tiku.getSetting('exam_date')) || '' } catch (e) { examDate.value = '' }
-  try { weakAccuracy.value = (await tiku.getCategoryAccuracy()).slice(0, 3) } catch (e) { weakAccuracy.value = [] }
-  try { dailyPuzzle.value = await tiku.getDailyPuzzle() } catch (e) { dailyPuzzle.value = null }
+  try { weakAccuracy.value = (await tiku.getCategoryAccuracy(props.subject.id)).slice(0, 3) } catch (e) { weakAccuracy.value = [] }
+  try { dailyPuzzle.value = await tiku.getDailyPuzzle(props.subject.id) } catch (e) { dailyPuzzle.value = null }
   try { goalData.value = await tiku.getGoalContract() } catch (e) { goalData.value = null }
-  try { dueReviews.value = (await tiku.reviewDueStats()).due || 0 } catch (e) { dueReviews.value = 0 }
+  try { dueReviews.value = (await tiku.reviewDueStats(props.subject.id)).due || 0 } catch (e) { dueReviews.value = 0 }
   try { kbUnread.value = (await tiku.kbStats()).unread || 0 } catch (e) { kbUnread.value = 0 }
   dailyAnalysisOpen.value = false
   loading.value = false
