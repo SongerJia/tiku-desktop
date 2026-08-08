@@ -1,0 +1,21 @@
+# 纯逻辑回归测试（不构建 Electron 原生模块，避免 CI 编译更好-sqlite3）
+name: CI
+
+on:
+  push:
+    branches: [main, master, dev]
+  pull_request:
+
+jobs:
+  logic-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # --ignore-scripts 跳过 postinstall 的 electron-rebuild / 原生编译；
+      # 这些测试只依赖纯 JS 模块（parser / xlsx-lite / sync-merge / sync-github），无需原生运行时。
+      - run: npm ci --ignore-scripts
+      - run: npm test

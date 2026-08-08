@@ -15,7 +15,9 @@
     "test:parser": "node scripts/test-parser.mjs",
     "test:xlsx": "node scripts/test-xlsx.mjs",
     "test:kb": "python scripts/test-kb.py && node scripts/test-kb-extract.mjs",
-    "test:sync": "node scripts/test-sync-merge.mjs",
+    "test:sync": "node scripts/test-sync-merge.mjs && node scripts/test-sync-chunk.mjs",
+    "test:db": "electron scripts/test-db.cjs",
+    "test": "node scripts/test-parser.mjs && node scripts/test-xlsx.mjs && node scripts/test-sync-merge.mjs && node scripts/test-sync-chunk.mjs && node scripts/test-sm2.mjs && node scripts/test-kb-extract.mjs",
     "verify": "vite build --config vite.verify.config.js",
     "dist": "vite build && electron-builder"
   },
@@ -38,12 +40,16 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "shortcutName": "知识记忆小助手"
-    }
+    },
+    "publish": [
+      { "provider": "github", "owner": "songerjia", "repo": "tiku-desktop" }
+    ]
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",
     "@fontsource/noto-sans-sc": "^5.3.0",
     "better-sqlite3": "^11.3.0",
+    "electron-updater": "^6.8.9",
     "pdfjs-dist": "^6.2.108",
     "vditor": "^3.11.2",
     "vue": "^3.4.0"

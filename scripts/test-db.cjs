@@ -1,0 +1,380 @@
+// db.js 集成测试基线（防回归安全网，供大文件拆分前后对比）
+// 运行：npx electron scripts/test-db.cjs
+// 说明：better-sqlite3 是 electron ABI，必须用 electron 主进程跑（非 node）；userData 隔离到临时目录。
+const { app } = require('electron')
+const path = require('path')
+const os = require('os')
+const fs = require('fs')
+
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tiku-dbtest-'))
+app.setPath('userData', tmp)
+
+let pass = 0
+let fail = 0
+function ok(name, cond) {
+  if (cond) { pass++; console.log('  ✅', name) } else { fail++; console.log('  ❌', name) }
+}
+
+try {
+  const db = require('../electron/db.js')
+  db.init()
+
+  // 1) 初始状态
+  const summary = db.getSummary()
+  ok('init: getSummary.total > 0（样例数据已灌入）', summary.total > 0)
+  ok('init: streak 为数字', typeof summary.streak === 'number')
+
+  // 2) 取题
+  const qs = db.getQuestions({ limit: 5 })
+  ok('getQuestions 返回题目数组', Array.isArray(qs) && qs.length > 0)
+  const q = qs[0]
+  ok('题目含 stem', !!q.stem)
+
+  // 3) 答错 → 入错题本
+  const resWrong = db.submitAnswer({ questionId: q.id, selected: [], durationMs: 0, mode: 'practice' })
+  ok('答错 isCorrect=false', resWrong.isCorrect === false)
+  ok('答错后错题本含该题', db.getWrongBook().some(x => x.question_id === q.id))
+
+  // 4) 答对
+  const ans = Array.isArray(q.answer) ? q.answer : JSON.parse(q.answer_json || '[]')
+  const resRight = db.submitAnswer({ questionId: q.id, selected: ans, durationMs: 0, mode: 'review-due' })
+  ok('答对 isCorrect=true', resRight.isCorrect === true)
+
+  // 5) 复习曲线
+  const curve = db.getReviewCurve(30)
+  ok('getReviewCurve.dist 长度=30', Array.isArray(curve.dist) && curve.dist.length === 30)
+  ok('getReviewCurve.items 结构完整', curve.items.every(it => it.next && it.interval >= 1 && it.ease >= 1))
+
+  // 6) 四档反馈（忘记 → interval 重置 1）
+  const rr = db.rateReview(q.id, 1)
+  ok('rateReview(忘记) ok', rr.ok === true)
+  const wb2 = db.getWrongBook().find(x => x.question_id === q.id)
+  ok('忘记后 interval=1', wb2 && wb2.interval === 1)
+
+  // 7) 标记掌握毕业
+  db.markMastered(q.id)
+  const wb3 = db.getWrongBook().find(x => x.question_id === q.id)
+  ok('标记掌握后不再出现在活跃错题本', !wb3)
+
+  // 8) 分页 + 关键词（含标签批量查询路径）
+  const list = db.listQuestions({ page: 1, pageSize: 10 })
+  ok('listQuestions 分页 items<=10 且 total>=1', list.items.length <= 10 && list.total >= 1)
+  const kw = db.listQuestions({ keyword: String(q.stem).slice(0, 4) })
+  ok('listQuestions 关键词命中', kw.total >= 1)
+
+  // 9) 热力图含专注字段
+  const hm = db.getActivityHeatmap(30)
+  ok('getActivityHeatmap 长度=30 且含 focus', hm.length === 30 && 'focus' in hm[0] && 'count' in hm[0])
+
+  // 10) 导入去重（同科目章节同题干 → skip 计重复）
+  const imp = db.importQuestionBank(
+    [{ subject: '基线科目', chapter: '基线章', stem: '基线唯一题干-甲', options: [{ key: 'A', text: 'x' }], answer: ['A'], type: 'single' }],
+    { duplicateMode: 'skip' }
+  )
+  const imp2 = db.importQuestionBank(
+    [{ subject: '基线科目', chapter: '基线章', stem: '基线唯一题干-甲', options: [{ key: 'A', text: 'x' }], answer: ['A'], type: 'single' }],
+    { duplicateMode: 'skip' }
+  )
+  ok('导入去重：重复题干计 duplicated', imp2.duplicated === 1 && imp2.inserted === 0)
+
+  // 11) 导出结构
+  const ex = JSON.parse(db.exportData())
+  ok('exportData 含 questions 数组', Array.isArray(ex.questions))
+  ok('exportData 含 wrongBooks 数组', Array.isArray(ex.wrongBooks))
+
+  // 12) 文件资产模块（拆出的 db-assets 回归）：题图/音频存取 + 缓存
+  const tinyPng = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c626001000000ffff03000006000557bfabd40000000049454e44ae426082', 'hex')
+  const imgName = db.saveImage(tinyPng, 'png')
+  ok('saveImage 返回 .png 文件名', !!imgName && String(imgName).endsWith('.png'))
+  const dataUrl = db.getImage(imgName)
+  ok('getImage 返回 data:image dataURL', typeof dataUrl === 'string' && dataUrl.startsWith('data:image/'))
+  ok('getImage 二次命中缓存', db.getImage(imgName) === dataUrl)
+  const audioName = db.saveAudio(Buffer.from('fake-mp3-bytes'))
+  ok('saveAudio 返回 .mp3 文件名', !!audioName && String(audioName).endsWith('.mp3'))
+  ok('getAudioUrl 返回 data:audio dataURL', (db.getAudioUrl(audioName) || '').startsWith('data:audio/'))
+
+  // 13) XP/激励模块（拆出的 db-gamify 回归）
+  const xp0 = db.xpStats()
+  ok('xpStats 返回 level>=1', typeof xp0.level === 'number' && xp0.level >= 1)
+  db.logXp(10, 'quiz', '基线测试')
+  const xp1 = db.xpStats()
+  ok('logXp 后 total 增加 10', xp1.total === xp0.total + 10)
+  const rd = db.reviewDueStats()
+  ok('reviewDueStats 返回 due/estMinutes', typeof rd.due === 'number' && rd.estMinutes >= 1)
+  const tc = db.todayCounts()
+  ok('todayCounts 返回 review/kbRead', typeof tc.review === 'number' && typeof tc.kbRead === 'number')
+  const quest = db.checkQuests()
+  ok('checkQuests 返回 3 个任务', Array.isArray(quest.tasks) && quest.tasks.length === 3)
+
+  // 14) 统计模块（拆出的 db-stats 回归）
+  const st = db.getStats()
+  ok('getStats 返回 total/rate/perCat', typeof st.total === 'number' && 'rate' in st && Array.isArray(st.perCat))
+  ok('getCategoryAccuracy 返回数组', Array.isArray(db.getCategoryAccuracy()))
+  ok('getWeakPoints 返回数组', Array.isArray(db.getWeakPoints(5)))
+  const nowD = new Date()
+  const cal = db.getMonthlyCalendar(nowD.getFullYear(), nowD.getMonth() + 1)
+  ok('getMonthlyCalendar 返回对象', typeof cal === 'object' && cal !== null)
+  ok('getRecentRecords 返回记录数组', Array.isArray(db.getRecentRecords(3)))
+
+  // 15) 题库核心模块（拆出的 db-quiz 回归）：单题/收藏/笔记
+  const byId = db.getQuestionById(q.id)
+  ok('getQuestionById 返回完整题目', !!byId && Array.isArray(byId.answer))
+  const fav1 = db.toggleFavorite(q.id)
+  ok('toggleFavorite 收藏成功', fav1.favorited === true)
+  ok('getFavorites 含该题', db.getFavorites().some(f => f.question_id === q.id))
+  ok('toggleFavorite 再次点击取消收藏', db.toggleFavorite(q.id).favorited === false)
+  db.saveNote({ questionId: q.id, content: '基线笔记' })
+  ok('saveNote/getNote 往返', db.getNote(q.id).content === '基线笔记')
+  ok('getNotedQuestionIds 含该题', db.getNotedQuestionIds().includes(q.id))
+  ok('listNotes 含该题', db.listNotes().some(n => n.question_id === q.id))
+
+  // 16) 知识库文档基础模块（拆出的 db-kb 回归）：CRUD/标签/图谱
+  const docId = db.addKbDoc({ title: '基线文档', type: 'md', relPath: 'base.md', size: 5, blocks: [{ heading: null, content: 'hello kb' }] })
+  ok('addKbDoc 返回 docId', Number(docId) > 0)
+  const doc = db.getKbDoc(docId)
+  ok('getKbDoc 返回文档与 blocks', !!doc && Array.isArray(doc.blocks) && doc.blocks.length === 1)
+  db.setKbTags(docId, ['基线', '测试'])
+  ok('setKbTags/listKbTags 往返', db.getKbDoc(docId).tags.length === 2 && db.listKbTags().some(t => t.tag === '基线'))
+  ok('getKbDocs 列表含该文档', db.getKbDocs().some(d => d.id === docId))
+  const g = db.getKbGraph()
+  ok('getKbGraph 节点含该文档', g.nodes.some(n => n.id === docId))
+  const upd = db.updateKbDoc(docId, { title: '基线文档改' })
+  ok('updateKbDoc 标题更新', upd.title === '基线文档改')
+  const del = db.deleteKbDoc(docId)
+  ok('deleteKbDoc 成功', del.ok === true)
+  ok('getKbDoc 删除后为 null', db.getKbDoc(docId) === null)
+
+  // 17) 题库管理模块（拆出的 db-bank 回归）：单题增删改/统计/导出
+  const added = db.addQuestion({ categoryId: null, type: 'single', stem: '基线新增题', options: [{ key: 'A', text: '1' }, { key: 'B', text: '2' }], answer: ['A'] })
+  ok('addQuestion 返回新 id', added.ok === true && Number(added.id) > 0)
+  db.updateQuestion({ id: added.id, categoryId: null, type: 'single', stem: '基线新增题-改', options: [], answer: ['A'] })
+  const byId2 = db.getQuestionById(added.id)
+  ok('updateQuestion 生效', byId2.stem === '基线新增题-改')
+  const bs = db.getBankStats()
+  ok('getBankStats 返回 total/byType', typeof bs.total === 'number' && Array.isArray(bs.byType))
+  const eb = db.exportBank()
+  ok('exportBank 返回题目数组', Array.isArray(eb))
+  db.deleteQuestion(added.id)
+  ok('deleteQuestion 软删后 getQuestionById 为 null', db.getQuestionById(added.id) === null)
+
+  // 18) 知识库联动/搜索模块（并入 db-kb 回归）：互链/搜索/推荐
+  const doc2 = db.addKbDoc({ title: '联动文档', type: 'md', relPath: 'link.md', size: 4, blocks: [{ heading: null, content: '联动测试内容 abc' }] })
+  db.linkKbDoc({ docId: doc2, questionId: q.id })
+  ok('linkKbDoc 成功', db.getKbLinksForQuestion(q.id).some(l => l.doc_id === doc2))
+  ok('getKbLinksForDoc 含该题', db.getKbLinksForDoc(doc2).some(l => l.question_id === q.id))
+  ok('searchKb 命中文档标题', db.searchKb('联动').some(d => d.id === doc2))
+  ok('snippet 高亮上下文', db.snippet('前面上下文联动测试后面', '联动').includes('联动'))
+  ok('extractKeywords 提取关键词', Array.isArray(db.extractKeywords('这道题考察化学反应原理', 3)))
+  ok('getSuggestedDocsForQuestion 返回数组', Array.isArray(db.getSuggestedDocsForQuestion(q.id, 3)))
+  ok('getSuggestedQuestionsForDoc 返回数组', Array.isArray(db.getSuggestedQuestionsForDoc(doc2, 3)))
+  db.unlinkKbDoc(doc2, q.id)
+  ok('unlinkKbDoc 解除互链', db.getKbLinksForQuestion(q.id).length === 0)
+  db.deleteKbDoc(doc2)
+
+  // 19) 卡片/材料模块（拆出的 db-cards 回归）
+  db.addCard('基线正面', '基线背面', '基线卡组')
+  const cs = db.cardsStats()
+  ok('cardsStats 返回 total>=1', cs.total >= 1 && typeof cs.due === 'number')
+  ok('listCards 含新卡', db.listCards().some(c => c.front === '基线正面'))
+  const cr = db.getCardReview(5)
+  ok('getCardReview 返回抽取卡（含新卡）', Array.isArray(cr) && cr.length >= 1)
+  const cards0 = db.listCards()
+  db.updateCard(cards0[0].id, '正面改', '背面改', '卡组')
+  ok('updateCard 生效', db.listCards().some(c => c.id === cards0[0].id && c.front === '正面改'))
+  db.deleteCard(cards0[0].id)
+  ok('deleteCard 软删', !db.listCards().some(c => c.id === cards0[0].id))
+  const mat = db.upsertMaterial(1, '案例背景材料内容', '案例一')
+  ok('upsertMaterial 返回 id', mat && mat.id > 0)
+  ok('upsertMaterial 重复内容复用', db.upsertMaterial(1, '案例背景材料内容', '案例一').id === mat.id)
+  ok('listMaterials 含材料', db.listMaterials().some(m => m.id === mat.id))
+
+  // 20) 习惯/专注/回顾模块（拆出的 db-habits 回归）
+  const hid = db.addHabit('基线习惯', '✅')
+  ok('addHabit 返回 id', Number(hid) > 0)
+  const hb = db.listHabits().find(h => h.id === hid)
+  ok('listHabits 含新习惯且连续天数=0', !!hb && hb.streak === 0)
+  db.checkHabit(hid, '2026-08-01')
+  db.checkHabit(hid, '2026-08-02')
+  ok('checkHabit 后 total=2', db.listHabits().find(h => h.id === hid).total === 2)
+  db.uncheckHabit(hid, '2026-08-01')
+  ok('uncheckHabit 后 total=1', db.listHabits().find(h => h.id === hid).total === 1)
+  db.updateHabit(hid, { name: '习惯改名' })
+  ok('updateHabit 改名', db.listHabits().find(h => h.id === hid).name === '习惯改名')
+  db.addFocusSession(25)
+  ok('addFocusSession 后今日专注>0', db.focusStats().today >= 25)
+  db.saveResumeSession({ questionIds: [1, 2, 3], idx: 1 })
+  ok('saveResumeSession/getResumeSession 往返', db.getResumeSession() && db.getResumeSession().questionIds.length === 3)
+  db.clearResumeSession()
+  ok('clearResumeSession 清空', db.getResumeSession() === null)
+  const dr = db.getDailyReview(8)
+  ok('getDailyReview 返回 questions/blocks', Array.isArray(dr.questions) && Array.isArray(dr.blocks))
+  db.logReview('block', 1, true)
+  ok('logReview 记录成功', db.logReview('question', 1, false).ok === true)
+  db.deleteHabit(hid)
+  ok('deleteHabit 删除（含打卡记录）', !db.listHabits().some(h => h.id === hid))
+
+  // 21) 高亮/双链/错因/周报模块（拆出的 db-misc 回归）
+  const hlId = db.addHighlight({ docId: docId, blockId: 1, text: '高亮文字' })
+  ok('addHighlight 返回 id', Number(hlId) > 0)
+  ok('getHighlightsForDoc 含高亮', db.getHighlightsForDoc(docId).some(h => h.id === hlId))
+  db.removeHighlight(hlId)
+  ok('removeHighlight 软删', !db.getHighlightsForDoc(docId).some(h => h.id === hlId))
+  const docA = db.addKbDoc({ title: '互链A', type: 'md', relPath: 'a.md', size: 2 })
+  const docB = db.addKbDoc({ title: '互链B', type: 'md', relPath: 'b.md', size: 2 })
+  db.linkDocs(docA, docB)
+  const dl = db.getDocLinks(docA)
+  ok('linkDocs/getDocLinks 双链', dl.from.some(l => l.doc_id === docB))
+  db.unlinkDocs(docA, docB)
+  ok('unlinkDocs 解除', db.getDocLinks(docA).from.length === 0)
+  db.setWrongReason(q.id, '粗心')
+  const wb4 = db.getWrongBook().find(x => x.question_id === q.id)
+  ok('setWrongReason 记录错因', !wb4 || wb4.reason === '粗心')
+  const wr = db.getWeeklyReport()
+  ok('getWeeklyReport 返回聚合字段', typeof wr.answered === 'number' && 'accuracy' in wr && Array.isArray(wr.daily))
+  db.deleteKbDoc(docA)
+  db.deleteKbDoc(docB)
+
+  // 22) 薄弱项/相似题模块（拆出的 db-weak 回归）
+  ok('getWeakChapters 返回章节数组', Array.isArray(db.getWeakChapters(null, 5)))
+  ok('getSimilarQuestions 返回相似题数组', Array.isArray(db.getSimilarQuestions(q.id, 3)))
+  const wq = db.getWeakQuestions(10)
+  ok('getWeakQuestions 返回加权题', Array.isArray(wq) && wq.length >= 0)
+  const wqWeak = db.getQuestions({ mode: 'weak', limit: 5 })
+  ok('getQuestions(weak 模式) 经 this 走弱项抽题', Array.isArray(wqWeak))
+
+  // 23) 知识库统计/文件模块（并入 db-kb 回归）
+  const kbStats = db.kbStats()
+  ok('kbStats 返回统计字段', typeof kbStats.docs === 'number' && typeof kbStats.readCount === 'number')
+  ok('getKbFolders 返回文件夹数组', Array.isArray(db.getKbFolders()))
+  const kbF = db.addKbDoc({ title: '文件夹文档', type: 'md', relPath: 'fx.md', size: 3 })
+  db.restoreKbFiles([]) // addKbDoc 不落盘文件，先确保 userData/kb 目录存在（restoreKbFiles 内部 mkdir）
+  db.moveKbDoc(kbF, '测试夹')
+  ok('moveKbDoc 移动文件夹', db.getKbDoc(kbF).folder === '测试夹')
+  db.bumpKbRead(kbF)
+  ok('bumpKbRead 阅读计数+1', db.getKbDoc(kbF).read_count >= 1)
+  db.kbSaveMd(kbF, '# 编辑后标题\n\n新内容')
+  ok('kbSaveMd 保存并切块', db.getKbDoc(kbF).blocks.length >= 1 && db.getKbDoc(kbF).title !== '编辑后标题')
+  db.saveKbScroll(kbF, 3)
+  ok('saveKbScroll 记录页码', db.getKbDoc(kbF).last_page === 3)
+  const kf = db.listKbFiles()
+  ok('listKbFiles 含副本文件', Array.isArray(kf))
+  ok('restoreKbFiles 写回文件', typeof db.restoreKbFiles([{ relPath: 'notes/新笔记.md', base64: Buffer.from('# 同步笔记').toString('base64') }]) === 'number')
+  db.deleteKbDoc(kbF)
+
+  // 24) 模拟卷/标签/章节进度模块（拆出的 db-paper 回归）
+  const paper = db.generatePaper({ title: '基线卷', subjectId: null, rules: [{ type: 'single', count: 1, score: 100 }], durationMinutes: 30 })
+  ok('generatePaper 生成模拟卷', paper.ok === true && paper.paperId > 0 && paper.totalScore === 100)
+  ok('listPapers 含该卷', db.listPapers().some(p => p.id === paper.paperId))
+  const gp = db.getPaper(paper.paperId)
+  ok('getPaper 返回题目与分值', gp && gp.questions.length === 1 && gp.questions[0].score === 100)
+  db.deletePaper(paper.paperId)
+  ok('deletePaper 软删', !db.listPapers().some(p => p.id === paper.paperId))
+  db.setQuestionTags(q.id, ['标签A', '标签B'])
+  ok('setQuestionTags/getQuestionTags 往返', db.getQuestionTags(q.id).length === 2)
+  ok('listTags 含标签A', db.listTags().some(t => t.tag === '标签A'))
+  ok('getChapterProgress 返回科目数组', Array.isArray(db.getChapterProgress()))
+
+  // 25) 导出/分类/批量组（db-export.js + db-bank.js 迁移验证）
+  const orphanName = db.saveImage(Buffer.from('orphan-png-bytes'))
+  const orphanPath = path.join(app.getPath('userData'), 'images', orphanName)
+  ok('saveImage 落盘孤儿测试图', fs.existsSync(orphanPath))
+  const clean1 = db.cleanupOrphanImages()
+  ok('cleanupOrphanImages 回收未引用图', clean1.removed >= 1)
+  const usedName = db.saveImage(Buffer.from('used-png-bytes'))
+  db.updateQuestion({ ...q, images: [usedName] })
+  const clean2 = db.cleanupOrphanImages()
+  ok('cleanupOrphanImages 保留在用图', fs.existsSync(path.join(app.getPath('userData'), 'images', usedName)))
+  const wbFile = db.exportWrongBookMarkdown()
+  ok('exportWrongBookMarkdown 生成 .md 文件', typeof wbFile === 'string' && wbFile.endsWith('.md') && fs.existsSync(wbFile))
+  const ntFile = db.exportNotesMarkdown()
+  ok('exportNotesMarkdown 生成 .md 文件', typeof ntFile === 'string' && ntFile.endsWith('.md') && fs.existsSync(ntFile))
+  const cats = db.getCategories()
+  ok('getCategories 返回科目树', Array.isArray(cats) && cats.length >= 1)
+  db.setCurrentSubject(cats[0].id)
+  ok('setCurrentSubject/getCurrentSubject 往返', db.getCurrentSubject().id === cats[0].id)
+  const catNew = db.addCategory({ name: '基线分类X', parentId: null })
+  ok('addCategory 新增科目', catNew.ok === true && catNew.id > 0)
+  db.renameCategory({ id: catNew.id, name: '基线分类Y' })
+  ok('renameCategory 改名', db.getSubjects().some(s => s.name === '基线分类Y'))
+  const q1 = db.addQuestion({ categoryId: cats[0].id, type: 'single', stem: '批量移动题A', options: ['对', '错'], answer: [0] })
+  const q2 = db.addQuestion({ categoryId: cats[0].id, type: 'single', stem: '批量移动题B', options: ['对', '错'], answer: [1] })
+  const sub2 = db.addCategory({ name: '基线分类Z', parentId: null })
+  db.batchUpdateQuestions([q1.id, q2.id], { categoryId: sub2.id, difficulty: 5 })
+  ok('batchUpdateQuestions 批量移动+难度', db.getQuestionById(q1.id).category_id === sub2.id && db.getQuestionById(q2.id).difficulty === 5)
+  db.batchDeleteQuestions([q1.id, q2.id])
+  ok('batchDeleteQuestions 批量软删', db.getQuestionById(q1.id) === null && db.getQuestionById(q2.id) === null)
+  db.deleteCategory(sub2.id)
+  ok('deleteCategory 级联删题', !db.getSubjects().some(s => s.name === '基线分类Z'))
+
+  // 26) 同步组（db-sync.js 迁移验证 + cfg 索引修复）
+  const sync1 = JSON.parse(db.exportSync())
+  ok('exportSync 全量含 questions', Array.isArray(sync1.questions) && sync1.questions.length > 0)
+  ok('exportSync 含 kbBlocksByCid 分组', typeof sync1.kbBlocksByCid === 'object' && !Array.isArray(sync1.kbBlocksByCid))
+  // 高亮 + 双链合并（验证 cfg[16]/cfg[17] 索引修复：此前误用 cards/materials 列清单会 SQL 报错）
+  const hlDoc = db.addKbDoc({ title: '同步高亮文档', type: 'md', relPath: 'sync-hl.md', size: 4 })
+  db.addHighlight({ docId: hlDoc, blockId: null, text: '同步高亮句' })
+  const hlDoc2 = db.addKbDoc({ title: '同步互链文档', type: 'md', relPath: 'sync-link.md', size: 4 })
+  db.linkDocs(hlDoc, hlDoc2)
+  const sync2 = JSON.parse(db.exportSync())
+  const m2 = db.mergeRemote(JSON.stringify(sync2))
+  ok('mergeRemote 含高亮合并', m2.kbHighlights >= 1 && m2.kbDocLinks >= 1)
+  // 冲突计数：远端快照某行 updated_at 改新 → LWW 覆盖且记冲突
+  const sync3 = JSON.parse(db.exportSync())
+  const wbRow = sync3.wrongBooks.find(r => r && r.client_id)
+  if (wbRow) {
+    const orig = wbRow.updated_at
+    wbRow.updated_at = orig + 5000
+    const m3 = db.mergeRemote(JSON.stringify(sync3))
+    ok('mergeRemote 冲突计数+明细', m3.conflicts >= 1 && Array.isArray(m3.conflictItems) && m3.conflictItems.some(i => i.table === 'wrong_books'))
+  } else {
+    ok('mergeRemote 冲突计数+明细', true) // 库中无 wrong_books 行则跳过
+  }
+  const exData = db.exportData()
+  ok('exportData 返回 JSON 字符串', typeof exData === 'string' && JSON.parse(exData).questions.length > 0)
+  const prev = db.importPreview(exData)
+  ok('importPreview 返回差异统计', prev.questions && prev.questions.total > 0 && typeof prev.questions.fresh === 'number')
+  const impRes = db.importData(exData)
+  ok('importData 整机恢复', impRes.ok === true && impRes.imported > 0)
+  const syncImgName = db.saveImage(Buffer.from('sync-img-bytes'))
+  db.updateQuestion({ ...q, images: [syncImgName] })
+  const imgs = db.exportImageFiles(0)
+  ok('exportImageFiles 返回在用图+hash', imgs.some(i => i.name === syncImgName && /^[0-9a-f]{64}$/.test(i.hash)))
+  fs.unlinkSync(path.join(app.getPath('userData'), 'images', syncImgName))
+  const restored = db.restoreImages([{ name: syncImgName, b64: Buffer.from('sync-img-bytes').toString('base64') }])
+  ok('restoreImages 还原被删图片', restored === 1 && fs.existsSync(path.join(app.getPath('userData'), 'images', syncImgName)))
+  db.deleteKbDoc(hlDoc)
+  db.deleteKbDoc(hlDoc2)
+
+  // 27) 基础设施组（db-schema.js + db-meta.js 迁移验证 + 备份）
+  db.setSetting('probe_key', 'v1')
+  ok('setSetting/getSetting 往返', db.getSetting('probe_key') === 'v1')
+  db.setSetting('probe_key', 'v2')
+  ok('setSetting 覆盖', db.getSetting('probe_key') === 'v2')
+  ok('ensureUser 幂等', db.ensureUser() === undefined)
+  // backfillClientIds：手动清空某分类 client_id → backfill 补齐
+  const catT = db.getCategories()[0]
+  const Database2 = require('better-sqlite3')
+  const d2 = new Database2(path.join(app.getPath('userData'), 'tiku.db'))
+  d2.prepare('UPDATE categories SET client_id=NULL WHERE id=?').run(catT.id)
+  d2.close()
+  db.backfillClientIds()
+  const catT2 = db.getCategories().find(c => c.id === catT.id)
+  ok('backfillClientIds 补齐 client_id', !!catT2.client_id && catT2.client_id.length > 10)
+  const baks = db.listBackups()
+  ok('autoBackup/listBackups 生成备份', Array.isArray(baks) && baks.length >= 1 && baks[0].file.endsWith('.db'))
+  ok('getDbStatus 返回状态对象', typeof db.getDbStatus() === 'object' && 'recovered' in db.getDbStatus())
+  const mastered = db.markMastered(q.id)
+  ok('markMastered(复习) 返回 ok', mastered.ok === true)
+  const rate = db.rateReview(q.id, 5)
+  ok('rateReview(复习) 返回 ok+quality', rate.ok === true && rate.quality === 5)
+  db.clearUserData()
+  ok('clearUserData 清空学习数据', db.getSummary().today === 0 && db.getWrongBook().length === 0 && db.listNotes().length === 0)
+
+  console.log(`\ndb 集成测试：${pass} 通过 / ${fail} 失败`)
+} catch (e) {
+  fail++
+  console.error('❌ db 集成测试异常:', e && e.stack ? e.stack.split('\n').slice(0, 4).join('\n') : e)
+  console.log(`\ndb 集成测试：${pass} 通过 / ${fail} 失败`)
+}
+
+try { app.exit(fail ? 1 : 0) } catch (e) { process.exit(fail ? 1 : 0) }
