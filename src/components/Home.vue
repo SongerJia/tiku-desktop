@@ -21,6 +21,9 @@ const dailyAnalysisOpen = ref(false)
 const goalData = ref(null)
 const goalType = ref('quiz')
 const goalValue = ref(100)
+// 今日任务单：到期复习 / 每日一题 / 今日目标 / 未读文档
+const dueReviews = ref(0)
+const kbUnread = ref(0)
 const goalLabel = computed(() => ({ quiz: '本周刷题', review: '本周复习', focus: '本周专注' })[goalType.value] || '本周刷题')
 const goalUnit = computed(() => ({ quiz: '题', review: '条', focus: '分钟' })[goalType.value] || '题')
 const goalDaysLeft = computed(() => {
@@ -49,6 +52,31 @@ watch(() => props.subject.id, load)
 watch(() => props.refreshKey, load) // 切回首页时刷新实时数据
 
 const goalPct = computed(() => dailyGoal.value ? Math.min(100, Math.round((summary.value.today / dailyGoal.value) * 100)) : 0)
+
+// 今日任务单：按优先级聚合可点击任务（实时判定，完成即消失）
+const taskItems = computed(() => {
+  const items = []
+  // 1) 到期错题复习（最紧急）
+  if (dueReviews.value > 0) {
+    items.push({ key: 'review', name: `复习 ${dueReviews.value} 道到期错题`, desc: '约 1 分钟 · 智能复习排期已到', urgent: true, run: () => emit('start', { mode: 'review-due' }) })
+  }
+  // 2) 每日一题（未答）
+  if (dailyPuzzle.value && dailyPuzzle.value.question && !dailyPuzzle.value.state.answered) {
+    items.push({ key: 'daily', name: '每日一题 · 今天还没做', desc: '答对攒连击，保持节奏', hot: true, run: () => startDaily() })
+  }
+  // 3) 今日目标剩余
+  const remain = dailyGoal.value > 0 ? Math.max(0, dailyGoal.value - summary.value.today) : 0
+  if (dailyGoal.value > 0 && remain > 0) {
+    items.push({ key: 'quiz', name: `今日还差 ${remain} 题`, desc: `目标 ${dailyGoal.value} 题 · 已刷 ${summary.value.today}`, warm: true, run: () => emit('start', { mode: 'practice' }) })
+  } else if (!dailyGoal.value && summary.value.today === 0) {
+    items.push({ key: 'quiz', name: '今天还没刷题', desc: '刷几道保持手感（「我的」可设每日目标）', warm: true, run: () => emit('start', { mode: 'practice' }) })
+  }
+  // 4) 未读文档
+  if (kbUnread.value > 0) {
+    items.push({ key: 'kb', name: `有 ${kbUnread.value} 篇文档待读`, desc: '知识库新增未读内容', cool: true, run: () => emit('goto', 'kb') })
+  }
+  return items
+})
 
 // 近 7 天答题趋势（getWeeklyTrend 返回每日计数），纯 SVG 柱状图，无第三方依赖
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
@@ -96,6 +124,8 @@ async function load() {
   try { weakAccuracy.value = (await tiku.getCategoryAccuracy()).slice(0, 3) } catch (e) { weakAccuracy.value = [] }
   try { dailyPuzzle.value = await tiku.getDailyPuzzle() } catch (e) { dailyPuzzle.value = null }
   try { goalData.value = await tiku.getGoalContract() } catch (e) { goalData.value = null }
+  try { dueReviews.value = (await tiku.reviewDueStats()).due || 0 } catch (e) { dueReviews.value = 0 }
+  try { kbUnread.value = (await tiku.kbStats()).unread || 0 } catch (e) { kbUnread.value = 0 }
   dailyAnalysisOpen.value = false
   loading.value = false
 }
@@ -206,6 +236,30 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
     <div v-if="!loading && summary.total === 0" class="card empty-guide">
       <p class="eg-title">题库还是空的，先导入一批题开始吧</p>
       <p class="eg-sub">支持 CSV / Excel / JSON 批量导入（我的 → 题库管理），或用内置样题直接体验</p>
+    </div>
+
+    <!-- 今日任务单（置顶聚合：到期复习/每日一题/今日目标/待读文档） -->
+    <div v-if="!loading && taskItems.length" class="card task-card">
+      <div class="task-head">
+        <span class="task-title">今日任务单</span>
+        <span class="task-badge">{{ taskItems.length }} 项待完成</span>
+      </div>
+      <div class="task-list">
+        <div
+          v-for="t in taskItems"
+          :key="t.key"
+          class="task-item"
+          :class="{ urgent: t.urgent, hot: t.hot, warm: t.warm, cool: t.cool }"
+          @click="t.run"
+        >
+          <span class="task-ico">{{ t.urgent ? '!' : t.hot ? '?' : t.warm ? '+' : 'M' }}</span>
+          <div class="task-info">
+            <p class="task-name">{{ t.name }}</p>
+            <p class="task-desc">{{ t.desc }}</p>
+          </div>
+          <span class="task-arrow">›</span>
+        </div>
+      </div>
     </div>
 
     <!-- 今日目标进度 -->
@@ -811,4 +865,31 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
 .goal-c-row { display: flex; align-items: center; gap: 8px; }
 .goal-c-row .input { flex: 1; }
 .goal-c-unit { font-size: 12px; color: var(--muted); }
+
+/* 今日任务单 */
+.task-card { display: flex; flex-direction: column; gap: 10px; border: 1px solid rgba(91, 124, 250, 0.25); }
+.task-head { display: flex; align-items: center; justify-content: space-between; }
+.task-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.task-badge { font-size: 12px; color: var(--brand); border: 1px solid rgba(91, 124, 250, 0.35); border-radius: 999px; padding: 2px 10px; }
+.task-list { display: flex; flex-direction: column; gap: 8px; }
+.task-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 10px; cursor: pointer; transition: all .15s;
+}
+.task-item:hover { border-color: var(--brand); box-shadow: var(--glow-soft); }
+.task-item.urgent { border-color: rgba(255, 77, 109, 0.4); }
+.task-item.hot { border-color: rgba(255, 165, 42, 0.35); }
+.task-item.warm { border-color: rgba(91, 124, 250, 0.35); }
+.task-ico {
+  width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 600; flex-shrink: 0;
+}
+.task-item.urgent .task-ico { background: rgba(255, 77, 109, 0.14); color: var(--bad); }
+.task-item.hot .task-ico { background: rgba(255, 165, 42, 0.14); color: var(--warn); }
+.task-item.warm .task-ico { background: rgba(91, 124, 250, 0.14); color: var(--brand); }
+.task-item.cool .task-ico { background: rgba(127, 127, 127, 0.12); color: var(--muted); }
+.task-info { flex: 1; min-width: 0; }
+.task-name { font-size: 13px; color: var(--text); margin: 0; }
+.task-desc { font-size: 11px; color: var(--muted); margin: 2px 0 0; }
+.task-arrow { color: var(--muted); font-size: 18px; flex-shrink: 0; }
 </style>

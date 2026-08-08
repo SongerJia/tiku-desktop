@@ -414,6 +414,13 @@ try {
   const g3 = db.getGoalContract()
   ok('跨周自动重置 + lastMissed 记录', g3.contract && g3.lastMissed !== null && g3.lastMissed.missedBy === 999999 && g3.achieved === false && g3.progress < 999999)
 
+  // 30) kbStats.unread（今日任务单数据源）
+  const kbSt = db.kbStats()
+  ok('kbStats 含 unread 字段', typeof kbSt.unread === 'number' && kbSt.unread >= 0)
+  const unreadDoc = db.addKbDoc({ title: '任务单未读文档', type: 'md', relPath: 'task-unread.md', size: 2 })
+  ok('kbStats unread 计数新增', db.kbStats().unread >= 1)
+  db.deleteKbDoc(unreadDoc)
+
   console.log(`\ndb 集成测试：${pass} 通过 / ${fail} 失败`)
 } catch (e) {
   fail++

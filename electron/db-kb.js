@@ -316,8 +316,9 @@ module.exports = function kbModule(ctx) {
       const links = sqlite.prepare('SELECT COUNT(*) AS n FROM kb_links').get().n
       const tags = sqlite.prepare('SELECT COUNT(DISTINCT tag) AS n FROM kb_tags').get().n
       const readCount = sqlite.prepare('SELECT COALESCE(SUM(read_count),0) AS n FROM kb_docs WHERE deleted=0').get().n
+      const unread = sqlite.prepare('SELECT COUNT(*) AS n FROM kb_docs WHERE deleted=0 AND (read_count IS NULL OR read_count=0)').get().n
       const folders = sqlite.prepare("SELECT COUNT(DISTINCT folder) AS n FROM kb_docs WHERE deleted=0 AND folder<>''").get().n
-      return { docs, blocks, links, tags, readCount, folders }
+      return { docs, blocks, links, tags, readCount, unread, folders }
     },
 
     // 文件夹：全部文件夹及其文档数（含"未分类"）
