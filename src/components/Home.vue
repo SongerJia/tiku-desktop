@@ -14,12 +14,41 @@ const emit = defineEmits(['start', 'start-mock', 'goto'])
 const summary = ref({ total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0 })
 const dailyGoal = ref(0)
 const loading = ref(true)
+const weeklyTrend = ref([])
+const heatmap = ref([])
+const heatStreak = computed(() => summary.value.streak || 0)
+// 考试倒计时 + 专注概览
+const examDate = ref('')
+const focusWeek = ref(0)
+const examLeft = computed(() => {
+  if (!examDate.value) return null
+  const target = new Date(examDate.value + 'T00:00:00')
+  const now = new Date(); now.setHours(0, 0, 0, 0)
+  return { date: examDate.value, days: Math.round((target - now) / 86400000) }
+})
+function heatLevel(c) { return c === 0 ? 0 : c <= 2 ? 1 : c <= 5 ? 2 : c <= 10 ? 3 : 4 }
+const weakPoints = ref([])
+const weakAccuracy = ref([])
 
 onMounted(load)
 watch(() => props.subject.id, load)
 watch(() => props.refreshKey, load) // 切回首页时刷新实时数据
 
 const goalPct = computed(() => dailyGoal.value ? Math.min(100, Math.round((summary.value.today / dailyGoal.value) * 100)) : 0)
+
+// 近 7 天答题趋势（getWeeklyTrend 返回每日计数），纯 SVG 柱状图，无第三方依赖
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
+const todayKey = new Date().toISOString().slice(0, 10)
+const trendMax = computed(() => Math.max(1, ...weeklyTrend.value.map(d => d.count)))
+const trendBars = computed(() => weeklyTrend.value.map(d => {
+  const count = d.count || 0
+  return {
+    label: WEEKDAYS[new Date(d.date + 'T00:00:00').getDay()],
+    count,
+    h: count ? Math.round((count / trendMax.value) * 52) + 4 : 0,
+    isToday: d.date === todayKey
+  }
+}))
 
 // 每日任务 Quest + 习惯打卡 + 每日回顾 + 番茄钟
 const tasks = ref([])
@@ -44,8 +73,13 @@ async function load() {
     questClaimed.value = q.claimed.join('、')
   } catch (e) { /* 任务失败不阻塞 */ }
   try { habits.value = await tiku.listHabits() } catch (e) { habits.value = [] }
-  try { const fs = await tiku.focusStats(); focusToday.value = fs.today } catch (e) { focusToday.value = 0 }
+  try { const fs = await tiku.focusStats(); focusToday.value = fs.today; focusWeek.value = fs.week } catch (e) { focusToday.value = 0 }
   try { cardStats.value = await tiku.cardsStats() } catch (e) {}
+  try { weeklyTrend.value = await tiku.getWeeklyTrend() } catch (e) { weeklyTrend.value = [] }
+  try { weakPoints.value = await tiku.getWeakPoints(5) } catch (e) { weakPoints.value = [] }
+  try { heatmap.value = await tiku.getActivityHeatmap(120) } catch (e) { heatmap.value = [] }
+  try { examDate.value = (await tiku.getSetting('exam_date')) || '' } catch (e) { examDate.value = '' }
+  try { weakAccuracy.value = (await tiku.getCategoryAccuracy()).slice(0, 3) } catch (e) { weakAccuracy.value = [] }
   loading.value = false
 }
 
@@ -141,6 +175,77 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
       <div class="goal-sub">{{ goalPct >= 100 ? '🎉 今日目标已达成！' : '还差 ' + Math.max(0, dailyGoal - summary.today) + ' 题，去刷几道吧' }}</div>
     </div>
 
+    <!-- 考试倒计时 -->
+    <div class="card exam-count-card" v-if="examLeft">
+      <div class="exam-count-top">
+        <span class="exam-count-label">🎯 考试倒计时</span>
+        <span class="exam-count-num" :class="{ soon: examLeft.days <= 7 && examLeft.days >= 0 }">
+          {{ examLeft.days >= 0 ? examLeft.days : 0 }}<small> 天</small>
+        </span>
+      </div>
+      <div class="exam-count-sub">{{ examLeft.date }} {{ examLeft.days > 0 ? '· 每天坚持刷题，稳扎稳打' : (examLeft.days === 0 ? '· 就是今天！加油 🎉' : '· 已过考试日，可在「我的」更新日期') }}</div>
+    </div>
+
+    <!-- 近 7 天学习趋势 -->
+    <div class="card trend-card" v-if="weeklyTrend.length">
+      <div class="card-title"><Icon name="stats" :size="14"/> 近 7 天答题趋势</div>
+      <svg class="trend-svg" viewBox="0 0 280 96" preserveAspectRatio="xMidYMid meet">
+        <line x1="6" y1="84" x2="274" y2="84" stroke="var(--line)" stroke-width="1"/>
+        <g v-for="(b, i) in trendBars" :key="i">
+          <rect
+            :x="14 + i * 38" :y="84 - b.h" width="24" :height="b.h"
+            :rx="b.h ? 4 : 0"
+            :fill="b.isToday ? 'var(--brand)' : 'rgba(91,124,250,0.42)'"
+          />
+          <text v-if="b.count" :x="26 + i * 38" :y="80 - b.h" text-anchor="middle" class="trend-v">{{ b.count }}</text>
+          <text :x="26 + i * 38" y="96" text-anchor="middle" class="trend-x" :class="{ on: b.isToday }">{{ b.label }}</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- 薄弱点 TopN + 薄弱章节 -->
+    <div class="card weak-card" v-if="weakPoints.length || weakAccuracy.length">
+      <div class="card-title"><Icon name="alert" :size="14"/> 待攻克薄弱点</div>
+      <div v-if="weakPoints.length" class="weak-list">
+        <div v-for="w in weakPoints" :key="w.id" class="weak-item" @click="emit('goto', 'bank')">
+          <span class="weak-stem">{{ w.stem || '（空题干）' }}</span>
+          <span class="weak-meta">
+            <span class="weak-tag" v-if="w.cat">{{ w.cat }}</span>
+            <span class="weak-count">错 {{ w.wrong_count }} 次</span>
+          </span>
+        </div>
+      </div>
+      <div v-if="weakAccuracy.length" class="weak-cats">
+        <div v-for="a in weakAccuracy" :key="a.cat" class="weak-cat">
+          <span class="weak-cat-name">{{ a.cat }}</span>
+          <span class="weak-cat-rate" :class="{ low: a.rate < 60 }">正确率 {{ a.rate }}%</span>
+        </div>
+      </div>
+      <div v-if="!weakPoints.length && !weakAccuracy.length" class="weak-empty">暂无薄弱点，继续保持！</div>
+    </div>
+
+    <!-- 学习日历热力图 -->
+    <div class="card heat-card" v-if="heatmap.length">
+      <div class="card-title">
+        <Icon name="fire" :size="14"/> 学习日历
+        <span class="heat-streak">🔥 连续打卡 {{ heatStreak }} 天</span>
+      </div>
+      <div class="heat-grid">
+        <div
+          v-for="(d, i) in heatmap"
+          :key="i"
+          class="heat-cell"
+          :class="'lvl-' + heatLevel(d.count)"
+          :title="d.date + (d.isToday ? '（今天）' : '') + ' · ' + d.count + ' 题' + (d.focus ? ' · 专注 ' + d.focus + ' 分钟' : '')"
+        ></div>
+      </div>
+      <div class="heat-legend">
+        <span class="lg-text">少</span>
+        <i class="heat-cell lvl-0"></i><i class="heat-cell lvl-1"></i><i class="heat-cell lvl-2"></i><i class="heat-cell lvl-3"></i><i class="heat-cell lvl-4"></i>
+        <span class="lg-text">多</span>
+      </div>
+    </div>
+
     <!-- 每日任务 Quest -->
     <div class="card quest-card">
       <div class="card-title"><Icon name="paper" :size="14"/> 每日任务 <span class="quest-xp">每个 +20 XP</span></div>
@@ -169,6 +274,17 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
           <span class="habit-check"><Icon v-if="h.checkedToday" name="check" :size="14"/><i v-else class="hollow"></i></span>
         </div>
       </div>
+    </div>
+
+    <!-- 专注概览 -->
+    <div class="card focus-sum-card" v-if="focusWeek > 0">
+      <div class="card-title">🍅 专注概览</div>
+      <div class="focus-nums">
+        <span class="fn-item"><b>{{ focusToday }}</b><small>今日分钟</small></span>
+        <span class="fn-item"><b>{{ focusWeek }}</b><small>本周分钟</small></span>
+      </div>
+      <div class="focus-bar"><div class="focus-fill" :style="{ width: Math.min(100, Math.round(focusWeek / 420 * 100)) + '%' }"></div></div>
+      <div class="focus-sub">本周目标 7 小时 · 每专注 25 分钟休息一下 🌿</div>
     </div>
 
     <!-- 每日回顾 + 专注 -->
@@ -399,4 +515,74 @@ onBeforeUnmount(() => { if (focusTimer) clearInterval(focusTimer) })
 .me-badge { font-size: 10px; font-weight: 500; color: var(--warn); border: 1px solid rgba(217, 154, 61, 0.4); border-radius: 8px; padding: 0 6px; vertical-align: 2px; }
 .me-sub { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
 .mock-entry .btn { flex: 0 0 auto; }
+
+/* 近 7 天学习趋势 */
+.trend-card { display: flex; flex-direction: column; gap: 10px; }
+.trend-svg { width: 100%; height: auto; display: block; }
+.trend-x { font-size: 11px; fill: var(--muted); }
+.trend-x.on { fill: var(--brand); font-weight: 700; }
+.trend-v { font-size: 10px; fill: var(--text); font-weight: 600; }
+
+/* 待攻克薄弱点 */
+.weak-card { display: flex; flex-direction: column; gap: 10px; }
+.weak-list { display: flex; flex-direction: column; gap: 8px; }
+.weak-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  cursor: pointer; transition: all .15s;
+}
+.weak-item:hover { border-color: var(--bad); background: rgba(255, 77, 109, 0.06); }
+.weak-stem { flex: 1; font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.weak-meta { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.weak-tag { font-size: 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 5px; }
+.weak-count { font-size: 11px; color: var(--bad); }
+.weak-cats { display: flex; flex-direction: column; gap: 6px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.weak-cat { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
+.weak-cat-name { color: var(--text); }
+.weak-cat-rate { color: var(--muted); }
+.weak-cat-rate.low { color: var(--bad); font-weight: 600; }
+.weak-empty { font-size: 12px; color: var(--muted); }
+
+/* 学习日历热力图（GitHub 风格） */
+.heat-card { max-width: 100%; }
+.heat-streak { margin-left: auto; font-size: 12px; color: var(--brand); font-weight: 600; }
+.heat-grid {
+  display: grid;
+  grid-template-rows: repeat(7, 12px);
+  grid-auto-flow: column;
+  grid-auto-columns: 12px;
+  gap: 3px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.heat-cell { width: 12px; height: 12px; border-radius: 3px; background: var(--line); transition: transform .12s ease; }
+.heat-cell:hover { transform: scale(1.25); }
+.heat-cell.lvl-0 { background: var(--line); }
+.heat-cell.lvl-1 { background: rgba(91,124,250,0.35); }
+.heat-cell.lvl-2 { background: rgba(91,124,250,0.6); }
+.heat-cell.lvl-3 { background: rgba(91,124,250,0.84); }
+.heat-cell.lvl-4 { background: var(--brand); }
+.heat-legend { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 11px; color: var(--muted); }
+.heat-legend .heat-cell { cursor: default; }
+.lg-text { margin: 0 2px; }
+
+/* 考试倒计时 */
+.exam-count-card { display: flex; flex-direction: column; gap: 6px; }
+.exam-count-top { display: flex; align-items: center; justify-content: space-between; }
+.exam-count-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.exam-count-num { font-size: 22px; font-weight: 800; color: var(--brand); }
+.exam-count-num small { font-size: 12px; font-weight: 500; color: var(--muted); }
+.exam-count-num.soon { color: var(--bad); animation: blink 1s steps(2) infinite; }
+.exam-count-sub { font-size: 12px; color: var(--muted); }
+@keyframes blink { 50% { opacity: .55; } }
+
+/* 专注概览 */
+.focus-sum-card { display: flex; flex-direction: column; gap: 8px; }
+.focus-nums { display: flex; gap: 18px; }
+.fn-item { display: flex; flex-direction: column; }
+.fn-item b { font-size: 18px; color: var(--brand); }
+.fn-item small { font-size: 11px; color: var(--muted); }
+.focus-bar { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.focus-fill { height: 100%; border-radius: 999px; background: var(--brand); transition: width .4s ease; }
+.focus-sub { font-size: 11px; color: var(--muted); }
 </style>

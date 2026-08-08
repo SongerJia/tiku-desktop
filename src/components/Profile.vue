@@ -28,13 +28,11 @@ const showNotes = ref(false)
 const syncConnected = ref(false)
 const syncLogin = ref('')
 const syncLast = ref(0)
+const conflictItems = ref([]) // 本次同步冲突明细
+const conflictOpen = ref(false)
 const syncToken = ref('')
 const syncing = ref(false)
 
-const menus = [
-  { label: '章节进度', action: () => showChapter.value = true },
-  { label: '关于我们', action: () => showAbout.value = true }
-]
 const showChapter = ref(false)
 const showAbout = ref(false)
 const showBackup = ref(false)
@@ -87,6 +85,7 @@ async function doSync() {
       if (m.habits) parts.push('习惯 ' + m.habits)
       if (parts.length) msg += ' · 合并：' + parts.slice(0, 5).join('、')
       if (m.conflicts) msg += ' · 冲突 ' + m.conflicts + ' 条（按时间戳覆盖）'
+      conflictItems.value = (m.conflictItems || []).slice(0, 50)
     }
     showToast(msg, 'ok')
   } catch (e) {
@@ -110,8 +109,57 @@ async function clearLocal() {
   emit('reset')
 }
 
+async function cleanupImages() {
+  try {
+    const r = await tiku.cleanupOrphanImages()
+    if (r.removed > 0) showToast(`已清理 ${r.removed} 张无用图片，释放 ${(r.freedBytes / 1024).toFixed(1)} KB`, 'ok')
+    else showToast('没有需要清理的无用图片', 'ok')
+  } catch (e) {
+    showToast('清理失败：' + (e.message || '未知错误'), 'err')
+  }
+}
+
+async function exportWrong() {
+  try {
+    const file = await tiku.exportWrongBook()
+    await tiku.openPath(file)
+    showToast('错题本已导出并在文件管理器中打开', 'ok')
+  } catch (e) { showToast('导出失败：' + (e.message || '未知错误'), 'err') }
+}
+async function exportNotes() {
+  try {
+    const file = await tiku.exportNotes()
+    await tiku.openPath(file)
+    showToast('笔记已导出并在文件管理器中打开', 'ok')
+  } catch (e) { showToast('导出失败：' + (e.message || '未知错误'), 'err') }
+}
+async function exportZip() {
+  try {
+    const r = await tiku.exportAllZip()
+    if (!r.ok) throw new Error(r.error || '打包失败')
+    await tiku.openPath(r.path)
+    showToast(`全量数据已打包（${(r.size / 1024 / 1024).toFixed(1)} MB），可在文件管理器查看`, 'ok')
+  } catch (e) { showToast('导出失败：' + (e.message || '未知错误'), 'err') }
+}
+
+function fmtTs(ts) {
+  const d = new Date(Number(ts))
+  if (isNaN(d.getTime())) return '-'
+  const p = n => String(n).padStart(2, '0')
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
 function fmtTime(ts) {
   if (!ts) return '从未同步'
+  const diff = Date.now() - Number(ts)
+  if (diff < 60000) return '刚刚'
+  const min = Math.floor(diff / 60000)
+  if (min < 60) return min + ' 分钟前'
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return hr + ' 小时前'
+  const day = Math.floor(hr / 24)
+  if (day < 7) return day + ' 天前'
+  // 超过一周回退绝对时间，避免「3 周前」这类不直观表达
   const d = new Date(Number(ts))
   const pad = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
@@ -168,6 +216,7 @@ async function importData(event) {
 const theme = ref('dark')
 const fontScale = ref('1')
 const dailyGoal = ref(0)
+const examDate = ref('') // 目标考试日（YYYY-MM-DD），首页显示倒计时
 const remindEnabled = ref(false)
 const autoSync = ref(true)
 const remindTime = ref('21:00')
@@ -184,6 +233,10 @@ async function setFontScale(v) {
 async function setDailyGoal(v) {
   dailyGoal.value = Number(v) || 0
   await tiku.setSetting('daily_goal', String(dailyGoal.value))
+}
+function setExamDate(v) {
+  examDate.value = v || ''
+  tiku.setSetting('exam_date', v || '')
 }
 async function setRemindEnabled(v) {
   remindEnabled.value = !!v
@@ -246,15 +299,16 @@ async function removeHabit(h) {
 
 onMounted(async () => {
   try {
-    const [t, f, g, ach, re, rt, kb, x] = await Promise.all([
+    const [t, f, g, ach, re, rt, kb, x, ed] = await Promise.all([
       tiku.getSetting('theme'), tiku.getSetting('font_scale'),
       tiku.getSetting('daily_goal'), tiku.getAchievements(),
       tiku.getSetting('remind_enabled'), tiku.getSetting('remind_time'),
-      tiku.kbStats(), tiku.xpStats()
+      tiku.kbStats(), tiku.xpStats(), tiku.getSetting('exam_date')
     ])
     theme.value = t || 'dark'
     fontScale.value = f || '1'
     dailyGoal.value = Number(g) || 0
+    examDate.value = ed || ''
     metrics.value = ach
     remindEnabled.value = re === '1'
     autoSync.value = await tiku.getSetting('auto_sync').then(v => v !== '0').catch(() => true)
@@ -290,9 +344,10 @@ onMounted(async () => {
     <!-- 学习成长（知识库概览 + 成就） -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('learn')">
-        <span class="sec-title"><Icon name="chart" :size="14"/> 学习成长</span>
+        <span class="sec-icon sec-icon-learn"><Icon name="chart" :size="16" /></span>
+        <span class="sec-title">学习成长</span>
         <span class="sec-badge">{{ unlockedCount }} 成就</span>
-        <span class="sec-arrow" :class="{ open: secOpen.learn }">▾</span>
+        <span class="sec-arrow" :class="{ open: secOpen.learn }"><Icon name="chevron-down" :size="14" /></span>
       </div>
       <div v-show="secOpen.learn" class="sec-body">
 
@@ -333,11 +388,11 @@ onMounted(async () => {
     </div>
 
 
-    <!-- <Icon name="settings" :size="14"/> 偏好设置 -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('prefs')">
-        <span class="sec-title"><Icon name="settings" :size="14"/> 偏好设置</span>
-        <span class="sec-arrow" :class="{ open: secOpen.prefs }">▾</span>
+        <span class="sec-icon sec-icon-prefs"><Icon name="settings" :size="16" /></span>
+        <span class="sec-title">偏好设置</span>
+        <span class="sec-arrow" :class="{ open: secOpen.prefs }"><Icon name="chevron-down" :size="14" /></span>
       </div>
       <div v-show="secOpen.prefs" class="sec-body">
 
@@ -361,6 +416,11 @@ onMounted(async () => {
         <span class="pref-unit">题/天</span>
       </div>
       <div class="pref-row">
+        <span class="pref-label">目标考试日</span>
+        <input class="pref-input" type="date" :value="examDate" @change="setExamDate($event.target.value)" />
+        <span class="pref-sub">首页显示倒计时与每日计划</span>
+      </div>
+      <div class="pref-row">
         <span class="pref-label">学习提醒</span>
         <input class="pref-input pref-time" type="time" :value="remindTime" @change="setRemindTime($event.target.value)" />
         <label class="pref-switch">
@@ -382,11 +442,13 @@ onMounted(async () => {
     </div>
 
 
-    <!-- <Icon name="refresh" :size="14"/> 习惯管理 -->
+    <!-- 习惯管理 -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('habits')">
-        <span class="sec-title"><Icon name="refresh" :size="14"/> 习惯管理</span> <span class="sec-badge">{{ habits.length }} 个</span>
-        <span class="sec-arrow" :class="{ open: secOpen.habits }">▾</span>
+        <span class="sec-icon sec-icon-habits"><Icon name="refresh" :size="16" /></span>
+        <span class="sec-title">习惯管理</span>
+        <span class="sec-badge">{{ habits.length }} 个</span>
+        <span class="sec-arrow" :class="{ open: secOpen.habits }"><Icon name="chevron-down" :size="14" /></span>
       </div>
       <div v-show="secOpen.habits" class="sec-body">
 
@@ -412,11 +474,13 @@ onMounted(async () => {
     </div>
 
 
-    <!-- <Icon name="cloud" :size="14"/> 云同步与数据 -->
+    <!-- 云同步与数据 -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('sync')">
-        <span class="sec-title"><Icon name="cloud" :size="14"/> 云同步与数据</span> <span class="sec-badge">{{ syncConnected ? '已连接' : '未连接' }}</span>
-        <span class="sec-arrow" :class="{ open: secOpen.sync }">▾</span>
+        <span class="sec-icon sec-icon-sync"><Icon name="cloud" :size="16" /></span>
+        <span class="sec-title">云同步与数据</span>
+        <span class="sec-badge" :class="{ ok: syncConnected }">{{ syncConnected ? '已连接' : '未连接' }}</span>
+        <span class="sec-arrow" :class="{ open: secOpen.sync }"><Icon name="chevron-down" :size="14" /></span>
       </div>
       <div v-show="secOpen.sync" class="sec-body">
 
@@ -454,6 +518,20 @@ onMounted(async () => {
           </button>
           <button class="btn btn-outline" @click="disconnect">断开连接</button>
         </div>
+        <div v-if="conflictItems.length" class="conflict-list">
+          <div class="cl-head" @click="conflictOpen = !conflictOpen">
+            <span>本次冲突明细（{{ conflictItems.length }} 条）</span>
+            <span class="cl-toggle">{{ conflictOpen ? '收起 ▲' : '展开 ▼' }}</span>
+          </div>
+          <div v-show="conflictOpen" class="cl-body">
+            <div v-for="(c, i) in conflictItems" :key="i" class="cl-item">
+              <span class="cl-table">{{ c.table }}</span>
+              <span class="cl-key">#{{ c.key }}</span>
+              <span class="cl-times">本地 {{ fmtTs(c.localAt) }} / 远端 {{ fmtTs(c.remoteAt) }}</span>
+            </div>
+            <div class="cl-note">已自动保留时间戳较新的一版；如需保留另一版，可在对应端修改后再同步。</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -486,6 +564,26 @@ onMounted(async () => {
         <span class="sub">自动备份列表 · 一键恢复</span>
         <span class="arrow">›</span>
       </div>
+      <div class="list-item" @click="cleanupImages">
+        <span class="title">清理无用图片</span>
+        <span class="sub">回收未使用的题图，释放存储空间</span>
+        <span class="arrow">›</span>
+      </div>
+      <div class="list-item" @click="exportWrong">
+        <span class="title">导出错题本</span>
+        <span class="sub">生成 Markdown 在文件管理器中打开</span>
+        <span class="arrow">›</span>
+      </div>
+      <div class="list-item" @click="exportNotes">
+        <span class="title">导出笔记</span>
+        <span class="sub">生成 Markdown 在文件管理器中打开</span>
+        <span class="arrow">›</span>
+      </div>
+      <div class="list-item" @click="exportZip">
+        <span class="title">导出全量数据 ZIP</span>
+        <span class="sub">题库 + 图片 + 音频 + 知识库一键打包，可迁移</span>
+        <span class="arrow">›</span>
+      </div>
       <div class="list-item" @click="clearLocal">
         <span class="title danger">清空本地学习数据</span>
         <span class="arrow">›</span>
@@ -497,11 +595,12 @@ onMounted(async () => {
     </div>
 
 
-    <!-- <Icon name="note" :size="14"/> 错题与收藏 -->
+    <!-- 错题与收藏 -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('misc')">
-        <span class="sec-title"><Icon name="note" :size="14"/> 错题与收藏</span>
-        <span class="sec-arrow" :class="{ open: secOpen.misc }">▾</span>
+        <span class="sec-icon sec-icon-misc"><Icon name="note" :size="16" /></span>
+        <span class="sec-title">错题与收藏</span>
+        <span class="sec-arrow" :class="{ open: secOpen.misc }"><Icon name="chevron-down" :size="14" /></span>
       </div>
       <div v-show="secOpen.misc" class="sec-body">
 
@@ -522,16 +621,19 @@ onMounted(async () => {
     </div>
 
 
-    <!-- 菜单列表 -->
-    <div class="card menu-card">
-      <div
-        v-for="m in menus"
-        :key="m.label"
-        class="list-item"
-        @click="m.action"
-      >
-        <span class="title">{{ m.label }}</span>
-        <span class="arrow">›</span>
+    <!-- 其它 -->
+    <div class="sec">
+      <div class="sec-head sec-head-link" @click="showChapter = true">
+        <span class="sec-icon sec-icon-chapter"><Icon name="bookmark" :size="16" /></span>
+        <span class="sec-title">章节进度</span>
+        <span class="sec-arrow-r"><Icon name="chevron-right" :size="14" /></span>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-head sec-head-link" @click="showAbout = true">
+        <span class="sec-icon sec-icon-about"><Icon name="info" :size="16" /></span>
+        <span class="sec-title">关于我们</span>
+        <span class="sec-arrow-r"><Icon name="chevron-right" :size="14" /></span>
       </div>
     </div>
 
@@ -582,38 +684,80 @@ onMounted(async () => {
   transition: width .4s;
 }
 .user-xp-sub { font-size: 10px; color: var(--muted); }
-/* 分组折叠 */
+/* ===== 分组列表（精细化） ===== */
 .sec { display: flex; flex-direction: column; }
+
 .sec-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
+  gap: 12px;
+  padding: 10px 14px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.03);
   cursor: pointer;
   user-select: none;
-  transition: border-color .2s;
+  transition: background .2s, border-color .2s;
 }
-.sec-head:hover { border-color: var(--brand); }
-.sec-title { font-size: 14px; font-weight: 600; color: var(--text); }
-.sec-badge {
-  font-size: 11px;
-  color: var(--muted);
-  background: rgba(91, 124, 250, 0.08);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0 8px;
+.sec-head:hover {
+  background: rgba(91, 124, 250, 0.06);
+  border-color: rgba(91, 124, 250, 0.32);
 }
-.sec-arrow {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--muted);
+.sec-head:hover .sec-title { color: var(--brand); }
+
+/* 颜色化图标芯片（每个分组一个语义色） */
+.sec-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   transition: transform .2s;
 }
-.sec-arrow.open { transform: rotate(180deg); }
-.sec-body { display: flex; flex-direction: column; gap: 12px; padding: 12px 0 4px; }
+.sec-head:hover .sec-icon { transform: scale(1.06); }
+.sec-icon-learn   { background: rgba(47, 191, 143, 0.14);  color: var(--ok); }
+.sec-icon-prefs   { background: rgba(91, 124, 250, 0.14);  color: var(--brand); }
+.sec-icon-habits  { background: rgba(167, 139, 250, 0.16); color: #a78bfa; }
+.sec-icon-sync    { background: rgba(34, 211, 238, 0.14);  color: #22d3ee; }
+.sec-icon-misc    { background: rgba(251, 113, 133, 0.14); color: #fb7185; }
+.sec-icon-chapter { background: rgba(251, 191, 36, 0.14);  color: #fbbf24; }
+.sec-icon-about   { background: rgba(148, 163, 184, 0.16); color: var(--muted); }
+
+.sec-title { font-size: 14px; font-weight: 600; color: var(--text); flex: 1; transition: color .2s; }
+
+.sec-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--brand);
+  background: var(--brand-light);
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: none;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.sec-badge.ok { color: var(--ok); background: rgba(47, 191, 143, 0.14); }
+
+.sec-arrow {
+  display: inline-flex;
+  color: var(--muted);
+  transition: transform .25s, color .2s;
+}
+.sec-arrow :deep(.icon) { display: block; }
+.sec-arrow.open { transform: rotate(180deg); color: var(--brand); }
+.sec-head:hover .sec-arrow { color: var(--brand); }
+
+.sec-head-link:hover .sec-arrow-r { color: var(--brand); transform: translateX(2px); }
+.sec-arrow-r {
+  display: inline-flex;
+  color: var(--muted);
+  transition: transform .2s, color .2s;
+}
+.sec-arrow-r :deep(.icon) { display: block; }
+
+.sec-body { display: flex; flex-direction: column; gap: 12px; padding: 4px 4px 4px; margin-top: 4px; }
 .avatar {
   width: 56px;
   height: 56px;
@@ -630,8 +774,6 @@ onMounted(async () => {
 .user-info { flex: 1; overflow: hidden; }
 .user-name { font-size: 16px; font-weight: 600; }
 .user-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
-
-.menu-card { padding: 0 16px; }
 
 /* 题库管理入口：比普通菜单项更显眼，这是高频操作 */
 .list-item.highlight { cursor: pointer; }
@@ -684,7 +826,7 @@ onMounted(async () => {
   left: 50%;
   bottom: 90px;
   transform: translateX(-50%);
-  background: rgba(8, 14, 28, 0.92);
+  background: var(--toast-bg);
   color: var(--text);
   padding: 8px 16px;
   border-radius: 20px;
@@ -692,6 +834,8 @@ onMounted(async () => {
   z-index: 100;
   border: 1px solid var(--line);
   box-shadow: var(--glow-soft);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 /* 偏好设置 */
@@ -789,4 +933,15 @@ onMounted(async () => {
 }
 .ach-fill.done { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
 .ach.got .ach-state { color: var(--brand); font-weight: 600; }
+
+/* 同步冲突明细 */
+.conflict-list { margin-top: 10px; border: 1px solid rgba(255, 160, 60, 0.35); border-radius: 10px; padding: 8px 10px; background: rgba(255, 160, 60, 0.06); }
+.cl-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--warn); cursor: pointer; font-weight: 600; }
+.cl-toggle { font-weight: 400; }
+.cl-body { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+.cl-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text); }
+.cl-table { flex: 0 0 auto; background: var(--line); border-radius: 4px; padding: 1px 6px; font-weight: 600; }
+.cl-key { flex: 0 0 auto; color: var(--muted); }
+.cl-times { flex: 1; color: var(--muted); text-align: right; }
+.cl-note { margin-top: 6px; font-size: 10px; color: var(--muted); }
 </style>

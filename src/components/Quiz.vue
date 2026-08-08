@@ -7,6 +7,7 @@ import { showConfirm } from '../utils/confirm.js'
 import { celebrate } from '../utils/celebrate.js'
 import { showToast } from '../utils/toast.js'
 import KbReader from './KbReader.vue'
+import { speakText } from '../utils/speech.js'
 
 const props = defineProps({
   categoryId: { default: null },
@@ -33,6 +34,7 @@ const selected = ref([])
 const essayText = ref('')          // 问答题作答文本
 const essayReviewing = ref(false)  // 问答题：已提交作答，等待用户自评
 const result = ref(null)
+const results = ref({})  // 每题提交结果，按 idx 存，便于答题卡跳转恢复
 const materialOpen = ref(true) // 材料卡默认展开
 const sessionCorrect = ref(0)
 const sessionStart = ref(0)
@@ -253,17 +255,21 @@ async function submitEssay(grade) {
     selfGrade: grade
   })
   result.value = res
+  results.value = { ...results.value, [idx.value]: res }
   if (res.isCorrect) {
     sessionCorrect.value++
     if (props.paperId && q.value.paperScore) earnedScore.value += q.value.paperScore
   }
-  reviews.value.push({
+  const entry = {
     qid: q.value.id, type: q.value.type, stem: q.value.stem,
     options: q.value.options, your: essayText.value,
     answer: q.value.answer, correct: res.isCorrect, analysis: res.analysis,
     images: imageUrls.value.slice(),
     q: { ...q.value }
-  })
+  }
+  const ei = reviews.value.findIndex(r => r.qid === q.value.id)
+  if (ei >= 0) reviews.value.splice(ei, 1, entry)
+  else reviews.value.push(entry)
 }
 
 async function submit() {
@@ -275,26 +281,30 @@ async function submit() {
     mode: props.mode
   })
   result.value = res
+  results.value = { ...results.value, [idx.value]: res }
   celebrate() // 成就/升级即时庆祝
   if (res.isCorrect) {
     sessionCorrect.value++
     if (props.paperId && q.value.paperScore) earnedScore.value += q.value.paperScore
   }
-  reviews.value.push({
+  const entry = {
     qid: q.value.id, type: q.value.type, stem: q.value.stem,
     options: q.value.options, your: selected.value.slice(),
     answer: res.answer, correct: res.isCorrect, analysis: res.analysis,
     images: imageUrls.value.slice(),
     q: { ...q.value }
-  })
+  }
+  const ei = reviews.value.findIndex(r => r.qid === q.value.id)
+  if (ei >= 0) reviews.value.splice(ei, 1, entry)
+  else reviews.value.push(entry)
 }
 
 function resetPerQuestion() {
   selected.value = []
   essayText.value = ''
   essayReviewing.value = false
-  result.value = null
   materialOpen.value = true
+  result.value = results.value[idx.value] || null
 }
 
 function next() {
@@ -309,6 +319,66 @@ function prev() {
   idx.value--
   resetPerQuestion()
 }
+
+// 答题卡导航：标记每题状态，点击跳到任意题
+const showCard = ref(false)
+const isReviewMode = computed(() => ['review-due', 'wrong'].includes(props.mode))
+const cardItems = computed(() => questions.value.map((qq, i) => {
+  const r = results.value[i]
+  let status = 'todo'
+  if (i === idx.value) status = 'current'
+  else if (r) status = r.isCorrect ? 'right' : 'wrong'
+  return { i, status }
+}))
+function jumpTo(i) {
+  if (i < 0 || i >= questions.value.length) return
+  idx.value = i
+  resetPerQuestion()
+  showCard.value = false
+}
+async function markMastered() {
+  if (!q.value) return
+  const res = await tiku.markMastered(q.value.id)
+  if (res && res.ok) {
+    showToast('已标记为掌握，该题从复习中毕业 🎉', 'ok')
+    const m = { isCorrect: true, answer: q.value.answer, analysis: q.value.analysis, mastered: true }
+    results.value = { ...results.value, [idx.value]: m }
+    result.value = m
+  }
+}
+
+// 四档复习反馈：忘记(1)/困难(3)/记得(4)/简单(5) → 覆盖该题 SM-2 排期
+const RATE_LABELS = { 1: '忘记', 3: '困难', 4: '记得', 5: '简单' }
+const curRated = computed(() => (results.value[idx.value] || {}).rated || '')
+async function rate(quality) {
+  if (!q.value) return
+  await tiku.rateReview(q.value.id, quality)
+  results.value = { ...results.value, [idx.value]: { ...(results.value[idx.value] || {}), rated: String(quality) } }
+  showToast(`已按「${RATE_LABELS[quality]}」更新复习排期`, 'ok')
+}
+// 语音朗读（Web Speech，本地）
+function speakQuestion() {
+  if (!q.value) return
+  const opts = (q.value.options || []).map(o => `${o.key}. ${o.text}`).join('，')
+  speakText([q.value.stem, opts, q.value.analysis ? '解析：' + q.value.analysis : ''].filter(Boolean).join('。'))
+}
+function speakAnalysis() {
+  if (q.value && q.value.analysis) speakText('解析：' + q.value.analysis)
+}
+
+// 完成一场练习/模考后，把正确率记入本地历史（Stats 页成绩曲线）
+const examRecorded = ref(false)
+watch(isDone, (v) => {
+  if (!v || examRecorded.value) return
+  examRecorded.value = true
+  try {
+    const total = questions.value.length
+    const pct = total ? Math.round(sessionCorrect.value / total * 100) : 0
+    const h = JSON.parse(localStorage.getItem('exam_history') || '[]')
+    h.push({ date: new Date().toLocaleDateString(), pct, label: props.paperId ? '模拟卷' : modeLabel(props.mode) })
+    localStorage.setItem('exam_history', JSON.stringify(h.slice(-30)))
+  } catch (e) { /* 忽略 */ }
+})
 
 // 考试模式：手动提前交卷（带确认，当前题未提交会先提交再结束）
 async function manualFinish() {
@@ -444,6 +514,7 @@ function optionClass(key) {
       <button v-if="isExam && !isDone" class="fav submit-exam" @click="manualFinish">交卷</button>
       <button class="fav" :class="{ on: q && favSet.has(q.id) }" @click="toggleFav" :disabled="!q">★ 收藏</button>
       <button class="fav note-btn" :class="{ on: hasNote }" @click="noteOpen = !noteOpen" :disabled="!q">✎ 笔记</button>
+      <button v-if="!isRecite && !isDone" class="fav" :class="{ on: showCard }" @click="showCard = !showCard" :disabled="!q">▦ 答题卡</button>
     </div>
 
     <SkeletonCards v-if="loading" :count="2" />
@@ -528,6 +599,7 @@ function optionClass(key) {
       <div class="meta">
         <span class="tag">{{ typeLabel(q.type) }}</span>
         <span class="stem">{{ q.stem }}</span>
+        <button class="tts-btn" title="朗读题目与解析" @click="speakQuestion">🔊</button>
       </div>
 
       <!-- 题目图片（题干图） -->
@@ -631,7 +703,15 @@ function optionClass(key) {
             {{ result.isCorrect ? '回答正确' : '回答错误' }}
             <span class="ans">正确答案：{{ result.answer.join('、') }}</span>
           </div>
-          <div class="analysis"><b>解析：</b>{{ result.analysis }}</div>
+          <div class="analysis"><b>解析：</b>{{ result.analysis }} <button class="tts-btn sm" title="朗读解析" @click="speakAnalysis">🔊</button></div>
+          <div class="rate-row" v-if="!result.mastered">
+            <span class="rate-label">本次复习：</span>
+            <button class="rate-btn" :class="{ on: curRated === '1' }" @click="rate(1)">忘记</button>
+            <button class="rate-btn" :class="{ on: curRated === '3' }" @click="rate(3)">困难</button>
+            <button class="rate-btn" :class="{ on: curRated === '4' }" @click="rate(4)">记得</button>
+            <button class="rate-btn" :class="{ on: curRated === '5' }" @click="rate(5)">简单</button>
+          </div>
+          <button v-if="isReviewMode && !result.mastered" class="master-btn" @click="markMastered">✓ 标记已掌握</button>
           <button class="next" @click="next">下一题 →</button>
         </div>
       </template>
@@ -645,7 +725,15 @@ function optionClass(key) {
         <div v-if="result.keywords && result.keywords.length" class="kw-list">
           <span class="kw-hit" v-for="k in result.keywords" :key="k">采分点：{{ k }}</span>
         </div>
-        <div class="analysis"><b>参考解析：</b>{{ result.analysis }}</div>
+        <div class="analysis"><b>参考解析：</b>{{ result.analysis }} <button class="tts-btn sm" title="朗读解析" @click="speakAnalysis">🔊</button></div>
+        <div class="rate-row" v-if="!result.mastered">
+          <span class="rate-label">本次复习：</span>
+          <button class="rate-btn" :class="{ on: curRated === '1' }" @click="rate(1)">忘记</button>
+          <button class="rate-btn" :class="{ on: curRated === '3' }" @click="rate(3)">困难</button>
+          <button class="rate-btn" :class="{ on: curRated === '4' }" @click="rate(4)">记得</button>
+          <button class="rate-btn" :class="{ on: curRated === '5' }" @click="rate(5)">简单</button>
+        </div>
+        <button v-if="isReviewMode && !result.mastered" class="master-btn" @click="markMastered">✓ 标记已掌握</button>
         <button class="next" @click="next">下一题 →</button>
       </div>
 
@@ -670,6 +758,31 @@ function optionClass(key) {
     </div>
   </div>
   </div>
+    <!-- 答题卡导航 -->
+    <div v-if="showCard && !isRecite && questions.length" class="ac-mask" @click.self="showCard = false">
+      <div class="ac-panel">
+        <div class="ac-head">
+          <span>答题卡（{{ idx + 1 }} / {{ questions.length }}）</span>
+          <button class="ac-x" @click="showCard = false">✕</button>
+        </div>
+        <div class="ac-grid">
+          <button
+            v-for="item in cardItems"
+            :key="item.i"
+            class="ac-cell"
+            :class="item.status"
+            @click="jumpTo(item.i)"
+          >{{ item.i + 1 }}</button>
+        </div>
+        <div class="ac-legend">
+          <span class="ac-dot current"></span>当前
+          <span class="ac-dot right"></span>答对
+          <span class="ac-dot wrong"></span>答错
+          <span class="ac-dot todo"></span>未答
+        </div>
+      </div>
+    </div>
+
     <KbReader :show="reader.show" :doc="reader.doc" @close="reader.show = false" />
 </template>
 
@@ -1039,4 +1152,44 @@ function optionClass(key) {
   cursor: pointer; transition: all .2s; margin-bottom: 2px;
 }
 .btn-review:hover { box-shadow: var(--glow-soft); background: var(--brand-light); }
+/* 答题反馈动画 */
+.result { animation: resultIn .3s ease; }
+@keyframes resultIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+.option { transition: background .2s ease, border-color .2s ease, box-shadow .2s ease; }
+.result .ok { animation: popOk .35s ease; }
+.result .no { animation: popNo .35s ease; }
+@keyframes popOk { 0% { transform: scale(.96); } 60% { transform: scale(1.02); } 100% { transform: scale(1); } }
+@keyframes popNo { 0% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } 100% { transform: translateX(0); } }
+
+/* 答题卡导航 */
+.ac-mask { position: fixed; inset: 0; background: rgba(2, 6, 16, 0.55); display: flex; align-items: center; justify-content: center; z-index: 400; padding: 16px; }
+.ac-panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; width: min(420px, 92vw); box-shadow: var(--glow-soft); }
+.ac-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; margin-bottom: 10px; }
+.ac-x { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; }
+.ac-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.ac-cell { aspect-ratio: 1; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 12px; cursor: pointer; transition: transform .1s ease; }
+.ac-cell:hover { transform: scale(1.08); }
+.ac-cell.current { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand) inset; font-weight: 700; }
+.ac-cell.right { background: rgba(44, 196, 138, 0.18); border-color: var(--good); color: var(--good); }
+.ac-cell.wrong { background: rgba(255, 77, 109, 0.16); border-color: var(--bad); color: var(--bad); }
+.ac-cell.todo { opacity: .7; }
+.ac-legend { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+.ac-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.ac-dot.current { background: var(--brand); }
+.ac-dot.right { background: var(--good); }
+.ac-dot.wrong { background: var(--bad); }
+.ac-dot.todo { background: var(--line); }
+.master-btn { margin-top: 8px; background: rgba(44, 196, 138, 0.14); color: var(--good); border: 1px solid var(--good); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: 600; }
+.master-btn:hover { background: rgba(44, 196, 138, 0.26); }
+
+/* 四档复习反馈 */
+.rate-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.rate-label { font-size: 11px; color: var(--muted); margin-right: 2px; }
+.rate-btn { border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 999px; padding: 4px 13px; font-size: 12px; cursor: pointer; transition: all .15s ease; }
+.rate-btn:hover { border-color: var(--brand); color: var(--brand); }
+.rate-btn.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+/* 语音朗读 */
+.tts-btn { background: none; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 12px; padding: 2px 8px; cursor: pointer; margin-left: 6px; line-height: 1.4; vertical-align: middle; }
+.tts-btn:hover { color: var(--brand); border-color: var(--brand); }
+.tts-btn.sm { font-size: 11px; padding: 1px 6px; }
 </style>

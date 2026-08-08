@@ -8,6 +8,7 @@ import { celebrate } from '../utils/celebrate.js'
 import { showConfirm } from '../utils/confirm.js'
 import { useEsc } from '../utils/useEsc.js'
 import SimpleQuestion from './SimpleQuestion.vue'
+import Icon from './Icon.vue'
 
 const props = defineProps({ show: Boolean, doc: Object })
 const emit = defineEmits(['close', 'open-doc'])
@@ -536,8 +537,8 @@ useEsc(() => emit('close'))
         <span v-else-if="mdSaveStatus === 'saved'" class="kb-save-state ok">已保存</span>
         <span v-else-if="mdSaveStatus === 'err'" class="kb-save-state err">保存失败</span>
       </template>
-      <button class="btn kb-side-toggle" :class="{ off: !sidePanelOpen }" @click="sidePanelOpen = !sidePanelOpen">
-        <span class="kb-side-toggle-icon">{{ sidePanelOpen ? '⟩' : '⟨' }}</span>
+      <button class="btn kb-side-toggle" :class="{ off: !sidePanelOpen }" :title="sidePanelOpen ? '收起侧栏' : '展开侧栏'" @click="sidePanelOpen = !sidePanelOpen">
+        <Icon :name="sidePanelOpen ? 'chevron-right' : 'chevron-left'" :size="14" />
         {{ sidePanelOpen ? '收起侧栏' : '展开侧栏' }}
       </button>
     </div>
@@ -752,6 +753,7 @@ useEsc(() => emit('close'))
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden; /* 防止 PDF 页宽于容器时溢出到屏幕外（兜底，正常应靠 :deep 限宽） */
   padding: 24px 30px 60px;
   scroll-behavior: smooth;
 }
@@ -785,7 +787,7 @@ useEsc(() => emit('close'))
   flex: 0 0 300px;
   min-width: 0;
   border-left: 1px solid var(--line);
-  overflow-y: auto;
+  overflow-y: auto;         /* 面板按内容自然撑开，内容多时整列滚动 */
   padding: 14px 12px;
   display: flex;
   flex-direction: column;
@@ -799,22 +801,26 @@ useEsc(() => emit('close'))
   border-left-color: transparent;
 }
 .kb-side-panel.collapsed > * { opacity: 0; pointer-events: none; }
-.kb-side-toggle { padding: 4px 12px; }
+.kb-side-toggle { padding: 4px 12px; gap: 5px; }
 .kb-side-toggle.off { color: var(--brand); border-color: var(--brand); }
-.kb-side-toggle-icon { font-family: Consolas, monospace; font-size: 14px; line-height: 1; }
+/* Icon 组件的 svg 已经是 .icon 样式，强制按钮里的图标跟文字基线对齐 */
+.kb-side-toggle :deep(.icon) { stroke-width: 1.8; }
 .kb-md-vditor :deep(.vditor-reset h1),
 .kb-md-vditor :deep(.vditor-reset h2),
 .kb-md-vditor :deep(.vditor-reset h3),
 .kb-md-vditor :deep(.vditor-reset h4) { scroll-margin-top: 70px; }
 .kb-pdf { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.kb-pdf-page {
+/* canvas / 占位 div 是 JS 动态创建的，没有 scoped data 属性，必须用 :deep 才能命中 */
+:deep(.kb-pdf-page) {
   max-width: 100%;
+  width: auto;
   height: auto;
   border-radius: 4px;
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
   background: #fff;
 }
-.kb-pdf-ph {
+:deep(.kb-pdf-ph) {
+  max-width: 100%;          /* 加载占位也限宽，避免动画占位比容器宽 */
   border-radius: 4px;
   background:
     linear-gradient(90deg, rgba(127, 127, 127, 0.05) 25%, rgba(127, 127, 127, 0.09) 50%, rgba(127, 127, 127, 0.05) 75%);
@@ -834,16 +840,19 @@ useEsc(() => emit('close'))
   .kb-body { flex-direction: column; }
   .kb-side-toc { display: none; }
   .kb-side-toggle { display: none; }
-  .kb-side-panel { flex: 0 0 auto; border-left: none; border-top: 1px solid var(--line); max-height: 40vh; }
+  .kb-side-panel { flex: 0 0 auto; border-left: none; border-top: 1px solid var(--line); max-height: 40vh; overflow-y: auto; }
   .kb-main { padding: 18px 18px 40px; }
 }
 
 .kb-links {
-  margin: 22px auto 0;
-  max-width: 760px;
+  margin: 0;                /* 取消原 22px auto 0，由 .kb-side-panel 的 gap 统一控制 */
+  max-width: none;          /* 取消原 760px 限宽 */
+  display: flex;
+  flex-direction: column;   /* 高度随内容自然撑开：空时只有 header，有内容再长大 */
   border: 1px solid var(--line);
   border-radius: 12px;
-  overflow: hidden;
+  overflow: hidden;         /* 圆角裁剪 */
+  background: var(--card-solid, var(--bg));
 }
 .kb-links-head {
   display: flex;

@@ -19,6 +19,8 @@ const PATHS = {
   check: '<path d="M4 12.5 L9.5 18 L20 6"/>',
   x: '<path d="M6 6 L18 18 M18 6 L6 18"/>',
   'chevron-down': '<path d="M6 9 L12 15 L18 9"/>',
+  'chevron-left': '<path d="M15 6 L9 12 L15 18"/>',
+  'chevron-right': '<path d="M9 6 L15 12 L9 18"/>',
   'arrow-right': '<path d="M4 12 H20"/><path d="M14 6 L20 12 L14 18"/>',
   plus: '<path d="M12 5 V19 M5 12 H19"/>',
   trash: '<path d="M4 7 H20"/><path d="M9 7 V4.5 H15 V7"/><path d="M6.5 7 L7.5 20 H16.5 L17.5 7"/>',
@@ -40,7 +42,10 @@ const PATHS = {
   menu: '<path d="M4 7 H20 M4 12 H20 M4 17 H20"/>',
   sync: '<path d="M17.5 19 H7 A5 5 0 0 1 7.5 9 C8.5 5.5 12 4.5 15 6.5 C17.5 7.5 19 10 19 12.5"/><path d="M16 12.5 H19.5 V16"/>',
   flag: '<path d="M5 21 V4"/><path d="M5 4 C8 2.5 11 2.5 14 4 C17 5.5 19 5 21 4 V13 C18 14 15 14 12 12.5 C9 11 6.5 11.5 5 12.5"/>',
-  play: '<path d="M7 4.5 L20 12 L7 19.5 Z"/>'
+  play: '<path d="M7 4.5 L20 12 L7 19.5 Z"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11 V17 M12 7.5 V8.5"/>',
+  bookmark: '<path d="M6 4 V21 L12 17 L18 21 V4 A2 2 0 0 0 16 2 H8 A2 2 0 0 0 6 4 Z"/>',
+  layers: '<path d="M12 3 L21 8 L12 13 L3 8 Z"/><path d="M3 12 L12 17 L21 12"/><path d="M3 16 L12 21 L21 16"/>'
 }
 </script>
 

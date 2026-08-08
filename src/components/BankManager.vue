@@ -9,7 +9,8 @@ import QuestionEditor from './QuestionEditor.vue'
 
 const props = defineProps({
   show: Boolean,
-  wide: Boolean
+  wide: Boolean,
+  initialKeyword: { type: String, default: '' }
 })
 const emit = defineEmits(['close', 'changed'])
 
@@ -98,7 +99,12 @@ async function saveNoteHere() {
 }
 function closeNote() { noteQ.value = null; noteText.value = '' }
 
-watch(() => props.show, (v) => { if (v) refreshAll() })
+watch(() => props.show, (v) => {
+  if (v) {
+    if (props.initialKeyword) { keyword.value = props.initialKeyword; page.value = 1 }
+    refreshAll()
+  }
+})
 onMounted(() => { if (props.show) refreshAll() })
 
 // 切科目要清掉章节筛选，否则会出现"科目A + 科目B的章节"这种空结果
@@ -144,7 +150,11 @@ async function doDelete(id) {
 }
 
 async function onImported(res) {
-  showToast(`导入完成：新增 ${res.inserted} 题`)
+  const parts = [`新增 ${res.inserted} 题`]
+  if (res.updated) parts.push(`覆盖 ${res.updated}`)
+  if (res.duplicated) parts.push(`跳过重复 ${res.duplicated}`)
+  if (res.skipped) parts.push(`跳过 ${res.skipped}`)
+  showToast('导入完成：' + parts.join(' · '), 'ok')
   await refreshAll()
   emit('changed')
 }
@@ -509,8 +519,8 @@ async function batchDelete() {
 .bm-mask {
   position: fixed;
   inset: 0;
-  background: rgba(3, 6, 14, 0.78);
-  backdrop-filter: blur(6px);
+  background: var(--modal-mask);
+  backdrop-filter: blur(var(--modal-blur));
   z-index: 190;
   display: flex;
   align-items: flex-end;
@@ -663,7 +673,7 @@ async function batchDelete() {
   left: 50%;
   bottom: 24px;
   transform: translateX(-50%);
-  background: rgba(8, 14, 28, 0.95);
+  background: var(--toast-bg);
   color: var(--text);
   padding: 8px 16px;
   border-radius: 20px;
@@ -671,6 +681,8 @@ async function batchDelete() {
   border: 1px solid var(--line);
   box-shadow: var(--glow-soft);
   z-index: 5;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.18s; }
@@ -680,7 +692,8 @@ async function batchDelete() {
 .note-mask {
   position: fixed;
   inset: 0;
-  background: rgba(3, 6, 14, 0.6);
+  background: var(--modal-mask);
+  backdrop-filter: blur(var(--modal-blur));
   z-index: 210;
   display: flex;
   align-items: center;

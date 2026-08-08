@@ -35,7 +35,44 @@ async function loadTags() {
 onMounted(() => {
   loadTags()
   loadList()
+  loadGraph()
 })
+
+// ---- 知识互链图谱（环形布局，点击节点打开文档）----
+const viewMode = ref('list')
+const graph = ref({ nodes: [], links: [] })
+const graphNodes = computed(() => graph.value.nodes.slice(0, 40))
+const graphNodeIds = computed(() => new Set(graphNodes.value.map(n => n.id)))
+const graphLinks = computed(() => graph.value.links.filter(l => graphNodeIds.value.has(l.from_doc_id) && graphNodeIds.value.has(l.to_doc_id)))
+const gPos = computed(() => {
+  const n = graphNodes.value.length
+  const map = {}
+  graphNodes.value.forEach((node, i) => {
+    const cx = 160, cy = 110
+    const R = n > 12 ? 92 : 72
+    const ang = -Math.PI / 2 + (2 * Math.PI * i) / Math.max(1, n)
+    map[node.id] = { x: cx + R * Math.cos(ang), y: cy + R * Math.sin(ang) }
+  })
+  return map
+})
+const gEdges = computed(() => graphLinks.value.map(l => {
+  const a = gPos.value[l.from_doc_id]
+  const b = gPos.value[l.to_doc_id]
+  return a && b ? { x1: a.x, y1: a.y, x2: b.x, y2: b.y } : null
+}).filter(Boolean))
+function shortTitle(t) { const s = String(t || ''); return s.length > 6 ? s.slice(0, 6) + '…' : s }
+function openGraphDoc(n) {
+  const d = docs.value.find(x => x.id === n.id)
+  if (d) openReader(d)
+  else openReader({ id: n.id, type: n.type, title: n.title })
+}
+function toggleGraph() {
+  viewMode.value = viewMode.value === 'graph' ? 'list' : 'graph'
+  if (viewMode.value === 'graph') loadGraph()
+}
+async function loadGraph() {
+  try { graph.value = await tiku.getKbGraph() } catch (e) { graph.value = { nodes: [], links: [] } }
+}
 
 function onSearchInput() {
   clearTimeout(debounceTimer)
@@ -149,6 +186,7 @@ function fmtTime(ts) {
           placeholder="搜索文档全文（中英文均可）"
           @input="onSearchInput"
         />
+        <button class="btn" :class="{ 'btn-active': viewMode === 'graph' }" @click="toggleGraph">图谱</button>
         <button class="btn" @click="onExport">导出</button>
         <button class="btn btn-primary" @click="onImport">导入文档</button>
       </div>
@@ -166,6 +204,21 @@ function fmtTime(ts) {
           @click="tagFilter = tagFilter === t.tag ? null : t.tag"
         >{{ t.tag }}<span class="kb-tag-n">{{ t.n }}</span></button>
       </div>
+    </div>
+
+    <!-- 知识互链图谱 -->
+    <div v-if="viewMode === 'graph'" class="card graph-card">
+      <div class="graph-title">知识互链图谱 · {{ graph.nodes.length }} 篇文档 / {{ graph.links.length }} 条互链
+        <span class="graph-hint">点击节点打开文档 · 在阅读页可建立文档互链</span>
+      </div>
+      <svg v-if="graphNodes.length" viewBox="0 0 320 240" class="graph-svg">
+        <line v-for="(e, i) in gEdges" :key="'e' + i" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2" class="g-edge"/>
+        <g v-for="n in graphNodes" :key="n.id" class="g-node" @click="openGraphDoc(n)">
+          <circle :cx="gPos[n.id].x" :cy="gPos[n.id].y" :r="n.type === 'pdf' ? 7 : 5.5" :class="'g-' + (n.type === 'pdf' ? 'pdf' : 'md')"/>
+          <text :x="gPos[n.id].x" :y="gPos[n.id].y + 16" class="g-label">{{ shortTitle(n.title) }}</text>
+        </g>
+      </svg>
+      <div v-else class="empty-sm">文档还不多，先导入几篇并在阅读页建立互链，图谱会自动生成</div>
     </div>
 
     <SkeletonCards v-if="loading" :count="4" />
@@ -325,4 +378,19 @@ function fmtTime(ts) {
 .kb-edit-add { display: flex; gap: 8px; }
 .kb-edit-add .input { flex: 1; }
 .kb-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+
+/* 知识互链图谱 */
+.btn-active { border-color: var(--brand) !important; color: var(--brand) !important; }
+.graph-card { margin-bottom: 12px; }
+.graph-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.graph-hint { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+.graph-svg { width: 100%; background: radial-gradient(circle, rgba(91, 124, 250, 0.07), transparent 72%); border-radius: 12px; }
+.g-edge { stroke: var(--line); stroke-width: 1; }
+.g-node { cursor: pointer; }
+.g-node circle { transition: r .12s ease; }
+.g-node:hover circle { fill: var(--brand); }
+.g-md { fill: rgba(91, 124, 250, 0.72); }
+.g-pdf { fill: rgba(255, 77, 109, 0.72); }
+.g-label { font-size: 9px; fill: var(--muted); text-anchor: middle; }
+.empty-sm { font-size: 12px; color: var(--muted); padding: 10px 0; }
 </style>

@@ -80,8 +80,8 @@ async function delNote(item) {
 .nl-mask {
   position: fixed;
   inset: 0;
-  background: rgba(3, 6, 14, 0.78);
-  backdrop-filter: blur(6px);
+  background: var(--modal-mask);
+  backdrop-filter: blur(var(--modal-blur));
   z-index: 190;
   display: flex;
   align-items: flex-end;
@@ -168,7 +168,7 @@ async function delNote(item) {
   left: 50%;
   bottom: 24px;
   transform: translateX(-50%);
-  background: rgba(8, 14, 28, 0.95);
+  background: var(--toast-bg);
   color: var(--text);
   padding: 8px 16px;
   border-radius: 20px;
@@ -176,6 +176,8 @@ async function delNote(item) {
   border: 1px solid var(--line);
   box-shadow: var(--glow-soft);
   z-index: 5;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.18s; }

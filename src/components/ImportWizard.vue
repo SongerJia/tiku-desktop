@@ -357,8 +357,8 @@ function previewText(r) {
 .iw-mask {
   position: fixed;
   inset: 0;
-  background: rgba(3, 6, 14, 0.72);
-  backdrop-filter: blur(6px);
+  background: var(--modal-mask);
+  backdrop-filter: blur(var(--modal-blur));
   z-index: 200;
   display: flex;
   align-items: flex-end;

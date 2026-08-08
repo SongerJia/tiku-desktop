@@ -57,6 +57,44 @@ async function removeCard(c) {
   await load()
 }
 
+// ---- CSV 批量导入（每行 front,back[,category]，支持引号包裹）----
+const csvInput = ref(null)
+function parseCsv(text) {
+  const rows = []
+  let row = [], field = '', inQ = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (inQ) {
+      if (ch === '"') { if (text[i + 1] === '"') { field += '"'; i++ } else inQ = false }
+      else field += ch
+    } else if (ch === '"') inQ = true
+    else if (ch === ',') { row.push(field); field = '' }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++
+      row.push(field); field = ''
+      if (row.some(c => String(c).trim())) rows.push(row)
+      row = []
+    } else field += ch
+  }
+  row.push(field)
+  if (row.some(c => String(c).trim())) rows.push(row)
+  return rows
+}
+async function onPickCsv(e) {
+  const file = e.target.files && e.target.files[0]
+  e.target.value = ''
+  if (!file) return
+  const rows = parseCsv(await file.text())
+  let n = 0, skipped = 0
+  for (const r of rows) {
+    if (r.length < 2 || !String(r[0]).trim() || !String(r[1]).trim()) { skipped++; continue }
+    await tiku.addCard(String(r[0]).trim(), String(r[1]).trim(), String(r[2] || '').trim())
+    n++
+  }
+  showToast(n ? `CSV 导入完成：新增 ${n} 张卡片${skipped ? '，跳过 ' + skipped + ' 行' : ''}` : '未导入任何卡片，请检查 CSV 格式（front,back,category）', n ? 'ok' : 'err')
+  await load()
+}
+
 // ---- 复习模式 ----
 async function startReview() {
   reviewItems.value = await tiku.getCardReview(10)
@@ -114,6 +152,8 @@ onMounted(load)
           <input v-model="form.category" class="input cat-input" placeholder="分类（如：雅思核心）" @keyup.enter="saveCard" />
           <button class="btn btn-primary" @click="saveCard">{{ form.id ? '保存修改' : '添加卡片' }}</button>
           <button v-if="form.id" class="btn" @click="startAdd">取消编辑</button>
+          <button class="btn" @click="csvInput && csvInput.click()">导入 CSV</button>
+          <input ref="csvInput" type="file" accept=".csv,.txt" style="display:none" @change="onPickCsv" />
         </div>
 
         <div v-if="!cards.length" class="empty">

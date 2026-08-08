@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
+import { showToast } from '../utils/toast.js'
 import { LETTERS, splitKeywords } from '../utils/bankParser.js'
 
 const props = defineProps({
@@ -26,6 +27,7 @@ const saving = ref(false)
 // 题干配图：文件名数组（原文件存 userData/images，库里只存文件名）
 const images = ref([])
 const audioUrl = ref('')
+const audioSrc = ref('')        // 实际可播放的 URL（http / file / base64 dataURL）
 const uploading = ref(false)
 // 题干配图的预览 dataURL（getImage 是异步的，模板里不能直接 :src=Promise）
 const thumbUrls = ref([])
@@ -41,6 +43,12 @@ watch(images, async (list) => {
 const isEdit = computed(() => !!(props.question && props.question.id))
 const isJudge = computed(() => type.value === 'judge')
 const isEssay = computed(() => type.value === 'essay')
+
+// 音频：若 audioUrl 是本地文件名（非 http/file），转成可播放的 dataURL
+watch(audioUrl, async (v) => {
+  if (!v || /^https?:\/\//.test(v) || v.startsWith('file://')) { audioSrc.value = v || ''; return }
+  try { audioSrc.value = await tiku.getAudioUrl(v) } catch (e) { audioSrc.value = '' }
+}, { immediate: true })
 
 // 分类拍平成「科目 / 章节」，题目只能挂在具体节点上
 const flatCategories = computed(() => {
@@ -106,6 +114,55 @@ function onPickImage(e) {
 
 function removeImage(i) {
   images.value.splice(i, 1)
+}
+
+// 选择本地音频文件（雅思等听力题）：复制到 userData/audio 并保存文件名
+function onPickAudio(e) {
+  const file = e.target.files && e.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = async () => {
+    try {
+      uploading.value = true
+      const ext = (file.name.split('.').pop() || 'mp3').toLowerCase()
+      const name = await tiku.saveAudio(reader.result, ext)
+      audioUrl.value = name
+      showToast('音频已添加', 'ok')
+    } catch (err) {
+      error.value = '音频保存失败：' + (err.message || String(err))
+    } finally {
+      uploading.value = false
+    }
+  }
+  reader.readAsArrayBuffer(file)
+  e.target.value = ''
+}
+function removeAudio() {
+  audioUrl.value = ''
+  audioSrc.value = ''
+}
+
+// 支持 Ctrl+V 直接粘贴截图到题干配图（老师最常见录入方式）
+async function onPaste(e) {
+  const items = (e.clipboardData && e.clipboardData.items) || []
+  for (const it of items) {
+    if (it.kind === 'file' && it.type && it.type.startsWith('image/')) {
+      e.preventDefault()
+      try {
+        uploading.value = true
+        const blob = it.getAsFile()
+        if (!blob) continue
+        const buf = await blob.arrayBuffer()
+        const ext = (it.type.split('/')[1] || 'png').replace(/[^a-z]/g, '')
+        const name = await tiku.saveImage(buf, ext)
+        images.value.push(name)
+      } catch (err) {
+        error.value = '粘贴图片失败：' + (err.message || String(err))
+      } finally {
+        uploading.value = false
+      }
+    }
+  }
 }
 
 watch(() => props.show, (v) => { if (v) loadFromProps() }, { immediate: true })
@@ -206,7 +263,7 @@ async function save() {
           <span class="title">{{ isEdit ? '编辑题目' : '新增题目' }}</span>
         </div>
 
-        <div class="qe-body">
+        <div class="qe-body" @paste="onPaste">
           <div class="field">
             <label>所属科目 / 章节</label>
             <select v-model="categoryId" class="input">
@@ -282,14 +339,21 @@ async function save() {
                 <span>{{ uploading ? '上传中…' : '+ 添加图片' }}</span>
               </label>
             </div>
-            <span class="hint-sm">图片保存在本机「userData/images」，同步时会随题库 JSON 一起备份</span>
+            <span class="hint-sm">图片保存在本机「userData/images」；也可直接 Ctrl+V 粘贴截图。同步时会随题库一起备份</span>
           </div>
 
           <div class="field">
             <label>听力音频（选填，雅思等听力题）</label>
-            <input v-model="audioUrl" class="input" placeholder="音频地址：本地文件路径或 http(s) 链接（答题页自动出现播放器）" />
-            <audio v-if="audioUrl.trim()" :src="audioUrl.trim()" controls preload="none" class="audio-preview"></audio>
-            <span class="hint-sm">答题页会显示播放器；本地路径用绝对路径（如 D://audio//listening1.mp3）</span>
+            <div class="audio-row">
+              <input v-model="audioUrl" class="input" placeholder="音频地址：http(s) 链接，或点右侧选本地文件（自动存入本机）" />
+              <label class="audio-pick">
+                <input type="file" accept="audio/*" hidden @change="onPickAudio" />
+                <span>{{ uploading ? '处理中…' : '选择文件' }}</span>
+              </label>
+              <button v-if="audioUrl.trim()" class="del" @click="removeAudio">×</button>
+            </div>
+            <audio v-if="audioSrc" :src="audioSrc" controls preload="none" class="audio-preview"></audio>
+            <span class="hint-sm">答题页会显示播放器；选本地文件后将随题库同步一起备份</span>
           </div>
 
           <div class="field">
@@ -328,8 +392,8 @@ async function save() {
 .qe-mask {
   position: fixed;
   inset: 0;
-  background: rgba(3, 6, 14, 0.72);
-  backdrop-filter: blur(6px);
+  background: var(--modal-mask);
+  backdrop-filter: blur(var(--modal-blur));
   z-index: 210;
   display: flex;
   align-items: flex-end;
@@ -397,6 +461,16 @@ async function save() {
   cursor: pointer; text-align: center; transition: all .15s; padding: 4px;
 }
 .img-add:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow-soft); }
+
+.audio-preview { width: 100%; margin-top: 6px; }
+.audio-row { display: flex; align-items: center; gap: 8px; }
+.audio-row .input { flex: 1; }
+.audio-pick {
+  flex-shrink: 0; padding: 8px 14px; border-radius: var(--radius-sm);
+  border: 1px solid var(--line); background: rgba(91, 124, 250, 0.06);
+  color: var(--muted); font-size: 13px; cursor: pointer; transition: all .15s;
+}
+.audio-pick:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow-soft); }
 
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip {

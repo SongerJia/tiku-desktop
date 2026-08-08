@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { printHtml } from '../utils/print.js'
 
@@ -12,7 +12,19 @@ const expanded = ref(new Set())
 onMounted(async () => {
   items.value = await tiku.getWrongBook()
   try { weakChapters.value = await tiku.getWeakChapters(null, 5) } catch (e) { weakChapters.value = [] }
+  await loadReviewCurve()
 })
+
+// 复习节奏（记忆曲线）：未来 30 天到期分布 + 逐题下次复习日
+const reviewCurve = ref({ dist: [], items: [] })
+const curveMax = computed(() => Math.max(1, ...(reviewCurve.value.dist || []).map(d => d.count)))
+const curveBars = computed(() => (reviewCurve.value.dist || []).map(d => ({ ...d, h: d.count ? Math.max(3, Math.round(d.count / curveMax.value * 40)) : 0 })))
+const dueTotal = computed(() => (reviewCurve.value.dist || []).reduce((s, d) => s + d.count, 0))
+const stemByQid = computed(() => { const m = {}; items.value.forEach(i => { if (i.question_id != null) m[i.question_id] = i.stem }); return m })
+const curveTop = computed(() => (reviewCurve.value.items || []).slice(0, 8).map(it => ({ ...it, stem: stemByQid.value[it.questionId] || '（题目已删除）' })))
+async function loadReviewCurve() {
+  try { reviewCurve.value = await tiku.getReviewCurve(30) } catch (e) { reviewCurve.value = { dist: [], items: [] } }
+}
 
 const typeLabel = (t) => ({ single: '单选', multiple: '多选', judge: '判断', essay: '问答' }[t] || t)
 const answerText = (q) => (q.answer && q.answer.length) ? q.answer.join('、') : '（主观题）'
@@ -85,6 +97,23 @@ async function toggleSimilar(qid) {
       <h2>错题本（{{ items.length }}）</h2>
       <button v-if="items.length" class="ghost" @click="exportWrongPdf">导出错题PDF</button>
     </div>
+
+    <!-- 复习节奏（记忆曲线） -->
+    <div v-if="dueTotal" class="curve-card">
+      <div class="curve-title">📈 复习节奏 · 未来 30 天到期 {{ dueTotal }} 题</div>
+      <div class="curve-bars">
+        <div v-for="(b, i) in curveBars" :key="i" class="curve-bar-wrap" :title="b.date + ' 到期 ' + b.count + ' 题'">
+          <div class="curve-bar" :class="{ today: i === curveBars.length - 1 }" :style="{ height: b.h + 'px' }"></div>
+        </div>
+      </div>
+      <div v-if="curveTop.length" class="curve-list">
+        <div v-for="(it, i) in curveTop" :key="i" class="curve-item">
+          <span class="cv-stem">{{ it.stem }}</span>
+          <span class="cv-meta">{{ it.next }} · 间隔 {{ it.interval }} 天 · E{{ it.ease }}</span>
+        </div>
+      </div>
+    </div>
+
     <p v-if="!items.length" class="empty">暂无活跃错题，继续保持！</p>
     <div v-for="it in items" :key="it.question_id" class="card">
       <div class="stem">{{ it.stem }}</div>
@@ -117,6 +146,16 @@ async function toggleSimilar(qid) {
 </template>
 
 <style scoped>
+.curve-card { margin-bottom: 12px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: var(--card); }
+.curve-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
+.curve-bars { display: flex; align-items: flex-end; gap: 2px; height: 44px; overflow-x: auto; padding-bottom: 2px; }
+.curve-bar-wrap { flex: 0 0 5px; display: flex; align-items: flex-end; height: 100%; }
+.curve-bar { width: 4px; border-radius: 2px 2px 0 0; background: rgba(91, 124, 250, 0.45); min-height: 2px; }
+.curve-bar.today { background: var(--brand); }
+.curve-list { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
+.curve-item { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
+.cv-stem { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.cv-meta { flex: 0 0 auto; color: var(--muted); font-size: 11px; }
 .weak-chapters { margin-bottom: 12px; border: 1px solid rgba(255, 77, 109, 0.3); border-radius: 10px; padding: 10px 12px; background: rgba(255, 77, 109, 0.06); }
 .wc-title { font-size: 12px; color: var(--bad); margin-bottom: 8px; font-weight: 600; }
 .wc-list { display: flex; flex-direction: column; gap: 6px; }

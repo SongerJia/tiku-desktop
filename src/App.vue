@@ -11,12 +11,14 @@ import PracticeSetup from './components/PracticeSetup.vue'
 import BankManager from './components/BankManager.vue'
 import MockExamSetup from './components/MockExamSetup.vue'
 import UnifiedSearch from './components/UnifiedSearch.vue'
+import CommandPalette from './components/CommandPalette.vue'
 import AppToast from './components/AppToast.vue'
 import AppConfirm from './components/AppConfirm.vue'
 import WelcomeGuide from './components/WelcomeGuide.vue'
 import { tiku } from './api/tiku.js'
 import { useResponsive } from './composables/useResponsive.js'
 import { applyAppearance } from './utils/appearance.js'
+import { showToast } from './utils/toast.js'
 
 const { isWide } = useResponsive()
 
@@ -40,6 +42,26 @@ const showBank = ref(false)
 const mock = ref({ active: false })
 // 统一搜索（题目 + 知识文档）
 const showSearch = ref(false)
+// 全局命令面板（Ctrl/Cmd+K）
+const showPalette = ref(false)
+const bankKeyword = ref('') // 命令面板「搜索题目」跳转到题库时携带的关键词
+
+function onCommandPalette(cmd) {
+  if (cmd.type === 'tab') switchTab(cmd.key)
+  else if (cmd.type === 'start') onStart({ mode: cmd.mode })
+  else if (cmd.type === 'action' && cmd.name === 'open-bank') { showBank.value = true }
+  else if (cmd.type === 'search') {
+    switchTab('bank')
+    bankKeyword.value = cmd.text
+  }
+}
+
+function onPaletteKey(e) {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault()
+    showPalette.value = !showPalette.value
+  }
+}
 // 切回首页时的刷新计数（驱动 Home 重新加载实时数据）
 const homeRefresh = ref(0)
 // 首启欢迎引导（settings 无 seen_welcome 时显示一次）
@@ -77,16 +99,25 @@ onMounted(async () => {
     const saved = Number(localStorage.getItem(SIDEBAR_KEY))
     if (saved >= SIDEBAR_MIN && saved <= SIDEBAR_MAX) sidebarWidth.value = saved
   } catch (e) { /* 忽略 */ }
+  window.addEventListener('keydown', onPaletteKey)
   currentSubject.value = await tiku.getCurrentSubject()
   await applyAppearance() // 应用上次保存的主题与字号
   try {
     const seen = await tiku.getSetting('seen_welcome')
     showWelcome.value = !seen
   } catch (e) { /* 忽略 */ }
+  // 若本次启动数据库由损坏自动从备份恢复，提示用户（数据可能回滚到最近一次备份）
+  try {
+    const st = await tiku.getDbStatus()
+    if (st && st.recovered) showToast('数据库已自动从备份恢复（数据可能回滚到最近一次备份）', 'ok')
+  } catch (e) { /* 忽略 */ }
 })
 
 // 卸载时清理 resize 全局监听，避免泄漏
-onBeforeUnmount(stopResize)
+onBeforeUnmount(() => {
+  stopResize()
+  window.removeEventListener('keydown', onPaletteKey)
+})
 
 // 导入或增删题目后，科目树可能变了（自动建了新科目），重取一次当前科目
 async function onBankChanged() {
@@ -327,6 +358,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
     <BankManager
       :show="showBank"
       :wide="isWide"
+      :initialKeyword="bankKeyword"
       @close="showBank = false"
       @changed="onBankChanged"
     />
@@ -341,6 +373,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
     />
 
     <UnifiedSearch :show="showSearch" @close="showSearch = false" />
+    <CommandPalette :show="showPalette" @close="showPalette = false" @command="onCommandPalette" />
     <AppToast />
     <AppConfirm />
     <WelcomeGuide :show="showWelcome" @close="showWelcome = false" />

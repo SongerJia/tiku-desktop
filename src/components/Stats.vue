@@ -92,7 +92,52 @@ async function login() {
 onMounted(async () => {
   // 本地单用户直接视为已登录，加载真实数据；如需演示未登录 UI 可注释掉下面这行
   await login()
+  await loadAnalysis()
 })
+
+// ---- 章节正确率雷达 + 练习成绩历史曲线 ----
+const catAccuracy = ref([])
+const examHistory = ref([])
+const radarCenter = { x: 90, y: 84 }
+const radarCats = computed(() => catAccuracy.value.slice(0, 6)) // 正确率最低 6 章
+const radarPoints = computed(() => {
+  const n = Math.max(3, radarCats.value.length)
+  return radarCats.value.map((c, i) => {
+    const ang = -Math.PI / 2 + (2 * Math.PI * i) / n
+    const r = 56 * (Math.max(8, c.rate) / 100)
+    return { x: radarCenter.x + r * Math.cos(ang), y: radarCenter.y + r * Math.sin(ang), cat: c.cat }
+  })
+})
+const radarPoly = computed(() => radarPoints.value.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '))
+const gridHex = (r) => {
+  const n = Math.max(3, radarCats.value.length)
+  const pts = []
+  for (let i = 0; i < n; i++) {
+    const ang = -Math.PI / 2 + (2 * Math.PI * i) / n
+    pts.push(`${(radarCenter.x + r * Math.cos(ang)).toFixed(1)},${(radarCenter.y + r * Math.sin(ang)).toFixed(1)}`)
+  }
+  return pts.join(' ')
+}
+const labelPos = (i) => {
+  const n = Math.max(3, radarCats.value.length)
+  const ang = -Math.PI / 2 + (2 * Math.PI * i) / n
+  return { x: radarCenter.x + 66 * Math.cos(ang), y: radarCenter.y + 66 * Math.sin(ang) + 3 }
+}
+const histPath = computed(() => {
+  const h = examHistory.value
+  if (h.length < 2) return ''
+  return 'M' + h.map((e, i) => {
+    const x = 10 + (i * 280) / (h.length - 1)
+    const y = 62 - (e.pct / 100) * 50
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' L')
+})
+const histX = (i) => examHistory.value.length === 1 ? 150 : 10 + (i * 280) / (examHistory.value.length - 1)
+const histY = (e) => 62 - (e.pct / 100) * 50
+async function loadAnalysis() {
+  try { catAccuracy.value = await tiku.getCategoryAccuracy() } catch (e) { catAccuracy.value = [] }
+  try { examHistory.value = JSON.parse(localStorage.getItem('exam_history') || '[]').slice(-30) } catch (e) { examHistory.value = [] }
+}
 </script>
 
 <template>
@@ -105,6 +150,27 @@ onMounted(async () => {
 
     <div v-if="loggedIn">
       <div class="stats-grid">
+      <!-- 分析：章节正确率雷达 + 成绩历史 -->
+      <div class="card analysis-card">
+        <div class="card-title">📊 章节正确率雷达 <span class="card-sub">（最弱 {{ radarCats.length }} 章）</span></div>
+        <svg v-if="radarCats.length" viewBox="0 0 180 176" class="radar">
+          <polygon :points="gridHex(56)" fill="none" stroke="var(--line)" stroke-width="1"/>
+          <polygon :points="gridHex(28)" fill="none" stroke="var(--line)" stroke-width="1"/>
+          <polygon :points="radarPoly" fill="rgba(91,124,250,0.25)" stroke="var(--brand)" stroke-width="2"/>
+          <circle v-for="p in radarPoints" :key="p.cat" :cx="p.x" :cy="p.y" r="3" fill="var(--brand)"/>
+          <text v-for="(c, i) in radarCats" :key="'l' + i" :x="labelPos(i).x" :y="labelPos(i).y" class="radar-label" text-anchor="middle">{{ c.cat.length > 4 ? c.cat.slice(0, 4) + '…' : c.cat }}</text>
+        </svg>
+        <div v-if="!radarCats.length" class="empty-sm">暂无答题数据</div>
+        <div class="card-title hist-title">📈 近 {{ examHistory.length }} 次练习正确率</div>
+        <svg v-if="histPath" viewBox="0 0 300 70" class="hist">
+          <line x1="10" y1="62" x2="290" y2="62" stroke="var(--line)" stroke-width="1"/>
+          <path :d="histPath" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round"/>
+          <circle v-for="(e, i) in examHistory" :key="i" :cx="histX(i)" :cy="histY(e)" r="2.5" fill="var(--brand)">
+            <title>{{ e.date }} · {{ e.label }} · {{ e.pct }}%</title>
+          </circle>
+        </svg>
+        <div v-if="!examHistory.length" class="empty-sm">完成练习 / 模考后，这里会记录你的正确率曲线</div>
+      </div>
       <!-- 概览：掌握进度环形 + 数字 -->
       <div class="card overview-card">
         <div class="ring-wrap">
@@ -349,4 +415,14 @@ onMounted(async () => {
 .dot.mid { background: rgba(91, 124, 250, 0.55); }
 .dot.heavy { background: var(--brand); box-shadow: var(--glow); }
 .report-btn { margin: 0; }
+
+/* 分析卡：雷达图 + 成绩曲线 */
+.analysis-card { min-width: 260px; }
+.card-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.card-sub { font-size: 11px; color: var(--muted); font-weight: 400; }
+.radar { width: 100%; max-width: 220px; display: block; margin: 0 auto; }
+.radar-label { font-size: 9px; fill: var(--muted); }
+.hist-title { margin-top: 12px; }
+.hist { width: 100%; max-width: 320px; display: block; }
+.empty-sm { font-size: 12px; color: var(--muted); padding: 8px 0; }
 </style>
