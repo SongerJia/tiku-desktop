@@ -17,7 +17,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listNotes: () => ipcRenderer.invoke('listNotes'),
   getNotedQuestionIds: () => ipcRenderer.invoke('getNotedQuestionIds'),
   getStats: () => ipcRenderer.invoke('getStats'),
-  getSummary: () => ipcRenderer.invoke('getSummary'),
+  getSummary: (subjectId) => ipcRenderer.invoke('getSummary', subjectId),
   getChapterProgress: () => ipcRenderer.invoke('getChapterProgress'),
   getWeeklyTrend: () => ipcRenderer.invoke('getWeeklyTrend'),
   getMonthlyCalendar: (year, month) => ipcRenderer.invoke('getMonthlyCalendar', year, month),

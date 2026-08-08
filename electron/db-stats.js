@@ -93,8 +93,17 @@ module.exports = function statsModule(ctx) {
       }
     },
 
-    getSummary() {
-      const total = sqlite.prepare('SELECT COUNT(*) AS n FROM questions WHERE deleted=0').get().n
+    getSummary(subjectId) {
+      // 知识卡片总数：传当前科目 → 只统计该科目下的题（内容维度跟科目走）；不传 → 全局
+      let total = 0
+      if (subjectId) {
+        const ids = descendantCategoryIds(subjectId)
+        if (ids.length) {
+          total = sqlite.prepare(`SELECT COUNT(*) AS n FROM questions WHERE deleted=0 AND category_id IN (${ids.map(() => '?').join(',')})`).get(...ids).n
+        }
+      } else {
+        total = sqlite.prepare('SELECT COUNT(*) AS n FROM questions WHERE deleted=0').get().n
+      }
       const learned = sqlite.prepare('SELECT COUNT(DISTINCT question_id) AS n FROM answer_records WHERE user_id=? AND deleted=0').get(LOCAL_USER).n
       const mastered = sqlite.prepare(`SELECT COUNT(DISTINCT question_id) AS n FROM answer_records
         WHERE user_id=? AND deleted=0 AND is_correct=1`).get(LOCAL_USER).n

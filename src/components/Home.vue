@@ -132,7 +132,7 @@ let noiseSrc = null
 
 async function load() {
   loading.value = true
-  summary.value = await tiku.getSummary()
+  summary.value = await tiku.getSummary(props.subject.id)
   try { dailyGoal.value = Number(await tiku.getSetting('daily_goal')) || 0 } catch (e) { dailyGoal.value = 0 }
   try {
     const q = await tiku.checkQuests()

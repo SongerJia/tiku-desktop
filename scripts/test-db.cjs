@@ -455,6 +455,10 @@ try {
   const wrongA = db.getQuestions({ mode: 'wrong', subjectId: subA.id, limit: 20 })
   const wrongOther = db.getQuestions({ mode: 'wrong', subjectId: cats[0].id, limit: 20 })
   ok('getQuestions(wrong+subjectId) 按科目过滤错题', wrongA.some(w => w.id === qA.id) && wrongOther.every(w => w.id !== qA.id))
+  // 统计条「知识卡片」总数按科目
+  const sumA = db.getSummary(subA.id)
+  const sumAll = db.getSummary()
+  ok('getSummary(subjectId) 知识卡片数按科目统计', sumA.total === 1 && sumAll.total >= 1 && sumAll.total > sumA.total)
   db.deleteCategory(subA.id) // 级联清理（含错题残留无碍后续）
 
   // 空科目边界：新建科目无章节时拉题应返回空（防止 IN() SQL 报错）
