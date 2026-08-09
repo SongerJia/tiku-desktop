@@ -14,8 +14,6 @@ const emit = defineEmits(['start', 'start-mock', 'goto', 'daily'])
 const summary = ref({ total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0 })
 const dailyGoal = ref(0)
 const loading = ref(true)
-// 欢迎卡仅首次启动显示（localStorage 标记，本机偏好不进云）
-const showWelcome = ref(false)
 // 每日一题：{ question, state } state: { date, qid, answered, correct, streak, bestStreak, period }
 const dailyPuzzle = ref(null)
 // 今日任务单：到期复习 / 每日一题 / 今日目标 / 未读文档
@@ -26,19 +24,9 @@ const focusWeek = ref(0)
 const weakPoints = ref([])
 const weakAccuracy = ref([])
 
-onMounted(() => { load(); checkWelcome() })
+onMounted(load)
 watch(() => props.subject.id, load)
 watch(() => props.refreshKey, load) // 切回首页时刷新实时数据
-
-function checkWelcome() {
-  try {
-    showWelcome.value = !localStorage.getItem('tiku_welcome_shown')
-  } catch (e) { showWelcome.value = false }
-}
-function dismissWelcome() {
-  showWelcome.value = false
-  try { localStorage.setItem('tiku_welcome_shown', '1') } catch (e) {}
-}
 
 // 学习数据折叠卡已移除：全局数据搬统计页，首页只留薄弱点（科目）
 const goalPct = computed(() => dailyGoal.value ? Math.min(100, Math.round((summary.value.today / dailyGoal.value) * 100)) : 0)
@@ -223,15 +211,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="home">
-    <!-- 欢迎卡片（仅首次启动显示） -->
-    <div v-if="showWelcome" class="card welcome">
+    <!-- 欢迎卡（常驻：品牌头，非首启引导） -->
+    <div class="card welcome">
       <div class="welcome-text">
         <div class="subtitle">基于艾宾浩斯记忆曲线，科学记忆，高效备考</div>
         <h1>欢迎来到<br>知识记忆小助手</h1>
-        <div class="welcome-actions">
-          <button class="btn btn-primary" @click="$emit('start', { mode: 'practice' }); dismissWelcome()">立即开始</button>
-          <button class="btn ghost" @click="dismissWelcome">开始探索</button>
-        </div>
       </div>
       <div class="welcome-illustration">
         <svg viewBox="0 0 120 100" width="110" height="92">
@@ -427,7 +411,6 @@ onBeforeUnmount(() => {
 .welcome-text { flex: 1; }
 .welcome-text h1 { font-size: 22px; line-height: 1.3; margin: 8px 0 14px 0; color: var(--text); text-shadow: var(--glow-soft); }
 .welcome-text .subtitle { font-size: 12px; color: var(--muted); }
-.welcome-actions { display: flex; gap: 10px; }
 .welcome-illustration { flex-shrink: 0; filter: drop-shadow(0 0 8px rgba(91, 124, 250, 0.35)); }
 
 .empty-guide { border-color: var(--warn); background: rgba(255, 180, 84, 0.06); display: flex; flex-direction: column; gap: 6px; }
