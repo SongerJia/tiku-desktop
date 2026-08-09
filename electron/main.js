@@ -16,6 +16,38 @@ const { readXlsx, writeXlsx } = require('./xlsx-lite')
 const ghRepo = require('./sync-github-repo')
 const syncRunner = require('./sync-runner')
 const runner = syncRunner(db)
+
+// ---- GitHub 仓库 token 安全存储（safeStorage 加密落盘，不进 settings 表明文）----
+const GH_TOKEN_PATH = path.join(app.getPath('userData'), 'gh-token.enc')
+function loadGhToken() {
+  try {
+    if (!fs.existsSync(GH_TOKEN_PATH)) return ''
+    const buf = fs.readFileSync(GH_TOKEN_PATH)
+    if (safeStorage && safeStorage.isEncryptionAvailable()) return safeStorage.decryptString(buf)
+    return buf.toString('utf8') // 无加密环境降级（沙箱/老系统），明文，仅本机
+  } catch (e) { return '' }
+}
+function saveGhToken(token) {
+  try {
+    if (!token) {
+      if (fs.existsSync(GH_TOKEN_PATH)) fs.unlinkSync(GH_TOKEN_PATH)
+      return
+    }
+    const data = (safeStorage && safeStorage.isEncryptionAvailable())
+      ? safeStorage.encryptString(token)
+      : Buffer.from(token, 'utf8')
+    fs.writeFileSync(GH_TOKEN_PATH, data)
+  } catch (e) { throw new Error('保存 token 失败：' + (e.message || String(e))) }
+}
+// 一次性迁移：旧版明文 settings.gh_token → 加密文件（迁移后清空明文）
+function migrateGhToken() {
+  try {
+    const legacy = db.getSetting('gh_token')
+    if (legacy && !fs.existsSync(GH_TOKEN_PATH)) saveGhToken(legacy)
+    db.setSetting('gh_token', '')
+  } catch (e) { /* 迁移失败不阻塞 */ }
+}
+migrateGhToken()
 const { extractMd, extractPdf, uniqueRelPath } = require('./kbExtract')
 const logger = require('./logger')
 
@@ -371,13 +403,13 @@ ipcMain.handle('exportExcelTemplate', () => {
 
 // ---- GitHub 仓库同步（唯一后端：数据快照 + 知识库文档 + 题目图片）----
 ipcMain.handle('ghGetConfig', () => ({
-  token: db.getSetting('gh_token') || '',
+  token: loadGhToken(),
   owner: db.getSetting('gh_owner') || '',
   repo: db.getSetting('gh_repo') || '',
   lastSync: Number(db.getSetting('gh_last_sync') || 0)
 }))
 ipcMain.handle('ghSaveConfig', (e, cfg) => {
-  db.setSetting('gh_token', String(cfg.token || '').trim())
+  saveGhToken(String(cfg.token || '').trim())
   db.setSetting('gh_owner', String(cfg.owner || '').trim())
   db.setSetting('gh_repo', String(cfg.repo || '').trim())
   return { ok: true }
@@ -388,7 +420,7 @@ ipcMain.handle('ghTest', async (e, cfg) => {
 })
 ipcMain.handle('ghSync', async () => {
   const ghCfg = {
-    token: db.getSetting('gh_token') || '',
+    token: loadGhToken(),
     owner: db.getSetting('gh_owner') || '',
     repo: db.getSetting('gh_repo') || ''
   }
