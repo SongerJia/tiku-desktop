@@ -47,7 +47,8 @@
       {
         "provider": "github",
         "owner": "songerjia",
-        "repo": "tiku-desktop"
+        "repo": "tiku-desktop",
+        "releaseType": "release"
       }
     ],
     "asarUnpack": [
