@@ -11,7 +11,7 @@ import '@fontsource/noto-sans-sc/500.css'
 import '@fontsource/noto-sans-sc/700.css'
 
 // 全局错误兜底：任何未被业务代码捕获的异常（IPC 调用 reject、渲染层崩溃等）
-// 都会在这里弹出一个可读的错误浮层，避免像之前 syncNow 的 SQL 错误那样静默失败、
+// 都会在这里弹出一个可读的错误浮层，避免 SQL 错误静默失败、
 // 只出现在 devtools。固定深色卡片 + 白字，深浅主题下都清晰。
 ;(function installGlobalErrorGuard() {
   let lastKey = ''

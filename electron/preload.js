@@ -37,14 +37,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   importPreview: (json) => ipcRenderer.invoke('importPreview', json),
 
   // 云同步（GitHub Gist）
-  syncGetConfig: () => ipcRenderer.invoke('syncGetConfig'),
-  syncConnect: (token) => ipcRenderer.invoke('syncConnect', token),
-  syncDisconnect: () => ipcRenderer.invoke('syncDisconnect'),
   ghGetConfig: () => ipcRenderer.invoke('ghGetConfig'),
   ghSaveConfig: (cfg) => ipcRenderer.invoke('ghSaveConfig', cfg),
   ghTest: (cfg) => ipcRenderer.invoke('ghTest', cfg),
   ghSync: () => ipcRenderer.invoke('ghSync'),
-  syncNow: () => ipcRenderer.invoke('syncNow'),
 
   // 题库管理
   listQuestions: (opts) => ipcRenderer.invoke('listQuestions', opts),

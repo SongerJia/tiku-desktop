@@ -24,15 +24,6 @@ const userName = ref('本地用户')
 const toast = ref('')
 const showNotes = ref(false)
 
-// ---- 云同步（GitHub Gist）状态 ----
-const syncConnected = ref(false)
-const syncLogin = ref('')
-const syncLast = ref(0)
-const conflictItems = ref([]) // 本次同步冲突明细
-const conflictOpen = ref(false)
-const syncToken = ref('')
-const syncing = ref(false)
-
 // ---- GitHub 仓库同步（唯一后端：数据快照 + 知识库文档 + 题目图片）----
 const ghToken = ref('')
 const ghOwner = ref('')
@@ -80,69 +71,12 @@ const showBackup = ref(false)
 const showCats = ref(false)
 
 onMounted(async () => {
-  try {
-    const cfg = await tiku.syncGetConfig()
-    syncConnected.value = cfg.connected
-    syncLogin.value = cfg.login
-    syncLast.value = cfg.lastSync
-    ghLoad()
-  } catch (e) { /* 同步配置读取失败不阻塞页面 */ }
+  try { ghLoad() } catch (e) { /* 同步配置读取失败不阻塞页面 */ }
 })
 
 function showToast(msg) {
   toast.value = msg
   setTimeout(() => toast.value = '', 2400)
-}
-
-async function connect() {
-  const t = syncToken.value.trim()
-  if (!t) { showToast('请输入 GitHub Token'); return }
-  try {
-    const r = await tiku.syncConnect(t)
-    syncConnected.value = true
-    syncLogin.value = r.login
-    syncToken.value = ''
-    showToast('已连接 GitHub：' + r.login)
-  } catch (e) {
-    showToast('连接失败：' + (e.message || '请检查 Token 与网络'))
-  }
-}
-
-async function doSync() {
-  if (syncing.value) return
-  syncing.value = true
-  try {
-    const r = await tiku.syncNow()
-    syncLast.value = r.lastSync
-    let msg = '同步成功 · ' + new Date(r.lastSync).toLocaleString()
-    if (r.merge) {
-      const m = r.merge
-      const parts = []
-      if (m.questions) parts.push('题目 ' + m.questions)
-      if (m.answerRecords) parts.push('答题 ' + m.answerRecords)
-      if (m.wrongBooks) parts.push('错题 ' + m.wrongBooks)
-      if (m.notes) parts.push('笔记 ' + m.notes)
-      if (m.kbDocs) parts.push('文档 ' + m.kbDocs)
-      if (m.xpLogs) parts.push('XP ' + m.xpLogs)
-      if (m.habits) parts.push('习惯 ' + m.habits)
-      if (parts.length) msg += ' · 合并：' + parts.slice(0, 5).join('、')
-      if (m.conflicts) msg += ' · 冲突 ' + m.conflicts + ' 条（按时间戳覆盖）'
-      conflictItems.value = (m.conflictItems || []).slice(0, 50)
-    }
-    showToast(msg, 'ok')
-  } catch (e) {
-    showToast('同步失败：' + (e.message || '网络异常'), 'err')
-  } finally {
-    syncing.value = false
-  }
-}
-
-async function disconnect() {
-  try { await tiku.syncDisconnect() } catch (e) {}
-  syncConnected.value = false
-  syncLogin.value = ''
-  syncLast.value = 0
-  showToast('已断开云同步（本地数据保留）')
 }
 
 async function clearLocal() {
@@ -260,7 +194,6 @@ const fontScale = ref('1')
 const dailyGoal = ref(0)
 const examDate = ref('') // 目标考试日（YYYY-MM-DD），首页显示倒计时
 const remindEnabled = ref(false)
-const autoSync = ref(true)
 const remindTime = ref('21:00')
 async function setTheme(t) {
   theme.value = t
@@ -285,10 +218,6 @@ async function setRemindEnabled(v) {
   await tiku.setSetting('remind_enabled', remindEnabled.value ? '1' : '0')
 }
 
-async function setAutoSync(v) {
-  autoSync.value = !!v
-  await tiku.setSetting('auto_sync', autoSync.value ? '1' : '0')
-}
 async function setRemindTime(v) {
   remindTime.value = v || '21:00'
   await tiku.setSetting('remind_time', remindTime.value)
@@ -372,7 +301,6 @@ onMounted(async () => {
     seasonData.value = evaluateSeason(metrics.value)
     seasonArc.value = syncSeasonArchive(metrics.value)
     remindEnabled.value = re === '1'
-    autoSync.value = await tiku.getSetting('auto_sync').then(v => v !== '0').catch(() => true)
     remindTime.value = rt || '21:00'
     kbStats.value = kb
     xp.value = x
@@ -561,14 +489,6 @@ onMounted(async () => {
           <span class="pref-switch-slider"></span>
         </label>
       </div>
-      <div class="pref-row">
-        <span class="pref-label">自动同步</span>
-        <span class="pref-sub">启动与每 60 分钟静默同步</span>
-        <label class="pref-switch">
-          <input type="checkbox" :checked="autoSync" @change="setAutoSync($event.target.checked)" />
-          <span class="pref-switch-slider"></span>
-        </label>
-      </div>
     </div>
 
       </div>
@@ -612,62 +532,9 @@ onMounted(async () => {
       <div class="sec-head" @click="toggleSec('sync')">
         <span class="sec-icon sec-icon-sync"><Icon name="cloud" :size="16" /></span>
         <span class="sec-title">云同步与数据</span>
-        <span class="sec-badge" :class="{ ok: syncConnected }">{{ syncConnected ? '已连接' : '未连接' }}</span>
         <span class="sec-arrow" :class="{ open: secOpen.sync }"><Icon name="chevron-down" :size="14" /></span>
       </div>
       <div v-show="secOpen.sync" class="sec-body">
-
-    <!-- 云同步（GitHub Gist，零后端） -->
-    <div class="card">
-      <div class="card-title">云同步（GitHub）</div>
-
-      <div v-if="!syncConnected" class="sync-connect">
-        <p class="sync-tip">
-          用 GitHub 私有 Gist 同步多设备学习数据，零后端、零部署。<br />
-          需一个带 <code>gist</code> 权限的 Personal Access Token。
-        </p>
-        <input
-          v-model="syncToken"
-          class="sync-input"
-          type="password"
-          placeholder="粘贴 GitHub Token（ghp_...）"
-          @keyup.enter="connect"
-        />
-        <button class="btn btn-primary sync-btn" @click="connect">连接并同步</button>
-        <a class="sync-link" href="https://github.com/settings/tokens" target="_blank" rel="noopener">
-          如何创建 Token？
-        </a>
-      </div>
-
-      <div v-else class="sync-connected">
-        <div class="sync-row">
-          <span class="sync-dot"></span>
-          <span>已连接：<b>{{ syncLogin }}</b></span>
-        </div>
-        <div class="sync-row sub">上次同步：{{ fmtTime(syncLast) }}</div>
-        <div class="sync-actions">
-          <button class="btn btn-primary" :disabled="syncing" @click="doSync">
-            {{ syncing ? '同步中…' : '立即同步' }}
-          </button>
-          <button class="btn btn-outline" @click="disconnect">断开连接</button>
-        </div>
-        <div v-if="conflictItems.length" class="conflict-list">
-          <div class="cl-head" @click="conflictOpen = !conflictOpen">
-            <span>本次冲突明细（{{ conflictItems.length }} 条）</span>
-            <span class="cl-toggle">{{ conflictOpen ? '收起 ▲' : '展开 ▼' }}</span>
-          </div>
-          <div v-show="conflictOpen" class="cl-body">
-            <div v-for="(c, i) in conflictItems" :key="i" class="cl-item">
-              <span class="cl-table">{{ c.table }}</span>
-              <span class="cl-key">#{{ c.key }}</span>
-              <span class="cl-times">本地 {{ fmtTs(c.localAt) }} / 远端 {{ fmtTs(c.remoteAt) }}</span>
-            </div>
-            <div class="cl-note">已自动保留时间戳较新的一版；如需保留另一版，可在对应端修改后再同步。</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
 
     <!-- GitHub 仓库同步（唯一后端：学习数据+题库+知识库文档+题目图片） -->
     <div class="card">
