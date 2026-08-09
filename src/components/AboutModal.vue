@@ -13,10 +13,14 @@ watch(() => props.show, async v => {
   try { info.value = await tiku.getVersion() } catch (e) { /* 保持默认 */ }
 })
 
-const STACK = ['Electron 31', 'Vue 3', 'Vite 5', 'SQLite · better-sqlite3', 'GitHub Gist 零后端同步']
+const STACK = ['Electron 31', 'Vue 3', 'Vite 5', 'SQLite · better-sqlite3', 'GitHub 仓库同步']
 
 function openRepo() {
   tiku.openExternal('https://github.com/SongerJia/tiku-desktop')
+}
+// jsDelivr CDN 镜像（国内节点加速，public 仓库可用；不超过 100MB 自动缓存）
+function openJsdelivr() {
+  tiku.openExternal('https://cdn.jsdelivr.net/gh/SongerJia/tiku-desktop@main')
 }
 
 // 手动更新状态：'' | checking | up-to-date | downloading | error
@@ -56,19 +60,22 @@ function openReleases() {
       <div class="ab-ver">v{{ info.version }}</div>
       <p class="ab-desc">
         本地优先的刷题 + 知识库 all-in-one 学习工具。<br />
-        数据全存本机 SQLite，零后端、可离线，多端用 GitHub Gist 同步。
+        数据全存本机 SQLite，可离线，多端用 GitHub 仓库同步。
       </p>
       <div class="ab-stack">
         <span v-for="s in STACK" :key="s" class="ab-tag">{{ s }}</span>
       </div>
       <div class="ab-update">
-        <button class="btn ab-repo" :disabled="updState === 'checking'" @click="checkUpdate">
-          {{ updState === 'checking' ? '检查中…' : '检查更新' }}
-        </button>
-        <button v-if="updState === 'error'" class="btn ghost ab-repo" @click="openReleases">自动更新不可用 → 手动下载</button>
+        <div class="ab-row">
+          <button class="btn ab-repo" :disabled="updState === 'checking'" @click="checkUpdate">
+            {{ updState === 'checking' ? '检查中…' : '检查更新' }}
+          </button>
+          <button class="btn ab-repo" @click="openRepo">GitHub 仓库 ↗</button>
+        </div>
+        <button v-if="updState === 'error'" class="btn ghost ab-repo ab-download" @click="openReleases">自动更新不可用 → 手动下载</button>
+        <button class="btn ghost ab-repo ab-download" @click="openJsdelivr">国内下载慢？点此走 CDN 镜像</button>
         <span v-if="updState === 'up-to-date'" class="ab-upd-tip">已检查，如有新版会弹通知</span>
       </div>
-      <button class="btn ab-repo" @click="openRepo">GitHub 仓库 ↗</button>
       <div class="ab-foot">Made with 💙 · 祝备考顺利</div>
     </div>
   </div>
@@ -128,8 +135,12 @@ function openReleases() {
   padding: 2px 10px;
   background: rgba(255, 255, 255, 0.03);
 }
+.ab-desc { margin: 6px 0; font-size: 11.5px; line-height: 1.7; color: var(--muted); }
+.ab-tag { font-size: 10.5px; }
 .ab-repo { margin-top: 4px; }
-.ab-update { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 2px; }
+.ab-update { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 2px; }
+.ab-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.ab-download { font-size: 11px; padding: 4px 10px; }
 .ab-upd-tip { font-size: 11px; color: var(--muted); }
 .ab-foot { margin-top: 10px; font-size: 11px; color: var(--muted); }
 </style>
