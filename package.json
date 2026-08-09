@@ -52,7 +52,8 @@
     ],
     "asarUnpack": [
       "**/*.node"
-    ]
+    ],
+    "artifactName": "tiku-desktop-setup-${version}.${ext}"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",
