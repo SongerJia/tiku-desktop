@@ -1,11 +1,12 @@
-// GitHub 仓库文件同步（承载大文件：知识库文档原件 + 题目图片）。
-// 组合方案：小数据走 WebDAV（坚果云），大文件走 GitHub 私有/公开仓库（免费 1GB、无流量限制）。
-// cfg: { token, owner, repo }
+// GitHub 仓库文件同步（唯一同步后端：数据快照 + 知识库文档 + 题目图片 全走仓库）。
+// 免费私有仓库 1GB、无流量限制；cfg: { token, owner, repo }
 // 存储模型（仓库内）：
-//   tiku-manifest.json   文件清单 { kbFiles:{rel:sha256}, images:{name:sha256}, updatedAt }
+//   data.json.gz        数据快照（exportSync 全量，gzip）
+//   tiku-manifest.json  文件清单 { kbFiles:{rel:sha256}, images:{name:sha256}, updatedAt }
 //   kb/<rel_path>        知识库文档原件（逐段 encodeURIComponent）
 //   images/<safeName>    题目图片
 // 清单用「本地 sha256 快照」比对（远端 git blob sha 与本地 sha256 不可直接比）。
+const zlib = require('zlib')
 const { net } = require('electron')
 const API = 'https://api.github.com'
 const MANIFEST = 'tiku-manifest.json'
@@ -73,7 +74,7 @@ async function uploadFile(cfg, relPath, buf) {
   await ghFetch(`/repos/${cfg.owner}/${cfg.repo}/contents/${encPath(relPath)}`, cfg.token, { method: 'PUT', body: JSON.stringify(body) })
 }
 
-// 下载文件（raw URL；公开仓库免 token，仍带 token 以兼容私有）
+// 下载文件（raw URL；public 免 token，仍带 token 以兼容 private）
 async function downloadFile(cfg, relPath) {
   const branch = await defaultBranch(cfg)
   const url = `https://raw.githubusercontent.com/${cfg.owner}/${cfg.repo}/${branch}/${encPath(relPath)}`
@@ -81,8 +82,25 @@ async function downloadFile(cfg, relPath) {
   let res
   if (net && net.fetch) res = await net.fetch(url, { headers })
   else res = await fetch(url, { headers })
-  if (res.status >= 400) throw new Error(`下载 ${relPath} → HTTP ${res.status}`)
+  if (res.status >= 400) { const err = new Error(`下载 ${relPath} → HTTP ${res.status}`); err.status = res.status; throw err }
   return Buffer.from(await res.arrayBuffer())
 }
 
-module.exports = { testConnection, getManifest, putManifest, uploadFile, downloadFile }
+// ---- 数据快照（data.json.gz：gzip 压缩，避免 base64 膨胀超限）----
+async function uploadData(cfg, jsonStr) {
+  const buf = zlib.gzipSync(Buffer.from(jsonStr, 'utf8'))
+  await uploadFile(cfg, 'data.json.gz', buf)
+  return buf.length
+}
+
+async function downloadData(cfg) {
+  try {
+    const buf = await downloadFile(cfg, 'data.json.gz')
+    return zlib.gunzipSync(buf).toString('utf8')
+  } catch (e) {
+    if (e.status === 404) return null // 首次同步
+    throw e
+  }
+}
+
+module.exports = { testConnection, getManifest, putManifest, uploadFile, downloadFile, uploadData, downloadData }

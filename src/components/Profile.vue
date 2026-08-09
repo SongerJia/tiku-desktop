@@ -33,23 +33,20 @@ const conflictOpen = ref(false)
 const syncToken = ref('')
 const syncing = ref(false)
 
-// ---- WebDAV 同步（坚果云/123/自建；全量：学习数据+题库+知识库文档）----
-const wdUrl = ref('')
-const wdUser = ref('')
-const wdPass = ref('')
-const wdLast = ref(0)
-const wdSyncing = ref(false)
-const wdResult = ref(null)
-// GitHub 仓库（大文件：知识库文档+题目图片）
+// ---- GitHub 仓库同步（唯一后端：数据快照 + 知识库文档 + 题目图片）----
 const ghToken = ref('')
 const ghOwner = ref('')
 const ghRepo = ref('')
+const ghLast = ref(0)
+const ghSyncing = ref(false)
+const ghResult = ref(null)
 async function ghLoad() {
   try {
     const c = await tiku.ghGetConfig()
     ghToken.value = c.token
     ghOwner.value = c.owner
     ghRepo.value = c.repo
+    ghLast.value = c.lastSync
   } catch (e) {}
 }
 async function ghTest() {
@@ -63,36 +60,16 @@ async function ghSave() {
   await tiku.ghSaveConfig({ token: ghToken.value, owner: ghOwner.value, repo: ghRepo.value })
   showToast('仓库配置已保存', 'ok')
 }
-async function wdLoad() {
+async function ghDoSync() {
+  if (!ghToken.value.trim() || !ghOwner.value.trim() || !ghRepo.value.trim()) { showToast('请先填写并保存配置'); return }
+  ghSyncing.value = true
   try {
-    const c = await tiku.wdGetConfig()
-    wdUrl.value = c.url
-    wdUser.value = c.user
-    wdPass.value = c.pass
-    wdLast.value = c.lastSync
-  } catch (e) { /* 读取失败不阻塞 */ }
-}
-async function wdTest() {
-  try {
-    await tiku.wdTest({ url: wdUrl.value, user: wdUser.value, pass: wdPass.value })
-    showToast('连接成功', 'ok')
-  } catch (e) { showToast('连接失败：' + (e.message || e), 'err') }
-}
-async function wdSave() {
-  if (!wdUrl.value.trim() || !wdUser.value.trim() || !wdPass.value.trim()) { showToast('请填写完整的服务器地址/账号/应用密码'); return }
-  await tiku.wdSaveConfig({ url: wdUrl.value, user: wdUser.value, pass: wdPass.value })
-  showToast('配置已保存', 'ok')
-}
-async function wdDoSync() {
-  if (!wdUrl.value.trim() || !wdUser.value.trim() || !wdPass.value.trim()) { showToast('请先填写并保存配置'); return }
-  wdSyncing.value = true
-  try {
-    const r = await tiku.wdSync()
-    wdResult.value = r
-    wdLast.value = Date.now()
+    const r = await tiku.ghSync()
+    ghResult.value = r
+    ghLast.value = Date.now()
     showToast(`同步完成（数据 ${(r.dataBytes / 1024).toFixed(0)}KB · 图片 +${r.imgUp}/-${r.imgDown} · 文档 +${r.kbUp}/-${r.kbDown}）`, 'ok')
   } catch (e) { showToast('同步失败：' + (e.message || e), 'err') }
-  finally { wdSyncing.value = false }
+  finally { ghSyncing.value = false }
 }
 
 const showChapter = ref(false)
@@ -106,7 +83,6 @@ onMounted(async () => {
     syncConnected.value = cfg.connected
     syncLogin.value = cfg.login
     syncLast.value = cfg.lastSync
-    wdLoad()
     ghLoad()
   } catch (e) { /* 同步配置读取失败不阻塞页面 */ }
 })
@@ -691,42 +667,27 @@ onMounted(async () => {
     </div>
 
 
-    <!-- WebDAV 同步（坚果云/123/自建；全量：学习数据+题库+知识库文档） -->
+    <!-- GitHub 仓库同步（唯一后端：学习数据+题库+知识库文档+题目图片） -->
     <div class="card">
-      <div class="card-title">WebDAV 同步（云盘）</div>
+      <div class="card-title">云盘同步（GitHub 仓库）</div>
       <p class="sync-tip">
-        用坚果云等 WebDAV 云盘同步<b>全部数据</b>（学习数据 + 题库 + 知识库文档），跨 Windows / macOS / 安卓。
-        <br />坚果云服务器：<code>https://dav.jianguoyun.com/dav/</code> · 密码用「应用密码」（坚果云网页 → 账号信息 → 安全选项 → 添加应用密码）
-      </p>
-      <div class="wd-form">
-        <input v-model="wdUrl" class="sync-input" placeholder="服务器地址（如 https://dav.jianguoyun.com/dav/）" @keyup.enter="wdSave" />
-        <input v-model="wdUser" class="sync-input" placeholder="账号（坚果云注册邮箱）" @keyup.enter="wdSave" />
-        <input v-model="wdPass" class="sync-input" type="password" placeholder="应用密码（非登录密码）" @keyup.enter="wdSave" />
-        <div class="sync-actions">
-          <button class="btn" :disabled="wdSyncing" @click="wdTest">测试连接</button>
-          <button class="btn" :disabled="wdSyncing" @click="wdSave">保存配置</button>
-          <button class="btn btn-primary" :disabled="wdSyncing" @click="wdDoSync">
-            {{ wdSyncing ? '同步中…' : '立即同步' }}
-          </button>
-        </div>
-        <div v-if="wdLast" class="sync-row sub">上次同步：{{ fmtTime(wdLast) }}</div>
-        <div v-if="wdResult" class="wd-result">
-          同步完成：数据 {{ (wdResult.dataBytes / 1024).toFixed(0) }}KB · 图片 +{{ wdResult.imgUp }}/-{{ wdResult.imgDown }} · 文档 +{{ wdResult.kbUp }}/-{{ wdResult.kbDown }}
-        </div>
-      </div>
-
-      <div class="card-title gh-title">GitHub 仓库（大文件：知识库文档 + 题目图片）</div>
-      <p class="sync-tip">
-        学习数据走坚果云；<b>知识库文档与题目图片</b>走 GitHub 仓库（免费、容量大）。
-        Token 需有 <code>repo</code> 权限（GitHub → Settings → Developer settings → Personal access tokens）。
+        用 GitHub 私有仓库同步<b>全部数据</b>（学习数据 + 题库 + 知识库文档 + 题目图片），跨 Windows / macOS / 安卓。
+        <br />Token 需有 <code>repo</code> 权限（GitHub → Settings → Developer settings → Personal access tokens）。<b>建议仓库设为 Private</b>（学习数据含个人隐私）。
       </p>
       <div class="wd-form">
         <input v-model="ghToken" class="sync-input" type="password" placeholder="GitHub Token（ghp_...，需 repo 权限）" @keyup.enter="ghSave" />
         <input v-model="ghOwner" class="sync-input" placeholder="仓库拥有者（GitHub 用户名）" @keyup.enter="ghSave" />
         <input v-model="ghRepo" class="sync-input" placeholder="仓库名（如 tiku-assets）" @keyup.enter="ghSave" />
         <div class="sync-actions">
-          <button class="btn" :disabled="wdSyncing" @click="ghTest">测试仓库</button>
-          <button class="btn" :disabled="wdSyncing" @click="ghSave">保存仓库配置</button>
+          <button class="btn" :disabled="ghSyncing" @click="ghTest">测试连接</button>
+          <button class="btn" :disabled="ghSyncing" @click="ghSave">保存配置</button>
+          <button class="btn btn-primary" :disabled="ghSyncing" @click="ghDoSync">
+            {{ ghSyncing ? '同步中…' : '立即同步' }}
+          </button>
+        </div>
+        <div v-if="ghLast" class="sync-row sub">上次同步：{{ fmtTime(ghLast) }}</div>
+        <div v-if="ghResult" class="wd-result">
+          同步完成：数据 {{ (ghResult.dataBytes / 1024).toFixed(0) }}KB · 图片 +{{ ghResult.imgUp }}/-{{ ghResult.imgDown }} · 文档 +{{ ghResult.kbUp }}/-{{ ghResult.kbDown }}
         </div>
       </div>
     </div>

@@ -14,10 +14,9 @@ if (app.isPackaged) {
 const db = require('./db')
 const { readXlsx, writeXlsx } = require('./xlsx-lite')
 const syncGithub = require('./sync-github')
-const syncWebdav = require('./sync-webdav')
 const ghRepo = require('./sync-github-repo')
-const webdavSyncRunner = require('./webdav-sync')
-const webdavRunner = webdavSyncRunner(db)
+const syncRunner = require('./sync-runner')
+const runner = syncRunner(db)
 const syncMerge = require('./sync-merge')
 const { extractMd, extractPdf, uniqueRelPath } = require('./kbExtract')
 const logger = require('./logger')
@@ -594,46 +593,12 @@ ipcMain.handle('syncDisconnect', () => {
   return { ok: true }
 })
 
-// ---- WebDAV 同步（坚果云/123/自建；配置存 settings KV）----
-ipcMain.handle('wdGetConfig', () => ({
-  url: db.getSetting('wd_url') || '',
-  user: db.getSetting('wd_user') || '',
-  pass: db.getSetting('wd_pass') || '',
-  lastSync: Number(db.getSetting('wd_last_sync') || 0)
-}))
-ipcMain.handle('wdSaveConfig', (e, cfg) => {
-  db.setSetting('wd_url', String(cfg.url || '').trim())
-  db.setSetting('wd_user', String(cfg.user || '').trim())
-  db.setSetting('wd_pass', String(cfg.pass || '').trim())
-  return { ok: true }
-})
-ipcMain.handle('wdTest', async (e, cfg) => {
-  const c = { url: cfg.url, user: cfg.user, pass: cfg.pass }
-  await syncWebdav.testConnection(c) // 失败抛错由渲染层提示
-  return { ok: true }
-})
-ipcMain.handle('wdSync', async () => {
-  const wdCfg = {
-    url: db.getSetting('wd_url') || '',
-    user: db.getSetting('wd_user') || '',
-    pass: db.getSetting('wd_pass') || ''
-  }
-  if (!wdCfg.url || !wdCfg.user || !wdCfg.pass) throw new Error('请先完成 WebDAV 配置')
-  const ghCfg = {
-    token: db.getSetting('gh_token') || '',
-    owner: db.getSetting('gh_owner') || '',
-    repo: db.getSetting('gh_repo') || ''
-  }
-  const r = await webdavRunner.sync(wdCfg, ghCfg)
-  db.setSetting('wd_last_sync', String(Date.now()))
-  return r
-})
-
-// ---- GitHub 仓库（大文件：知识库文档 + 题目图片）----
+// ---- GitHub 仓库同步（唯一后端：数据快照 + 知识库文档 + 题目图片）----
 ipcMain.handle('ghGetConfig', () => ({
   token: db.getSetting('gh_token') || '',
   owner: db.getSetting('gh_owner') || '',
-  repo: db.getSetting('gh_repo') || ''
+  repo: db.getSetting('gh_repo') || '',
+  lastSync: Number(db.getSetting('gh_last_sync') || 0)
 }))
 ipcMain.handle('ghSaveConfig', (e, cfg) => {
   db.setSetting('gh_token', String(cfg.token || '').trim())
@@ -645,99 +610,14 @@ ipcMain.handle('ghTest', async (e, cfg) => {
   await ghRepo.testConnection({ token: cfg.token, owner: cfg.owner, repo: cfg.repo })
   return { ok: true }
 })
-
-// 同步编排（增量 + 多文件分块）：
-//   1) 先抓取「本地自上次同步后的增量」——必须在拉取远端并合并之前，避免把远端行重复导出；
-//   2) 拉远端并合并进本地（让本机 app 看到远端数据）；
-//   3) 把本地增量合并进「现有 gist 完整快照」得到新完整快照（保持收敛模型，pull 端 mergeRemote 照常工作）；
-//   4) 分块编码上传，绕开 Gist 单文件 1MB 上限。
-// 失败自动重试 2 次。
-async function runSync(quiet = false) {
-  const token = loadToken()
-  if (!token) throw new Error('未连接 GitHub，请先在「云同步」中连接')
-  let gistId = db.getSetting('sync_gist_id')
-  const lastSync = Number(db.getSetting('sync_last_sync') || 0)
-
-  // 1) 本地增量（首次 lastSync=0 → exportSync 返回全量）；图片二进制单独导出（不再内嵌快照）
-  const localInc = db.exportSync(lastSync)
-  const localImages = db.exportImageFiles(lastSync)
-
-  // 2) 拉远端并合并进本地（返回各表合并数量，供 UI 展示摘要）
-  let gistContent = null
-  let oldFileKeys = []
-  let merge = null
-  let oldImgManifest = null
-  if (gistId) {
-    const g = await syncGithub.getGist(token, gistId)
-    if (g.content) { merge = db.mergeRemote(g.content); gistContent = g.content }
-    if (g.images && g.images.length) db.restoreImages(g.images.map(im => ({ name: im.name, b64: im.buffer.toString('base64') }))) // 还原远端图片到本地图床
-    oldFileKeys = g.fileKeys || []
-    oldImgManifest = g.imgManifest || null
+ipcMain.handle('ghSync', async () => {
+  const ghCfg = {
+    token: db.getSetting('gh_token') || '',
+    owner: db.getSetting('gh_owner') || '',
+    repo: db.getSetting('gh_repo') || ''
   }
-
-  // 3) 本地增量并入现有 gist 快照（无 gist 时 localInc 即全量）
-  let full
-  if (gistContent) {
-    const existing = JSON.parse(gistContent)
-    full = syncMerge.mergeSnapshots(existing, localInc)
-  } else {
-    full = localInc
-  }
-
-  // 4) 快照 JSON 分块编码（已不含图片 base64，体积大幅瘦身）
-  const { files: jsonChunks, count } = syncGithub.encodeSnapshotChunks(JSON.stringify(full))
-
-  // 5) 图片独立文件编码；未变更（hash 一致且远端文件仍在）的图片跳过重传
-  const { files: imgFiles, index } = syncGithub.encodeImageFiles(localImages)
-  const oldImgKeys = new Set(oldFileKeys.filter(k => k.startsWith(syncGithub.IMG_PREFIX) && k !== syncGithub.IMG_INDEX))
-  const oldEntries = new Map((oldImgManifest && oldImgManifest.entries || []).map(e => [e.name, e]))
-  for (const e of (JSON.parse(index).entries || [])) {
-    const old = oldEntries.get(e.name)
-    if (old && old.hash === e.hash) {
-      const keys = e.parts > 1
-        ? Array.from({ length: e.parts }, (_, i) => `${e.key}.${i}`)
-        : [e.key]
-      if (keys.every(k => oldImgKeys.has(k))) keys.forEach(k => oldImgKeys.delete(k)) // 命中→跳过重传
-    }
-  }
-  const uploadFiles = {
-    ...jsonChunks,
-    ...imgFiles,
-    [syncGithub.IMG_INDEX]: { content: index }
-  }
-  // 需删除的旧文件：旧分块 + 旧单文件 + 未被跳过的旧图片（清单始终重写，不入删除集）
-  const deleteKeys = oldFileKeys.filter(k =>
-    k.startsWith(syncGithub.CHUNK_BASE) ||
-    k === syncGithub.FILE ||
-    oldImgKeys.has(k)
-  )
-
-  if (!gistId) {
-    const r = await syncGithub.createGist(token, uploadFiles)
-    gistId = r.gistId
-    db.setSetting('sync_gist_id', gistId)
-  } else {
-    await syncGithub.updateGist(token, gistId, uploadFiles, deleteKeys)
-  }
-
-  const now = Date.now()
-  db.setSetting('sync_last_sync', String(now))
-  logger.info('runSync 完成', {
-    chunks: count, images: localImages.length,
-    mergedQuestions: merge && merge.questions, conflicts: merge && merge.conflicts
-  })
-  return { ok: true, lastSync: now, gistId, chunks: count, images: localImages.length, merge }
-}
-
-ipcMain.handle('syncNow', async () => {
-  let lastErr
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      return await runSync(false)
-    } catch (e) {
-      lastErr = e
-      if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 1500)) // 1.5s / 3s 退避
-    }
-  }
-  throw lastErr
+  if (!ghCfg.token || !ghCfg.owner || !ghCfg.repo) throw new Error('请先完成 GitHub 仓库配置')
+  const r = await runner.sync(ghCfg)
+  db.setSetting('gh_last_sync', String(Date.now()))
+  return r
 })
