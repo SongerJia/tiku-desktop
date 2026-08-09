@@ -40,6 +40,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   syncGetConfig: () => ipcRenderer.invoke('syncGetConfig'),
   syncConnect: (token) => ipcRenderer.invoke('syncConnect', token),
   syncDisconnect: () => ipcRenderer.invoke('syncDisconnect'),
+  wdGetConfig: () => ipcRenderer.invoke('wdGetConfig'),
+  wdSaveConfig: (cfg) => ipcRenderer.invoke('wdSaveConfig', cfg),
+  wdTest: (cfg) => ipcRenderer.invoke('wdTest', cfg),
+  wdSync: () => ipcRenderer.invoke('wdSync'),
   syncNow: () => ipcRenderer.invoke('syncNow'),
 
   // 题库管理

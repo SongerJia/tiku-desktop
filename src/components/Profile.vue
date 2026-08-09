@@ -33,6 +33,45 @@ const conflictOpen = ref(false)
 const syncToken = ref('')
 const syncing = ref(false)
 
+// ---- WebDAV 同步（坚果云/123/自建；全量：学习数据+题库+知识库文档）----
+const wdUrl = ref('')
+const wdUser = ref('')
+const wdPass = ref('')
+const wdLast = ref(0)
+const wdSyncing = ref(false)
+const wdResult = ref(null)
+async function wdLoad() {
+  try {
+    const c = await tiku.wdGetConfig()
+    wdUrl.value = c.url
+    wdUser.value = c.user
+    wdPass.value = c.pass
+    wdLast.value = c.lastSync
+  } catch (e) { /* 读取失败不阻塞 */ }
+}
+async function wdTest() {
+  try {
+    await tiku.wdTest({ url: wdUrl.value, user: wdUser.value, pass: wdPass.value })
+    showToast('连接成功', 'ok')
+  } catch (e) { showToast('连接失败：' + (e.message || e), 'err') }
+}
+async function wdSave() {
+  if (!wdUrl.value.trim() || !wdUser.value.trim() || !wdPass.value.trim()) { showToast('请填写完整的服务器地址/账号/应用密码'); return }
+  await tiku.wdSaveConfig({ url: wdUrl.value, user: wdUser.value, pass: wdPass.value })
+  showToast('配置已保存', 'ok')
+}
+async function wdDoSync() {
+  if (!wdUrl.value.trim() || !wdUser.value.trim() || !wdPass.value.trim()) { showToast('请先填写并保存配置'); return }
+  wdSyncing.value = true
+  try {
+    const r = await tiku.wdSync()
+    wdResult.value = r
+    wdLast.value = Date.now()
+    showToast(`同步完成（数据 ${(r.dataBytes / 1024).toFixed(0)}KB · 图片 +${r.imgUp}/-${r.imgDown} · 文档 +${r.kbUp}/-${r.kbDown}）`, 'ok')
+  } catch (e) { showToast('同步失败：' + (e.message || e), 'err') }
+  finally { wdSyncing.value = false }
+}
+
 const showChapter = ref(false)
 const showAbout = ref(false)
 const showBackup = ref(false)
@@ -44,6 +83,7 @@ onMounted(async () => {
     syncConnected.value = cfg.connected
     syncLogin.value = cfg.login
     syncLast.value = cfg.lastSync
+    wdLoad()
   } catch (e) { /* 同步配置读取失败不阻塞页面 */ }
 })
 
@@ -627,6 +667,32 @@ onMounted(async () => {
     </div>
 
 
+    <!-- WebDAV 同步（坚果云/123/自建；全量：学习数据+题库+知识库文档） -->
+    <div class="card">
+      <div class="card-title">WebDAV 同步（云盘）</div>
+      <p class="sync-tip">
+        用坚果云等 WebDAV 云盘同步<b>全部数据</b>（学习数据 + 题库 + 知识库文档），跨 Windows / macOS / 安卓。
+        <br />坚果云服务器：<code>https://dav.jianguoyun.com/dav/</code> · 密码用「应用密码」（坚果云网页 → 账号信息 → 安全选项 → 添加应用密码）
+      </p>
+      <div class="wd-form">
+        <input v-model="wdUrl" class="sync-input" placeholder="服务器地址（如 https://dav.jianguoyun.com/dav/）" @keyup.enter="wdSave" />
+        <input v-model="wdUser" class="sync-input" placeholder="账号（坚果云注册邮箱）" @keyup.enter="wdSave" />
+        <input v-model="wdPass" class="sync-input" type="password" placeholder="应用密码（非登录密码）" @keyup.enter="wdSave" />
+        <div class="sync-actions">
+          <button class="btn" :disabled="wdSyncing" @click="wdTest">测试连接</button>
+          <button class="btn" :disabled="wdSyncing" @click="wdSave">保存配置</button>
+          <button class="btn btn-primary" :disabled="wdSyncing" @click="wdDoSync">
+            {{ wdSyncing ? '同步中…' : '立即同步' }}
+          </button>
+        </div>
+        <div v-if="wdLast" class="sync-row sub">上次同步：{{ fmtTime(wdLast) }}</div>
+        <div v-if="wdResult" class="wd-result">
+          同步完成：数据 {{ (wdResult.dataBytes / 1024).toFixed(0) }}KB · 图片 +{{ wdResult.imgUp }}/-{{ wdResult.imgDown }} · 文档 +{{ wdResult.kbUp }}/-{{ wdResult.kbDown }}
+        </div>
+      </div>
+    </div>
+
+
     <!-- 题库管理 -->
     <div class="card">
       <div class="card-title">题库</div>
@@ -883,6 +949,8 @@ onMounted(async () => {
 .list-item.danger .title { color: #ff6b6b; }
 
 /* 云同步卡片 */
+.wd-form { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.wd-result { font-size: 12px; color: var(--ok); }
 .sync-connect { display: flex; flex-direction: column; gap: 10px; }
 .sync-tip { font-size: 12px; color: var(--muted); line-height: 1.6; }
 .sync-tip code {

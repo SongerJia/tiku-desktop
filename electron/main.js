@@ -14,6 +14,9 @@ if (app.isPackaged) {
 const db = require('./db')
 const { readXlsx, writeXlsx } = require('./xlsx-lite')
 const syncGithub = require('./sync-github')
+const syncWebdav = require('./sync-webdav')
+const webdavSyncRunner = require('./webdav-sync')
+const webdavRunner = webdavSyncRunner(db)
 const syncMerge = require('./sync-merge')
 const { extractMd, extractPdf, uniqueRelPath } = require('./kbExtract')
 const logger = require('./logger')
@@ -588,6 +591,36 @@ ipcMain.handle('syncDisconnect', () => {
   db.setSetting('sync_login', '')
   db.setSetting('sync_last_sync', '')
   return { ok: true }
+})
+
+// ---- WebDAV 同步（坚果云/123/自建；配置存 settings KV）----
+ipcMain.handle('wdGetConfig', () => ({
+  url: db.getSetting('wd_url') || '',
+  user: db.getSetting('wd_user') || '',
+  pass: db.getSetting('wd_pass') || '',
+  lastSync: Number(db.getSetting('wd_last_sync') || 0)
+}))
+ipcMain.handle('wdSaveConfig', (e, cfg) => {
+  db.setSetting('wd_url', String(cfg.url || '').trim())
+  db.setSetting('wd_user', String(cfg.user || '').trim())
+  db.setSetting('wd_pass', String(cfg.pass || '').trim())
+  return { ok: true }
+})
+ipcMain.handle('wdTest', async (e, cfg) => {
+  const c = { url: cfg.url, user: cfg.user, pass: cfg.pass }
+  await syncWebdav.testConnection(c) // 失败抛错由渲染层提示
+  return { ok: true }
+})
+ipcMain.handle('wdSync', async () => {
+  const cfg = {
+    url: db.getSetting('wd_url') || '',
+    user: db.getSetting('wd_user') || '',
+    pass: db.getSetting('wd_pass') || ''
+  }
+  if (!cfg.url || !cfg.user || !cfg.pass) throw new Error('请先完成 WebDAV 配置')
+  const r = await webdavRunner.sync(cfg)
+  db.setSetting('wd_last_sync', String(Date.now()))
+  return r
 })
 
 // 同步编排（增量 + 多文件分块）：
