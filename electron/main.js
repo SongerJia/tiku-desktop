@@ -62,6 +62,7 @@ try {
 
 // ---- 自动更新（electron-updater）：仅打包版启用；发现新版本自动下载，退出时安装 ----
 let updaterRef = null // 供「关于我们 → 检查更新」手动触发
+let manualCheck = false // 手动检查标记：仅手动触发时弹「已是最新」通知
 function setupAutoUpdater() {
   try {
     if (!app.isPackaged) { logger.info('auto-updater: 开发模式跳过'); return }
@@ -74,6 +75,17 @@ function setupAutoUpdater() {
       try {
         if (Notification.isSupported()) {
           new Notification({ title: '发现新版本 🚀', body: `v${info.version} 已开始下载，完成后退出应用即自动安装。` }).show()
+        }
+      } catch (e) { /* 忽略 */ }
+    })
+    // 无新版本：仅手动「检查更新」时弹「已是最新」（自动定时检查静默跳过，避免骚扰）
+    autoUpdater.on('update-not-available', (info) => {
+      logger.info('auto-updater: 已是最新版本')
+      if (!manualCheck) return
+      manualCheck = false
+      try {
+        if (Notification.isSupported()) {
+          new Notification({ title: '已是最新版本 ✅', body: `当前 v${pkg.version} 已是最新。` }).show()
         }
       } catch (e) { /* 忽略 */ }
     })
@@ -116,6 +128,7 @@ function setupAutoUpdater() {
 ipcMain.handle('checkUpdate', async () => {
   if (!app.isPackaged || !updaterRef) return { ok: false, error: '当前为开发模式，无法检查更新' }
   try {
+    manualCheck = true // 标记本次为手动检查（update-not-available 时弹「已是最新」）
     updaterRef.checkForUpdates() // 结果通过 update-available/error 事件回传
     return { ok: true, checking: true }
   } catch (e) {
