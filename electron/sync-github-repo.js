@@ -13,9 +13,10 @@ const MANIFEST = 'tiku-manifest.json'
 
 function ghFetch(path, token, opts = {}) {
   const headers = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', ...(opts.headers || {}) }
+  const signal = opts.signal || AbortSignal.timeout(30000) // 30s 超时，防网络挂起永久转圈
   const p = net && net.fetch
-    ? net.fetch(API + path, { method: opts.method || 'GET', body: opts.body, headers })
-    : fetch(API + path, { method: opts.method || 'GET', body: opts.body, headers })
+    ? net.fetch(API + path, { method: opts.method || 'GET', body: opts.body, headers, signal })
+    : fetch(API + path, { method: opts.method || 'GET', body: opts.body, headers, signal })
   return p.then(async (res) => {
     if (res.status >= 400) {
       let msg = ''
@@ -28,13 +29,14 @@ function ghFetch(path, token, opts = {}) {
   })
 }
 
-// 默认分支（raw 下载需要）
+// 默认分支（raw 下载需要；键含 owner+repo，避免同名仓库串）
 let branchCache = {}
 async function defaultBranch(cfg) {
-  if (branchCache[cfg.repo]) return branchCache[cfg.repo]
+  const key = `${cfg.owner}/${cfg.repo}`
+  if (branchCache[key]) return branchCache[key]
   const r = await ghFetch(`/repos/${cfg.owner}/${cfg.repo}`, cfg.token)
-  branchCache[cfg.repo] = r.default_branch || 'main'
-  return branchCache[cfg.repo]
+  branchCache[key] = r.default_branch || 'main'
+  return branchCache[key]
 }
 
 // 连接校验：token 有效 + 仓库可访问（区分 404=仓库/名称错，401/403=token 错）
@@ -80,14 +82,15 @@ async function uploadFile(cfg, relPath, buf) {
   await ghFetch(`/repos/${cfg.owner}/${cfg.repo}/contents/${encPath(relPath)}`, cfg.token, { method: 'PUT', body: JSON.stringify(body) })
 }
 
-// 下载文件（raw URL；public 免 token，仍带 token 以兼容 private）
+// 下载文件（raw URL；public 免 token，仍带 token 以兼容 private；30s 超时）
 async function downloadFile(cfg, relPath) {
   const branch = await defaultBranch(cfg)
   const url = `https://raw.githubusercontent.com/${cfg.owner}/${cfg.repo}/${branch}/${encPath(relPath)}`
   const headers = { Authorization: `Bearer ${cfg.token}` }
+  const signal = AbortSignal.timeout(60000)
   let res
-  if (net && net.fetch) res = await net.fetch(url, { headers })
-  else res = await fetch(url, { headers })
+  if (net && net.fetch) res = await net.fetch(url, { headers, signal })
+  else res = await fetch(url, { headers, signal })
   if (res.status >= 400) { const err = new Error(`下载 ${relPath} → HTTP ${res.status}`); err.status = res.status; throw err }
   return Buffer.from(await res.arrayBuffer())
 }

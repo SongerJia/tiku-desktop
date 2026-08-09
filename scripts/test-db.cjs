@@ -318,6 +318,9 @@ try {
   const sync2 = JSON.parse(db.exportSync())
   const m2 = db.mergeRemote(JSON.stringify(sync2))
   ok('mergeRemote 含高亮合并', m2.kbHighlights >= 1 && m2.kbDocLinks >= 1)
+  // cards 表参与合并（修复：此前漏合并导致跨端闪卡丢失）
+  const mCards = db.mergeRemote(JSON.stringify(db.exportSync()))
+  ok('mergeRemote 合并 cards 表', mCards.cards >= 1)
   // 冲突计数：远端快照某行 updated_at 改新 → LWW 覆盖且记冲突
   const sync3 = JSON.parse(db.exportSync())
   const wbRow = sync3.wrongBooks.find(r => r && r.client_id)

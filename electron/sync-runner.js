@@ -53,46 +53,54 @@ module.exports = function syncRunner(db) {
     const remoteImgs = (remote && remote.images) || {}
     let kbUp = 0, kbDown = 0, imgUp = 0, imgDown = 0
 
+    // 安全净化：拒绝路径穿越（'..' / 绝对路径）——rel 来自远端不可信清单
+    const safeRel = (rel) => !String(rel).includes('..') && !path.isAbsolute(String(rel))
+
     // 远端 → 本地
+    const failedKbDown = [], failedImgDown = []
     for (const rel of Object.keys(remoteKb)) {
       if (!localKb[rel]) {
+        if (!safeRel(rel)) { failedKbDown.push(rel); continue }
         try {
           const buf = await ghRepo.downloadFile(ghCfg, 'kb/' + rel)
           const target = path.join(kbDir(), rel)
           fs.mkdirSync(path.dirname(target), { recursive: true })
           fs.writeFileSync(target, buf)
           kbDown++
-        } catch (e) {}
+        } catch (e) { failedKbDown.push(rel) }
       }
     }
     for (const name of Object.keys(remoteImgs)) {
       if (!localImgMap[name]) {
+        if (!safeRel(name)) { failedImgDown.push(name); continue }
         try {
           const buf = await ghRepo.downloadFile(ghCfg, 'images/' + name)
           db.restoreImages([{ name, b64: buf.toString('base64') }])
           imgDown++
-        } catch (e) {}
+        } catch (e) { failedImgDown.push(name) }
       }
     }
 
-    // 本地 → 远端
+    // 本地 → 远端（成功的才写进 manifest；失败的排除 → 下次同步自动重试，避免状态污染永久缺失）
+    const failedKbUp = [], failedImgUp = []
+    const kbUpOk = {}, imgUpOk = {}
     for (const rel of Object.keys(localKb)) {
       if (remoteKb[rel] !== localKb[rel]) {
         try {
           await ghRepo.uploadFile(ghCfg, 'kb/' + rel, fs.readFileSync(path.join(kbDir(), rel)))
-          kbUp++
-        } catch (e) {}
-      }
+          kbUp++; kbUpOk[rel] = localKb[rel]
+        } catch (e) { failedKbUp.push(rel) }
+      } else kbUpOk[rel] = localKb[rel]
     }
     for (const im of localImgs) {
       if (remoteImgs[im.name] !== im.hash) {
-        try { await ghRepo.uploadFile(ghCfg, 'images/' + im.name, im.buffer); imgUp++ } catch (e) {}
-      }
+        try { await ghRepo.uploadFile(ghCfg, 'images/' + im.name, im.buffer); imgUp++; imgUpOk[im.name] = im.hash } catch (e) { failedImgUp.push(im.name) }
+      } else imgUpOk[im.name] = im.hash
     }
 
-    // 写文件清单
-    await ghRepo.putManifest(ghCfg, { updatedAt: Date.now(), kbFiles: localKb, images: localImgMap })
-    return { kbUp, kbDown, imgUp, imgDown }
+    // 写文件清单（只含成功状态）
+    await ghRepo.putManifest(ghCfg, { updatedAt: Date.now(), kbFiles: kbUpOk, images: imgUpOk })
+    return { kbUp, kbDown, imgUp, imgDown, failedKbUp, failedKbDown, failedImgUp, failedImgDown }
   }
 
   // 主流程

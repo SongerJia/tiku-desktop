@@ -31,10 +31,11 @@ const ghRepo = ref('')
 const ghLast = ref(0)
 const ghSyncing = ref(false)
 const ghResult = ref(null)
+const ghHasToken = ref(false)
 async function ghLoad() {
   try {
     const c = await tiku.ghGetConfig()
-    ghToken.value = c.token
+    ghHasToken.value = c.hasToken
     ghOwner.value = c.owner
     ghRepo.value = c.repo
     ghLast.value = c.lastSync
@@ -47,20 +48,27 @@ async function ghTest() {
   } catch (e) { showToast('仓库连接失败：' + (e.message || e), 'err') }
 }
 async function ghSave() {
-  if (!ghToken.value.trim() || !ghOwner.value.trim() || !ghRepo.value.trim()) { showToast('请填写完整的 Token / 仓库拥有者 / 仓库名'); return }
+  if (!ghOwner.value.trim() || !ghRepo.value.trim()) { showToast('请填写仓库拥有者和仓库名'); return }
+  if (!ghToken.value.trim() && !ghHasToken.value) { showToast('请填写 GitHub Token（或已保存过则留空）'); return }
   await tiku.ghSaveConfig({ token: ghToken.value, owner: ghOwner.value, repo: ghRepo.value })
+  ghHasToken.value = ghHasToken.value || !!ghToken.value.trim()
+  ghToken.value = '' // 不回显明文
   showToast('仓库配置已保存', 'ok')
 }
 async function ghDoSync() {
-  if (!ghToken.value.trim() || !ghOwner.value.trim() || !ghRepo.value.trim()) { showToast('请填写完整的 Token / 拥有者 / 仓库名'); return }
-  // 自动保存当前输入（避免用户忘记先点「保存配置」）
+  if (!ghOwner.value.trim() || !ghRepo.value.trim() || (!ghToken.value.trim() && !ghHasToken.value)) { showToast('请先完成配置（Token / 拥有者 / 仓库名）'); return }
+  // 自动保存当前输入（避免忘记先点「保存配置」）
   try { await tiku.ghSaveConfig({ token: ghToken.value, owner: ghOwner.value, repo: ghRepo.value }) } catch (e) {}
   ghSyncing.value = true
   try {
     const r = await tiku.ghSync()
     ghResult.value = r
     ghLast.value = Date.now()
-    showToast(`同步完成（数据 ${(r.dataBytes / 1024).toFixed(0)}KB · 图片 +${r.imgUp}/-${r.imgDown} · 文档 +${r.kbUp}/-${r.kbDown}）`, 'ok')
+    const failed = (r.failedKbUp || []).length + (r.failedKbDown || []).length + (r.failedImgUp || []).length + (r.failedImgDown || []).length
+    let msg = `同步完成（数据 ${(r.dataBytes / 1024).toFixed(0)}KB · 图片 +${r.imgUp}/-${r.imgDown} · 文档 +${r.kbUp}/-${r.kbDown}）`
+    if (r.merged && r.merged.conflicts) msg += ` · 冲突 ${r.merged.conflicts} 条已按时间戳覆盖`
+    if (failed) msg += ` · ${failed} 个文件失败，下次同步重试`
+    showToast(msg, failed ? 'err' : 'ok')
   } catch (e) { showToast('同步失败：' + (e.message || e), 'err') }
   finally { ghSyncing.value = false }
 }
@@ -116,13 +124,6 @@ async function exportZip() {
     await tiku.openPath(r.path)
     showToast(`全量数据已打包（${(r.size / 1024 / 1024).toFixed(1)} MB），可在文件管理器查看`, 'ok')
   } catch (e) { showToast('导出失败：' + (e.message || '未知错误'), 'err') }
-}
-
-function fmtTs(ts) {
-  const d = new Date(Number(ts))
-  if (isNaN(d.getTime())) return '-'
-  const p = n => String(n).padStart(2, '0')
-  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 function fmtTime(ts) {
@@ -544,7 +545,7 @@ onMounted(async () => {
         <br />Token 需有 <code>repo</code> 权限（GitHub → Settings → Developer settings → Personal access tokens）。<b>建议仓库设为 Private</b>（学习数据含个人隐私）。
       </p>
       <div class="wd-form">
-        <input v-model="ghToken" class="sync-input" type="password" placeholder="GitHub Token（ghp_...，需 repo 权限）" @keyup.enter="ghSave" />
+        <input v-model="ghToken" class="sync-input" type="password" :placeholder="ghHasToken ? 'Token 已配置（留空保持不变）' : 'GitHub Token（ghp_...，需 repo 权限）'" @keyup.enter="ghSave" />
         <input v-model="ghOwner" class="sync-input" placeholder="仓库拥有者（GitHub 用户名）" @keyup.enter="ghSave" />
         <input v-model="ghRepo" class="sync-input" placeholder="仓库名（如 tiku-assets）" @keyup.enter="ghSave" />
         <div class="sync-actions">
@@ -1020,15 +1021,6 @@ onMounted(async () => {
 .sea-arc-prog { color: var(--brand); font-weight: 600; }
 
 /* 同步冲突明细 */
-.conflict-list { margin-top: 10px; border: 1px solid rgba(255, 160, 60, 0.35); border-radius: 10px; padding: 8px 10px; background: rgba(255, 160, 60, 0.06); }
-.cl-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--warn); cursor: pointer; font-weight: 600; }
-.cl-toggle { font-weight: 400; }
-.cl-body { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
-.cl-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text); }
-.cl-table { flex: 0 0 auto; background: var(--line); border-radius: 4px; padding: 1px 6px; font-weight: 600; }
-.cl-key { flex: 0 0 auto; color: var(--muted); }
-.cl-times { flex: 1; color: var(--muted); text-align: right; }
-.cl-note { margin-top: 6px; font-size: 10px; color: var(--muted); }
 
 /* 主题色板（方向 12） */
 .theme-palette { display: flex; gap: 8px; }

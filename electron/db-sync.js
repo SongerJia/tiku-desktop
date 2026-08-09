@@ -353,6 +353,7 @@ module.exports = function syncModule(ctx) {
           const remoteRow = kbRemoteMap.get(r.client_id)
           const remoteWin = !!remoteRow && (!localRow || Number(remoteRow.updated_at || 0) >= Number(localRow.updated_at || 0))
           // rel_path 冲突（对端文件与本地其他 doc 重名）：INSERT 场景换后缀，保证 UNIQUE 不炸
+          const origRel = r.rel_path
           if (!localRow && r.rel_path && relPathUsed.has(r.rel_path)) {
             const ext = r.type === 'pdf' ? 'pdf' : 'md'
             r.rel_path = r.rel_path.replace(/\.(md|pdf)$/i, '') + '-' + Date.now() + '.' + ext
@@ -383,8 +384,9 @@ module.exports = function syncModule(ctx) {
                 kbLinksN++
               }
             }
-            const rf = (remote.kbFiles || []).find(f => f && f.relPath === r.rel_path)
-            if (rf && rf.base64) kbFilesToRestore.push(rf)
+            // 用原始 rel_path 匹配远端文件（重命名发生在上面），落盘用重命名后的新名
+            const rf = (remote.kbFiles || []).find(f => f && f.relPath === origRel)
+            if (rf && rf.base64) kbFilesToRestore.push({ ...rf, relPath: r.rel_path })
           }
         }
 
@@ -401,6 +403,7 @@ module.exports = function syncModule(ctx) {
         const hcN = mergeSimple(11, 'habitChecks')
         const rvN = mergeSimple(12, 'reviewLogs')
         const fsN = mergeSimple(13, 'focusSessions')
+        const cdN = mergeSimple(14, 'cards') // 修复：cards 此前漏合并，跨端闪卡会丢失/被全量覆盖
         // 高亮/文档双链：doc 引用按 cid 解析成本机 id 后再 upsert
         const hlMerged = lwwMerge(readAll('kb_highlights'), remote.kbHighlights || [])
         applyFk(hlMerged, 'doc_cid', 'doc_id', kbCidToId)
@@ -412,7 +415,7 @@ module.exports = function syncModule(ctx) {
         const dlUp = makeUpsert('kb_doc_links', cfg[17].cols, true) // 修复：原 cfg[15]（materials）索引错位
         dlMerged.forEach(r => dlUp(r))
 
-        return { categories: catMerged.length, questions: qMerged.length, answerRecords: arN, wrongBooks: wbN, favorites: fvN, notes: ntN, papers: paperMerged.length, paperQuestions: pqMerged.length, kbDocs: kbDocsN, kbBlocks: kbBlocksN, kbTags: kbTagsN, kbLinks: kbLinksN, xpLogs: xpN, habits: hbN, habitChecks: hcN, reviewLogs: rvN, focusSessions: fsN, kbHighlights: hlMerged.length, kbDocLinks: dlMerged.length, conflicts: syncConflicts, conflictItems: syncConflictItems.slice(0, 50) }
+        return { categories: catMerged.length, questions: qMerged.length, answerRecords: arN, wrongBooks: wbN, favorites: fvN, notes: ntN, papers: paperMerged.length, paperQuestions: pqMerged.length, kbDocs: kbDocsN, kbBlocks: kbBlocksN, kbTags: kbTagsN, kbLinks: kbLinksN, xpLogs: xpN, habits: hbN, habitChecks: hcN, reviewLogs: rvN, focusSessions: fsN, cards: cdN, kbHighlights: hlMerged.length, kbDocLinks: dlMerged.length, conflicts: syncConflicts, conflictItems: syncConflictItems.slice(0, 50) }
       })
       const result = tx()
       // 图片还原已下沉到独立通道（restoreImages）：拉取后由同步编排层解码远端图片文件并落盘，

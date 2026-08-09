@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, safeStorage, dialog, shell, Notification } = require('electron')
+const { app, BrowserWindow, ipcMain, safeStorage, dialog, shell, Notification } = require('electron')
 const pkg = require('../package.json')
 const path = require('path')
 const fs = require('fs')
@@ -370,6 +370,20 @@ ipcMain.handle('parseSheet', (e, buf) => {
   }
 })
 
+// 题库导出 Excel：bank 行 → 模板矩阵（与导入模板列一致）
+const EXPORT_HEADER = ['科目', '章节', '题型', '题干', '选项A', '选项B', '选项C', '选项D', '选项E', '选项F', '答案', '解析', '知识点', '难度', '来源']
+function bankToMatrix(rows) {
+  return rows.map(r => {
+    const opts = Array.isArray(r.options) ? r.options : []
+    const optCols = [0, 1, 2, 3, 4, 5].map(i => opts[i] || '')
+    let ans = Array.isArray(r.answer) ? r.answer.join('') : String(r.answer || '')
+    if (r.type === '判断' && ans) ans = (ans === 'true' || ans === '1') ? '对' : '错'
+    return [r.subject || '', r.chapter || '', r.type || '', r.stem || '',
+      ...optCols, ans, (Array.isArray(r.keywords) ? r.keywords.join('；') : ''),
+      r.analysis || '', r.difficulty || 3, '']
+  })
+}
+
 // 导出 Excel：主进程用零依赖 xlsx-lite 生成 .xlsx，返回 base64（渲染层转 blob 下载）
 ipcMain.handle('exportExcel', (e, subjectId) => {
   const rows = db.exportBank(subjectId || null)
@@ -403,13 +417,14 @@ ipcMain.handle('exportExcelTemplate', () => {
 
 // ---- GitHub 仓库同步（唯一后端：数据快照 + 知识库文档 + 题目图片）----
 ipcMain.handle('ghGetConfig', () => ({
-  token: loadGhToken(),
+  hasToken: !!loadGhToken(), // token 明文不下发渲染层
   owner: db.getSetting('gh_owner') || '',
   repo: db.getSetting('gh_repo') || '',
   lastSync: Number(db.getSetting('gh_last_sync') || 0)
 }))
 ipcMain.handle('ghSaveConfig', (e, cfg) => {
-  saveGhToken(String(cfg.token || '').trim())
+  const t = String(cfg.token || '').trim()
+  if (t) saveGhToken(t) // 空 = 保持不变（不覆盖已有 token）
   db.setSetting('gh_owner', String(cfg.owner || '').trim())
   db.setSetting('gh_repo', String(cfg.repo || '').trim())
   return { ok: true }
@@ -418,14 +433,21 @@ ipcMain.handle('ghTest', async (e, cfg) => {
   await ghRepo.testConnection({ token: cfg.token, owner: cfg.owner, repo: cfg.repo })
   return { ok: true }
 })
+let ghSyncInFlight = false // 主进程防重入（多窗口/连点并发保护）
 ipcMain.handle('ghSync', async () => {
-  const ghCfg = {
-    token: loadGhToken(),
-    owner: db.getSetting('gh_owner') || '',
-    repo: db.getSetting('gh_repo') || ''
+  if (ghSyncInFlight) throw new Error('同步正在进行中，请稍候')
+  ghSyncInFlight = true
+  try {
+    const ghCfg = {
+      token: loadGhToken(),
+      owner: db.getSetting('gh_owner') || '',
+      repo: db.getSetting('gh_repo') || ''
+    }
+    if (!ghCfg.token || !ghCfg.owner || !ghCfg.repo) throw new Error('请先完成 GitHub 仓库配置')
+    const r = await runner.sync(ghCfg)
+    db.setSetting('gh_last_sync', String(Date.now()))
+    return r
+  } finally {
+    ghSyncInFlight = false
   }
-  if (!ghCfg.token || !ghCfg.owner || !ghCfg.repo) throw new Error('请先完成 GitHub 仓库配置')
-  const r = await runner.sync(ghCfg)
-  db.setSetting('gh_last_sync', String(Date.now()))
-  return r
 })
