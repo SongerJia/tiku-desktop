@@ -17,10 +17,10 @@ function ghFetch(path, token, opts = {}) {
     ? net.fetch(API + path, { method: opts.method || 'GET', body: opts.body, headers })
     : fetch(API + path, { method: opts.method || 'GET', body: opts.body, headers })
   return p.then(async (res) => {
-    if (res.status === 404) { const e = new Error('NOT_FOUND'); e.status = 404; throw e }
     if (res.status >= 400) {
-      const txt = await res.text().catch(() => '')
-      const err = new Error(`GitHub ${path} → HTTP ${res.status} ${txt.slice(0, 120)}`)
+      let msg = ''
+      try { const j = await res.json(); msg = (j && j.message) || '' } catch (e) {}
+      const err = new Error(msg || `HTTP ${res.status}`)
       err.status = res.status
       throw err
     }
@@ -37,10 +37,16 @@ async function defaultBranch(cfg) {
   return branchCache[cfg.repo]
 }
 
-// 连接校验：token 有效 + 仓库可访问
+// 连接校验：token 有效 + 仓库可访问（区分 404=仓库/名称错，401/403=token 错）
 async function testConnection(cfg) {
-  await defaultBranch(cfg)
-  return true
+  try {
+    await defaultBranch(cfg)
+    return true
+  } catch (e) {
+    if (e.status === 404) throw new Error('仓库不存在或「拥有者/仓库名」填写有误（例如 songerjia/tiku-assets；注意仓库名不含 .git）')
+    if (e.status === 401 || e.status === 403) throw new Error('Token 无效或无权限访问该仓库（检查 token 是否带 repo 权限、是否被撤销）')
+    throw e
+  }
 }
 
 function encPath(p) {
