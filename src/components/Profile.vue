@@ -61,7 +61,9 @@ async function ghSave() {
   showToast('仓库配置已保存', 'ok')
 }
 async function ghDoSync() {
-  if (!ghToken.value.trim() || !ghOwner.value.trim() || !ghRepo.value.trim()) { showToast('请先填写并保存配置'); return }
+  if (!ghToken.value.trim() || !ghOwner.value.trim() || !ghRepo.value.trim()) { showToast('请填写完整的 Token / 拥有者 / 仓库名'); return }
+  // 自动保存当前输入（避免用户忘记先点「保存配置」）
+  try { await tiku.ghSaveConfig({ token: ghToken.value, owner: ghOwner.value, repo: ghRepo.value }) } catch (e) {}
   ghSyncing.value = true
   try {
     const r = await tiku.ghSync()
