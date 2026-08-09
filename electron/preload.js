@@ -138,4 +138,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getMonthStats: () => ipcRenderer.invoke('getMonthStats'),
   getVersion: () => ipcRenderer.invoke('getVersion'),
   openExternal: (url) => ipcRenderer.invoke('openExternal', url),
+  checkUpdate: () => ipcRenderer.invoke('checkUpdate'),
 })

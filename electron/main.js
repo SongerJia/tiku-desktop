@@ -61,10 +61,12 @@ try {
 } catch (e) { /* 无 git 代理配置，忽略 */ }
 
 // ---- 自动更新（electron-updater）：仅打包版启用；发现新版本自动下载，退出时安装 ----
+let updaterRef = null // 供「关于我们 → 检查更新」手动触发
 function setupAutoUpdater() {
   try {
     if (!app.isPackaged) { logger.info('auto-updater: 开发模式跳过'); return }
     const { autoUpdater } = require('electron-updater')
+    updaterRef = autoUpdater
     autoUpdater.autoDownload = true
     autoUpdater.autoInstallOnAppQuit = true
     autoUpdater.on('update-available', (info) => {
@@ -109,6 +111,17 @@ function setupAutoUpdater() {
     logger.error('auto-updater 未启用', e && e.message)
   }
 }
+
+// 手动检查更新（「关于我们」按钮）：返回 { checking, available, version }
+ipcMain.handle('checkUpdate', async () => {
+  if (!app.isPackaged || !updaterRef) return { ok: false, error: '当前为开发模式，无法检查更新' }
+  try {
+    updaterRef.checkForUpdates() // 结果通过 update-available/error 事件回传
+    return { ok: true, checking: true }
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) }
+  }
+})
 
 function createWindow() {
   // 窗口尺寸/位置记忆：从 settings 恢复上次 bounds（首次用默认值）

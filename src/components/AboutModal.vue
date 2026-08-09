@@ -18,6 +18,34 @@ const STACK = ['Electron 31', 'Vue 3', 'Vite 5', 'SQLite · better-sqlite3', 'Gi
 function openRepo() {
   tiku.openExternal('https://github.com/SongerJia/tiku-desktop')
 }
+
+// 手动更新状态：'' | checking | up-to-date | downloading | error
+const updState = ref('')
+async function checkUpdate() {
+  if (updState.value === 'checking') return
+  updState.value = 'checking'
+  try {
+    const r = await tiku.checkUpdate()
+    if (!r || !r.ok) {
+      // 开发模式或不可用：引导手动下载
+      updState.value = 'error'
+      setTimeout(() => { updState.value = '' }, 4000)
+      return
+    }
+    // 检查已触发：结果通过系统通知反馈（update-available/downloaded/error 事件）
+    // 这里只提示已开始检查；发现新版会弹通知
+    updState.value = 'up-to-date' // 临时态，3s 后恢复（实际结果看通知）
+    setTimeout(() => { updState.value = '' }, 3000)
+  } catch (e) {
+    updState.value = 'error'
+    setTimeout(() => { updState.value = '' }, 4000)
+  }
+}
+
+// 手动下载兜底（自动更新失败时）：打开 GitHub Releases 页面
+function openReleases() {
+  tiku.openExternal('https://github.com/SongerJia/tiku-desktop/releases')
+}
 </script>
 
 <template>
@@ -32,6 +60,13 @@ function openRepo() {
       </p>
       <div class="ab-stack">
         <span v-for="s in STACK" :key="s" class="ab-tag">{{ s }}</span>
+      </div>
+      <div class="ab-update">
+        <button class="btn ab-repo" :disabled="updState === 'checking'" @click="checkUpdate">
+          {{ updState === 'checking' ? '检查中…' : '检查更新' }}
+        </button>
+        <button v-if="updState === 'error'" class="btn ghost ab-repo" @click="openReleases">自动更新不可用 → 手动下载</button>
+        <span v-if="updState === 'up-to-date'" class="ab-upd-tip">已检查，如有新版会弹通知</span>
       </div>
       <button class="btn ab-repo" @click="openRepo">GitHub 仓库 ↗</button>
       <div class="ab-foot">Made with 💙 · 祝备考顺利</div>
@@ -94,5 +129,7 @@ function openRepo() {
   background: rgba(255, 255, 255, 0.03);
 }
 .ab-repo { margin-top: 4px; }
+.ab-update { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 2px; }
+.ab-upd-tip { font-size: 11px; color: var(--muted); }
 .ab-foot { margin-top: 10px; font-size: 11px; color: var(--muted); }
 </style>
