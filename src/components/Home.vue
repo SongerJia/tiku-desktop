@@ -14,8 +14,6 @@ const emit = defineEmits(['start', 'start-mock', 'goto', 'daily'])
 const summary = ref({ total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0 })
 const dailyGoal = ref(0)
 const loading = ref(true)
-// 欢迎卡仅首次启动显示（localStorage 标记，本机偏好不进云）
-const showWelcome = ref(false)
 // 每日一题：{ question, state } state: { date, qid, answered, correct, streak, bestStreak, period }
 const dailyPuzzle = ref(null)
 // 今日任务单：到期复习 / 每日一题 / 今日目标 / 未读文档
@@ -26,19 +24,9 @@ const focusWeek = ref(0)
 const weakPoints = ref([])
 const weakAccuracy = ref([])
 
-onMounted(() => { load(); checkWelcome() })
+onMounted(load)
 watch(() => props.subject.id, load)
 watch(() => props.refreshKey, load) // 切回首页时刷新实时数据
-
-function checkWelcome() {
-  try {
-    showWelcome.value = !localStorage.getItem('tiku_welcome_shown')
-  } catch (e) { showWelcome.value = false }
-}
-function dismissWelcome() {
-  showWelcome.value = false
-  try { localStorage.setItem('tiku_welcome_shown', '1') } catch (e) {}
-}
 
 // 学习数据折叠卡已移除：全局数据搬统计页，首页只留薄弱点（科目）
 const goalPct = computed(() => dailyGoal.value ? Math.min(100, Math.round((summary.value.today / dailyGoal.value) * 100)) : 0)
@@ -209,27 +197,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="home">
-    <!-- 欢迎卡片（仅首次启动显示） -->
-    <div v-if="showWelcome" class="card welcome">
-      <div class="welcome-text">
-        <div class="subtitle">基于艾宾浩斯记忆曲线，科学记忆，高效备考</div>
-        <h1>欢迎来到<br>知识记忆小助手</h1>
-        <div class="welcome-actions">
-          <button class="btn btn-primary" @click="$emit('start', { mode: 'practice' }); dismissWelcome()">立即开始</button>
-          <button class="btn ghost" @click="dismissWelcome">开始探索</button>
-        </div>
-      </div>
-      <div class="welcome-illustration">
-        <svg viewBox="0 0 120 100" width="110" height="92">
-          <rect x="10" y="40" width="70" height="50" rx="8" fill="#0a1a26" stroke="#1c6f7d" stroke-width="1.5" />
-          <rect x="25" y="25" width="70" height="50" rx="8" fill="#150f33" stroke="#7b46c4" stroke-width="1.5" />
-          <rect x="40" y="10" width="70" height="50" rx="8" fill="#0c2230" stroke="#5b7cfa" stroke-width="2" />
-          <circle cx="95" cy="25" r="14" fill="none" stroke="#5b7cfa" stroke-width="1.5" opacity="0.7" />
-          <path d="M95 11 L98 21 L108 21 L100 27 L103 37 L95 31 L87 37 L90 27 L82 21 L92 21 Z" fill="#5b7cfa" />
-        </svg>
-      </div>
-    </div>
-
     <!-- 统计条：一行四个核心数字 + 今日目标进度 -->
     <div class="stat-strip">
       <div class="stat-item">
@@ -400,95 +367,23 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.welcome {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background:
-    radial-gradient(circle at 90% 15%, rgba(122, 92, 255, 0.20), transparent 60%),
-    linear-gradient(135deg, rgba(91, 124, 250, 0.10), rgba(122, 92, 255, 0.06));
-  border-color: rgba(91, 124, 250, 0.30);
-  box-shadow: var(--glow-soft), var(--shadow);
-}
-.welcome-text { flex: 1; }
-.welcome-text h1 { font-size: 22px; line-height: 1.3; margin: 8px 0 14px 0; color: var(--text); text-shadow: var(--glow-soft); }
-.welcome-text .subtitle { font-size: 12px; color: var(--muted); }
-.welcome-illustration { flex-shrink: 0; filter: drop-shadow(0 0 8px rgba(91, 124, 250, 0.35)); }
 
-.stat-card { display: flex; flex-direction: column; gap: 8px; }
-.stat-title { font-size: 15px; font-weight: 600; color: var(--text); }
-.stat-number { display: flex; align-items: baseline; gap: 6px; }
-.stat-number .num { font-size: 40px; font-weight: 700; color: var(--brand); line-height: 1; text-shadow: var(--glow); }
-.stat-number .unit { font-size: 14px; color: var(--muted); }
 
-.goal-card { display: flex; flex-direction: column; gap: 8px; }
-.goal-top { display: flex; align-items: center; justify-content: space-between; }
-.goal-label { font-size: 14px; font-weight: 600; color: var(--text); }
-.goal-num { font-size: 13px; color: var(--brand); font-weight: 600; }
-.goal-bar { height: 8px; background: rgba(255,255,255,.06); border-radius: 6px; overflow: hidden; }
-.goal-fill { height: 100%; background: linear-gradient(90deg, var(--brand), var(--brand2, #7b46c4)); border-radius: 6px; transition: width .4s; box-shadow: var(--glow-soft); }
-.goal-sub { font-size: 12px; color: var(--muted); }
 
 .empty-guide { border-color: var(--warn); background: rgba(255, 180, 84, 0.06); display: flex; flex-direction: column; gap: 6px; }
 .eg-title { font-size: 14px; font-weight: 600; color: var(--warn); margin: 0; }
 .eg-sub { font-size: 12px; color: var(--muted); margin: 0; }
 
 /* 每日任务 */
-.quest-xp { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
-.quest-claimed { font-size: 12px; color: var(--ok); margin-bottom: 8px; }
-.quest-list { display: flex; flex-direction: column; gap: 8px; }
-.quest-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 9px 12px;
-  cursor: pointer;
-  transition: border-color .2s;
-}
-.quest-item:hover { border-color: var(--brand); }
-.quest-item.done { border-color: rgba(44, 229, 168, 0.4); background: rgba(44, 229, 168, 0.05); }
-.quest-check { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--muted); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: var(--muted); }
-.quest-item.done .quest-check { border-color: var(--ok); color: var(--ok); }
-.quest-name { flex: 1; font-size: 13px; color: var(--text); }
-.quest-state { font-size: 11px; color: var(--muted); }
-.quest-item.done .quest-state { color: var(--ok); }
 
 /* 习惯打卡 */
-.habit-list { display: flex; flex-direction: column; gap: 6px; }
-.habit-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  cursor: pointer;
-}
-.habit-item.done { border-color: rgba(44, 229, 168, 0.4); background: rgba(44, 229, 168, 0.05); }
-.habit-icon { font-size: 16px; }
-.habit-name { flex: 1; font-size: 13px; color: var(--text); }
-.habit-streak { font-size: 11px; color: var(--warn); }
-.habit-check { font-size: 16px; color: var(--muted); }
-.habit-item.done .habit-check { color: var(--ok); }
 .habit-empty { font-size: 12px; color: var(--muted); line-height: 1.7; }
 .habit-week { display: inline-flex; gap: 3px; align-items: center; }
 .habit-week i { width: 6px; height: 6px; border-radius: 50%; background: rgba(148, 163, 184, 0.25); }
 .habit-week i.on { background: var(--ok); box-shadow: 0 0 4px rgba(47, 191, 143, 0.5); }
-.habit-check .hollow { display: inline-block; width: 12px; height: 12px; border: 1.5px solid var(--line); border-radius: 50%; }
 
 /* 每日回顾 + 专注 */
 .duo-row { display: flex; gap: 14px; }
-.duo-block {
-  flex: 1;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
 .duo-left {
   flex: 1;
   border: 1px solid var(--line);
@@ -517,64 +412,9 @@ onBeforeUnmount(() => {
 .noise-btn { font-size: 12px; padding: 5px 10px; }
 .noise-btn.on { background: rgba(44, 229, 168, 0.14); color: var(--ok); border-color: rgba(44, 229, 168, 0.4); }
 
-.shortcuts .shortcut-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-}
-.shortcut {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 4px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.02);
-  cursor: pointer;
-  transition: all .2s;
-}
-.shortcut:hover { background: var(--brand-light); border-color: var(--brand); box-shadow: var(--glow-soft); }
-.s-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  color: #021018;
-}
-.s-icon.wrong { background: var(--bad); box-shadow: 0 0 10px rgba(255, 77, 109, 0.55); }
-.s-icon.fav { background: var(--warn); box-shadow: 0 0 10px rgba(255, 180, 84, 0.55); }
-.s-icon.all { background: var(--brand); box-shadow: var(--glow); }
-.s-icon.today { background: var(--ok); box-shadow: 0 0 10px rgba(44, 229, 168, 0.55); }
-.s-label { font-size: 12px; color: var(--text); }
-.s-count { font-size: 11px; color: var(--muted); }
-.shortcut.no-click { cursor: default; }
-.shortcut.no-click:hover { background: rgba(255, 255, 255, 0.02); border-color: var(--line); box-shadow: none; }
 
-.mock-entry {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background:
-    radial-gradient(circle at 12% 50%, rgba(255, 193, 84, 0.16), transparent 55%),
-    linear-gradient(135deg, rgba(91, 124, 250, 0.08), rgba(255, 193, 84, 0.06));
-  border-color: rgba(255, 193, 84, 0.30);}
-.mock-entry .me-text { flex: 1; }
-.me-title { font-size: 16px; font-weight: 700; color: var(--text); }
-.me-badge { font-size: 10px; font-weight: 500; color: var(--warn); border: 1px solid rgba(217, 154, 61, 0.4); border-radius: 8px; padding: 0 6px; vertical-align: 2px; }
-.me-sub { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
-.mock-entry .btn { flex: 0 0 auto; }
 
 /* 近 7 天学习趋势 */
-.trend-card { display: flex; flex-direction: column; gap: 10px; }
-.trend-svg { width: 100%; height: auto; display: block; }
-.trend-x { font-size: 11px; fill: var(--muted); }
-.trend-x.on { fill: var(--brand); font-weight: 700; }
-.trend-v { font-size: 10px; fill: var(--text); font-weight: 600; }
 
 /* 待攻克薄弱点 */
 .weak-card { display: flex; flex-direction: column; gap: 10px; }
@@ -597,94 +437,17 @@ onBeforeUnmount(() => {
 .weak-empty { font-size: 12px; color: var(--muted); }
 
 /* 学习日历热力图（GitHub 风格） */
-.heat-card { max-width: 100%; }
-.heat-streak { margin-left: auto; font-size: 12px; color: var(--brand); font-weight: 600; }
 /* 左右并排（duo 容器）时热力图紧凑化 */
-.duo-block .duo-title { display: flex; align-items: center; gap: 4px; }
-.duo-block .heat-streak { font-size: 11px; }
-.duo-block .heat-grid {
-  grid-template-rows: repeat(7, 10px);
-  grid-auto-columns: 10px;
-}
-.duo-block .heat-cell { width: 10px; height: 10px; }
-.heat-grid {
-  display: grid;
-  grid-template-rows: repeat(7, 12px);
-  grid-auto-flow: column;
-  grid-auto-columns: 12px;
-  gap: 3px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-.heat-cell { width: 12px; height: 12px; border-radius: 3px; background: var(--line); transition: transform .12s ease; }
-.heat-cell:hover { transform: scale(1.25); }
-.heat-cell.lvl-0 { background: var(--line); }
-.heat-cell.lvl-1 { background: rgba(91,124,250,0.35); }
-.heat-cell.lvl-2 { background: rgba(91,124,250,0.6); }
-.heat-cell.lvl-3 { background: rgba(91,124,250,0.84); }
-.heat-cell.lvl-4 { background: var(--brand); }
-.heat-legend { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 11px; color: var(--muted); }
-.heat-legend .heat-cell { cursor: default; }
-.lg-text { margin: 0 2px; }
 
 /* 考试倒计时 */
-.exam-count-card { display: flex; flex-direction: column; gap: 6px; }
 .exam-count-top { display: flex; align-items: center; justify-content: space-between; }
 .exam-count-label { font-size: 13px; font-weight: 600; color: var(--text); }
-.exam-count-num { font-size: 22px; font-weight: 800; color: var(--brand); }
-.exam-count-num small { font-size: 12px; font-weight: 500; color: var(--muted); }
-.exam-count-num.soon { color: var(--bad); animation: blink 1s steps(2) infinite; }
-.exam-count-sub { font-size: 12px; color: var(--muted); }
-@keyframes blink { 50% { opacity: .55; } }
 
 /* 专注概览 */
-.focus-sum-card { display: flex; flex-direction: column; gap: 8px; }
-.focus-nums { display: flex; gap: 18px; }
-.fn-item { display: flex; flex-direction: column; }
-.fn-item b { font-size: 18px; color: var(--brand); }
-.fn-item small { font-size: 11px; color: var(--muted); }
-.focus-bar { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
-.focus-fill { height: 100%; border-radius: 999px; background: var(--brand); transition: width .4s ease; }
-.focus-sub { font-size: 11px; color: var(--muted); }
 
 /* 每日一题 + 连击 */
-.daily-card { display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(91, 124, 250, 0.35); }
-.daily-head { display: flex; align-items: center; justify-content: space-between; }
-.daily-title { font-size: 14px; font-weight: 600; color: var(--text); }
-.daily-streak { font-size: 12px; color: var(--warn); font-weight: 600; }
-.daily-streak.muted { color: var(--muted); font-weight: 400; }
-.daily-tags { display: flex; gap: 6px; }
-.daily-tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; }
-.daily-stem { font-size: 14px; line-height: 1.6; color: var(--text); margin: 2px 0 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.daily-note { font-size: 11px; color: var(--muted); }
-.daily-result { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 8px 12px; border-radius: 8px; }
-.daily-result.ok { background: rgba(44, 229, 168, 0.1); color: var(--ok); }
-.daily-result.bad { background: rgba(255, 77, 109, 0.1); color: var(--bad); }
-.daily-best { margin-left: auto; font-size: 11px; color: var(--muted); }
-.daily-actions { display: flex; gap: 10px; }
-.daily-analysis { font-size: 13px; color: var(--text); background: var(--bg-soft, rgba(127, 127, 127, 0.06)); border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; line-height: 1.7; }
-.daily-analysis b { color: var(--brand); }
-.ans-line { margin-bottom: 4px; }
 
 /* 目标契约 */
-.goal-c-card { display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(255, 165, 42, 0.3); }
-.goal-c-head { display: flex; align-items: center; justify-content: space-between; }
-.goal-c-title { font-size: 14px; font-weight: 600; color: var(--text); }
-.goal-c-badge { font-size: 12px; color: var(--warn); border: 1px solid rgba(255, 165, 42, 0.4); border-radius: 999px; padding: 2px 10px; }
-.goal-c-badge.done { color: var(--ok); border-color: rgba(44, 229, 168, 0.4); }
-.goal-c-miss { font-size: 12px; color: var(--muted); background: rgba(255, 165, 42, 0.08); border-radius: 8px; padding: 6px 10px; }
-.goal-c-bar { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
-.goal-c-fill { height: 100%; border-radius: 999px; background: var(--warn); transition: width .4s ease; }
-.goal-c-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
-.goal-c-claim-row { margin-top: 2px; }
-.goal-c-claimed { font-size: 12px; color: var(--ok); }
-.goal-c-label { font-size: 13px; color: var(--text); margin: 2px 0 0; }
-.goal-c-chips { display: flex; gap: 8px; }
-.goal-c-chip { font-size: 12px; padding: 5px 14px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; transition: all .15s; }
-.goal-c-chip.on { background: rgba(255, 165, 42, 0.15); color: var(--warn); border-color: rgba(255, 165, 42, 0.45); font-weight: 600; }
-.goal-c-row { display: flex; align-items: center; gap: 8px; }
-.goal-c-row .input { flex: 1; }
-.goal-c-unit { font-size: 12px; color: var(--muted); }
 
 /* 今日任务单 */
 .task-card { display: flex; flex-direction: column; gap: 10px; border: 1px solid rgba(91, 124, 250, 0.25); }
@@ -716,9 +479,6 @@ onBeforeUnmount(() => {
 /* ===== 首页重构（2026-08-08）：统计条 / 快捷启动 / 学习数据折叠 / 日常 duo / 更多功能 ===== */
 
 /* 欢迎卡操作行 */
-.welcome-actions { display: flex; gap: 10px; margin-top: 4px; }
-.welcome-actions .ghost { background: transparent; border: 1px solid var(--line); color: var(--muted); }
-.welcome-actions .ghost:hover { border-color: var(--brand); color: var(--text); }
 
 /* 统计条：一行四个核心数字 + 今日目标进度 */
 .stat-strip {
@@ -775,27 +535,8 @@ onBeforeUnmount(() => {
 .launch-btn .lb-sub { font-size: 11px; color: var(--muted); display: block; margin-top: 1px; }
 
 /* 学习数据（可折叠） */
-.data-fold { padding: 0; overflow: hidden; }
-.fold-head {
-  display: flex; align-items: center; gap: 8px;
-  padding: 12px 14px; cursor: pointer; user-select: none;
-}
-.fold-head:hover { background: rgba(91, 124, 250, 0.05); }
-.fold-title { font-size: 13px; font-weight: 600; color: var(--text); display: inline-flex; align-items: center; gap: 5px; }
-.fold-badge {
-  margin-left: auto; font-size: 11px; color: var(--muted);
-  border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px;
-}
-.fold-badge.soon { color: var(--bad); border-color: rgba(255, 77, 109, 0.4); animation: blink 1s steps(2) infinite; }
-.fold-arrow { font-size: 12px; color: var(--muted); transition: transform .18s; }
-.fold-inner { border-top: 1px dashed var(--line); padding: 12px 14px 14px; }
-.fold-inner + .fold-inner { border-top: 1px solid var(--line); }
-.fold-inner .weak-card { gap: 8px; }
-.weak-head { font-size: 13px; font-weight: 600; color: var(--text); display: inline-flex; align-items: center; gap: 5px; margin-bottom: 2px; }
 
 /* 日常 duo 内任务/习惯列 */
-.duo-block .quest-list, .duo-block .habit-list { min-width: 0; }
-.duo-block .habit-item { border-radius: 10px; }
 
 /* 更多功能网格 */
 .more-card { padding: 12px 14px; }
