@@ -47,6 +47,9 @@
         "owner": "songerjia",
         "repo": "tiku-desktop"
       }
+    ],
+    "asarUnpack": [
+      "**/*.node"
     ]
   },
   "dependencies": {

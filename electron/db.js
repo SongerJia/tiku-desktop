@@ -188,7 +188,7 @@ const api = {
   // 一键恢复备份：复制备份文件覆盖当前库（WAL 一并清掉），返回后由主进程重启应用
   restoreBackup(fileName) {
     const dir = path.join(app.getPath('userData'), 'backups')
-    const src = path.join(dir, String(fileName))
+    const src = path.join(dir, path.basename(String(fileName))) // basename 防穿越
     if (!fs.existsSync(src)) return { ok: false, error: '备份文件不存在' }
     try {
       if (sqlite) sqlite.close()

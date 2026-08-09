@@ -115,7 +115,8 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: true // 渲染层沙箱（纵深防御；preload 仅用 electron 内置模块，兼容）
     }
   })
   mainWindow = win
@@ -194,7 +195,7 @@ function checkReminder() {
     const time = db.getSetting('remind_time') || '21:00'
     const now = new Date()
     const hm = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
-    if (hm !== time) return
+    if (hm !== time) return // 未到提醒分钟：不查统计（每 60s tick 时省掉重查询）
     if (db.getSetting('last_remind_date') === dateStr()) return
     const s = db.getSummary() || {}
     const dueStats = db.reviewDueStats()
@@ -430,7 +431,12 @@ ipcMain.handle('getWeeklyReport', (e, subjectId) => db.getWeeklyReport(subjectId
 ipcMain.handle('getMonthStats', () => db.getMonthStats())
 ipcMain.handle('getChapterProgress', () => db.getChapterProgress())
 ipcMain.handle('getVersion', () => ({ name: pkg.productName || '知识记忆小助手', version: pkg.version }))
-ipcMain.handle('openExternal', (e, url) => { try { shell.openExternal(String(url)) } catch (err) {} })
+ipcMain.handle('openExternal', (e, url) => {
+  const u = String(url || '')
+  if (!/^https?:\/\//i.test(u)) return { ok: false, error: '仅支持 http/https 链接' } // 协议白名单防 file:///自定义协议
+  try { shell.openExternal(u) } catch (err) { return { ok: false, error: String((err && err.message) || err) } }
+  return { ok: true }
+})
 // 知识库导出：选目录 → 复制全部原件 + 写 manifest.json（元数据/标签/联动摘要）
 ipcMain.handle('kbExport', async () => {
   const win = BrowserWindow.getFocusedWindow()

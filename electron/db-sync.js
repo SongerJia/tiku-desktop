@@ -342,6 +342,12 @@ module.exports = function syncModule(ctx) {
         const kbLocalMap = new Map(kbLocalAll.map(r => [r.client_id, r]))
         const kbRemoteMap = new Map(kbRemoteAll.map(r => [r.client_id, r]))
         const relPathUsed = new Map(kbLocalAll.map(r => [r.rel_path, r.client_id]))
+        // 安全净化：远端/备份快照的 rel_path 不可信——拒绝路径穿越（'..'、绝对路径），统一分隔符
+        const safeRelPath = (rp) => {
+          const str = String(rp || '')
+          if (!str || str.includes('..') || str.startsWith('/') || str.startsWith('\\') || /^[a-zA-Z]:/.test(str)) return null
+          return str.replace(/[\\/]+/g, '/')
+        }
         let kbDocsN = 0
         let kbBlocksN = 0
         let kbTagsN = 0
@@ -349,6 +355,8 @@ module.exports = function syncModule(ctx) {
         const kbCidToId = new Map()
         for (const r of kbMerged) {
           if (!r.client_id) r.client_id = uuid()
+          const cleanRel = safeRelPath(r.rel_path) // 穿越防护：异常 rel 置空（该文档文件缺失但记录保留）
+          if (cleanRel === null) r.rel_path = null
           const localRow = kbLocalMap.get(r.client_id)
           const remoteRow = kbRemoteMap.get(r.client_id)
           const remoteWin = !!remoteRow && (!localRow || Number(remoteRow.updated_at || 0) >= Number(localRow.updated_at || 0))

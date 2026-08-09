@@ -74,15 +74,27 @@ let noiseSrc = null
 
 async function load() {
   loading.value = true
-  try { summary.value = await tiku.getSummary(props.subject.id) } catch (e) { summary.value = { total: 0, today: 0, wrongCount: 0, mastered: 0 } }
-  try { dailyGoal.value = Number(await tiku.getSetting('daily_goal')) || 0 } catch (e) { dailyGoal.value = 0 }
-  try { const fs = await tiku.focusStats(); focusToday.value = fs.today; focusWeek.value = fs.week } catch (e) { focusToday.value = 0 }
-  try { cardStats.value = await tiku.cardsStats(props.subject.id) } catch (e) {}
-  try { weakPoints.value = await tiku.getWeakPoints(5, props.subject.id) } catch (e) { weakPoints.value = [] }
-  try { weakAccuracy.value = (await tiku.getCategoryAccuracy(props.subject.id)).slice(0, 3) } catch (e) { weakAccuracy.value = [] }
-  try { dailyPuzzle.value = await tiku.getDailyPuzzle(props.subject.id) } catch (e) { dailyPuzzle.value = null }
-  try { dueReviews.value = (await tiku.reviewDueStats(props.subject.id)).due || 0 } catch (e) { dueReviews.value = 0 }
-  try { kbUnread.value = (await tiku.kbStats()).unread || 0 } catch (e) { kbUnread.value = 0 }
+  // 并行拉取（9 个 IPC 不再串行等待，首屏更快）
+  const [summary, goal, fs, cards, weak, acc, puzzle, due, kb] = await Promise.allSettled([
+    tiku.getSummary(props.subject.id),
+    tiku.getSetting('daily_goal'),
+    tiku.focusStats(),
+    tiku.cardsStats(props.subject.id),
+    tiku.getWeakPoints(5, props.subject.id),
+    tiku.getCategoryAccuracy(props.subject.id),
+    tiku.getDailyPuzzle(props.subject.id),
+    tiku.reviewDueStats(props.subject.id),
+    tiku.kbStats()
+  ])
+  summary.value = summary.status === 'fulfilled' && summary.value ? summary.value : { total: 0, today: 0, wrongCount: 0, mastered: 0 }
+  dailyGoal.value = goal.status === 'fulfilled' ? Number(goal.value) || 0 : 0
+  if (fs.status === 'fulfilled' && fs.value) { focusToday.value = fs.value.today; focusWeek.value = fs.value.week }
+  if (cards.status === 'fulfilled' && cards.value) cardStats.value = cards.value
+  weakPoints.value = weak.status === 'fulfilled' && Array.isArray(weak.value) ? weak.value : []
+  weakAccuracy.value = acc.status === 'fulfilled' && Array.isArray(acc.value) ? acc.value.slice(0, 3) : []
+  dailyPuzzle.value = puzzle.status === 'fulfilled' ? puzzle.value : null
+  dueReviews.value = due.status === 'fulfilled' && due.value ? due.value.due || 0 : 0
+  kbUnread.value = kb.status === 'fulfilled' && kb.value ? kb.value.unread || 0 : 0
   loading.value = false
 }
 
