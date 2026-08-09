@@ -1,7 +1,7 @@
 {
   "name": "tiku-desktop",
   "productName": "知识记忆小助手",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "本地优先刷题 + 知识库 all-in-one 学习工具（Electron + Vue3 + SQLite）",
   "main": "electron/main.js",
   "author": "zhang",

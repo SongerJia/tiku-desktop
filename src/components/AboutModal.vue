@@ -18,11 +18,6 @@ const STACK = ['Electron 31', 'Vue 3', 'Vite 5', 'SQLite · better-sqlite3', 'Gi
 function openRepo() {
   tiku.openExternal('https://github.com/SongerJia/tiku-desktop')
 }
-// jsDelivr CDN 镜像（国内节点加速，public 仓库可用；不超过 100MB 自动缓存）
-function openJsdelivr() {
-  tiku.openExternal('https://cdn.jsdelivr.net/gh/SongerJia/tiku-desktop@main')
-}
-
 // 手动更新状态：'' | checking | up-to-date | downloading | error
 const updState = ref('')
 async function checkUpdate() {
@@ -73,7 +68,6 @@ function openReleases() {
           <button class="btn ab-repo" @click="openRepo">GitHub 仓库 ↗</button>
         </div>
         <button v-if="updState === 'error'" class="btn ghost ab-repo ab-download" @click="openReleases">自动更新不可用 → 手动下载</button>
-        <button class="btn ghost ab-repo ab-download" @click="openJsdelivr">国内下载慢？点此走 CDN 镜像</button>
         <span v-if="updState === 'up-to-date'" class="ab-upd-tip">已检查，如有新版会弹通知</span>
       </div>
       <div class="ab-foot">Made with 💙 · 祝备考顺利</div>
