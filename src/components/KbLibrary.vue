@@ -341,7 +341,14 @@ function fmtTime(ts) {
 .kb-tag-row .filter-chip.active, .kb-scope-line .filter-chip.active {
   background: var(--brand); color: #021018; font-weight: 600; border-color: var(--brand);
 }
-.kb-tag-n { font-size: 11px; opacity: .65; margin-left: 2px; }
+.kb-tag-n {
+  font-size: 10px; line-height: 14px; min-width: 14px; text-align: center;
+  color: var(--brand); background: rgba(91, 124, 250, 0.14);
+  border-radius: 999px; padding: 0 5px; margin-left: 2px;
+}
+.kb-tag-row .filter-chip.active .kb-tag-n {
+  color: #021018; background: rgba(255, 255, 255, 0.35);
+}
 
 .kb-grid {
   display: grid;
