@@ -137,7 +137,7 @@ function openReleases() {
 }
 .ab-desc { margin: 6px 0; font-size: 11.5px; line-height: 1.7; color: var(--muted); }
 .ab-tag { font-size: 10.5px; }
-.ab-repo { margin-top: 4px; }
+.ab-repo { margin-top: 4px; font-size: 12px; font-weight: 500; padding: 6px 14px; }
 .ab-update { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 2px; }
 .ab-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .ab-download { font-size: 11px; padding: 4px 10px; }
