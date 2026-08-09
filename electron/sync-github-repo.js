@@ -85,14 +85,35 @@ async function uploadFile(cfg, relPath, buf) {
 // 下载文件（raw URL；public 免 token，仍带 token 以兼容 private；30s 超时）
 async function downloadFile(cfg, relPath) {
   const branch = await defaultBranch(cfg)
-  const url = `https://raw.githubusercontent.com/${cfg.owner}/${cfg.repo}/${branch}/${encPath(relPath)}`
   const headers = { Authorization: `Bearer ${cfg.token}` }
-  const signal = AbortSignal.timeout(60000)
-  let res
-  if (net && net.fetch) res = await net.fetch(url, { headers, signal })
-  else res = await fetch(url, { headers, signal })
-  if (res.status >= 400) { const err = new Error(`下载 ${relPath} → HTTP ${res.status}`); err.status = res.status; throw err }
-  return Buffer.from(await res.arrayBuffer())
+  const url = `https://raw.githubusercontent.com/${cfg.owner}/${cfg.repo}/${branch}/${encPath(relPath)}`
+
+  // 主源 raw.githubusercontent.com 国内网络不稳（常 502/超时）→ 自动重试 3 次（退避）
+  let lastErr = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const signal = AbortSignal.timeout(30000)
+      let res
+      if (net && net.fetch) res = await net.fetch(url, { headers, signal })
+      else res = await fetch(url, { headers, signal })
+      if (res.status === 404) { const e = new Error(`下载 ${relPath} → HTTP 404`); e.status = 404; throw e }
+      if (res.status >= 400) throw new Error(`下载 ${relPath} → HTTP ${res.status}`)
+      return Buffer.from(await res.arrayBuffer())
+    } catch (e) {
+      if (e.status === 404) throw e // 文件不存在不重试
+      lastErr = e
+      await new Promise(r => setTimeout(r, 800 * Math.pow(2, attempt)))
+    }
+  }
+
+  // 备用源：GitHub API contents（base64，api.github.com 相对稳定）
+  try {
+    const r = await ghFetch(`/repos/${cfg.owner}/${cfg.repo}/contents/${encPath(relPath)}`, cfg.token)
+    return Buffer.from(String(r.content || '').replace(/\s/g, ''), 'base64')
+  } catch (e) {
+    if (e.status === 404) { e.status = 404; throw e }
+    throw lastErr || e
+  }
 }
 
 // ---- 数据快照（data.json.gz：gzip 压缩，避免 base64 膨胀超限；异步压缩不阻塞主进程）----
