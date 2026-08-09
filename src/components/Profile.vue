@@ -15,7 +15,7 @@ import BackupModal from './BackupModal.vue'
 import XpDetailModal from './XpDetailModal.vue'
 import CategoryManager from './CategoryManager.vue'
 
-const emit = defineEmits(['reset', 'start', 'open-bank'])
+const emit = defineEmits(['reset', 'start', 'open-bank', 'goto-kb-all'])
 
 function forwardStart(payload) {
   emit('start', payload)
@@ -353,9 +353,9 @@ onMounted(async () => {
       </div>
       <div v-show="secOpen.learn" class="sec-body">
 
-    <!-- 知识库概览 -->
-    <div v-if="kbStats" class="card">
-      <div class="card-title">知识库概览</div>
+    <!-- 知识库概览（点击进入全部科目管理） -->
+    <div v-if="kbStats" class="card kb-overview-card" @click="emit('goto-kb-all')">
+      <div class="card-title">知识库概览 <span class="kb-go">管理全部文档 ›</span></div>
       <div class="kb-stats">
         <div class="kb-stat"><b>{{ kbStats.docs }}</b><span>文档</span></div>
         <div class="kb-stat"><b>{{ kbStats.blocks }}</b><span>文本块</span></div>
@@ -969,4 +969,7 @@ onMounted(async () => {
 }
 .theme-swatch.on { border-color: var(--brand); color: var(--text); box-shadow: var(--glow-soft); }
 .sw-dot { width: 30px; height: 22px; border-radius: 6px; border: 1px solid var(--line); }
+.kb-overview-card { cursor: pointer; transition: border-color .15s; }
+.kb-overview-card:hover { border-color: var(--brand); }
+.kb-go { font-size: 11px; color: var(--brand); font-weight: 600; margin-left: 6px; }
 </style>

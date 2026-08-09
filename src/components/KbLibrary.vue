@@ -7,7 +7,7 @@ import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
 import KbReader from './KbReader.vue'
 
-const props = defineProps({ subject: { type: Object, default: () => ({ id: null, name: '' }) } })
+const props = defineProps({ subject: { type: Object, default: () => ({ id: null, name: '' }) }, scope: { type: String, default: 'current' } })
 const docs = ref([])
 const allTags = ref([])
 const tagFilter = ref(null) // null=全部
@@ -15,8 +15,8 @@ const keyword = ref('')
 const loading = ref(true)
 const reader = ref({ show: false, doc: null })
 const editor = ref({ show: false, doc: null, tags: [], title: '', folder: '', subjectId: null })
-// 知识库完全跟随顶部科目：顶部切科目时刷新本页文档（id=null=全部科目）
-const filterSubjectId = computed(() => props.subject.id || undefined)
+// 知识库范围：'current' 跟随顶部科目（tab 默认）；'all' 全部科目管理（「我的→知识库概览」进入）
+const filterSubjectId = computed(() => props.scope === 'all' ? undefined : props.subject.id || undefined)
 
 let debounceTimer = null
 
@@ -35,7 +35,8 @@ async function loadTags() {
   allTags.value = await tiku.kbTags()
 }
 
-watch(() => props.subject.id, loadList) // 顶部切科目 → 知识库跟随
+watch(() => props.subject.id, () => { if (props.scope !== 'all') loadList() }) // 顶部切科目（跟随态）→ 刷新
+watch(() => props.scope, loadList) // 范围切换（current↔all）→ 刷新
 
 onMounted(() => {
   loadTags()
@@ -187,6 +188,9 @@ function fmtTime(ts) {
 <template>
   <div class="kb">
     <div class="card kb-search-card">
+      <div class="kb-scope-line">
+        <span class="kb-scope-tag" :class="{ all: scope === 'all' }">{{ scope === 'all' ? '📚 全部科目文档' : '📖 ' + (props.subject.name || '当前科目') + ' 文档' }}</span>
+      </div>
       <div class="kb-tools">
         <input
           v-model="keyword"
@@ -305,6 +309,12 @@ function fmtTime(ts) {
 <style scoped>
 .kb-search-card { padding: 14px; margin-bottom: 14px; }
 .kb-tools { display: flex; gap: 10px; }
+.kb-scope-line { margin-bottom: 8px; }
+.kb-scope-tag {
+  display: inline-block; font-size: 11px; color: var(--muted);
+  border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px;
+}
+.kb-scope-tag.all { color: var(--brand); border-color: rgba(91,124,250,.4); background: rgba(91,124,250,.06); }
 .kb-tools .input { flex: 1; }
 .kb-tag-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .kb-tag-n { font-size: 11px; opacity: .7; margin-left: 4px; }

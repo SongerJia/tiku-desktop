@@ -132,8 +132,19 @@ function switchTab(key) {
   // 切回首页时刷新（每日任务/习惯/专注数据是实时的）
   if (key === 'home') homeRefresh.value++
 }
+// 知识库范围：'current' 跟随顶部科目（tab 默认）；'all' 全部科目管理（「我的→知识库概览」进入）
+const kbScope = ref('current')
+function onTabClick(key) {
+  if (key === 'kb') kbScope.value = 'current'
+  switchTab(key)
+}
+function openKbAll() {
+  kbScope.value = 'all'
+  switchTab('kb')
+}
 // 子组件请求跳转（如每日任务「阅读」→ 知识库 Tab）
 function onGoto(tab) {
+  if (tab === 'kb') kbScope.value = 'current' // 常规跳转跟随顶部科目
   switchTab(tab)
 }
 
@@ -289,7 +300,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
           :key="t.key"
           class="side-item"
           :class="{ active: currentTab === t.key && !quiz.active }"
-          @click="switchTab(t.key)"
+          @click="onTabClick(t.key)"
         >
           <span class="side-icon" v-html="icons[t.icon]"></span>
           <span class="side-label">{{ t.label }}</span>
@@ -335,13 +346,14 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
             <div :key="currentTab" class="tab-page">
               <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" />
               <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" @start="onStart" />
-              <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" />
+              <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :scope="kbScope" />
               <Stats v-else-if="currentTab === 'stats'" :subject="currentSubject" />
               <Profile
             v-else-if="currentTab === 'profile'"
             @reset="currentTab = 'home'"
             @start="onStart"
             @open-bank="showBank = true"
+            @goto-kb-all="openKbAll"
           />
             </div>
           </Transition>
@@ -354,7 +366,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
           :key="t.key"
           class="tab-item"
           :class="{ active: currentTab === t.key && !quiz.active }"
-          @click="switchTab(t.key)"
+          @click="onTabClick(t.key)"
         >
           <span class="tab-icon" v-html="icons[t.icon]"></span>
           <span>{{ t.label }}</span>
