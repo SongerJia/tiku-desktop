@@ -12,7 +12,7 @@ const props = defineProps({
   wide: Boolean,
   initialKeyword: { type: String, default: '' }
 })
-const emit = defineEmits(['close', 'changed'])
+const emit = defineEmits(['close', 'changed', 'keyword-consumed'])
 
 const stats = ref({ total: 0, categories: 0, byType: [], bySubject: [] })
 const categories = ref([])
@@ -103,7 +103,7 @@ function closeNote() { noteQ.value = null; noteText.value = '' }
 
 watch(() => props.show, (v) => {
   if (v) {
-    if (props.initialKeyword) { keyword.value = props.initialKeyword; page.value = 1 }
+    if (props.initialKeyword) { keyword.value = props.initialKeyword; page.value = 1; emit('keyword-consumed') }
     refreshAll()
   }
 })

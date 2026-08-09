@@ -60,6 +60,9 @@ module.exports = function syncRunner(db) {
     // 安全净化：拒绝路径穿越（'..' / 绝对路径）——rel 来自远端不可信清单
     const safeRel = (rel) => !String(rel).includes('..') && !path.isAbsolute(String(rel))
 
+    // manifest 将写入的最终状态（上传成功 ∪ 下载成功；失败的排除 → 下次同步自动重试）
+    const kbUpOk = {}, imgUpOk = {}
+
     // 远端 → 本地
     const failedKbDown = [], failedImgDown = []
     for (const rel of Object.keys(remoteKb)) {
@@ -71,6 +74,7 @@ module.exports = function syncRunner(db) {
           fs.mkdirSync(path.dirname(target), { recursive: true })
           fs.writeFileSync(target, buf)
           kbDown++
+          kbUpOk[rel] = remoteKb[rel] // 远端清单 hash 即下载内容的 hash
         } catch (e) { failedKbDown.push(rel) }
       }
     }
@@ -81,13 +85,13 @@ module.exports = function syncRunner(db) {
           const buf = await ghRepo.downloadFile(ghCfg, 'images/' + name)
           db.restoreImages([{ name, b64: buf.toString('base64') }])
           imgDown++
+          imgUpOk[name] = remoteImgs[name]
         } catch (e) { failedImgDown.push(name) }
       }
     }
 
     // 本地 → 远端（成功的才写进 manifest；失败的排除 → 下次同步自动重试）
     const failedKbUp = [], failedImgUp = []
-    const kbUpOk = {}, imgUpOk = {}
     for (const rel of Object.keys(localKb)) {
       if (remoteKb[rel] !== localKb[rel].hash) {
         try {

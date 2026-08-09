@@ -82,7 +82,26 @@ function setupAutoUpdater() {
         }
       } catch (e) { /* 忽略 */ }
     })
-    autoUpdater.on('error', (e) => logger.error('auto-updater 失败', e && e.message))
+    autoUpdater.on('download-progress', (p) => {
+      // 节流：每 ~15% 进度提示一次，避免通知轰炸
+      const pct = Math.round((p && p.percent) || 0)
+      if (pct >= (autoUpdater._lastPct || 0) + 15 || pct >= 100) {
+        autoUpdater._lastPct = pct
+        try {
+          if (Notification.isSupported()) {
+            new Notification({ title: '正在下载更新', body: `${pct}%` }).show()
+          }
+        } catch (e) { /* 忽略 */ }
+      }
+    })
+    autoUpdater.on('error', (e) => {
+      logger.error('auto-updater 失败', e && e.message)
+      try {
+        if (Notification.isSupported()) {
+          new Notification({ title: '更新检查失败', body: '请稍后重试或手动检查更新。' }).show()
+        }
+      } catch (e2) { /* 忽略 */ }
+    })
     setTimeout(() => { try { autoUpdater.checkForUpdates() } catch (e) {} }, 10000)
     setInterval(() => { try { autoUpdater.checkForUpdates() } catch (e) {} }, 6 * 3600 * 1000)
     logger.info('auto-updater: 已启用')
@@ -95,17 +114,25 @@ function createWindow() {
   // 窗口尺寸/位置记忆：从 settings 恢复上次 bounds（首次用默认值）
   let w = 1100
   let h = 760
+  let x = null
+  let y = null
   try {
     const saved = JSON.parse(db.getSetting('window_bounds') || 'null')
     if (saved && Number(saved.width) >= 760 && Number(saved.height) >= 600) {
       w = saved.width
       h = saved.height
+      // 位置记忆：x/y 为有效数字才恢复（null = 系统默认居中）
+      if (Number.isFinite(Number(saved.x)) && Number.isFinite(Number(saved.y))) {
+        x = Math.round(saved.x)
+        y = Math.round(saved.y)
+      }
     }
   } catch (e) { /* bounds 损坏则用默认 */ }
 
   const win = new BrowserWindow({
     width: w,
     height: h,
+    ...(x != null && y != null ? { x, y } : {}),
     minWidth: 760,
     minHeight: 600,
     resizable: true,
@@ -157,6 +184,11 @@ app.on('second-instance', () => {
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.focus()
   }
+})
+
+// 统一退出路径关库（macOS Cmd+Q / app.exit / 正常退出都触发；db.close 幂等）
+app.on('before-quit', () => {
+  try { db.close() } catch (e) {}
 })
 
 app.whenReady().then(() => {
@@ -421,7 +453,16 @@ ipcMain.handle('saveAudio', (e, buf, ext) => db.saveAudio(buf, ext))
 ipcMain.handle('getAudioUrl', (e, name) => db.getAudioUrl(name))
 ipcMain.handle('exportWrongBook', () => db.exportWrongBookMarkdown())
 ipcMain.handle('exportNotes', () => db.exportNotesMarkdown())
-ipcMain.handle('openPath', (e, p) => { try { shell.openPath(p) } catch (err) { logger.error('openPath 失败 ' + (err && err.message)) } })
+ipcMain.handle('openPath', (e, p) => {
+    // 白名单：只允许打开应用自己导出的文件（userData/exports 下），防渲染层被攻破后打开任意路径
+    try {
+      const expDir = path.join(app.getPath('userData'), 'exports')
+      const target = path.resolve(String(p || ''))
+      if (!target.startsWith(expDir + path.sep)) return { ok: false, error: '路径不在导出目录内' }
+      shell.openPath(target)
+      return { ok: true }
+    } catch (err) { logger.error('openPath 失败 ' + (err && err.message)); return { ok: false } }
+  })
 ipcMain.handle('restoreBackup', (e, file) => {
   const r = db.restoreBackup(file)
   if (r.ok) setTimeout(() => { try { app.relaunch(); app.exit(0) } catch (err) { app.exit(0) } }, 600)

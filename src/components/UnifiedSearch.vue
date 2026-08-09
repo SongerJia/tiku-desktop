@@ -15,6 +15,12 @@ const qDocs = ref([])      // 文档命中
 const qQuestions = ref([]) // 题目命中
 const searched = ref(false)
 const reader = ref({ show: false, doc: null })
+
+// 双链跳转：搜索结果里找 doc，打开新文档
+function onReaderOpenDoc(docId) {
+  const d = qDocs.value.find(x => String(x.id) === String(docId))
+  if (d) reader.value = { show: true, doc: { id: d.id, type: d.type || 'md', title: d.title } }
+}
 const sq = ref({ show: false, q: null })
 
 let timer = null
@@ -26,6 +32,8 @@ watch(() => props.show, v => {
     qDocs.value = []
     qQuestions.value = []
     searched.value = false
+    loading.value = false
+    seq++ // 让进行中的旧请求作废，防过期结果写入
     setTimeout(() => document.getElementById('us-input')?.focus(), 50)
   }
 })
@@ -40,15 +48,20 @@ function onInput() {
 async function doSearch(kw) {
   const my = ++seq
   loading.value = true
-  const [docs, questions] = await Promise.all([
-    tiku.kbSearch(kw, 20),
-    tiku.getQuestions({ keyword: kw, limit: 10 })
-  ])
-  if (my !== seq) return
-  qDocs.value = docs
-  qQuestions.value = questions
-  searched.value = true
-  loading.value = false
+  try {
+    const [docs, questions] = await Promise.all([
+      tiku.kbSearch(kw, 20),
+      tiku.getQuestions({ keyword: kw, limit: 10 })
+    ])
+    if (my !== seq) return
+    qDocs.value = docs
+    qQuestions.value = questions
+    searched.value = true
+  } catch (e) {
+    if (my === seq) { qDocs.value = []; qQuestions.value = []; searched.value = true }
+  } finally {
+    if (my === seq) loading.value = false
+  }
 }
 
 function openDoc(d) {
@@ -123,7 +136,7 @@ useEsc(() => emit('close'))
       </div>
     </div>
 
-    <KbReader :show="reader.show" :doc="reader.doc" @close="reader.show = false" />
+    <KbReader :show="reader.show" :doc="reader.doc" @close="reader.show = false" @open-doc="onReaderOpenDoc" />
     <SimpleQuestion :show="sq.show" :q="sq.q" @close="sq.show = false" />
   </div>
 </template>

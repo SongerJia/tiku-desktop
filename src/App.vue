@@ -366,7 +366,8 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
       :show="showBank"
       :wide="isWide"
       :initialKeyword="bankKeyword"
-      @close="showBank = false"
+      @close="showBank = false; bankKeyword = ''"
+      @keyword-consumed="bankKeyword = ''"
       @changed="onBankChanged"
     />
 

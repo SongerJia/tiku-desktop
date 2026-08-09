@@ -22,7 +22,7 @@
     "dist": "vite build && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder"
   },
   "build": {
-    "appId": "com.songerjia.tiku",
+    "appId": "com.songerjia.tiku-desktop",
     "productName": "知识记忆小助手",
     "directories": {
       "output": "release"

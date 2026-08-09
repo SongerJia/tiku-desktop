@@ -66,6 +66,14 @@ const showReview = ref(false)
 const rDocs = ref({})
 const reader = ref({ show: false, doc: null })
 
+// 知识库双链跳转：在已加载的关联文档缓存（rDocs）中查找目标文档
+function onReaderOpenDoc(docId) {
+  const id = String(docId)
+  const pool = Object.values(rDocs.value).flatMap(v => [...(v.linked || []), ...(v.suggested || [])])
+  const d = pool.find(x => String(x.doc_id ?? x.id) === id)
+  if (d) reader.value = { show: true, doc: { id: d.doc_id ?? d.id, type: d.type || 'md', title: d.title } }
+}
+
 async function loadRDocs(qid) {
   if (rDocs.value[qid]) return
   const [linked, suggested] = await Promise.all([tiku.kbLinksForQuestion(qid), tiku.kbSuggestDocs(qid, 5)])
@@ -805,7 +813,7 @@ function optionClass(key) {
       </div>
     </div>
 
-    <KbReader :show="reader.show" :doc="reader.doc" @close="reader.show = false" />
+    <KbReader :show="reader.show" :doc="reader.doc" @close="reader.show = false" @open-doc="onReaderOpenDoc" />
 </template>
 
 <style scoped>

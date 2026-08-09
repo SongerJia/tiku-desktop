@@ -9,7 +9,9 @@ const typeLabel = { single: '单选', multiple: '多选', judge: '判断', essay
 
 const opts = computed(() => {
   const raw = props.q?.options
-  return Array.isArray(raw) ? raw : []
+  if (!Array.isArray(raw)) return []
+  // options 可能是字符串数组或 {key,text} 对象数组（主进程统一对象格式）——统一取 text
+  return raw.map(o => (o && typeof o === 'object' && 'text' in o) ? o.text : o)
 })
 
 const ans = computed(() => {

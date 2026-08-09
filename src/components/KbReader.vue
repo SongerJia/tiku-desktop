@@ -5,7 +5,6 @@ import 'vditor/dist/index.css'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { celebrate } from '../utils/celebrate.js'
-import { showConfirm } from '../utils/confirm.js'
 import { useEsc } from '../utils/useEsc.js'
 import SimpleQuestion from './SimpleQuestion.vue'
 import Icon from './Icon.vue'
@@ -179,7 +178,7 @@ function detachZoomWheel() {
   if (zoomWheelCleanup) { zoomWheelCleanup(); zoomWheelCleanup = null }
 }
 const html = ref('')
-const pdfState = ref({ loading: false, error: '', pages: 0, done: 0 })
+const pdfState = ref({ loading: false, error: '', pages: 0 })
 const pdfContainer = ref(null)
 let pdfTask = null
 let pdfDoc = null
@@ -258,8 +257,7 @@ async function renderPage(p) {
   canvas.dataset.page = p
   placeholder.replaceWith(canvas)
   pageEls[p] = canvas
-  pdfState.value.done++
-}
+  }
 // 按当前 zoom 重建占位 + 渲染可见页（打开文档 / 缩放时调用）
 async function rebuildPdfAtZoom() {
   const c = pdfContainer.value
@@ -289,8 +287,7 @@ async function rebuildPdfAtZoom() {
     c.appendChild(ph)
     pageEls[p] = ph
   }
-  pdfState.value.done = 0
-  const anchorEl = pageEls[anchor]
+    const anchorEl = pageEls[anchor]
   if (anchorEl) anchorEl.scrollIntoView({ block: 'start' })
   // 只渲染视口内可见页（首屏少量，其余滚动时补）
   for (const p of visiblePages()) {
@@ -374,9 +371,19 @@ async function loadQPanel() {
 
 watch(() => props.show, async (v) => {
   if (!v || !props.doc) return
+  loadCurrent()
+})
+
+// 双链跳转/外部打开时 doc 变化（show 保持 true）→ 同样刷新内容
+watch(() => props.doc, (d) => {
+  if (props.show && d) loadCurrent()
+}, { deep: false })
+
+async function loadCurrent() {
+  if (!props.doc) return
   tocList.value = []
   mdSaveStatus.value = ''
-  pdfState.value = { loading: false, error: '', pages: 0, done: 0 }
+  pdfState.value = { loading: false, error: '', pages: 0 }
   qLinks.value = []
   qSugg.value = []
   mKw.value = ''
@@ -396,7 +403,7 @@ watch(() => props.show, async (v) => {
   await loadHlAndLinks()
   await tiku.kbBumpRead(props.doc.id) // 阅读埋点（计入学习统计）
   celebrate()
-})
+}
 
 async function linkQ(qid) {
   await tiku.kbLink({ docId: props.doc.id, questionId: qid })

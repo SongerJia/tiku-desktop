@@ -341,10 +341,16 @@ try {
     const m3 = db.mergeRemote(JSON.stringify(sync3))
     ok('mergeRemote 冲突计数+明细', m3.conflicts >= 1 && Array.isArray(m3.conflictItems) && m3.conflictItems.some(i => i.table === 'wrong_books'))
   } else {
-    ok('mergeRemote 冲突计数+明细', true) // 库中无 wrong_books 行则跳过
+    // 库中无 wrong_books 行，跳过冲突断言（前置 addWrong 已保证有，理论不可达）
+    console.log('  - 跳过：无 wrong_books 行')
   }
   const exData = db.exportData()
   ok('exportData 返回 JSON 字符串', typeof exData === 'string' && JSON.parse(exData).questions.length > 0)
+  // 新增列覆盖：questions 含 audio_url/material 列、favorites 含 fav_group、cards 含 subject_id
+  const exParsed = JSON.parse(exData)
+  ok('exportData questions 含 material_id 列', exParsed.questions.every(q => 'material_id' in q))
+  ok('exportData favorites 含 fav_group 列', exParsed.favorites.every(f => 'fav_group' in f))
+  ok('exportData cards 含 subject_id 列', exParsed.cards.every(c => 'subject_id' in c))
   const prev = db.importPreview(exData)
   ok('importPreview 返回差异统计', prev.questions && prev.questions.total > 0 && typeof prev.questions.fresh === 'number')
   const impRes = db.importData(exData)
