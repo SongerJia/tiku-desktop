@@ -385,11 +385,19 @@ module.exports = function kbModule(ctx) {
       const dir = this.kbDir()
       if (!fs.existsSync(dir)) return []
       const out = []
-      for (const name of fs.readdirSync(dir)) {
-        const full = path.join(dir, name)
-        if (!fs.statSync(full).isFile()) continue
-        try { out.push({ relPath: name, base64: fs.readFileSync(full).toString('base64') }) } catch (e) { /* 跳过 */ }
+      // 递归扫描（笔记在 kb/notes/ 子目录，非递归会丢文件）
+      const walk = (d, prefix) => {
+        for (const name of fs.readdirSync(d)) {
+          const full = path.join(d, name)
+          const rel = prefix ? prefix + '/' + name : name
+          if (fs.statSync(full).isFile()) {
+            try { out.push({ relPath: rel, base64: fs.readFileSync(full).toString('base64') }) } catch (e) { /* 跳过 */ }
+          } else if (fs.statSync(full).isDirectory()) {
+            walk(full, rel)
+          }
+        }
       }
+      walk(dir, '')
       return out
     },
 
@@ -400,9 +408,13 @@ module.exports = function kbModule(ctx) {
       let n = 0
       for (const f of files || []) {
         if (!f || !f.relPath) continue
+        const rel = String(f.relPath).replace(/\\/g, '/')
+        // 防穿越：拒绝 '..' 与绝对路径
+        if (!rel || rel.includes('..') || rel.startsWith('/') || /^[a-zA-Z]:/.test(rel)) continue
         try {
-          const full = path.join(dir, path.basename(String(f.relPath)))
+          const full = path.join(dir, rel)
           if (!fs.existsSync(full) && f.base64) {
+            fs.mkdirSync(path.dirname(full), { recursive: true })
             fs.writeFileSync(full, Buffer.from(f.base64, 'base64'))
             n++
           }

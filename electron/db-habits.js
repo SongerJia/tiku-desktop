@@ -88,18 +88,23 @@ module.exports = function habitsModule(ctx) {
 
     // ---- 习惯打卡（多目标）----
     listHabits() {
+      // 本地日期键（东八区 00:00-08:00 打卡时 UTC 日期还是昨天，不能用 toISOString）
+      const localKey = (dt) => {
+        const y = dt.getFullYear(), m = String(dt.getMonth() + 1).padStart(2, '0'), d = String(dt.getDate()).padStart(2, '0')
+        return `${y}-${m}-${d}`
+      }
       const rows = sqlite.prepare('SELECT * FROM habits WHERE deleted=0 ORDER BY sort, id').all()
-      const today = new Date().toISOString().slice(0, 10)
+      const today = localKey(new Date())
       const checkStmt = sqlite.prepare('SELECT check_date FROM habit_checks WHERE habit_id=? ORDER BY check_date DESC')
       const streakStmt = sqlite.prepare('SELECT check_date FROM habit_checks WHERE habit_id=?')
       return rows.map(h => {
         const dates = new Set(streakStmt.all(h.id).map(r => r.check_date))
         let streak = 0
         const d = new Date()
-        while (dates.has(d.toISOString().slice(0, 10))) { streak++; d.setDate(d.getDate() - 1) }
+        while (dates.has(localKey(d))) { streak++; d.setDate(d.getDate() - 1) }
         const week = []
         const w = new Date()
-        for (let i = 6; i >= 0; i--) { const dt = new Date(w); dt.setDate(w.getDate() - i); week.push(dates.has(dt.toISOString().slice(0, 10))) }
+        for (let i = 6; i >= 0; i--) { const dt = new Date(w); dt.setDate(w.getDate() - i); week.push(dates.has(localKey(dt))) }
         return { ...h, checkedToday: dates.has(today), streak, total: dates.size, week }
       })
     },
@@ -129,7 +134,7 @@ module.exports = function habitsModule(ctx) {
     },
 
     checkHabit(habitId, dateStr) {
-      const date = dateStr || new Date().toISOString().slice(0, 10)
+      const date = dateStr || localKey(new Date())
       const info = sqlite.prepare('INSERT OR IGNORE INTO habit_checks (habit_id, check_date, created_at, client_id) VALUES (?,?,?,?)')
         .run(habitId, date, Date.now(), uuid())
       if (info.changes > 0) this.logXp(5, 'habit', 'check') // 当天首次打卡 +5 XP
@@ -137,7 +142,7 @@ module.exports = function habitsModule(ctx) {
     },
 
     uncheckHabit(habitId, dateStr) {
-      const date = dateStr || new Date().toISOString().slice(0, 10)
+      const date = dateStr || localKey(new Date())
       sqlite.prepare('DELETE FROM habit_checks WHERE habit_id=? AND check_date=?').run(habitId, date)
       return { ok: true }
     }

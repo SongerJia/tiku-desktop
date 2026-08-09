@@ -75,7 +75,7 @@ let noiseSrc = null
 async function load() {
   loading.value = true
   // 并行拉取（9 个 IPC 不再串行等待，首屏更快）
-  const [summary, goal, fs, cards, weak, acc, puzzle, due, kb] = await Promise.allSettled([
+  const [sumR, goalR, fsR, cardsR, weakR, accR, puzzleR, dueR, kbR] = await Promise.allSettled([
     tiku.getSummary(props.subject.id),
     tiku.getSetting('daily_goal'),
     tiku.focusStats(),
@@ -86,15 +86,15 @@ async function load() {
     tiku.reviewDueStats(props.subject.id),
     tiku.kbStats()
   ])
-  summary.value = summary.status === 'fulfilled' && summary.value ? summary.value : { total: 0, today: 0, wrongCount: 0, mastered: 0 }
-  dailyGoal.value = goal.status === 'fulfilled' ? Number(goal.value) || 0 : 0
-  if (fs.status === 'fulfilled' && fs.value) { focusToday.value = fs.value.today; focusWeek.value = fs.value.week }
-  if (cards.status === 'fulfilled' && cards.value) cardStats.value = cards.value
-  weakPoints.value = weak.status === 'fulfilled' && Array.isArray(weak.value) ? weak.value : []
-  weakAccuracy.value = acc.status === 'fulfilled' && Array.isArray(acc.value) ? acc.value.slice(0, 3) : []
-  dailyPuzzle.value = puzzle.status === 'fulfilled' ? puzzle.value : null
-  dueReviews.value = due.status === 'fulfilled' && due.value ? due.value.due || 0 : 0
-  kbUnread.value = kb.status === 'fulfilled' && kb.value ? kb.value.unread || 0 : 0
+  summary.value = sumR.status === 'fulfilled' && sumR.value ? sumR.value : { total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0 }
+  dailyGoal.value = goalR.status === 'fulfilled' ? Number(goalR.value) || 0 : 0
+  if (fsR.status === 'fulfilled' && fsR.value) { focusToday.value = fsR.value.today; focusWeek.value = fsR.value.week }
+  if (cardsR.status === 'fulfilled' && cardsR.value) cardStats.value = cardsR.value
+  weakPoints.value = weakR.status === 'fulfilled' && Array.isArray(weakR.value) ? weakR.value : []
+  weakAccuracy.value = accR.status === 'fulfilled' && Array.isArray(accR.value) ? accR.value.slice(0, 3) : []
+  dailyPuzzle.value = puzzleR.status === 'fulfilled' ? puzzleR.value : null
+  dueReviews.value = dueR.status === 'fulfilled' && dueR.value ? dueR.value.due || 0 : 0
+  kbUnread.value = kbR.status === 'fulfilled' && kbR.value ? kbR.value.unread || 0 : 0
   loading.value = false
 }
 

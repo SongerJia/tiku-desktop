@@ -121,13 +121,14 @@ export function notifyLevelUp(xp) {
 export function currentSeason() {
   const d = new Date()
   // 2026-08 起为第 1 赛季；7 月及更早 = 0（无存档，避免与 8 月共用 key）
+  // 2026-08=1；7 月及更早 ≤0（无存档 key，避免与 8 月共用）——不再 Math.max 强制
   const no = (d.getFullYear() - 2026) * 12 + (d.getMonth() + 1 - 8) + 1
   const year = d.getFullYear()
   const month = d.getMonth() + 1
   // 本月剩余天数（含今天）
   const daysInMonth = new Date(year, month, 0).getDate()
   const left = daysInMonth - d.getDate() + 1
-  return { no: Math.max(1, no), label: `${year} 年 ${month} 月`, daysLeft: left }
+  return { no, label: `${year} 年 ${month} 月`, daysLeft: left }
 }
 
 // 固定 6 项赛季挑战：base 为 S1 目标，每季 +inc

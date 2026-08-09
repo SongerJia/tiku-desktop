@@ -62,6 +62,7 @@ module.exports = function miscModule(ctx) {
           qParams.push(...ids)
         } else {
           qSql = 'SELECT 0 AS n, 0 AS c'
+          qParams = []
         }
       }
       const q = sqlite.prepare(qSql).get(...qParams)
@@ -87,6 +88,7 @@ module.exports = function miscModule(ctx) {
             dParams.push(...ids)
           } else {
             dSql = 'SELECT 0 AS n'
+            dParams = []
           }
         }
         const n = sqlite.prepare(dSql).get(...dParams).n

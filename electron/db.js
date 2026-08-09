@@ -162,6 +162,8 @@ const api = {
       const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
       const dst = path.join(dir, `tiku-${stamp}.db`)
       if (fs.existsSync(dst)) return // 当天已备份过
+      // WAL 模式下先 checkpoint，确保 -wal 中的写入也进入主库文件，否则备份缺本次会话数据
+      try { sqlite.pragma('wal_checkpoint(TRUNCATE)') } catch (e) {}
       fs.copyFileSync(src, dst)
       const list = fs.readdirSync(dir).filter(f => f.endsWith('.db')).sort()
       while (list.length > 5) {
@@ -190,16 +192,28 @@ const api = {
     const dir = path.join(app.getPath('userData'), 'backups')
     const src = path.join(dir, path.basename(String(fileName))) // basename 防穿越
     if (!fs.existsSync(src)) return { ok: false, error: '备份文件不存在' }
+    // 校验备份文件是合法 SQLite（文件头 "SQLite format 3"），防损坏备份覆盖主库
+    try {
+      const head = fs.readFileSync(src).subarray(0, 16).toString('latin1')
+      if (!head.startsWith('SQLite format 3')) return { ok: false, error: '备份文件损坏（非 SQLite 数据库）' }
+    } catch (e) {
+      return { ok: false, error: '备份文件读取失败' }
+    }
     try {
       if (sqlite) sqlite.close()
+      sqlite = null
       const target = dbPath()
       fs.copyFileSync(src, target)
       for (const ext of ['-wal', '-shm']) {
         const w = target + ext
         if (fs.existsSync(w)) fs.unlinkSync(w)
       }
+      // 重新打开连接（恢复失败路径不再留下"库已关"的死状态）
+      this._tryOpen()
       return { ok: true }
     } catch (e) {
+      // 复制失败：尽力重开连接，避免后续 IPC 全部 "connection not open"
+      try { this._tryOpen() } catch (e2) {}
       return { ok: false, error: String((e && e.message) || e) }
     }
   },

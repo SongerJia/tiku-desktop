@@ -153,7 +153,7 @@ if (!app.requestSingleInstanceLock()) {
   process.exit(0)
 }
 app.on('second-instance', () => {
-  if (mainWindow) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.focus()
   }

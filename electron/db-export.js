@@ -45,7 +45,9 @@ module.exports = function exportModule(ctx) {
     _writeExport(prefix, content) {
       const dir = path.join(app.getPath('userData'), 'exports')
       try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }) } catch (e) {}
-      const file = path.join(dir, `${prefix}-${new Date().toISOString().slice(0, 10)}.md`)
+      // 时间戳精确到秒，同日多次导出不互相覆盖
+      const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '') + '-' + String(Date.now() % 86400000).padStart(5, '0')
+      const file = path.join(dir, `${prefix}-${ts}.md`)
       fs.writeFileSync(file, content, 'utf8')
       return file
     },

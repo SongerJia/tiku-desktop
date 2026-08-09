@@ -51,6 +51,8 @@ module.exports = function paperModule(ctx) {
         const sc = manualScoreOf(r)
         if (sc != null) { perTypeManual[r.type] = sc; manualTotal += sc * (Number(r.count) || 0) }
       }
+      // 手动分值超 100 校验（防卷面总分 > 100 且自动题 0 分）
+      if (manualTotal > 100) throw new Error('手动分值合计超过 100 分，请调整后重试')
       const autoCount = rules.filter(r => manualScoreOf(r) == null).reduce((s, r) => s + (Number(r.count) || 0), 0)
       const autoTotal = Math.max(0, Math.round((100 - manualTotal) * 10) / 10)
       const autoEach = autoCount ? Math.round((autoTotal / autoCount) * 10) / 10 : 0
@@ -58,8 +60,12 @@ module.exports = function paperModule(ctx) {
       const scores = picked.map(p => (perTypeManual[p.type] != null ? perTypeManual[p.type] : autoEach))
       const target = Math.round((manualTotal + autoTotal) * 10) / 10
       const sum0 = Math.round(scores.reduce((s, x) => s + x, 0) * 10) / 10
-      const lastAutoIdx = scores.length - 1 - [...scores].reverse().findIndex(s => s === autoEach)
-      if (lastAutoIdx >= 0 && scores[lastAutoIdx] === autoEach) {
+      // 抹平误差到「最后一个自动题」：按 perTypeManual 标记找（而非按值相等判断，避免手动题恰等于 autoEach 时误调）
+      let lastAutoIdx = -1
+      for (let i = picked.length - 1; i >= 0; i--) {
+        if (perTypeManual[picked[i].type] == null) { lastAutoIdx = i; break }
+      }
+      if (lastAutoIdx >= 0) {
         scores[lastAutoIdx] = Math.round((scores[lastAutoIdx] + (target - sum0)) * 10) / 10
       }
 

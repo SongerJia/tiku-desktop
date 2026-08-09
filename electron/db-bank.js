@@ -14,7 +14,7 @@ module.exports = function bankModule(ctx) {
         (category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,images_json,audio_url,material_id,material_cid,updated_at,client_id,category_cid)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       const dupStmt = sqlite.prepare('SELECT id FROM questions WHERE category_id=? AND stem=? AND deleted=0')
-      const updQ = sqlite.prepare(`UPDATE questions SET type=?,options_json=?,answer_json=?,keywords_json=?,analysis=?,difficulty=?,source=?,audio_url=?,updated_at=? WHERE id=?`)
+      const updQ = sqlite.prepare(`UPDATE questions SET type=?,options_json=?,answer_json=?,keywords_json=?,analysis=?,difficulty=?,source=?,audio_url=?,images_json=?,material_id=?,material_cid=?,category_cid=?,updated_at=? WHERE id=?`)
       let inserted = 0
       let duplicated = 0
       let updated = 0
@@ -35,7 +35,8 @@ module.exports = function bankModule(ctx) {
               updQ.run(
                 r.type, JSON.stringify(r.options || []), JSON.stringify(r.answer || []),
                 JSON.stringify(r.keywords || []), r.analysis || '', r.difficulty || 3,
-                r.source || '导入', r.audio || '', now, dup.id
+                r.source || '导入', r.audio || '', JSON.stringify(r.images || []),
+                mat ? mat.id : null, r.material_cid || null, r.category_cid || null, now, dup.id
               )
               updated++
               continue
