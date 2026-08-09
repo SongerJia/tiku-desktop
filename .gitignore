@@ -32,3 +32,5 @@ npm-debug.log*
 # 测试运行时的临时产物
 .tmp-*
 tmp*
+dist.bak/
+dist.bak2/
