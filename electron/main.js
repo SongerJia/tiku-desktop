@@ -15,6 +15,7 @@ const db = require('./db')
 const { readXlsx, writeXlsx } = require('./xlsx-lite')
 const syncGithub = require('./sync-github')
 const syncWebdav = require('./sync-webdav')
+const ghRepo = require('./sync-github-repo')
 const webdavSyncRunner = require('./webdav-sync')
 const webdavRunner = webdavSyncRunner(db)
 const syncMerge = require('./sync-merge')
@@ -612,15 +613,37 @@ ipcMain.handle('wdTest', async (e, cfg) => {
   return { ok: true }
 })
 ipcMain.handle('wdSync', async () => {
-  const cfg = {
+  const wdCfg = {
     url: db.getSetting('wd_url') || '',
     user: db.getSetting('wd_user') || '',
     pass: db.getSetting('wd_pass') || ''
   }
-  if (!cfg.url || !cfg.user || !cfg.pass) throw new Error('请先完成 WebDAV 配置')
-  const r = await webdavRunner.sync(cfg)
+  if (!wdCfg.url || !wdCfg.user || !wdCfg.pass) throw new Error('请先完成 WebDAV 配置')
+  const ghCfg = {
+    token: db.getSetting('gh_token') || '',
+    owner: db.getSetting('gh_owner') || '',
+    repo: db.getSetting('gh_repo') || ''
+  }
+  const r = await webdavRunner.sync(wdCfg, ghCfg)
   db.setSetting('wd_last_sync', String(Date.now()))
   return r
+})
+
+// ---- GitHub 仓库（大文件：知识库文档 + 题目图片）----
+ipcMain.handle('ghGetConfig', () => ({
+  token: db.getSetting('gh_token') || '',
+  owner: db.getSetting('gh_owner') || '',
+  repo: db.getSetting('gh_repo') || ''
+}))
+ipcMain.handle('ghSaveConfig', (e, cfg) => {
+  db.setSetting('gh_token', String(cfg.token || '').trim())
+  db.setSetting('gh_owner', String(cfg.owner || '').trim())
+  db.setSetting('gh_repo', String(cfg.repo || '').trim())
+  return { ok: true }
+})
+ipcMain.handle('ghTest', async (e, cfg) => {
+  await ghRepo.testConnection({ token: cfg.token, owner: cfg.owner, repo: cfg.repo })
+  return { ok: true }
 })
 
 // 同步编排（增量 + 多文件分块）：

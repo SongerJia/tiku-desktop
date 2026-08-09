@@ -44,6 +44,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   wdSaveConfig: (cfg) => ipcRenderer.invoke('wdSaveConfig', cfg),
   wdTest: (cfg) => ipcRenderer.invoke('wdTest', cfg),
   wdSync: () => ipcRenderer.invoke('wdSync'),
+  ghGetConfig: () => ipcRenderer.invoke('ghGetConfig'),
+  ghSaveConfig: (cfg) => ipcRenderer.invoke('ghSaveConfig', cfg),
+  ghTest: (cfg) => ipcRenderer.invoke('ghTest', cfg),
   syncNow: () => ipcRenderer.invoke('syncNow'),
 
   // 题库管理

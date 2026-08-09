@@ -40,6 +40,29 @@ const wdPass = ref('')
 const wdLast = ref(0)
 const wdSyncing = ref(false)
 const wdResult = ref(null)
+// GitHub 仓库（大文件：知识库文档+题目图片）
+const ghToken = ref('')
+const ghOwner = ref('')
+const ghRepo = ref('')
+async function ghLoad() {
+  try {
+    const c = await tiku.ghGetConfig()
+    ghToken.value = c.token
+    ghOwner.value = c.owner
+    ghRepo.value = c.repo
+  } catch (e) {}
+}
+async function ghTest() {
+  try {
+    await tiku.ghTest({ token: ghToken.value, owner: ghOwner.value, repo: ghRepo.value })
+    showToast('仓库连接成功', 'ok')
+  } catch (e) { showToast('仓库连接失败：' + (e.message || e), 'err') }
+}
+async function ghSave() {
+  if (!ghToken.value.trim() || !ghOwner.value.trim() || !ghRepo.value.trim()) { showToast('请填写完整的 Token / 仓库拥有者 / 仓库名'); return }
+  await tiku.ghSaveConfig({ token: ghToken.value, owner: ghOwner.value, repo: ghRepo.value })
+  showToast('仓库配置已保存', 'ok')
+}
 async function wdLoad() {
   try {
     const c = await tiku.wdGetConfig()
@@ -84,6 +107,7 @@ onMounted(async () => {
     syncLogin.value = cfg.login
     syncLast.value = cfg.lastSync
     wdLoad()
+    ghLoad()
   } catch (e) { /* 同步配置读取失败不阻塞页面 */ }
 })
 
@@ -690,6 +714,21 @@ onMounted(async () => {
           同步完成：数据 {{ (wdResult.dataBytes / 1024).toFixed(0) }}KB · 图片 +{{ wdResult.imgUp }}/-{{ wdResult.imgDown }} · 文档 +{{ wdResult.kbUp }}/-{{ wdResult.kbDown }}
         </div>
       </div>
+
+      <div class="card-title gh-title">GitHub 仓库（大文件：知识库文档 + 题目图片）</div>
+      <p class="sync-tip">
+        学习数据走坚果云；<b>知识库文档与题目图片</b>走 GitHub 仓库（免费、容量大）。
+        Token 需有 <code>repo</code> 权限（GitHub → Settings → Developer settings → Personal access tokens）。
+      </p>
+      <div class="wd-form">
+        <input v-model="ghToken" class="sync-input" type="password" placeholder="GitHub Token（ghp_...，需 repo 权限）" @keyup.enter="ghSave" />
+        <input v-model="ghOwner" class="sync-input" placeholder="仓库拥有者（GitHub 用户名）" @keyup.enter="ghSave" />
+        <input v-model="ghRepo" class="sync-input" placeholder="仓库名（如 tiku-assets）" @keyup.enter="ghSave" />
+        <div class="sync-actions">
+          <button class="btn" :disabled="wdSyncing" @click="ghTest">测试仓库</button>
+          <button class="btn" :disabled="wdSyncing" @click="ghSave">保存仓库配置</button>
+        </div>
+      </div>
     </div>
 
 
@@ -805,7 +844,8 @@ onMounted(async () => {
     <ChapterProgress :show="showChapter" @close="showChapter = false" />
     <AboutModal :show="showAbout" @close="showAbout = false" />
     <BackupModal :show="showBackup" @close="showBackup = false" />
-    <CategoryManager :show="showCats" @close="showCats = false" />  </div>
+    <CategoryManager :show="showCats" @close="showCats = false" />
+  </div>
 </template>
 
 <style scoped>
@@ -951,6 +991,7 @@ onMounted(async () => {
 /* 云同步卡片 */
 .wd-form { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .wd-result { font-size: 12px; color: var(--ok); }
+.gh-title { margin-top: 14px; }
 .sync-connect { display: flex; flex-direction: column; gap: 10px; }
 .sync-tip { font-size: 12px; color: var(--muted); line-height: 1.6; }
 .sync-tip code {
