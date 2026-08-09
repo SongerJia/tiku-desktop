@@ -261,7 +261,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
     <!-- PC 侧边导航 -->
     <aside v-if="isWide" class="sidebar" :style="{ width: sidebarWidth + 'px' }">
       <div class="side-brand">
-        <img src="/logo.svg" class="side-logo-img" width="40" height="40" alt="知识记忆小助手" />
+        <img src="/logo.png" class="side-logo-img" width="36" height="36" alt="知识记忆小助手" />
         <span class="side-name">知识记忆小助手</span>
       </div>
       <nav class="side-nav">
