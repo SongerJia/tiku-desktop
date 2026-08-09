@@ -143,6 +143,9 @@ try {
   const del = db.deleteKbDoc(docId)
   ok('deleteKbDoc 成功', del.ok === true)
   ok('getKbDoc 删除后为 null', db.getKbDoc(docId) === null)
+  // 软删文档 rel_path 进 getDeletedKbRels（同步删除传播的依据）
+  const delRels = db.getDeletedKbRels()
+  ok('getDeletedKbRels 含已删文档', Array.isArray(delRels) && delRels.some(r => typeof r === 'string'))
 
   // 17) 题库管理模块（拆出的 db-bank 回归）：单题增删改/统计/导出
   const added = db.addQuestion({ categoryId: null, type: 'single', stem: '基线新增题', options: [{ key: 'A', text: '1' }, { key: 'B', text: '2' }], answer: ['A'] })

@@ -80,6 +80,11 @@ module.exports = function kbModule(ctx) {
       return { nodes, links }
     },
 
+    // 软删文档的 rel_path 列表（同步时用于远端文件删除/下载排除）
+    getDeletedKbRels() {
+      return sqlite.prepare("SELECT rel_path FROM kb_docs WHERE deleted=1 AND rel_path IS NOT NULL AND rel_path != ''").all().map(r => r.rel_path)
+    },
+
     getKbDocs(subjectId) {
       // subjectId 传具体科目 id → 只返回该科目文档；不传/undefined → 全部
       const rows = (subjectId

@@ -82,6 +82,23 @@ async function uploadFile(cfg, relPath, buf) {
   await ghFetch(`/repos/${cfg.owner}/${cfg.repo}/contents/${encPath(relPath)}`, cfg.token, { method: 'PUT', body: JSON.stringify(body) })
 }
 
+// 删除远端文件（软删文档的同步传播：文件本体也从仓库移除）
+async function deleteFile(cfg, relPath) {
+  let sha = null
+  try {
+    const r = await ghFetch(`/repos/${cfg.owner}/${cfg.repo}/contents/${encPath(relPath)}`, cfg.token)
+    sha = r.sha
+  } catch (e) {
+    if (e.status === 404) return { ok: true, notFound: true } // 已不存在，视为成功
+    throw e
+  }
+  await ghFetch(`/repos/${cfg.owner}/${cfg.repo}/contents/${encPath(relPath)}`, cfg.token, {
+    method: 'DELETE',
+    body: JSON.stringify({ message: 'sync-del', sha })
+  })
+  return { ok: true }
+}
+
 // 下载文件（raw URL；public 免 token，仍带 token 以兼容 private；30s 超时）
 async function downloadFile(cfg, relPath) {
   const branch = await defaultBranch(cfg)
@@ -144,4 +161,4 @@ async function downloadData(cfg) {
   }
 }
 
-module.exports = { testConnection, getManifest, putManifest, uploadFile, downloadFile, uploadData, downloadData }
+module.exports = { testConnection, getManifest, putManifest, uploadFile, deleteFile, downloadFile, uploadData, downloadData }

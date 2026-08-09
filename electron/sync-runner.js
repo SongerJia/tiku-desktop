@@ -63,7 +63,10 @@ module.exports = function syncRunner(db) {
     const remote = await ghRepo.getManifest(ghCfg)
     const remoteKb = (remote && remote.kbFiles) || {}
     const remoteImgs = (remote && remote.images) || {}
-    let kbUp = 0, kbDown = 0, imgUp = 0, imgDown = 0
+    // 本地软删文档的 rel_path 集合：这些文件不应下载回来，且应删除远端文件本体
+    let deletedRels = new Set()
+    try { deletedRels = new Set(db.getDeletedKbRels ? (db.getDeletedKbRels() || []) : []) } catch (e) {}
+    let kbUp = 0, kbDown = 0, kbDel = 0, imgUp = 0, imgDown = 0
 
     // 安全净化：拒绝路径穿越（'..' / 绝对路径）——rel 来自远端不可信清单
     const safeRel = (rel) => !String(rel).includes('..') && !path.isAbsolute(String(rel))
@@ -74,6 +77,7 @@ module.exports = function syncRunner(db) {
     // 远端 → 本地
     const failedKbDown = [], failedImgDown = []
     for (const rel of Object.keys(remoteKb)) {
+      if (deletedRels.has(rel)) continue // 本地已软删：不下载，稍后删除远端
       if (!localKb[rel]) {
         if (!safeRel(rel)) { failedKbDown.push(rel); continue }
         try {
@@ -114,9 +118,17 @@ module.exports = function syncRunner(db) {
       } else imgUpOk[im.name] = im.hash
     }
 
+    // 删除远端已软删文件（本地软删 → 远端文件本体也移除）
+    const failedKbDel = []
+    for (const rel of deletedRels) {
+      if (remoteKb[rel]) {
+        try { await ghRepo.deleteFile(ghCfg, 'kb/' + rel); kbDel++ } catch (e) { failedKbDel.push(rel) }
+      }
+    }
+
     // 写文件清单（只含成功状态）
     await ghRepo.putManifest(ghCfg, { updatedAt: Date.now(), kbFiles: kbUpOk, images: imgUpOk })
-    return { kbUp, kbDown, imgUp, imgDown, failedKbUp, failedKbDown, failedImgUp, failedImgDown }
+    return { kbUp, kbDown, kbDel, imgUp, imgDown, failedKbUp, failedKbDown, failedImgUp, failedImgDown, failedKbDel }
   }
 
   // 主流程
