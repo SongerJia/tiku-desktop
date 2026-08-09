@@ -204,9 +204,7 @@ function onResume(session) {
   setup.value.active = false
 }
 
-function startQuiz({ categoryId, mode }) {
-  quiz.value = { active: true, categoryId, subjectId: null, mode: mode || 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null, tags: null }
-}
+
 function exitQuiz() {
   quiz.value = { active: false, categoryId: null, subjectId: null, mode: 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null, tags: null, questionId: null, daily: false }
   homeRefresh.value++ // 答题回来刷新首页（每日一题卡片状态等）
@@ -379,6 +377,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
       :wide="isWide"
       :currentId="currentSubject.id"
       @select="onSubjectSelected"
+      @close="showSubjectPicker = false"
     />
 
     <PracticeSetup

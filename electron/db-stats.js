@@ -161,13 +161,21 @@ module.exports = function statsModule(ctx) {
       return days
     },
 
-    getMonthlyCalendar(year, month) {
+    getMonthlyCalendar(year, month, subjectId) {
       const start = new Date(year, month - 1, 1).getTime()
       const end = new Date(year, month, 1).getTime()
-      const rows = sqlite.prepare(`SELECT DATE(created_at/1000, 'unixepoch', 'localtime') AS day, COUNT(*) AS n
-        FROM answer_records
-        WHERE user_id=? AND deleted=0 AND created_at>=? AND created_at<?
-        GROUP BY day`).all(LOCAL_USER, start, end)
+      let sql = `SELECT DATE(ar.created_at/1000, 'unixepoch', 'localtime') AS day, COUNT(*) AS n
+        FROM answer_records ar
+        WHERE ar.user_id=? AND ar.deleted=0 AND ar.created_at>=? AND ar.created_at<?`
+      const params = [LOCAL_USER, start, end]
+      if (subjectId) {
+        const ids = descendantCategoryIds(subjectId)
+        if (!ids.length) return {}
+        sql += ' AND ar.question_id IN (SELECT id FROM questions WHERE deleted=0 AND category_id IN (' + ids.map(() => '?').join(',') + '))'
+        params.push(...ids)
+      }
+      sql += ' GROUP BY day'
+      const rows = sqlite.prepare(sql).all(...params)
       const map = {}
       rows.forEach(r => { map[r.day] = r.n })
       return map

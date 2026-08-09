@@ -200,7 +200,7 @@ const histPath = computed(() => {
 const histX = (i) => examHistory.value.length === 1 ? 150 : 10 + (i * 280) / (examHistory.value.length - 1)
 const histY = (e) => 62 - (e.pct / 100) * 50
 async function loadAnalysis() {
-  try { catAccuracy.value = await tiku.getCategoryAccuracy() } catch (e) { catAccuracy.value = [] }
+  // 章节正确率已由 loadContent 按科目范围加载，这里只补成绩曲线（localStorage）
   try { examHistory.value = JSON.parse(localStorage.getItem('exam_history') || '[]').slice(-30) } catch (e) { examHistory.value = [] }
 }
 </script>

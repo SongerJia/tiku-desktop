@@ -20,7 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSummary: (subjectId) => ipcRenderer.invoke('getSummary', subjectId),
   getChapterProgress: () => ipcRenderer.invoke('getChapterProgress'),
   getWeeklyTrend: (subjectId) => ipcRenderer.invoke('getWeeklyTrend', subjectId),
-  getMonthlyCalendar: (year, month) => ipcRenderer.invoke('getMonthlyCalendar', year, month),
+  getMonthlyCalendar: (year, month, subjectId) => ipcRenderer.invoke('getMonthlyCalendar', year, month, subjectId),
   getActivityHeatmap: (days, subjectId) => ipcRenderer.invoke('getActivityHeatmap', days, subjectId),
   markMastered: (questionId) => ipcRenderer.invoke('markMastered', questionId),
   rateReview: (questionId, quality) => ipcRenderer.invoke('rateReview', questionId, quality),
@@ -147,4 +147,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setWrongReason: (questionId, reason) => ipcRenderer.invoke('setWrongReason', questionId, reason),
   getWeeklyReport: (subjectId) => ipcRenderer.invoke('getWeeklyReport', subjectId),
   getMonthStats: () => ipcRenderer.invoke('getMonthStats'),
+  getVersion: () => ipcRenderer.invoke('getVersion'),
+  openExternal: (url) => ipcRenderer.invoke('openExternal', url),
 })

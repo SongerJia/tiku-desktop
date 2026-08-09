@@ -18,7 +18,6 @@ const loading = ref(true)
 const showWelcome = ref(false)
 // 每日一题：{ question, state } state: { date, qid, answered, correct, streak, bestStreak, period }
 const dailyPuzzle = ref(null)
-const dailyAnalysisOpen = ref(false)
 // 今日任务单：到期复习 / 每日一题 / 今日目标 / 未读文档
 const dueReviews = ref(0)
 const kbUnread = ref(0)
@@ -96,7 +95,6 @@ async function load() {
   try { dailyPuzzle.value = await tiku.getDailyPuzzle(props.subject.id) } catch (e) { dailyPuzzle.value = null }
   try { dueReviews.value = (await tiku.reviewDueStats(props.subject.id)).due || 0 } catch (e) { dueReviews.value = 0 }
   try { kbUnread.value = (await tiku.kbStats()).unread || 0 } catch (e) { kbUnread.value = 0 }
-  dailyAnalysisOpen.value = false
   loading.value = false
 }
 

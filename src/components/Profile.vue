@@ -2,7 +2,7 @@
 import Icon from './Icon.vue'
 import CountUp from './CountUp.vue'
 import { showConfirm } from '../utils/confirm.js'
-import { evaluate, achLevel, ACH_DEFS, ACH_SERIES, ACH_RARITY, currentSeason, evaluateSeason, seasonTarget, syncSeasonArchive } from '../utils/achievements.js'
+import { evaluate, achLevel, ACH_SERIES, ACH_RARITY, currentSeason, evaluateSeason, syncSeasonArchive } from '../utils/achievements.js'
 import { ref, onMounted, computed } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { applyAppearance } from '../utils/appearance.js'
@@ -12,7 +12,6 @@ import NotesList from './NotesList.vue'
 import ChapterProgress from './ChapterProgress.vue'
 import AboutModal from './AboutModal.vue'
 import BackupModal from './BackupModal.vue'
-import XpDetailModal from './XpDetailModal.vue'
 import CategoryManager from './CategoryManager.vue'
 
 const emit = defineEmits(['reset', 'start', 'open-bank', 'goto-kb-all'])
@@ -37,7 +36,6 @@ const syncing = ref(false)
 const showChapter = ref(false)
 const showAbout = ref(false)
 const showBackup = ref(false)
-const showXpDetail = ref(false)
 const showCats = ref(false)
 
 onMounted(async () => {
@@ -741,9 +739,7 @@ onMounted(async () => {
     <ChapterProgress :show="showChapter" @close="showChapter = false" />
     <AboutModal :show="showAbout" @close="showAbout = false" />
     <BackupModal :show="showBackup" @close="showBackup = false" />
-    <CategoryManager :show="showCats" @close="showCats = false" />
-    <XpDetailModal :show="showXpDetail" @close="showXpDetail = false" />
-  </div>
+    <CategoryManager :show="showCats" @close="showCats = false" />  </div>
 </template>
 
 <style scoped>
