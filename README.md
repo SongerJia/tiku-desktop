@@ -197,10 +197,41 @@ npm run test:parser && npm run test:xlsx   # 解析层 + Excel
 # 4. 打包成 Windows 安装包（输出在 release/ 目录，含自定义图标）
 npm run dist
 
-# 5. 发布新版本（升版本号 → 打包 + 上传 GitHub Releases → 已装用户自动更新）
-npm run bump minor   # 升版本号（patch 修 bug / minor 新功能 / major 正式版），自动同步 README 版本行并 commit
-npm run release      # 防呆查重（同版本已发布会中止）→ 打包 → 上传 GitHub Releases
+# 5. 发布新版本（详见下方「发版流程」小节）
+npm run bump minor   # 升版本号（自动同步 README 版本行）
+npm run release      # 防呆查重 → 打包 → 上传 GitHub Releases → 已装用户自动更新
 ```
+
+### 发版流程（版本号由 bump 命令统一管理）
+
+**`npm run bump <patch|minor|major>`** —— 升版本号并同步各处：
+
+| 参数 | 版本变化 | 什么时候用 |
+|---|---|---|
+| `patch` | 0.6.0 → 0.6.1 | 修 bug、小调整 |
+| `minor` | 0.6.0 → 0.7.0 | 加了新功能 |
+| `major` | 0.6.0 → 1.0.0 | 功能稳定、正式发布 |
+
+跑完自动做三件事：
+1. **改 `package.json` 的 version**（软件内「关于我们」、安装包、GitHub Release tag 全部跟随它）
+2. **同步 README 第 5 行「当前版本：vX.Y.Z」**（只换版本号，不碰描述文字）
+3. 提示你提交（`git add -A && git commit`）
+
+**完整发版流程：**
+
+```bash
+npm run bump minor            # ① 升版本（自动改 package.json + README）
+git add -A && git commit -m "release: v0.7.0"   # ② 提交版本号
+git push                      # ③ 推送代码（可选但建议）
+npm run release               # ④ 打包 + 上传 GitHub Releases（内置防呆：同版本已发布会中止）
+```
+
+发布后：
+- **已装用户**：启动 10 秒后 / 每 6 小时自动检测，发现新版自动下载，退出应用即自动安装——无需重新下载安装包
+- **新用户**：从 GitHub Releases 下载安装包（一键安装向导）
+- 版本号在 **README / 软件内「关于我们」/ 安装包 / GitHub Release** 四处保持一致
+
+> 发布需要 GitHub Token（`repo` 权限）：已写入 Windows 用户环境变量 `GH_TOKEN`，或发布前 `export GH_TOKEN=ghp_xxx`。
 
 > 沙箱环境里没有 VS Build Tools，我没法在这里 `npm run dev` 实景跑起来；但工程是规范的，拉回去 `npm install && npm run dev` 即可。
 
