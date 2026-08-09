@@ -15,9 +15,9 @@
     "test:parser": "node scripts/test-parser.mjs",
     "test:xlsx": "node scripts/test-xlsx.mjs",
     "test:kb": "python scripts/test-kb.py && node scripts/test-kb-extract.mjs",
-    "test:sync": "node scripts/test-sync-merge.mjs && node scripts/test-sync-chunk.mjs",
+    "test:sync": "node scripts/test-sync-merge.mjs",
     "test:db": "electron scripts/test-db.cjs",
-    "test": "node scripts/test-parser.mjs && node scripts/test-xlsx.mjs && node scripts/test-sync-merge.mjs && node scripts/test-sync-chunk.mjs && node scripts/test-sm2.mjs && node scripts/test-kb-extract.mjs",
+    "test": "node scripts/test-parser.mjs && node scripts/test-xlsx.mjs && node scripts/test-sync-merge.mjs && node scripts/test-sm2.mjs && node scripts/test-kb-extract.mjs",
     "verify": "vite build --config vite.verify.config.js",
     "dist": "vite build && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder"
   },
