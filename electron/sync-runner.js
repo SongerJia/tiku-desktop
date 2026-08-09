@@ -8,9 +8,8 @@ const ghRepo = require('./sync-github-repo')
 
 module.exports = function syncRunner(db) {
   const kbDir = () => path.join(app.getPath('userData'), 'kb')
-  const sha256 = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex')
 
-  // 本地知识库文件清单：{ rel_path: sha256 }
+  // 本地知识库文件清单：{ rel: { hash, buf } }——buf 复用，避免上传时二次读盘
   function scanKbFiles() {
     const dir = kbDir()
     const out = {}
@@ -20,7 +19,12 @@ module.exports = function syncRunner(db) {
         const full = path.join(d, name)
         const rel = prefix ? prefix + '/' + name : name
         const st = fs.statSync(full)
-        if (st.isFile()) { try { out[rel] = sha256(full) } catch (e) {} }
+        if (st.isFile()) {
+          try {
+            const buf = fs.readFileSync(full)
+            out[rel] = { hash: crypto.createHash('sha256').update(buf).digest('hex'), buf }
+          } catch (e) {}
+        }
         else if (st.isDirectory()) walk(full, rel)
       }
     }
@@ -81,16 +85,16 @@ module.exports = function syncRunner(db) {
       }
     }
 
-    // 本地 → 远端（成功的才写进 manifest；失败的排除 → 下次同步自动重试，避免状态污染永久缺失）
+    // 本地 → 远端（成功的才写进 manifest；失败的排除 → 下次同步自动重试）
     const failedKbUp = [], failedImgUp = []
     const kbUpOk = {}, imgUpOk = {}
     for (const rel of Object.keys(localKb)) {
-      if (remoteKb[rel] !== localKb[rel]) {
+      if (remoteKb[rel] !== localKb[rel].hash) {
         try {
-          await ghRepo.uploadFile(ghCfg, 'kb/' + rel, fs.readFileSync(path.join(kbDir(), rel)))
-          kbUp++; kbUpOk[rel] = localKb[rel]
+          await ghRepo.uploadFile(ghCfg, 'kb/' + rel, localKb[rel].buf)
+          kbUp++; kbUpOk[rel] = localKb[rel].hash
         } catch (e) { failedKbUp.push(rel) }
-      } else kbUpOk[rel] = localKb[rel]
+      } else kbUpOk[rel] = localKb[rel].hash
     }
     for (const im of localImgs) {
       if (remoteImgs[im.name] !== im.hash) {

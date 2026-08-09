@@ -95,9 +95,13 @@ async function downloadFile(cfg, relPath) {
   return Buffer.from(await res.arrayBuffer())
 }
 
-// ---- 数据快照（data.json.gz：gzip 压缩，避免 base64 膨胀超限）----
+// ---- 数据快照（data.json.gz：gzip 压缩，避免 base64 膨胀超限；异步压缩不阻塞主进程）----
+const { promisify } = require('util')
+const gzip = promisify(zlib.gzip)
+const gunzip = promisify(zlib.gunzip)
+
 async function uploadData(cfg, jsonStr) {
-  const buf = zlib.gzipSync(Buffer.from(jsonStr, 'utf8'))
+  const buf = await gzip(Buffer.from(jsonStr, 'utf8'))
   await uploadFile(cfg, 'data.json.gz', buf)
   return buf.length
 }
@@ -105,7 +109,7 @@ async function uploadData(cfg, jsonStr) {
 async function downloadData(cfg) {
   try {
     const buf = await downloadFile(cfg, 'data.json.gz')
-    return zlib.gunzipSync(buf).toString('utf8')
+    return (await gunzip(buf)).toString('utf8')
   } catch (e) {
     if (e.status === 404) return null // 首次同步
     throw e
