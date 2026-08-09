@@ -328,7 +328,20 @@ function fmtTime(ts) {
 .kb-scope-tag.all { color: var(--brand); border-color: rgba(91,124,250,.4); background: rgba(91,124,250,.06); }
 .kb-tools .input { flex: 1; }
 .kb-tag-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.kb-tag-n { font-size: 11px; opacity: .7; margin-left: 4px; }
+/* 知识库 chip 统一样式：与文档卡片 q-tag 一致（圆角矩形 + 品牌色淡背景） */
+.kb-tag-row .filter-chip, .kb-scope-line .filter-chip {
+  font-size: 12px; color: var(--brand);
+  border: 1px solid var(--line); border-radius: 12px;
+  background: rgba(91, 124, 250, 0.08);
+  padding: 4px 12px; display: inline-flex; align-items: center; gap: 4px;
+}
+.kb-tag-row .filter-chip:hover, .kb-scope-line .filter-chip:hover {
+  border-color: var(--brand); background: rgba(91, 124, 250, 0.16);
+}
+.kb-tag-row .filter-chip.active, .kb-scope-line .filter-chip.active {
+  background: var(--brand); color: #021018; font-weight: 600; border-color: var(--brand);
+}
+.kb-tag-n { font-size: 11px; opacity: .65; margin-left: 2px; }
 
 .kb-grid {
   display: grid;
