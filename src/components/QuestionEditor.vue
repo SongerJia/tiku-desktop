@@ -36,7 +36,7 @@ watch(images, async (list) => {
   if (!list || !list.length) return
   try {
     const urls = await Promise.all(list.map(name => tiku.getImage(name)))
-    thumbUrls.value = urls.filter(Boolean)
+    thumbUrls.value = urls // 保留索引（缺失图留 null，避免与 images[i] 错位）
   } catch (e) { thumbUrls.value = [] }
 }, { immediate: true })
 

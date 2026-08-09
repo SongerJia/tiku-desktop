@@ -47,7 +47,6 @@ function migrateGhToken() {
     db.setSetting('gh_token', '')
   } catch (e) { /* 迁移失败不阻塞 */ }
 }
-migrateGhToken()
 const { extractMd, extractPdf, uniqueRelPath } = require('./kbExtract')
 const logger = require('./logger')
 
@@ -162,6 +161,7 @@ app.on('second-instance', () => {
 app.whenReady().then(() => {
   try {
     db.init() // 打开 SQLite、建表、灌样例数据（仅首次）；内部含损坏自动恢复
+    migrateGhToken() // 旧版明文 gh_token 迁移到加密文件（需 db.init 后）
     logger.info('应用主进程就绪')
   } catch (e) {
     logger.error('db.init 失败', e && e.message ? e.message : String(e))

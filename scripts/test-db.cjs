@@ -321,6 +321,17 @@ try {
   // cards 表参与合并（修复：此前漏合并导致跨端闪卡丢失）
   const mCards = db.mergeRemote(JSON.stringify(db.exportSync()))
   ok('mergeRemote 合并 cards 表', mCards.cards >= 1)
+  // recite 背题模式：只进错题本，不写答题记录（不污染统计）
+  const reciteQ = db.getWrongBook()[0]
+  if (reciteQ) {
+    const todayBefore = (db.getSummary() || {}).today || 0
+    db.submitAnswer({ questionId: reciteQ.question_id, selected: [], durationMs: 0, mode: 'recite', selfGrade: false })
+    const todayAfter = (db.getSummary() || {}).today || 0
+    ok('recite 模式不写答题记录（今日已刷不变）', todayAfter === todayBefore)
+  }
+  // getWrongBook 含图片字段
+  ok('getWrongBook 含 images 字段', db.getWrongBook().every(r => Array.isArray(r.images)))
+  ok('getFavorites 含 images 字段', db.getFavorites().every(r => Array.isArray(r.images)))
   // 冲突计数：远端快照某行 updated_at 改新 → LWW 覆盖且记冲突
   const sync3 = JSON.parse(db.exportSync())
   const wbRow = sync3.wrongBooks.find(r => r && r.client_id)

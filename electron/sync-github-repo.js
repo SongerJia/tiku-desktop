@@ -109,7 +109,14 @@ async function downloadFile(cfg, relPath) {
   // 备用源：GitHub API contents（base64，api.github.com 相对稳定）
   try {
     const r = await ghFetch(`/repos/${cfg.owner}/${cfg.repo}/contents/${encPath(relPath)}`, cfg.token)
-    return Buffer.from(String(r.content || '').replace(/\s/g, ''), 'base64')
+    if (r.content) return Buffer.from(String(r.content).replace(/\s/g, ''), 'base64')
+    // >1MB 文件 contents API 不给 content，只给 download_url → 直接拉 raw 直链
+    if (r.download_url) {
+      const res = await net.fetch(r.download_url, { headers: { Authorization: `Bearer ${cfg.token}` }, signal: AbortSignal.timeout(60000) })
+      if (res.status >= 400) throw new Error(`下载 ${relPath} → HTTP ${res.status}`)
+      return Buffer.from(await res.arrayBuffer())
+    }
+    throw new Error(`下载 ${relPath}：contents 无内容`)
   } catch (e) {
     if (e.status === 404) { e.status = 404; throw e }
     throw lastErr || e

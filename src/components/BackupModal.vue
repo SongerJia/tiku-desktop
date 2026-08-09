@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { showConfirm } from '../utils/confirm.js'
 
