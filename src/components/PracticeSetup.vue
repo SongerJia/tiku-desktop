@@ -285,7 +285,7 @@ function confirm() {
 .chip.sm { align-items: center; flex-direction: row; justify-content: center; font-size: 14px; font-weight: 500; }
 .chip:hover { border-color: var(--brand, #5b7cfa); box-shadow: var(--glow-soft, 0 0 12px rgba(42,245,255,.25)); }
 .chip.active { background: var(--brand, #5b7cfa); color: #fff; border-color: var(--brand, #5b7cfa); box-shadow: var(--glow, 0 0 16px rgba(42,245,255,.5)); }
-.chip.active .chip-desc { color: rgba(2, 16, 24, 0.7); }
+.chip.active .chip-desc { color: rgba(255, 255, 255, 0.78); } /* 蓝底上副标题用半透明白（上一轮漏改） */
 .chip-label { font-size: 14px; font-weight: 600; }
 .chip-desc { font-size: 10px; opacity: .8; line-height: 1.3; }
 
