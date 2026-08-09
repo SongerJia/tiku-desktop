@@ -3,6 +3,14 @@ const pkg = require('../package.json')
 const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
+
+// 打包版使用独立数据目录，与开发版隔离：
+// 开发机上的测试科目/文档/历史数据不会随安装版首启带入；首次运行即干净初始状态。
+// 迁移历史数据：旧版本「我的 → 数据管理 → 导出备份」→ 安装版「恢复备份」。
+if (app.isPackaged) {
+  try { app.setPath('userData', path.join(app.getPath('appData'), '知识记忆小助手-正式版')) } catch (e) {}
+}
+
 const db = require('./db')
 const { readXlsx, writeXlsx } = require('./xlsx-lite')
 const syncGithub = require('./sync-github')
