@@ -735,7 +735,7 @@ onBeforeUnmount(() => {
 .stat-num { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
 .stat-num.on { color: var(--brand); }
 .stat-num.bad { color: var(--bad); }
-.stat-num.fire { color: var(--warn); }
+.stat-num.ok { color: var(--ok); }
 .stat-label { font-size: 11px; color: var(--muted); }
 .stat-goal { margin: 10px 4px 2px; }
 .stat-goal-top { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 4px; }

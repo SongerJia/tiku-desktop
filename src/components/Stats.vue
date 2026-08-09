@@ -137,9 +137,7 @@ async function loadGlobal() {
   try { examDate.value = (await tiku.getSetting('exam_date')) || '' } catch (e) { examDate.value = '' }
 }
 
-watch(filterSubjectId, () => { if (loggedIn.value) loadContent() }) // 切科目只刷新内容类
-// 顶部科目变化：若统计页仍处于「跟随顶部」状态则刷新
-watch(() => props.subject.id, () => { if (loggedIn.value && subjectScope.value === 'current') loadContent() })
+watch(filterSubjectId, () => { if (loggedIn.value) loadContent() }) // 切科目/切范围只刷新内容类（filterSubjectId 依赖两者，单一 watch 全覆盖）
 
 async function toggleHabit(h) {
   if (h.checkedToday) { await tiku.uncheckHabit(h.id) }

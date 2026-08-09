@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
@@ -24,23 +24,25 @@ const rIdx = ref(0)
 const flipped = ref(false)
 const rDone = ref(0)
 
-// 添加/编辑表单
-const form = ref({ id: null, front: '', back: '', category: '' })
+// 添加/编辑表单（subjectId 供编辑保留原科目，新建默认当前科目）
+const form = ref({ id: null, front: '', back: '', category: '', subjectId: null })
 
 const dueCount = computed(() => stats.value.due)
 
 async function load() {
   loading.value = true
-  const [list, s] = await Promise.all([tiku.listCards(filterSubjectId.value), tiku.cardsStats(filterSubjectId.value)])
-  cards.value = list
-  stats.value = s
+  try {
+    const [list, s] = await Promise.all([tiku.listCards(filterSubjectId.value), tiku.cardsStats(filterSubjectId.value)])
+    cards.value = list
+    stats.value = s
+  } catch (e) { /* 加载失败不转圈 */ }
   loading.value = false
 }
 
-function startAdd() { form.value = { id: null, front: '', back: '', category: '' } }
+function startAdd() { form.value = { id: null, front: '', back: '', category: '', subjectId: null } }
 
 function editCard(c) {
-  form.value = { id: c.id, front: c.front, back: c.back, category: c.category || '' }
+  form.value = { id: c.id, front: c.front, back: c.back, category: c.category || '', subjectId: c.subject_id ?? null }
   window.scrollTo && window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -48,8 +50,10 @@ async function saveCard() {
   const f = form.value.front.trim()
   const b = form.value.back.trim()
   if (!f || !b) { showToast('正面和背面都不能为空'); return }
-  if (form.value.id) await tiku.updateCard(form.value.id, f, b, form.value.category.trim(), props.subject.id)
-  else await tiku.addCard(f, b, form.value.category.trim(), props.subject.id)
+  // 编辑保留原科目归属，新建归当前科目
+  const sid = form.value.id ? form.value.subjectId : props.subject.id
+  if (form.value.id) await tiku.updateCard(form.value.id, f, b, form.value.category.trim(), sid)
+  else await tiku.addCard(f, b, form.value.category.trim(), sid)
   startAdd()
   await load()
 }
@@ -101,7 +105,9 @@ async function onPickCsv(e) {
 
 // ---- 复习模式 ----
 async function startReview() {
-  reviewItems.value = await tiku.getCardReview(10)
+  try {
+    reviewItems.value = await tiku.getCardReview(10, filterSubjectId.value)
+  } catch (e) { reviewItems.value = [] }
   if (!reviewItems.value.length) { showToast('还没有卡片，先添加几张吧'); return }
   rIdx.value = 0
   rDone.value = 0
@@ -130,8 +136,13 @@ async function finishReview() {
 }
 
 useEsc(() => emit('close'))
-onMounted(load)
-watch(() => props.show, (v) => { if (v) load() })
+watch(() => props.show, (v) => {
+  if (v) {
+    mode.value = 'list' // 重开面板回到列表，清掉残留复习态
+    startAdd()
+    load()
+  }
+})
 watch(() => props.subject.id, () => { if (props.show && scope.value === 'current') load() })
 watch(scope, () => { if (props.show) load() })
 </script>

@@ -315,12 +315,12 @@ module.exports = function statsModule(ctx) {
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
       const dayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
       const answered = sqlite.prepare('SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=?').get(LOCAL_USER, monthStart).n
-      const activeDays = sqlite.prepare("SELECT COUNT(DISTINCT DATE(created_at/1000,'unixepoch','localtime')) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=?").get(LOCAL_USER, monthStart).n
+      const monthActive = sqlite.prepare("SELECT COUNT(DISTINCT DATE(created_at/1000,'unixepoch','localtime')) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=?").get(LOCAL_USER, monthStart).n
       const reviewed = sqlite.prepare('SELECT COUNT(*) AS n FROM review_logs WHERE created_at>=?').get(monthStart).n
       const focusMin = sqlite.prepare('SELECT COALESCE(SUM(minutes),0) AS n FROM focus_sessions WHERE deleted=0 AND created_at>=?').get(monthStart).n
       const checkDays = sqlite.prepare('SELECT COUNT(DISTINCT check_date) AS n FROM habit_checks WHERE check_date>=?').get(dayKey).n
       const cardsAdded = sqlite.prepare('SELECT COUNT(*) AS n FROM cards WHERE deleted=0 AND created_at>=?').get(monthStart).n
-      return { answered, activeDays, reviewed, focusMin, checkDays, cardsAdded }
+      return { answered, monthActive, reviewed, focusMin, checkDays, cardsAdded }
     }
   }
 }

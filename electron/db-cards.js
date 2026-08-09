@@ -74,17 +74,19 @@ module.exports = function cardsModule(ctx) {
       return { ok: true }
     },
 
-    // 单词卡复习抽取：到期卡优先（含新卡），最多 limit 张
-    getCardReview(limit = 10) {
+    // 单词卡复习抽取：到期卡优先（含新卡），最多 limit 张；subjectId 限定科目范围
+    getCardReview(limit = 10, subjectId) {
       const now = Date.now()
+      const where = subjectId ? ' AND subject_id=?' : ''
+      const params = subjectId ? [subjectId] : []
       const due = sqlite.prepare(
-        `SELECT * FROM cards WHERE deleted=0 AND review_count>0 AND (review_at IS NULL OR review_at<=?)
+        `SELECT * FROM cards WHERE deleted=0 AND review_count>0 AND (review_at IS NULL OR review_at<=?)${where}
          ORDER BY (review_lapses>0) DESC, review_at IS NULL DESC, review_at ASC LIMIT ?`
-      ).all(now, limit)
+      ).all(now, ...params, limit)
       const pool = due.length < limit
         ? due.concat(sqlite.prepare(
-            `SELECT * FROM cards WHERE deleted=0 AND review_count=0 ORDER BY RANDOM() LIMIT ?`
-          ).all(limit - due.length))
+            `SELECT * FROM cards WHERE deleted=0 AND review_count=0${where} ORDER BY RANDOM() LIMIT ?`
+          ).all(...params, limit - due.length))
         : due
       return pool.map(c => ({ id: c.id, front: c.front, back: c.back, category: c.category }))
     },

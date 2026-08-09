@@ -467,7 +467,7 @@ try {
   ok('getWeeklyReport(subjectId) 按科目统计本周', db.getWeeklyReport(subA.id).answered >= 1)
   // 赛季统计（当月计数）
   const ms = db.getMonthStats()
-  ok('getMonthStats 当月计数正常', ms.answered >= 1 && typeof ms.activeDays === 'number' && typeof ms.focusMin === 'number' && typeof ms.checkDays === 'number' && typeof ms.cardsAdded === 'number')
+  ok('getMonthStats 当月计数正常', ms.answered >= 1 && typeof ms.monthActive === 'number' && typeof ms.focusMin === 'number' && typeof ms.checkDays === 'number' && typeof ms.cardsAdded === 'number')
   // 记忆卡按科目：题目生成卡自动继承科目 + listCards 过滤
   const cgA = db.addCardFromQuestion(qA.id)
   const subjCardsA = db.listCards(subA.id)

@@ -109,7 +109,8 @@ const LV_KEY = 'tiku_last_level'
 // 返回新等级（0 = 未升级；首次只记录基线）
 export function notifyLevelUp(xp) {
   const lv = (xp && xp.level) || 1
-  const last = Number(localStorage.getItem(LV_KEY) || 0)
+  let last = 0
+  try { last = Number(localStorage.getItem(LV_KEY) || 0) } catch (e) {}
   try { localStorage.setItem(LV_KEY, String(lv)) } catch (e) {}
   if (!last) return 0
   return lv > last ? lv : 0
@@ -119,7 +120,8 @@ export function notifyLevelUp(xp) {
 // 赛季号：2026-08 起为第 1 赛季，`(year-2026)*12 + (month-7)`；目标值随赛季号递增（进化感）
 export function currentSeason() {
   const d = new Date()
-  const no = (d.getFullYear() - 2026) * 12 + (d.getMonth() + 1 - 7)
+  // 2026-08 起为第 1 赛季；7 月及更早 = 0（无存档，避免与 8 月共用 key）
+  const no = (d.getFullYear() - 2026) * 12 + (d.getMonth() + 1 - 8) + 1
   const year = d.getFullYear()
   const month = d.getMonth() + 1
   // 本月剩余天数（含今天）
@@ -137,6 +139,15 @@ export const SEASON_CHALLENGES = [
   { key: 's_card', name: '本季记忆卡', unit: '张', base: 5, inc: 2, icon: '🃏' },
   { key: 's_active', name: '本季全勤', unit: '天', base: 12, inc: 3, icon: '🔥' }
 ]
+// 挑战 key → getMonthStats 返回字段 的映射（与 db-stats.getMonthStats 保持一致）
+export const SEASON_METRIC = {
+  s_answered: 'answered',
+  s_review: 'reviewed',
+  s_focus: 'focusMin',
+  s_check: 'checkDays',
+  s_card: 'cardsAdded',
+  s_active: 'monthActive'
+}
 
 export function seasonTarget(ch, seasonNo) {
   return ch.base + Math.max(0, seasonNo - 1) * ch.inc
@@ -145,7 +156,7 @@ export function seasonTarget(ch, seasonNo) {
 // 计算当前赛季挑战的评估结果（merged 含 getMonthStats 字段）
 export function evaluateSeason(merged, seasonNo = currentSeason().no) {
   return SEASON_CHALLENGES.map(ch => {
-    const cur = Number((merged && merged[ch.key.replace('s_', '')]) || 0)
+    const cur = Number((merged && merged[SEASON_METRIC[ch.key]]) || 0)
     const target = seasonTarget(ch, seasonNo)
     const pct = target ? Math.min(100, Math.round((cur / target) * 100)) : 0
     return {
