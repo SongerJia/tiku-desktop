@@ -339,7 +339,7 @@ function fmtTime(ts) {
   border-color: var(--brand); background: rgba(91, 124, 250, 0.16);
 }
 .kb-tag-row .filter-chip.active, .kb-scope-line .filter-chip.active {
-  background: var(--brand); color: #021018; font-weight: 600; border-color: var(--brand);
+  background: var(--brand); color: #fff; font-weight: 600; border-color: var(--brand);
 }
 .kb-tag-n {
   font-size: 10px; line-height: 14px; min-width: 14px; text-align: center;

@@ -596,7 +596,7 @@ async function loadAnalysis() {
   background: none; border: 1px solid var(--line); border-radius: 999px;
   font-size: 12px; color: var(--muted); padding: 5px 14px; cursor: pointer; transition: all .15s;
 }
-.filter-chip.active { background: var(--brand); border-color: var(--brand); color: #021018; font-weight: 600; }
+.filter-chip.active { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
 .scope-hint { font-size: 11px; color: var(--muted); margin-left: auto; }
 
 .heat-card .heat-streak { margin-left: 6px; font-size: 11px; color: var(--brand); font-weight: 600; }
