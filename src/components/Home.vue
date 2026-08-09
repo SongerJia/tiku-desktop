@@ -391,10 +391,6 @@ onBeforeUnmount(() => {
 /* 每日任务 */
 
 /* 习惯打卡 */
-.habit-empty { font-size: 12px; color: var(--muted); line-height: 1.7; }
-.habit-week { display: inline-flex; gap: 3px; align-items: center; }
-.habit-week i { width: 6px; height: 6px; border-radius: 50%; background: rgba(148, 163, 184, 0.25); }
-.habit-week i.on { background: var(--ok); box-shadow: 0 0 4px rgba(47, 191, 143, 0.5); }
 
 /* 每日回顾 + 专注 */
 .duo-row { display: flex; gap: 14px; }
@@ -454,8 +450,6 @@ onBeforeUnmount(() => {
 /* 左右并排（duo 容器）时热力图紧凑化 */
 
 /* 考试倒计时 */
-.exam-count-top { display: flex; align-items: center; justify-content: space-between; }
-.exam-count-label { font-size: 13px; font-weight: 600; color: var(--text); }
 
 /* 专注概览 */
 
