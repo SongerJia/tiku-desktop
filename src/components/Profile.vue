@@ -42,7 +42,9 @@ async function ghLoad() {
   } catch (e) {}
 }
 async function ghTest() {
+  if (!ghOwner.value.trim() || !ghRepo.value.trim()) { showToast('请先填写仓库拥有者和仓库名'); return }
   try {
+    // token 留空则用已保存的（主进程兜底）
     await tiku.ghTest({ token: ghToken.value, owner: ghOwner.value, repo: ghRepo.value })
     showToast('仓库连接成功', 'ok')
   } catch (e) { showToast('仓库连接失败：' + (e.message || e), 'err') }
@@ -544,6 +546,10 @@ onMounted(async () => {
         用 GitHub 私有仓库同步<b>全部数据</b>（学习数据 + 题库 + 知识库文档 + 题目图片），跨 Windows / macOS / 安卓。
         <br />Token 需有 <code>repo</code> 权限（GitHub → Settings → Developer settings → Personal access tokens）。<b>建议仓库设为 Private</b>（学习数据含个人隐私）。
       </p>
+      <div v-if="ghHasToken && !ghToken" class="sync-row sub" style="margin:6px 0 8px">
+        <span class="sync-dot" style="background:var(--ok)"></span>
+        <span><b>Token 已配置</b>（留空保持不变，无需重新填写）</span>
+      </div>
       <div class="wd-form">
         <input v-model="ghToken" class="sync-input" type="password" :placeholder="ghHasToken ? 'Token 已配置（留空保持不变）' : 'GitHub Token（ghp_...，需 repo 权限）'" @keyup.enter="ghSave" />
         <input v-model="ghOwner" class="sync-input" placeholder="仓库拥有者（GitHub 用户名）" @keyup.enter="ghSave" />

@@ -593,7 +593,9 @@ ipcMain.handle('ghSaveConfig', (e, cfg) => {
   return { ok: true }
 })
 ipcMain.handle('ghTest', async (e, cfg) => {
-  await ghRepo.testConnection({ token: cfg.token, owner: cfg.owner, repo: cfg.repo })
+  // token 留空 = 用已保存的（渲染层不回显明文，测试连接不应因输入框为空而失败）
+  const token = String(cfg.token || '').trim() || loadGhToken()
+  await ghRepo.testConnection({ token, owner: cfg.owner, repo: cfg.repo })
   return { ok: true }
 })
 let ghSyncInFlight = false // 主进程防重入（多窗口/连点并发保护）
