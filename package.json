@@ -70,5 +70,6 @@
     "vite": "^5.4.0",
     "vite-plugin-electron": "^0.28.0",
     "vite-plugin-electron-renderer": "^0.14.0"
-  }
+  },
+  "homepage": "https://github.com/songerjia/tiku-desktop"
 }
