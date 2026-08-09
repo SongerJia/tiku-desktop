@@ -261,35 +261,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
     <!-- PC 侧边导航 -->
     <aside v-if="isWide" class="sidebar" :style="{ width: sidebarWidth + 'px' }">
       <div class="side-brand">
-        <svg class="side-logo-svg" viewBox="0 0 32 32" width="32" height="32">
-          <defs>
-            <linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#5d7bfa"/>
-              <stop offset="1" stop-color="#6b4cf0"/>
-            </linearGradient>
-            <linearGradient id="lg2" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#ffffff"/>
-              <stop offset="1" stop-color="#e2e7fb"/>
-            </linearGradient>
-          </defs>
-          <!-- 渐变圆角底 + 细亮边 -->
-          <rect x="0.5" y="0.5" width="31" height="31" rx="8.5" fill="url(#lg1)"/>
-          <rect x="0.5" y="0.5" width="31" height="31" rx="8.5" fill="none" stroke="rgba(255,255,255,0.24)" stroke-width="0.8"/>
-          <!-- 左上柔和高光 -->
-          <ellipse cx="9.5" cy="7" rx="7" ry="5" fill="rgba(255,255,255,0.16)"/>
-          <!-- 白色纸页书本（左页+右页张开） -->
-          <path d="M6.6 10.6 C10.2 11.6 13.3 12 16 12.2 C18.7 12 21.8 11.6 25.4 10.6 L25.4 21.6 C21.8 22.6 18.7 23 16 23.2 C13.3 23 10.2 22.6 6.6 21.6 Z" fill="url(#lg2)"/>
-          <!-- 右页翻起的下层纸（景深） -->
-          <path d="M16 12.2 C19.2 12.5 22.4 13.4 25.4 15.6 L25.4 21.6 C21.8 22.6 18.7 23 16 23.2 Z" fill="#c9d2f5"/>
-          <!-- 书脊线 -->
-          <path d="M16 12.2 L16 23.2" stroke="rgba(90,100,170,0.4)" stroke-width="0.9"/>
-          <!-- 书页文字线（左页 3 条） -->
-          <path d="M9.3 15.2 C11.3 15.6 13.5 15.8 15.3 15.9" stroke="rgba(95,105,175,0.55)" stroke-width="0.9" stroke-linecap="round" fill="none"/>
-          <path d="M9.3 18.4 C11.3 18.8 13.5 19 15.3 19.1" stroke="rgba(95,105,175,0.55)" stroke-width="0.9" stroke-linecap="round" fill="none"/>
-          <path d="M9.3 21.6 C11.3 22 13.5 22.2 15.3 22.3" stroke="rgba(95,105,175,0.55)" stroke-width="0.9" stroke-linecap="round" fill="none"/>
-          <!-- 记忆之星（右上角） -->
-          <path d="M25.2 4.6 L25.7 6 L27.1 6.4 L25.7 6.8 L25.2 8.2 L24.7 6.8 L23.3 6.4 L24.7 6 Z" fill="#d7e2ff"/>
-        </svg>
+        <img src="/logo.png" class="side-logo-img" width="32" height="32" alt="知识记忆小助手" />
         <span class="side-name">知识记忆小助手</span>
       </div>
       <nav class="side-nav">

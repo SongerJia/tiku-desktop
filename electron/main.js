@@ -109,6 +109,7 @@ function createWindow() {
     minHeight: 600,
     resizable: true,
     title: '知识记忆小助手',
+    icon: path.join(__dirname, 'icon.png'), // 窗口标题栏/Alt-Tab 图标（与安装包/侧边栏图标统一）
     show: false, // 防白屏：等 ready-to-show 再显示，避免加载期白屏闪烁
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
