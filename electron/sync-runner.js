@@ -10,16 +10,24 @@ module.exports = function syncRunner(db) {
   const kbDir = () => path.join(app.getPath('userData'), 'kb')
 
   // 本地知识库文件清单：{ rel: { hash, buf } }——buf 复用，避免上传时二次读盘
+  // 只纳入「未删除文档」对应的文件（软删文档的文件已被删除，不再进入清单 → 远端 manifest 不含 → 其他端不再下载）
   function scanKbFiles() {
     const dir = kbDir()
     const out = {}
     if (!fs.existsSync(dir)) return out
+    // 有效文档的 rel_path 集合（deleted=0）
+    let activeRels = null
+    try {
+      activeRels = new Set(db.getKbDocs ? (db.getKbDocs() || []).map(d => d.rel_path).filter(Boolean) : [])
+    } catch (e) { activeRels = null }
     const walk = (d, prefix) => {
       for (const name of fs.readdirSync(d)) {
         const full = path.join(d, name)
         const rel = prefix ? prefix + '/' + name : name
         const st = fs.statSync(full)
         if (st.isFile()) {
+          // 软删文档的文件不纳入清单（删除随 manifest 传播；notes/ 子目录等无文档记录的文件保留兜底）
+          if (activeRels && !activeRels.has(rel) && !rel.startsWith('notes/')) continue
           try {
             const buf = fs.readFileSync(full)
             out[rel] = { hash: crypto.createHash('sha256').update(buf).digest('hex'), buf }

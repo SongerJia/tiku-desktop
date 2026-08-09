@@ -20,9 +20,13 @@ function indexByCid(rows) {
 }
 
 // 取较新一方；updated_at 相同取远端（保证 pull 一定并入）。
+// 删除优先：任一方 deleted=1 且对方非删除时，删除胜出（删除是终态，防止被旧快照"复活"）。
 function pickWinner(localRow, remoteRow) {
   if (!localRow) return remoteRow
   if (!remoteRow) return localRow
+  const lDel = Number(localRow.deleted) === 1
+  const rDel = Number(remoteRow.deleted) === 1
+  if (lDel !== rDel) return lDel ? localRow : remoteRow
   const lu = Number(localRow.updated_at) || 0
   const ru = Number(remoteRow.updated_at) || 0
   return ru >= lu ? remoteRow : localRow

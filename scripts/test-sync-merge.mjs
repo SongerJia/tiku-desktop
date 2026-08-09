@@ -99,4 +99,20 @@ check('rel_path 冲突换名兜底', () => {
   assert.ok(/note-\d+\.md/.test(relPath))
 })
 
+// 9. 删除优先：本地 deleted=1 时，即使远端时间戳更新也不能"复活"
+check('删除优先（本地删 vs 远端旧快照）', () => {
+  const local = [{ client_id: 'D', deleted: 1, updated_at: 2000 }]
+  const remote = [{ client_id: 'D', deleted: 0, updated_at: 5000 }]
+  const m = lwwMerge(local, remote)
+  assert.ok(m[0].deleted === 1, '本地删除应胜出（远端时间戳更新但未删）')
+})
+
+// 10. 删除优先反向：远端 deleted=1 传播到本地
+check('删除优先（远端删 → 本地应删）', () => {
+  const local = [{ client_id: 'E', deleted: 0, updated_at: 1000 }]
+  const remote = [{ client_id: 'E', deleted: 1, updated_at: 500 }]
+  const m = lwwMerge(local, remote)
+  assert.ok(m[0].deleted === 1, '远端删除应胜出（即使时间戳旧）')
+})
+
 console.log(`\n=== 同步合并测试：${pass} 通过 / 0 失败 ===`)

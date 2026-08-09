@@ -118,11 +118,14 @@ module.exports = function kbModule(ctx) {
     deleteKbDoc(id) {
       const doc = sqlite.prepare('SELECT * FROM kb_docs WHERE id=?').get(id)
       if (!doc) return { ok: false }
+      const now = Date.now()
       const tx = sqlite.transaction(() => {
+        // 软删除：保留行（deleted=1 + updated_at），删除标记随快照同步传播到其他端
+        sqlite.prepare('UPDATE kb_docs SET deleted=1, updated_at=? WHERE id=?').run(now, id)
+        // 子表：kb_links/kb_tags/kb_blocks 均无 deleted 列 → 物理删（合并时按远端文档重建兜底）
         sqlite.prepare('DELETE FROM kb_links WHERE doc_id=?').run(id)
         sqlite.prepare('DELETE FROM kb_tags WHERE doc_id=?').run(id)
         sqlite.prepare('DELETE FROM kb_blocks WHERE doc_id=?').run(id)
-        sqlite.prepare('DELETE FROM kb_docs WHERE id=?').run(id)
       })
       tx()
       try {
