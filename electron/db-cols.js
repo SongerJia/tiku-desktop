@@ -14,6 +14,7 @@ module.exports = {
     kbDocs: ['id', 'title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'subject_id', 'created_at', 'updated_at', 'deleted', 'client_id'],
     kbBlocks: ['id', 'doc_id', 'seq', 'heading', 'content', 'char_start', 'char_end'],
     kbTags: ['doc_id', 'tag'],
-    kbLinks: ['id', 'doc_id', 'block_id', 'question_id', 'note', 'created_at']
+    kbLinks: ['id', 'doc_id', 'block_id', 'question_id', 'note', 'created_at'],
+    cards: ['id', 'front', 'back', 'category', 'subject_id', 'source_question_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id']
   }
 }

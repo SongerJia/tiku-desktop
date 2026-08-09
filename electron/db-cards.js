@@ -4,15 +4,28 @@ module.exports = function cardsModule(ctx) {
   const { sqlite, uuid } = ctx
 
   return {
-    addCard(front, back, category) {
+    addCard(front, back, category, subjectId = null) {
       const now = Date.now()
-      sqlite.prepare('INSERT INTO cards (front, back, category, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,0,?)')
-        .run(String(front || '').trim(), String(back || '').trim(), String(category || '').trim(), now, now, uuid())
+      sqlite.prepare('INSERT INTO cards (front, back, category, subject_id, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,0,?)')
+        .run(String(front || '').trim(), String(back || '').trim(), String(category || '').trim(), subjectId || null, now, now, uuid())
       this.logXp(2, 'card', 'new')
       return { ok: true }
     },
 
-    // 从题目一键生成记忆卡（方向 10）：正面=题干（截断），背面=答案+解析，卡组=章节名；同题去重。
+    // 题目 category_id 向上找顶级科目 id（category 树的根）
+    _rootSubjectOf(categoryId) {
+      let id = categoryId
+      let guard = 0
+      while (id && guard++ < 10) {
+        const row = sqlite.prepare('SELECT id, parent_id FROM categories WHERE id=? AND deleted=0').get(id)
+        if (!row) break
+        if (!row.parent_id) return row.id
+        id = row.parent_id
+      }
+      return null
+    },
+
+    // 从题目一键生成记忆卡（方向 10）：正面=题干（截断），背面=答案+解析，卡组=章节名；同题去重；自动继承题目科目。
     addCardFromQuestion(questionId) {
       const q = this.getQuestionById(Number(questionId))
       if (!q) return { ok: false, error: '题目不存在' }
@@ -28,24 +41,31 @@ module.exports = function cardsModule(ctx) {
         const c = sqlite.prepare('SELECT name FROM categories WHERE id=?').get(q.category_id)
         if (c) category = c.name
       }
+      const subjectId = q.category_id ? this._rootSubjectOf(q.category_id) : null
       const now = Date.now()
-      sqlite.prepare('INSERT INTO cards (front, back, category, source_question_id, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,0,?)')
-        .run(front, back, category, q.id, now, now, uuid())
+      sqlite.prepare('INSERT INTO cards (front, back, category, subject_id, source_question_id, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,0,?)')
+        .run(front, back, category, subjectId, q.id, now, now, uuid())
       this.logXp(2, 'card', 'new')
       return { ok: true, duplicate: false, cardId: sqlite.prepare('SELECT last_insert_rowid() AS id').get().id }
     },
 
-    listCards() {
+    listCards(subjectId) {
       const dueNow = Date.now()
+      if (subjectId) {
+        return sqlite.prepare(
+          `SELECT c.*, (c.review_at IS NULL OR c.review_at<=?) AS due, c.review_lapses AS lapses
+           FROM cards c WHERE c.deleted=0 AND c.subject_id=? ORDER BY c.created_at DESC`
+        ).all(dueNow, subjectId)
+      }
       return sqlite.prepare(
         `SELECT c.*, (c.review_at IS NULL OR c.review_at<=?) AS due, c.review_lapses AS lapses
          FROM cards c WHERE c.deleted=0 ORDER BY c.created_at DESC`
       ).all(dueNow)
     },
 
-    updateCard(id, front, back, category) {
-      sqlite.prepare('UPDATE cards SET front=?, back=?, category=?, updated_at=? WHERE id=? AND deleted=0')
-        .run(String(front || '').trim(), String(back || '').trim(), String(category || '').trim(), Date.now(), id)
+    updateCard(id, front, back, category, subjectId) {
+      sqlite.prepare('UPDATE cards SET front=?, back=?, category=?, subject_id=?, updated_at=? WHERE id=? AND deleted=0')
+        .run(String(front || '').trim(), String(back || '').trim(), String(category || '').trim(), subjectId ?? null, Date.now(), id)
       return { ok: true }
     },
 
@@ -69,10 +89,12 @@ module.exports = function cardsModule(ctx) {
       return pool.map(c => ({ id: c.id, front: c.front, back: c.back, category: c.category }))
     },
 
-    cardsStats() {
+    cardsStats(subjectId) {
       const now = Date.now()
-      const total = sqlite.prepare('SELECT COUNT(*) AS n FROM cards WHERE deleted=0').get().n
-      const due = sqlite.prepare('SELECT COUNT(*) AS n FROM cards WHERE deleted=0 AND (review_at IS NULL OR review_at<=?)').get(now).n
+      const where = subjectId ? ' AND subject_id=?' : ''
+      const params = subjectId ? [subjectId] : []
+      const total = sqlite.prepare('SELECT COUNT(*) AS n FROM cards WHERE deleted=0' + where).get(...params).n
+      const due = sqlite.prepare('SELECT COUNT(*) AS n FROM cards WHERE deleted=0 AND (review_at IS NULL OR review_at<=?)' + where).get(now, ...params).n
       return { total, due }
     },
 

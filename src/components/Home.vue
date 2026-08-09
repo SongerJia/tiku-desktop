@@ -89,7 +89,7 @@ async function load() {
   summary.value = await tiku.getSummary(props.subject.id)
   try { dailyGoal.value = Number(await tiku.getSetting('daily_goal')) || 0 } catch (e) { dailyGoal.value = 0 }
   try { const fs = await tiku.focusStats(); focusToday.value = fs.today; focusWeek.value = fs.week } catch (e) { focusToday.value = 0 }
-  try { cardStats.value = await tiku.cardsStats() } catch (e) {}
+  try { cardStats.value = await tiku.cardsStats(props.subject.id) } catch (e) {}
   try { weakPoints.value = await tiku.getWeakPoints(5, props.subject.id) } catch (e) { weakPoints.value = [] }
   try { weakAccuracy.value = (await tiku.getCategoryAccuracy(props.subject.id)).slice(0, 3) } catch (e) { weakAccuracy.value = [] }
   try { dailyPuzzle.value = await tiku.getDailyPuzzle(props.subject.id) } catch (e) { dailyPuzzle.value = null }
@@ -395,7 +395,7 @@ onBeforeUnmount(() => {
     <SkeletonCards v-if="loading" :count="3" />
 
     <ReviewPanel :show="reviewOpen" @close="reviewOpen = false" />
-    <CardsPanel :show="cardsOpen" @close="cardsOpen = false" />
+    <CardsPanel :show="cardsOpen" :subject="props.subject" @close="cardsOpen = false" />
   </div>
 </template>
 

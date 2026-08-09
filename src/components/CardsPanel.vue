@@ -1,17 +1,21 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
 import { useEsc } from '../utils/useEsc.js'
 import Icon from './Icon.vue'
 
-const props = defineProps({ show: Boolean })
+const props = defineProps({ show: Boolean, subject: { type: Object, default: () => ({ id: null, name: '' }) } })
 const emit = defineEmits(['close'])
 
 const cards = ref([])
 const stats = ref({ total: 0, due: 0 })
 const loading = ref(true)
+// 记忆卡范围：默认跟随顶部科目，点角标切「全部科目」（未分类卡只在全部视图出现）
+const scope = ref('current')
+const filterSubjectId = computed(() => scope.value === 'all' ? undefined : props.subject.id || undefined)
+const isAll = computed(() => scope.value === 'all' || !props.subject.id)
 
 // 管理模式：列表 / 复习
 const mode = ref('list')
@@ -27,7 +31,7 @@ const dueCount = computed(() => stats.value.due)
 
 async function load() {
   loading.value = true
-  const [list, s] = await Promise.all([tiku.listCards(), tiku.cardsStats()])
+  const [list, s] = await Promise.all([tiku.listCards(filterSubjectId.value), tiku.cardsStats(filterSubjectId.value)])
   cards.value = list
   stats.value = s
   loading.value = false
@@ -44,8 +48,8 @@ async function saveCard() {
   const f = form.value.front.trim()
   const b = form.value.back.trim()
   if (!f || !b) { showToast('正面和背面都不能为空'); return }
-  if (form.value.id) await tiku.updateCard(form.value.id, f, b, form.value.category.trim())
-  else await tiku.addCard(f, b, form.value.category.trim())
+  if (form.value.id) await tiku.updateCard(form.value.id, f, b, form.value.category.trim(), props.subject.id)
+  else await tiku.addCard(f, b, form.value.category.trim(), props.subject.id)
   startAdd()
   await load()
 }
@@ -88,7 +92,7 @@ async function onPickCsv(e) {
   let n = 0, skipped = 0
   for (const r of rows) {
     if (r.length < 2 || !String(r[0]).trim() || !String(r[1]).trim()) { skipped++; continue }
-    await tiku.addCard(String(r[0]).trim(), String(r[1]).trim(), String(r[2] || '').trim())
+    await tiku.addCard(String(r[0]).trim(), String(r[1]).trim(), String(r[2] || '').trim(), props.subject.id)
     n++
   }
   showToast(n ? `CSV 导入完成：新增 ${n} 张卡片${skipped ? '，跳过 ' + skipped + ' 行' : ''}` : '未导入任何卡片，请检查 CSV 格式（front,back,category）', n ? 'ok' : 'err')
@@ -127,6 +131,9 @@ async function finishReview() {
 
 useEsc(() => emit('close'))
 onMounted(load)
+watch(() => props.show, (v) => { if (v) load() })
+watch(() => props.subject.id, () => { if (props.show && scope.value === 'current') load() })
+watch(scope, () => { if (props.show) load() })
 </script>
 
 <template>
@@ -135,7 +142,13 @@ onMounted(load)
       <!-- 头部 -->
       <div class="head">
         <span class="title">记忆卡</span>
-        <span class="stats" v-if="mode === 'list'">共 {{ stats.total }} 张 · 今日到期 {{ dueCount }}</span>
+        <span
+          class="card-scope"
+          :class="{ all: isAll }"
+          @click="scope = scope === 'all' ? 'current' : 'all'"
+          :title="isAll ? '点击切回当前科目' : '点击查看全部科目卡片'"
+        >{{ isAll ? '📚 全部科目' : '📖 ' + (props.subject.name || '当前科目') }}<template v-if="mode === 'list'"> · {{ stats.total }} 张</template></span>
+        <span class="stats" v-if="mode === 'list'">今日到期 {{ dueCount }}</span>
         <div class="spacer"></div>
         <button v-if="mode === 'list' && stats.total" class="btn btn-primary review-btn" @click="startReview">
           <Icon name="refresh" :size="13" /> 开始复习<template v-if="dueCount">（{{ dueCount }}）</template>
@@ -167,6 +180,7 @@ onMounted(load)
               <div class="card-back">{{ c.back }}</div>
             </div>
             <div class="card-meta">
+              <span v-if="!c.subject_id && isAll" class="cat-badge uncat">未分类</span>
               <span v-if="c.source_question_id" class="cat-badge src">来自题目</span>
               <span v-if="c.category" class="cat-badge">{{ c.category }}</span>
               <span class="state" :class="{ due: c.due }">
@@ -249,6 +263,15 @@ onMounted(load)
 .card-back { font-size: 13px; color: var(--muted); }
 .card-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
 .cat-badge { font-size: 10px; color: var(--brand); border: 1px solid rgba(91, 124, 250, 0.35); border-radius: 5px; padding: 0 6px; }
+.cat-badge.uncat { color: var(--muted); border-color: var(--line); }
+/* 记忆卡范围角标（点击切换全部/当前科目） */
+.card-scope {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; color: var(--brand); border: 1px dashed rgba(91,124,250,.4);
+  border-radius: 999px; padding: 2px 10px; cursor: pointer; user-select: none; transition: all .15s;
+}
+.card-scope:hover { background: rgba(91,124,250,.08); }
+.card-scope.all { color: var(--muted); border-color: var(--line); }
 .state { font-size: 11px; color: var(--muted); }
 .state.due { color: var(--warn); }
 .card-actions { display: flex; gap: 6px; flex-shrink: 0; }

@@ -468,6 +468,12 @@ try {
   // 赛季统计（当月计数）
   const ms = db.getMonthStats()
   ok('getMonthStats 当月计数正常', ms.answered >= 1 && typeof ms.activeDays === 'number' && typeof ms.focusMin === 'number' && typeof ms.checkDays === 'number' && typeof ms.cardsAdded === 'number')
+  // 记忆卡按科目：题目生成卡自动继承科目 + listCards 过滤
+  const cgA = db.addCardFromQuestion(qA.id)
+  const subjCardsA = db.listCards(subA.id)
+  const subjCardsOther = db.listCards(cats[0].id)
+  ok('addCardFromQuestion 自动继承题目科目', !!cgA.ok && subjCardsA.some(c => c.source_question_id === qA.id) && subjCardsOther.every(c => c.source_question_id !== qA.id))
+  ok('cardsStats(subjectId) 按科目统计', db.cardsStats(subA.id).total >= 1)
   db.deleteCategory(subA.id) // 级联清理（含错题残留无碍后续）
 
   // 空科目边界：新建科目无章节时拉题应返回空（防止 IN() SQL 报错）
