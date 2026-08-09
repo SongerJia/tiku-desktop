@@ -37,8 +37,8 @@
       "icon": "build/icon.png"
     },
     "nsis": {
-      "oneClick": true,
-      "allowToChangeInstallationDirectory": false,
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
       "shortcutName": "知识记忆小助手"
     },
     "publish": [
