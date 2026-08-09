@@ -87,9 +87,9 @@ const examLeft = computed(() => {
 const heatStreak = computed(() => summary.value.streak || 0)
 function heatLevel(c) { return c === 0 ? 0 : c <= 2 ? 1 : c <= 5 ? 2 : c <= 10 ? 3 : 4 }
 
-const now = new Date()
-const year = now.getFullYear()
-const month = now.getMonth() + 1
+// 动态取当前年月：跨月/跨日停留在页面也能刷新到新月份
+const nowY = () => { const d = new Date(); return d.getFullYear() }
+const nowM = () => { const d = new Date(); return d.getMonth() + 1 }
 
 const rate = computed(() => {
   return summary.value.total ? Math.round((summary.value.mastered / summary.value.total) * 100) : 0
@@ -98,13 +98,13 @@ const rate = computed(() => {
 const maxTrend = computed(() => Math.max(1, ...trend.value.map(d => d.count)))
 
 const calendarDays = computed(() => {
-  const firstDay = new Date(year, month - 1, 1)
-  const daysInMonth = new Date(year, month, 0).getDate()
+  const firstDay = new Date(nowY(), nowM() - 1, 1)
+  const daysInMonth = new Date(nowY(), nowM(), 0).getDate()
   const startWeekday = firstDay.getDay() // 0=Sun
   const days = []
   for (let i = 0; i < startWeekday; i++) days.push({ empty: true })
   for (let d = 1; d <= daysInMonth; d++) {
-    const key = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    const key = `${nowY()}-${String(nowM()).padStart(2, '0')}-${String(d).padStart(2, '0')}`
     const count = calendar.value[key] || 0
     days.push({ day: d, count })
   }
@@ -123,7 +123,7 @@ async function loadContent() {
   try { summary.value = await tiku.getSummary(sid) } catch (e) {}
   try { trend.value = await tiku.getWeeklyTrend(sid) } catch (e) { trend.value = [] }
   try { heatmap.value = await tiku.getActivityHeatmap(120, sid) } catch (e) { heatmap.value = [] }
-  try { calendar.value = await tiku.getMonthlyCalendar(year, month, sid) } catch (e) { calendar.value = {} }
+  try { calendar.value = await tiku.getMonthlyCalendar(nowY(), nowM(), sid) } catch (e) { calendar.value = {} }
   try { catAccuracy.value = await tiku.getCategoryAccuracy(sid) } catch (e) { catAccuracy.value = [] }
 }
 async function loadGlobal() {
@@ -341,7 +341,7 @@ async function loadAnalysis() {
       <!-- 学习日历 -->
       <div class="card calendar-card">
         <div class="cal-header">
-          <div class="card-title" style="margin:0">{{ year }}年{{ month }}月</div>
+          <div class="card-title" style="margin:0">{{ nowY() }}年{{ nowM() }}月</div>
           <div class="cal-summary">已学习 {{ Object.keys(calendar).length }}/{{ calendarDays.filter(d => !d.empty).length }} 天</div>
         </div>
         <div class="weekdays">

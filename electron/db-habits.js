@@ -14,7 +14,7 @@ module.exports = function habitsModule(ctx) {
         const raw = this.getSetting('resume_session')
         if (!raw) return null
         const s = JSON.parse(raw)
-        if (!s || !s.questionIds || !s.questionIds.length) return null
+        if (!s || !Array.isArray(s.questions) || !s.questions.length) return null
         return s
       } catch (e) { return null }
     },

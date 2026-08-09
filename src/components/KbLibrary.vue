@@ -1,6 +1,6 @@
 <script setup>
 import Icon from './Icon.vue'
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
@@ -21,6 +21,7 @@ const subjects = ref([])
 const filterSubjectId = computed(() => props.scope === 'all' ? undefined : props.subject.id || undefined)
 
 let debounceTimer = null
+onUnmounted(() => { if (debounceTimer) clearTimeout(debounceTimer) })
 
 async function loadList() {
   loading.value = true

@@ -100,6 +100,23 @@ module.exports = function quizModule(ctx) {
       const now = Date.now()
       const qCid = q.client_id
 
+      // 背题模式（会/不会）：只进错题本（不会 → 记为错题），不写答题记录/不动统计/不给 XP
+      if (mode === 'recite') {
+        const sched = scheduleNextReview({ interval: 0, ease: 2.5 }, 2)
+        sqlite.prepare(`INSERT INTO wrong_books (user_id, question_id, wrong_count, reviewed_count, status, next_review_at, ease, interval, updated_at, client_id, question_cid)
+          VALUES (?,?,1,0,?,?,?,?,?,?,?)
+          ON CONFLICT(user_id, question_id) DO UPDATE SET
+            wrong_count=wrong_books.wrong_count+1,
+            reviewed_count=0,
+            status='wrong',
+            next_review_at=excluded.next_review_at,
+            ease=excluded.ease,
+            interval=excluded.interval,
+            updated_at=?`)
+          .run(LOCAL_USER, questionId, 'wrong', sched.next, sched.ease, sched.interval, now, uuid(), qCid, now)
+        return { correct: false, mode: 'recite' }
+      }
+
       sqlite.prepare(`INSERT INTO answer_records
         (user_id, question_id, selected_json, is_correct, duration_ms, mode, self_graded, created_at, updated_at, client_id, question_cid)
         VALUES (?,?,?,?,?,?,?,?,?,?,?)`)

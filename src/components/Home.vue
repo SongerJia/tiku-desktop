@@ -74,7 +74,7 @@ let noiseSrc = null
 
 async function load() {
   loading.value = true
-  summary.value = await tiku.getSummary(props.subject.id)
+  try { summary.value = await tiku.getSummary(props.subject.id) } catch (e) { summary.value = { total: 0, today: 0, wrongCount: 0, mastered: 0 } }
   try { dailyGoal.value = Number(await tiku.getSetting('daily_goal')) || 0 } catch (e) { dailyGoal.value = 0 }
   try { const fs = await tiku.focusStats(); focusToday.value = fs.today; focusWeek.value = fs.week } catch (e) { focusToday.value = 0 }
   try { cardStats.value = await tiku.cardsStats(props.subject.id) } catch (e) {}
@@ -86,9 +86,6 @@ async function load() {
   loading.value = false
 }
 
-function typeLabel(t) {
-  return ({ single: '单选题', multiple: '多选题', judge: '判断题', essay: '问答题' })[t] || t || '未知'
-}
 function startDaily() {
   if (dailyPuzzle.value && dailyPuzzle.value.question) emit('daily', dailyPuzzle.value.question)
 }
@@ -112,7 +109,11 @@ function tick() {
   focusLeft.value--
   if (focusLeft.value <= 0) phaseComplete()
 }
+let focusCompleting = false // 防重入：记账 await 期间 tick 再次触发
 async function phaseComplete() {
+  if (focusCompleting) return
+  focusCompleting = true
+  try {
   if (focusPhase.value === 'work') {
     // 完成一个番茄：记账 25 分钟，进入 5 分钟休息（自动衔接下一轮）
     pomodoroCount.value++
@@ -130,6 +131,7 @@ async function phaseComplete() {
     focusLeft.value = 25 * 60
     showToast(`休息结束，开始第 ${pomodoroCount.value + 1} 个番茄 💪`, 'ok')
   }
+  } finally { focusCompleting = false }
 }
 function pauseFocus() {
   paused.value = !paused.value

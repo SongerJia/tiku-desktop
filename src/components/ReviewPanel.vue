@@ -33,8 +33,9 @@ watch(() => props.show, async v => {
 })
 
 function renderQ(q) {
+  const optText = (o) => (typeof o === 'string' ? o : (o && o.text) || '')
   const opts = q.options && q.options.length
-    ? q.options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`).join('\n') + '\n'
+    ? q.options.map((o, i) => `${String.fromCharCode(65 + i)}. ${optText(o)}`).join('\n') + '\n'
     : ''
   return `${opts}正确答案：${(q.answer || []).join('、')}\n${q.analysis ? '解析：' + q.analysis : ''}`
 }

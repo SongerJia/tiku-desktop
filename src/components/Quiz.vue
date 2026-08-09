@@ -217,6 +217,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (timer) clearInterval(timer)
+  if (noteHintTimer) clearTimeout(noteHintTimer)
   window.removeEventListener('keydown', onKey)
 })
 
@@ -387,6 +388,7 @@ const examRecorded = ref(false)
 watch(isDone, (v) => {
   if (!v || examRecorded.value) return
   examRecorded.value = true
+  if (props.recite) return // 背题模式不判分，不计入成绩曲线
   try {
     const total = questions.value.length
     const pct = total ? Math.round(sessionCorrect.value / total * 100) : 0
@@ -435,21 +437,25 @@ watch(() => (q.value ? q.value.id : null), async (id) => {
   imageUrls.value = []
   if (!id) return
   const n = await tiku.getNote(id)
+  if (q.value && q.value.id !== id) return // 已切题则丢弃旧结果
   noteText.value = n.content || ''
   // 题目图片：文件名 → base64，主进程从 userData/images 读回
   if (q.value.images && q.value.images.length) {
     try {
       const urls = await Promise.all(q.value.images.map(name => tiku.getImage(name)))
+      if (q.value && q.value.id !== id) return
       imageUrls.value = urls.filter(Boolean)
     } catch (e) { imageUrls.value = [] }
   }
 })
 
+let noteHintTimer = null
 async function saveNote() {
   if (!q.value) return
   await tiku.saveNote({ questionId: q.value.id, content: noteText.value })
   noteHint.value = noteText.value.trim() ? '已保存' : '已清空'
-  setTimeout(() => { noteHint.value = '' }, 1500)
+  if (noteHintTimer) clearTimeout(noteHintTimer)
+  noteHintTimer = setTimeout(() => { noteHint.value = '' }, 1500)
 }
 
 // 键盘快捷键：1-9 选答案 / Enter 提交或下一题 / F 收藏 / 空格翻页（背题）
