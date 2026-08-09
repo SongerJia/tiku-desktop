@@ -15,6 +15,8 @@ const keyword = ref('')
 const loading = ref(true)
 const reader = ref({ show: false, doc: null })
 const editor = ref({ show: false, doc: null, tags: [], title: '', folder: '', subjectId: null })
+// 文档编辑弹窗「所属科目」下拉的数据源
+const subjects = ref([])
 // 知识库范围：'current' 跟随顶部科目（tab 默认）；'all' 全部科目管理（「我的→知识库概览」进入）
 const filterSubjectId = computed(() => props.scope === 'all' ? undefined : props.subject.id || undefined)
 
@@ -35,11 +37,16 @@ async function loadTags() {
   allTags.value = await tiku.kbTags()
 }
 
+async function loadSubjects() {
+  try { subjects.value = await tiku.getSubjects() } catch (e) { subjects.value = [] }
+}
+
 watch(() => props.subject.id, () => { if (props.scope !== 'all') loadList() }) // 顶部切科目（跟随态）→ 刷新
 watch(() => props.scope, loadList) // 范围切换（current↔all）→ 刷新
 
 onMounted(() => {
   loadTags()
+  loadSubjects()
   loadList()
   loadGraph()
 })
@@ -156,8 +163,12 @@ function openEditor(doc) {
 }
 
 function addEditorTag() {
-  const v = (document.getElementById('kb-tag-input').value || '').trim()
-  if (v && !editor.value.tags.includes(v)) editor.value.tags.push(v)
+  const raw = (document.getElementById('kb-tag-input').value || '').trim()
+  if (!raw) return
+  // 支持逗号（中英文）/顿号/空格分隔一次添加多个
+  raw.split(/[,，、\s]+/).map(x => x.trim()).filter(Boolean).forEach(p => {
+    if (p && !editor.value.tags.includes(p)) editor.value.tags.push(p)
+  })
   document.getElementById('kb-tag-input').value = ''
 }
 
@@ -292,7 +303,7 @@ function fmtTime(ts) {
           <span v-for="t in editor.tags" :key="t" class="q-tag" @click="removeEditorTag(t)">{{ t }} <Icon name="x" :size="14"/></span>
         </div>
         <div class="kb-edit-add">
-          <input id="kb-tag-input" class="input" placeholder="输入标签回车添加（点击标签可移除）" @keyup.enter="addEditorTag" />
+          <input id="kb-tag-input" class="input" placeholder="输入标签回车添加，逗号分隔可一次多个（点击标签可移除）" @keyup.enter="addEditorTag" />
           <button class="btn" @click="addEditorTag">添加</button>
         </div>
         <div class="kb-modal-actions">
