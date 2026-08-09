@@ -20,7 +20,8 @@
     "test": "node scripts/test-parser.mjs && node scripts/test-xlsx.mjs && node scripts/test-sync-merge.mjs && node scripts/test-sm2.mjs && node scripts/test-kb-extract.mjs",
     "verify": "vite build --config vite.verify.config.js",
     "dist": "vite build && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder",
-    "release": "node scripts/check-release-version.mjs && vite build && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --publish always"
+    "release": "node scripts/check-release-version.mjs && vite build && cross-env ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ electron-builder --publish always",
+    "bump": "node scripts/bump-version.mjs"
   },
   "build": {
     "appId": "com.songerjia.tiku-desktop",

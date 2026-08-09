@@ -2,7 +2,7 @@
 
 一个**本地安装、离线可用**的刷题题库桌面软件。数据全存在你电脑上的一个 SQLite 文件里，不需要服务器、不需要联网、不需要备案。支持分类刷题、选择题自动判分、问答题自评、错题本、收藏、学习统计、模拟卷组卷、题目图片与笔记，以及 CSV / Excel / JSON 导入导出。内置**个人知识库**（md / pdf 知识文档，与题库题目双向联动），升级为"刷题 + 资料库"all-in-one 学习工具。
 
-> 当前版本：**v0.6.0（Phase 1 本地 + Phase 2 轻量云同步 + 模拟卷/图片 + 增强体验 + 个人知识库全闭环 + 学习反馈层 + 全局打磨 + 阅读器体验升级）**。已实现本地刷题全闭环、GitHub Gist 零后端多端同步、模拟卷组卷、题目图片、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就、批量操作、浅色主题，**个人知识库**（md/pdf 导入、全文搜索、阅读、MD 在线编辑、文件夹分类、同步、导出、与题目双向联动、统计），**学习反馈层**（XP 等级、每日任务、每日回顾、番茄钟、习惯打卡、错题原因、文档高亮/双链、周排行、学习周报），以及**全局体验打磨**（应用内 Toast/Confirm、骨架屏、计数动画、Tab 过渡、Esc 关闭、键盘可达、自动备份、首启引导、打包图标）与**学习体验打磨**（知识块间隔复习、练习完成总结、顽固错题优先、键盘快捷键、成就/升级即时庆祝）与**阅读器体验升级**（知识库全屏三栏阅读页、右侧栏整列收起、MD 打开即 Vditor 即时渲染编辑、PDF 懒渲染 + 缩放缓存 + Ctrl+滚轮 + 右下角缩放浮层、MD/PDF 缩放交互统一）；Phase 3 用 Capacitor 出 Android APK。
+> 当前版本：**v0.6.0（Phase 1 本地 + Phase 2 全量云同步 + 科目维度全闭环 + 模拟卷/图片 + 个人知识库全闭环 + 学习反馈层 + 赛季系统 + 全局打磨 + 阅读器体验升级 + 自动更新）**。已实现本地刷题全闭环、**GitHub 仓库全量云同步**（学习数据 + 题库 + 知识库文档原件 + 题目图片，跨 Windows/macOS/安卓）、**科目维度全闭环**（题库/错题/收藏/复习/每日一题/薄弱点/知识库/记忆卡全部跟随科目）、模拟卷组卷、题目图片与音频、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就与**赛季挑战**、批量操作、浅色主题，**个人知识库**（md/pdf 导入、全文搜索、阅读、MD 在线编辑、文件夹分类、同步、导出、与题目双向联动、统计），**学习反馈层**（XP 等级、每日任务、每日回顾、番茄钟、习惯打卡、错题原因、文档高亮/双链、周排行、学习周报），**记忆卡**（按科目归类 + SM-2 调度复习）、**全局体验打磨**（应用内 Toast/Confirm、骨架屏、计数动画、Tab 过渡、Esc 关闭、键盘可达、自动备份、首启引导、打包图标）与**学习体验打磨**（知识块间隔复习、练习完成总结、顽固错题优先、键盘快捷键、成就/升级即时庆祝）与**阅读器体验升级**（知识库全屏三栏阅读页、右侧栏整列收起、MD 打开即 Vditor 即时渲染编辑、PDF 懒渲染 + 缩放缓存 + Ctrl+滚轮 + 右下角缩放浮层）与**发布体系**（GitHub Releases 应用内自动更新、安装包瘦身、一键安装向导）；Phase 3 用 Capacitor 出 Android APK。
 
 ---
 
@@ -47,7 +47,7 @@
 | **界面风格** | 科幻风暗色主题、响应式布局（窗口自适应） | ✅ 完成 | 支持宽屏/窄屏 |
 | **窗口菜单** | 隐藏系统默认 File/Edit/View/Window/Help 菜单 | ✅ 完成 | 更像独立 App |
 | **题库搜索** | 题库管理页关键词搜索（300ms 防抖）+ 科目筛选 + 分页 | ✅ 完成 | 走 `listQuestions` 的 `keyword` 参数 |
-| **数据同步** | 多端云同步（GitHub Gist，零后端） | ✅ 完成 | 用私有 Gist 存全量快照，「pull 合并→push 全量」收敛；client_id + LWW 冲突 |
+| **数据同步** | 多端云同步（GitHub 仓库，单后端全量） | ✅ 完成 | `tiku-assets` 私有仓库存 data.json.gz（学习数据+题库）+ kb/（知识库文档原件）+ images/（题目图片）+ tiku-manifest.json；「拉远端 mergeRemote 合并→exportSync 全量推回」收敛；client_id + LWW 冲突；kb/图片 hash 双向增量；token safeStorage 加密存储 |
 | **模拟卷组卷** | 按题型/难度/章节抽题组卷、存卷、限时考试、重考 | ✅ 完成 | `papers`/`paper_questions` 两表；`generatePaper` 按规则随机抽题+等分/手动计分；「我的试卷」可重考 |
 | **题目图片** | 题干配图（多图），录入/答题渲染，随题库备份 | ✅ 完成 | `questions.images_json` + `userData/images` 本地图床；`saveImage`/`getImage` |
 | **题目笔记** | 每题个人批注，答题页/题库页内联编辑，Profile「我的笔记」汇总 | ✅ 完成 | `notes` 表 + `getNote`/`saveNote`/`listNotes`/`getNotedQuestionIds` |
@@ -60,10 +60,10 @@
 | **游戏化成就** | 成就墙（10 项）+ 每日目标进度 + 首页今日进度卡 | ✅ 完成 | `getAchievements`；成就阈值在前端派生；目标存 `settings.daily_goal` |
 | **题目批量操作** | 多选题目批量移动章节/打标签/改难度/删除 | ✅ 完成 | `batchUpdateQuestions`/`batchDeleteQuestions`；软删兼容同步 |
 | **浅色主题 + 字号** | 护眼浅色主题、字号 80%–140% 全局缩放 | ✅ 完成 | `data-theme="light"` 覆盖 CSS 变量 + `documentElement.zoom`；存 `settings.theme/font_scale` |
-| **图片跨设备同步** | 题图独立存储跨设备（原仅传文件名会裂图，也不再把 base64 塞进 JSON 快照） | ✅ 完成 | 图片二进制独立存为 Gist 文件（`tiku-img.*`，gzip+base64，>1MB 自动分块）+ `tiku-img-index.json` 清单；`exportImageFiles`/`restoreImages`；`runSync` 按 sha256 跳过重传 |
+| **图片跨设备同步** | 题图独立存储跨设备（原仅传文件名会裂图，也不再把 base64 塞进 JSON 快照） | ✅ 完成 | 图片独立存仓库 `images/` 目录（hash 去重双向增量）；`exportImageFiles`/`restoreImages`；manifest 按 sha256 跳过重传 |
 | **个人知识库** | 知识文档（md/pdf）入库、MD 按标题切块 / PDF 逐页抽文本、全文检索、知识库 Tab（列表/搜索/标签/**全屏三栏阅读**：Vditor IR 编辑 + pdfjs 懒渲染）、**题目↔文档双向联动**（解析页「相关文档」+ 文档页「相关题目」+ L2 自动推荐） | ✅ 完成 | `kb_docs`/`kb_blocks`/`kb_tags`/`kb_links` 四表 + `electron/kbExtract.js` + LIKE 检索 + `getSuggestedDocsForQuestion`/`getSuggestedQuestionsForDoc`（共享标签 + 题干/块关键词，零 ML） |
 | **统一搜索** | 顶部搜索按钮一处搜题目 + 知识文档（双组结果，题目速览 / 文档阅读直达） | ✅ 完成 | `UnifiedSearch.vue` + `SimpleQuestion.vue`；并行 `listQuestions(keyword)` + `kbSearch` |
-| **知识库跨设备同步** | 知识库随 Gist 快照同步：MD 文本 base64 内嵌跨设备还原；PDF 仅同步元数据+文件名（换设备重导原件）；子表/文件跟随远端胜出的文档重建 | ✅ 完成（阶段 E） | `exportSync` 加 `kbDocs/kbBlocksByCid/kbTagsByCid/kbLinksByCid/kbFiles`；`mergeRemote` LWW + rel_path 冲突换名兜底 |
+| **知识库跨设备同步** | 知识库**文档原件**随仓库同步：kb/ 目录双向增量（md/pdf 文件 hash 比对，缺失/变更才传），元数据走快照合并 | ✅ 完成 | `syncAssets` 递归扫描 kb 目录；`mergeRemote` LWW + rel_path 冲突换名兜底 + 路径穿越防护 |
 | **整库备份含知识库** | JSON 备份/恢复含 kb 四表 + 全部原件文件（md/pdf base64 内嵌） | ✅ 完成 | `exportData` 加 kb 表与 `listKbFiles`；`importData` 还原 `restoreKbFiles`；老备份无 kb 字段自动跳过 |
 | **知识库文件夹** | 文档按文件夹分组展示（未分类置顶）、编辑弹层设置/移动文件夹 | ✅ 完成 | `kb_docs.folder` 列（ALTER 兜底）+ `getKbFolders`/`moveKbDoc` |
 | **知识库统计** | 「我的」新增知识库概览（文档/文本块/题目联动/阅读次数/标签/文件夹）+ 阅读埋点 | ✅ 完成 | `kb_docs.read_count` + `bumpKbRead`；`kbStats` 扩展 |
@@ -85,17 +85,17 @@
 | **文档双链** | 文档↔文档双向关联，阅读页搜索关联 + 跳转 | ✅ 完成 | `kb_doc_links`（UNIQUE，cid 引用解析随同步） |
 | **本地周排行** | 近 6 周 XP 对比（自己 vs 历史周），无社交 | ✅ 完成 | `xpStats.weeks` |
 | **学习周报** | 近 7 天刷题/正确率/XP/专注/回顾/习惯聚合 → 打印导出 PDF | ✅ 完成 | `getWeeklyReport` + `print.js`；学习统计页按钮 |
-| **知识块间隔复习** | 每日回顾的知识块按遗忘曲线调度（记住→3 天再见 / 忘记→1 天重来，含记错次数），不再是随机抽取 | ✅ 完成 | `kb_blocks.review_at/review_count/review_lapses` + `logReview` 调度 + 到期优先/新块兜底；随 Gist 同步 |
+| **知识块间隔复习** | 每日回顾的知识块按遗忘曲线调度（记住→3 天再见 / 忘记→1 天重来，含记错次数），不再是随机抽取 | ✅ 完成 | `kb_blocks.review_at/review_count/review_lapses` + `logReview` 调度 + 到期优先/新块兜底；随仓库同步 |
 | **练习完成总结** | 练习做完弹总结：正确率/用时/错题列表 + 「重做这 N 道错题」一键重刷 | ✅ 完成 | Quiz done 面板 + `redoWrongs`；错题自动进错题本 |
 | **顽固错题标记** | 同题错 ≥3 次标「顽固」，错题本高亮 + 每日回顾永远优先 | ✅ 完成 | `wrong_count>=3` 排序优先 + WrongBook badge |
 | **键盘快捷键** | 1-9 选答案 / Enter 提交或下一题 / F 收藏 / 空格翻页（背题），输入框聚焦自动禁用 | ✅ 完成 | Quiz `onKey` + window keydown |
 | **成就/升级即时庆祝** | 答题/复习/阅读后检测，新成就解锁与等级升级即时 toast 庆祝（首次不打扰老数据） | ✅ 完成 | `utils/achievements.js` 共享定义 + `utils/celebrate.js` 触发器 |
-| **单词卡（闪卡）** | 正反面闪卡：添加/批量管理/翻卡复习，复用遗忘曲线调度（记住→3 天 / 忘记→1 天），随 Gist 同步 | ✅ 完成 | `cards` 表 + `CardsPanel.vue`（列表+翻卡复习）；首页入口显示到期数 |
+| **记忆卡** | 正反面记忆卡：添加/批量管理/翻卡复习，复用遗忘曲线调度（记住→3 天 / 忘记→1 天），**按科目归类**（错题/题目一键生成自动继承科目、切科目只看该科目卡、可切全部科目），随仓库同步 | ✅ 完成 | `cards` 表 + `CardsPanel.vue`（科目范围角标 + 列表/翻卡复习）；首页入口显示到期数 |
 | **听力音频** | 题目可配 `audio_url`（本地路径或 http 链接），答题页自动显示播放器——雅思等听力题的扩展点 | ✅ 完成 | `questions.audio_url` 列 + 录题表单字段 + Quiz `<audio>` 渲染；随同步/备份传播 |
 | **习惯增强** | 打卡 +5 XP（当天首次）+ 首页显示近 7 天圆点 + 空态引导；修复打卡勾选图标渲染 bug | ✅ 完成 | `checkHabit` XP 奖励 + `listHabits` 返回 week 位图 |
 | **备份补全** | 整库备份/恢复补上反馈层 7 表（XP/习惯/打卡/回顾/专注/高亮/双链）+ 单词卡——之前备份会丢这些数据 | ✅ 完成 | `exportData` + `importData` 全覆盖，老备份自动跳过 |
-| **同步安全加固** | 快照 gzip 压缩（TKZ1 前缀，体积降 70-85%）+ 修复 Gist API 单文件 1MB 读取截断（truncated 时改 raw_url 拉全量）——杜绝大库同步静默丢数据 | ✅ 完成 | `sync-github.js` encode/decodeSnapshot + getGist 截断保护；老快照兼容 |
-| **自动同步** | 启动 3s 后 + 每 60 分钟静默同步（可关，「我的 → 偏好设置」开关）；同步失败自动重试 2 次（1.5s/3s 退避） | ✅ 完成 | main.js `scheduleAutoSync` + `runSync` 重试循环 |
+| **同步安全加固** | 快照 gzip 压缩体积降 70-85%；下载失败自动重试 3 次 + 备用源（API contents 兜底 raw 502）；同步失败收集重试（成功才写 manifest）；token safeStorage 加密 + 路径穿越防护 + 超时/防重入 | ✅ 完成 | `sync-runner.js` + `sync-github-repo.js`；gh_token 加密文件 |
+| **手动同步** | 「我的 → 数据管理 → 云盘同步（GitHub 仓库）」一键同步（自动保存配置）；测试连接 + 上次同步时间 + 结果摘要（数据/图片/文档增删 + 冲突数 + 失败清单） | ✅ 完成 | `ghSync` IPC + Profile 同步卡；`sync-runner.sync` 双向 |
 | **同步冲突可视** | 合并时统计冲突条数（同记录双端都改过），同步 toast 展示「冲突 N 条（按时间戳覆盖）」 | ✅ 完成 | `makeUpsert` 冲突计数 + Profile toast |
 | **导入备份保护** | 导入备份前**差异预览**：新增/覆盖/本地独有统计 + 明确确认，防误导入覆盖新数据 | ✅ 完成 | `db.importPreview` + Profile 导入确认弹层 |
 | **导入去重三模式** | 题库导入重复处理升级：跳过重复（默认）/ 覆盖更新同题干 / 全部新增；结果页显示更新数 | ✅ 完成 | `duplicateMode` 参数 + ImportWizard 三选 |
@@ -103,13 +103,17 @@
 | **全局体验打磨** | 应用内 Toast（替代原生 alert）/ Confirm 弹层（替代原生 confirm）/ 骨架屏加载 / 计数动画 / Tab 切换过渡 / Esc 统一关闭 / 键盘 focus 可达 / 卡片 hover 反馈 | ✅ 完成 | `utils/toast.js` + `AppToast.vue`、`utils/confirm.js` + `AppConfirm.vue`、`SkeletonCards.vue`、`CountUp.vue`、`useEsc.js`；原生弹窗清零 |
 | **数据安全** | 每次启动自动备份 `tiku.db`（按天去重，保留 5 份）+ 主进程全局错误日志 | ✅ 完成 | `db.autoBackup()` → `userData/backups/`；`error.log` |
 | **首启欢迎引导** | 首次启动 3 步引导（导入题库/知识库/设目标），看过后不再显示 | ✅ 完成 | `WelcomeGuide.vue` + `settings.seen_welcome` |
-| **打包发布** | electron-builder 配置（productName/appId/NSIS）+ 512×512 自定义图标 | ✅ 完成 | `npm run dist` → `release/`；`build/icon.png`（深空渐变+霓虹书） |
+| **打包发布** | electron-builder 配置（productName/appId/NSIS）+ 1024×1024 精致图标 + 安装包瘦身 + **GitHub Releases 应用内自动更新** | ✅ 完成 | `npm run dist` → `release/`；`npm run release` 发布（防呆查重 + 自动上传）；依赖瘦身（渲染层依赖移 devDependencies，asar 226MB→约 90MB） |
+| **科目维度全闭环** | 题库/错题/收藏/复习/每日一题/薄弱点/知识库/记忆卡**全部跟随科目**（切顶部科目即切换范围），激励（XP/连击/成就/习惯）全局 | ✅ 完成 | 各模块传 `subjectId` 过滤；知识库按科目、记忆卡按科目（错题生成卡自动继承题目科目） |
+| **赛季系统** | 每月一赛季：6 项挑战（刷题/复习/专注/打卡/记忆卡/全勤）目标逐季递增 + 赛季成就存档 | ✅ 完成 | `achievements.js` currentSeason/evaluateSeason/syncSeasonArchive + Profile 赛季区块 |
+| **安装版数据隔离** | 打包版用独立 userData 目录（`知识记忆小助手-正式版`），安装版首次打开干净空库，不带开发机测试数据 | ✅ 完成 | main.js `app.isPackaged` 时 setPath 独立目录 |
+| **发布流程** | `npm run bump patch/minor/major`（升版本号+同步 README+提交）→ `npm run release`（防呆查重+打包+上传 GitHub Releases）→ 已装用户自动更新 | ✅ 完成 | `scripts/bump-version.mjs` + `scripts/check-release-version.mjs` + electron-updater 全链路通知 |
 | **Android APK** | Capacitor 打包移动端 | ⏳ 未开始 | Phase 3 |
 
 > 「我的笔记」入口已从占位升级为真实功能（展示/删除全部笔记）；原「默写记录」「我的反馈」两个纯占位入口已移除。
 
 ### 当前阶段一句话
-v0.6.0 全功能落地：题库闭环、模拟卷、标签、错题、笔记、知识库全链路、反馈层（XP/任务/回顾/番茄/习惯/高亮/双链/周报）、全局打磨与数据安全（备份/引导/图标/打包配置）均已完成，同步协议覆盖全部 15+ 表（LWW + OR IGNORE + cid 解析）。代码可直接 `npm install && npm run dev` 跑起来，`npm run dist` 可打包安装包；下一步可选：**Phase 3 安卓 APK** 或 **扫描版 PDF OCR**。
+v0.6.0 全功能落地：题库闭环、模拟卷、标签、错题、笔记、知识库全链路、反馈层（XP/任务/回顾/番茄/习惯/高亮/双链/周报）、**科目维度全闭环**（题库/错题/收藏/复习/每日一题/薄弱点/知识库/记忆卡全跟科目）、**赛季系统**、全局打磨与数据安全（备份/引导/图标/打包配置）均已完成；**云同步升级为 GitHub 仓库单后端**（学习数据 + 题库 + 知识库文档原件 + 题目图片全量），**发布体系就绪**（bump 升版 + release 发布 + 应用内自动更新）。代码可直接 `npm install && npm run dev` 跑起来，`npm run dist` 可打包安装包，`npm run release` 发布后已装用户自动更新；下一步可选：**Phase 3 安卓 APK** 或 **扫描版 PDF OCR**。
 
 ---
 
@@ -192,6 +196,10 @@ npm run test:parser && npm run test:xlsx   # 解析层 + Excel
 
 # 4. 打包成 Windows 安装包（输出在 release/ 目录，含自定义图标）
 npm run dist
+
+# 5. 发布新版本（升版本号 → 打包 + 上传 GitHub Releases → 已装用户自动更新）
+npm run bump minor   # 升版本号（patch 修 bug / minor 新功能 / major 正式版），自动同步 README 版本行并 commit
+npm run release      # 防呆查重（同版本已发布会中止）→ 打包 → 上传 GitHub Releases
 ```
 
 > 沙箱环境里没有 VS Build Tools，我没法在这里 `npm run dev` 实景跑起来；但工程是规范的，拉回去 `npm install && npm run dev` 即可。
@@ -225,7 +233,7 @@ npm run dist
 | `favorites` | 收藏 |
 | `settings` | 键值配置（如当前科目 `current_subject`） |
 
-> 此外 `papers` / `paper_questions` 两表已建（模拟卷组卷），`questions.images_json` 已加（题目图片），`question_tags` 表已建（标签系统），均经 `migrateSchema` 的 `ALTER` 兜底老库升级。题图二进制**不再**内嵌进同步 JSON 快照，而是独立存为 Gist 文件（`tiku-img.*`，gzip+base64，超 1MB 自动分块，配 `tiku-img-index.json` 清单），`runSync` 按 sha256 跳过重传，拉取时落盘 `userData/images`。
+> 此外 `papers` / `paper_questions` 两表已建（模拟卷组卷），`questions.images_json` 已加（题目图片），`question_tags` 表已建（标签系统），均经 `migrateSchema` 的 `ALTER` 兜底老库升级。题图二进制**不**内嵌进同步 JSON 快照，独立存于仓库 `images/` 目录（hash 去重），拉取时落盘 `userData/images`。
 
 ### 学习反馈层（v0.6.0 新增，全部带 client_id 随同步）
 | 表 | 作用 |
@@ -259,7 +267,7 @@ npm run dist
 | **联动（L1 手动）** | 文档阅读页「相关题目」面板可**搜题手动关联/解除**；Quiz 交卷解析页每题「相关文档」面板显示已关联列表（可解除）。关联存 `kb_links`，双向可见 |
 | **联动（L2 推荐）** | 零 ML：共享标签（`question_tags ∩ kb_tags`）+ 题干/块关键词 `LIKE` 命中，按「标签匹配 → 关键词命中」排序，**自动排除已关联**。`getSuggestedDocsForQuestion` / `getSuggestedQuestionsForDoc` |
 | **边界** | ① 无标点长中文串被零 ML 分词器贪婪并成一个词，关键词推荐可能 miss——靠标签路径兜底；② 扫描版 PDF 全文搜不到，靠文件名/标签兜底 |
-| **跨设备同步** | ✅ 随 Gist 快照同步：MD 文本 base64 内嵌跨设备还原；PDF 二进制不进快照，仅同步元数据 + 文件名（换设备重导原件）；子表（块/标签/联动）跟随「远端胜出」的文档整体重建 |
+| **跨设备同步** | ✅ 随仓库同步：kb/ 目录文档原件双向增量（md/pdf 文件 hash 比对）；元数据走快照合并；子表（块/标签/联动）跟随「远端胜出」的文档整体重建 |
 
 ### 判分逻辑
 - 选择/判断：`electron/db.js` 的 `submitAnswer` 对答案排序后比对，多选顺序无关。
@@ -328,15 +336,15 @@ node --check electron/main.js && node --check electron/preload.js
 
 ## 9. Phase 2 / Phase 3 规划
 
-### Phase 2：账户云同步 —— 已落地「轻量 GitHub Gist 方案」
-> 已**完成**并可用。选择零后端方案（不用部署 Spring Boot），详见仓库内 `SYNC.md`（GitHub Gist 同步方案）。
+### Phase 2：账户云同步 —— 已落地「GitHub 仓库单后端全量同步」
+> 已**完成**并可用。选择零后端方案：一个 GitHub 私有仓库承载全部数据（学习数据+题库快照、知识库文档原件、题目图片），详见仓库内 `SYNC.md`。
 1. 七张表已加 `client_id` 与 `*_cid` 外键列；`backfillClientIds` 给老数据补齐身份。
 2. `exportSync()` 导出全量快照（含软删行，图片二进制不再内嵌），`mergeRemote()` 按 `client_id` upsert + `updated_at` last-write-wins + 外键按 cid 解析；图片由 `exportImageFiles()` 独立导出、`restoreImages()` 落盘。
-3. `electron/sync-github.js` 调 GitHub API 把快照存进私有 Gist；主进程用 `safeStorage` 加密存 token；Profile 页「云同步（GitHub）」卡片连接/同步/断开。
+3. `electron/sync-github-repo.js` 调 GitHub API 把快照存进私有仓库（contents API 上传 + raw 下载）；主进程用 `safeStorage` 加密存 token；Profile 页「云盘同步（GitHub 仓库）」卡片配置/测试/同步。
 
 ### 知识库跨设备同步（阶段 E，已完成）
 1. **MD 文档**：纯文本，`exportSync` 把 `kb_docs` 四表 + MD 文件 base64 并入快照，随现有同步链路跨设备还原（与题图同机制）。
-2. **PDF 原件**：二进制大文件不适合塞 Gist 快照 → 只同步元数据 + 文件名，换设备时提示「重新导入原件」；远期可扩展 WebDAV / 网盘文件夹同步。
+2. **PDF 原件**：二进制大文件与 kb 目录一起走仓库 `kb/` 增量同步（hash 比对，缺失/变更才传）——文档原件跨设备可完整还原。
 3. **合并策略**：`kb_docs` 走 client_id + LWW；子表（`kb_blocks`/`kb_tags`/`kb_links`）无 client_id，按 doc 的 client_id 分组随快照携带，跟随「远端胜出」的文档整体重建；rel_path 冲突自动换名兜底。
 
 ### Phase 3：Android APK（复用同一套 Vue 界面）
