@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, safeStorage, dialog, shell, Notification } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu, safeStorage, dialog, shell, Notification } = require('electron')
 const pkg = require('../package.json')
 const path = require('path')
 const fs = require('fs')
@@ -90,6 +90,122 @@ function setupAutoUpdater() {
   } catch (e) {
     logger.error('auto-updater 未启用', e && e.message)
   }
+}
+
+function createWindow() {
+  // 窗口尺寸/位置记忆：从 settings 恢复上次 bounds（首次用默认值）
+  let w = 1100
+  let h = 760
+  try {
+    const saved = JSON.parse(db.getSetting('window_bounds') || 'null')
+    if (saved && Number(saved.width) >= 760 && Number(saved.height) >= 600) {
+      w = saved.width
+      h = saved.height
+    }
+  } catch (e) { /* bounds 损坏则用默认 */ }
+
+  const win = new BrowserWindow({
+    width: w,
+    height: h,
+    minWidth: 760,
+    minHeight: 600,
+    resizable: true,
+    title: '知识记忆小助手',
+    icon: path.join(__dirname, 'icon.png'), // 窗口标题栏/Alt-Tab 图标（与安装包/侧边栏图标统一）
+    show: false, // 防白屏：等 ready-to-show 再显示，避免加载期白屏闪烁
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+  mainWindow = win
+
+  win.once('ready-to-show', () => win.show())
+
+  // 关闭时记住窗口 bounds（位置+尺寸），下次启动恢复
+  win.on('close', () => {
+    try {
+      const b = win.getBounds()
+      if (b.width >= 760 && b.height >= 600) {
+        db.setSetting('window_bounds', JSON.stringify({ width: b.width, height: b.height, x: b.x, y: b.y }))
+      }
+    } catch (e) { /* 保存失败忽略 */ }
+  })
+
+  if (process.env.VITE_DEV_SERVER_URL) {
+    win.loadURL(process.env.VITE_DEV_SERVER_URL)
+  } else {
+    win.loadFile(path.join(__dirname, '../dist/index.html'))
+  }
+
+  // 隐藏系统默认菜单栏（File / Edit / View / Window / Help），让界面更像独立 App。
+  // 开发调试需要 DevTools 时按 Ctrl+Shift+I（Windows/Linux）或 Cmd+Option+I（macOS）。
+  Menu.setApplicationMenu(null)
+}
+
+// 主窗口引用（单实例聚焦 / 关闭清理用）
+let mainWindow = null
+
+// 单实例锁：防止重复双击打开多个窗口
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+  process.exit(0)
+}
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+  }
+})
+
+app.whenReady().then(() => {
+  try {
+    db.init() // 打开 SQLite、建表、灌样例数据（仅首次）；内部含损坏自动恢复
+    logger.info('应用主进程就绪')
+  } catch (e) {
+    logger.error('db.init 失败', e && e.message ? e.message : String(e))
+    // 数据库彻底打不开（无备份可恢复）时，给出可读错误而非静默白屏/无窗口
+    try {
+      dialog.showErrorBox('数据库无法打开',
+        '应用数据文件已损坏且自动恢复未成功。\n\n' +
+        '可尝试：进入「我的 → 数据管理」手动恢复备份；若仍不行，请删除用户数据目录下的 tiku.db 后重启（会清空本地数据）。\n\n' +
+        '错误信息：' + (e && e.message ? e.message : String(e)))
+    } catch (e2) { /* 弹窗失败也不阻塞 */ }
+  }
+  // Windows 通知需 AppUserModelID（打包后生效；开发模式走 Electron 默认）
+  try { app.setAppUserModelId('com.songerjia.tiku-desktop') } catch (e) { /* 忽略 */ }
+  createWindow()
+  startReminderLoop()
+  setupAutoUpdater()
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  })
+})
+
+// ---- 学习提醒（系统通知）：每天 remind_time 到点提醒一次 ----
+const pad2 = n => String(n).padStart(2, '0')
+const dateStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
+
+function checkReminder() {
+  try {
+    if (db.getSetting('remind_enabled') !== '1') return
+    const time = db.getSetting('remind_time') || '21:00'
+    const now = new Date()
+    const hm = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
+    if (hm !== time) return
+    if (db.getSetting('last_remind_date') === dateStr()) return
+    const s = db.getSummary() || {}
+    const dueStats = db.reviewDueStats()
+    const due = dueStats ? dueStats.due : 0
+    const goal = Number(db.getSetting('daily_goal') || 0)
+    const body = `今日已刷 ${s.today || 0} 题${goal ? `，目标 ${goal} 题` : ''}；错题本待复习 ${s.wrongCount || 0} 题，今日到期 ${due} 题。`
+    if (Notification.isSupported()) {
+      new Notification({ title: '学习提醒 📚', body }).show()
+      db.setSetting('last_remind_date', dateStr())
+    }
+  } catch (e) { /* 提醒失败静默，不影响主流程 */ }
 }
 
 function startReminderLoop() {

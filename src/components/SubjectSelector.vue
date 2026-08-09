@@ -5,7 +5,7 @@ import { tiku } from '../api/tiku.js'
 import { useEsc } from '../utils/useEsc.js'
 
 const props = defineProps({ show: Boolean, currentId: [Number, String], wide: Boolean })
-const emit = defineEmits(['update:show', 'select'])
+const emit = defineEmits(['update:show', 'select', 'close'])
 
 const tree = ref([])
 const selectedId = ref(props.currentId)

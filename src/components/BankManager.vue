@@ -24,6 +24,7 @@ const pageSize = 10
 const list = ref({ total: 0, items: [] })
 const loading = ref(false)
 const toast = ref('')
+const toastType = ref('')
 
 const showImport = ref(false)
 const showEditor = ref(false)
@@ -37,8 +38,9 @@ const chapters = computed(() => {
 })
 const subjects = computed(() => categories.value.map(c => ({ id: c.id, name: c.name })))
 
-function showToast(msg) {
+function showToast(msg, type = '') {
   toast.value = msg
+  toastType.value = type
   setTimeout(() => { toast.value = '' }, 2200)
 }
 
@@ -409,7 +411,7 @@ async function batchDelete() {
           </div>
         </div>
 
-        <div v-if="toast" class="bm-toast">{{ toast }}</div>
+        <div v-if="toast" class="bm-toast" :class="toastType">{{ toast }}</div>
       </div>
 
       <ImportWizard

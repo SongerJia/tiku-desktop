@@ -167,7 +167,7 @@ module.exports = function quizModule(ctx) {
     },
 
     getWrongBook() {
-      const rows = sqlite.prepare(`SELECT w.*, q.stem, q.type, q.options_json, q.answer_json, q.analysis
+      const rows = sqlite.prepare(`SELECT w.*, q.stem, q.type, q.options_json, q.answer_json, q.analysis, q.images_json
         FROM wrong_books w JOIN questions q ON q.id=w.question_id
         WHERE w.user_id=? AND w.status='wrong' AND w.deleted=0`).all(LOCAL_USER)
       return rows.map(r => ({
@@ -179,7 +179,7 @@ module.exports = function quizModule(ctx) {
     },
 
     getFavorites() {
-      const rows = sqlite.prepare(`SELECT f.*, q.stem, q.type, q.options_json, q.answer_json
+      const rows = sqlite.prepare(`SELECT f.*, q.stem, q.type, q.options_json, q.answer_json, q.images_json
         FROM favorites f JOIN questions q ON q.id=f.question_id
         WHERE f.user_id=? AND f.deleted=0`).all(LOCAL_USER)
       return rows.map(r => ({
