@@ -114,3 +114,65 @@ export function notifyLevelUp(xp) {
   if (!last) return 0
   return lv > last ? lv : 0
 }
+
+// ================= 赛季系统（每月 1 日自动开启新赛季） =================
+// 赛季号：2026-08 起为第 1 赛季，`(year-2026)*12 + (month-7)`；目标值随赛季号递增（进化感）
+export function currentSeason() {
+  const d = new Date()
+  const no = (d.getFullYear() - 2026) * 12 + (d.getMonth() + 1 - 7)
+  const year = d.getFullYear()
+  const month = d.getMonth() + 1
+  // 本月剩余天数（含今天）
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const left = daysInMonth - d.getDate() + 1
+  return { no: Math.max(1, no), label: `${year} 年 ${month} 月`, daysLeft: left }
+}
+
+// 固定 6 项赛季挑战：base 为 S1 目标，每季 +inc
+export const SEASON_CHALLENGES = [
+  { key: 's_answered', name: '本季刷题', unit: '题', base: 200, inc: 50, icon: '💯' },
+  { key: 's_review', name: '本季复习', unit: '次', base: 30, inc: 10, icon: '🔁' },
+  { key: 's_focus', name: '本季专注', unit: '分钟', base: 300, inc: 100, icon: '🍅' },
+  { key: 's_check', name: '本季打卡', unit: '天', base: 15, inc: 3, icon: '📅' },
+  { key: 's_card', name: '本季记忆卡', unit: '张', base: 5, inc: 2, icon: '🃏' },
+  { key: 's_active', name: '本季全勤', unit: '天', base: 12, inc: 3, icon: '🔥' }
+]
+
+export function seasonTarget(ch, seasonNo) {
+  return ch.base + Math.max(0, seasonNo - 1) * ch.inc
+}
+
+// 计算当前赛季挑战的评估结果（merged 含 getMonthStats 字段）
+export function evaluateSeason(merged, seasonNo = currentSeason().no) {
+  return SEASON_CHALLENGES.map(ch => {
+    const cur = Number((merged && merged[ch.key.replace('s_', '')]) || 0)
+    const target = seasonTarget(ch, seasonNo)
+    const pct = target ? Math.min(100, Math.round((cur / target) * 100)) : 0
+    return {
+      ...ch,
+      target,
+      cur,
+      got: cur >= target,
+      pct,
+      fmtText: `${Math.min(cur, target)}/${target} ${ch.unit}`
+    }
+  })
+}
+
+// 赛季存档：tiku_season_archive = { [seasonNo]: { achieved, total, challenges:[{key,name,done}] } }
+const SEA_KEY = 'tiku_season_archive'
+export function seasonArchive() {
+  try { return JSON.parse(localStorage.getItem(SEA_KEY) || '{}') } catch (e) { return {} }
+}
+export function syncSeasonArchive(merged) {
+  const seasonNo = currentSeason().no
+  const res = evaluateSeason(merged, seasonNo)
+  const arc = seasonArchive()
+  arc[seasonNo] = {
+    achieved: res.filter(r => r.got).length,
+    total: res.length,
+    challenges: res.map(r => ({ key: r.key, name: r.name, target: r.target, done: r.got }))
+  }
+  try { localStorage.setItem(SEA_KEY, JSON.stringify(arc)) } catch (e) {}
+  return arc
+}

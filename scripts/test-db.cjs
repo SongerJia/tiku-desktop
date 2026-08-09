@@ -465,6 +465,9 @@ try {
   ok('getWeeklyTrend(subjectId) 按科目过滤答题', trendA.some(d => d.count >= 1) && trendA.every((d, i) => d.count <= (trendAll[i]?.count || 0)))
   ok('getActivityHeatmap(subjectId) 按科目过滤', db.getActivityHeatmap(120, subA.id).some(d => d.count >= 1))
   ok('getWeeklyReport(subjectId) 按科目统计本周', db.getWeeklyReport(subA.id).answered >= 1)
+  // 赛季统计（当月计数）
+  const ms = db.getMonthStats()
+  ok('getMonthStats 当月计数正常', ms.answered >= 1 && typeof ms.activeDays === 'number' && typeof ms.focusMin === 'number' && typeof ms.checkDays === 'number' && typeof ms.cardsAdded === 'number')
   db.deleteCategory(subA.id) // 级联清理（含错题残留无碍后续）
 
   // 空科目边界：新建科目无章节时拉题应返回空（防止 IN() SQL 报错）

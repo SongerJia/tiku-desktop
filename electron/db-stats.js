@@ -299,6 +299,20 @@ module.exports = function statsModule(ctx) {
       this.setSetting('goal_contract', JSON.stringify(c))
       this.logXp(50, 'goal', '目标契约达成')
       return { ok: true, xp: 50 }
+    },
+
+    // 赛季统计：当月各维度计数（赛季成就按月判定，次月 1 日自动重置进度）
+    getMonthStats() {
+      const now = new Date()
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+      const dayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+      const answered = sqlite.prepare('SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=?').get(LOCAL_USER, monthStart).n
+      const activeDays = sqlite.prepare("SELECT COUNT(DISTINCT DATE(created_at/1000,'unixepoch','localtime')) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=?").get(LOCAL_USER, monthStart).n
+      const reviewed = sqlite.prepare('SELECT COUNT(*) AS n FROM review_logs WHERE created_at>=?').get(monthStart).n
+      const focusMin = sqlite.prepare('SELECT COALESCE(SUM(minutes),0) AS n FROM focus_sessions WHERE deleted=0 AND created_at>=?').get(monthStart).n
+      const checkDays = sqlite.prepare('SELECT COUNT(DISTINCT check_date) AS n FROM habit_checks WHERE check_date>=?').get(dayKey).n
+      const cardsAdded = sqlite.prepare('SELECT COUNT(*) AS n FROM cards WHERE deleted=0 AND created_at>=?').get(monthStart).n
+      return { answered, activeDays, reviewed, focusMin, checkDays, cardsAdded }
     }
   }
 }

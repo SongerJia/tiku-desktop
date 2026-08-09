@@ -466,6 +466,7 @@ ipcMain.handle('restoreBackup', (e, file) => {
   return r
 })
 ipcMain.handle('getWeeklyReport', (e, subjectId) => db.getWeeklyReport(subjectId))
+ipcMain.handle('getMonthStats', () => db.getMonthStats())
 ipcMain.handle('getChapterProgress', () => db.getChapterProgress())
 ipcMain.handle('getVersion', () => ({ name: pkg.productName || '知识记忆小助手', version: pkg.version }))
 ipcMain.handle('openExternal', (e, url) => { try { shell.openExternal(String(url)) } catch (err) {} })
