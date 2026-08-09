@@ -1069,7 +1069,7 @@ function optionClass(key) {
 .submit, .next {
   width: 100%;
   background: var(--brand);
-  color: #021018;
+  color: #fff;
   box-shadow: var(--glow);
 }
 .submit:hover, .next:hover { box-shadow: 0 0 20px rgba(91, 124, 250, 0.6); }

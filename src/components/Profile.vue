@@ -878,7 +878,7 @@ onMounted(async () => {
 .pref-label { flex: 0 0 88px; color: var(--muted); }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .seg button { background: none; border: none; color: var(--muted); padding: 6px 16px; font-size: 13px; cursor: pointer; }
-.seg button.on { background: var(--brand); color: #021018; font-weight: 600; }
+.seg button.on { background: var(--brand); color: #fff; font-weight: 600; }
 .pref-range { flex: 1; accent-color: var(--brand); }
 .pref-input { width: 80px; background: var(--input-solid-bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 6px 10px; font-size: 13px; outline: none; font-family: inherit; }
 .pref-input:focus { border-color: var(--brand); }

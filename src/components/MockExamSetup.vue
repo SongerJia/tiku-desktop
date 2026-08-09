@@ -329,7 +329,7 @@ async function exportPaperPdf(p) {
 .btn-outline { background: transparent; border-color: var(--line); color: var(--text); }
 .btn-outline:hover { border-color: var(--brand); color: var(--brand); }
 .btn-outline.danger:hover { border-color: var(--bad); color: var(--bad); }
-.btn-primary { background: var(--brand); color: #021018; border: none; box-shadow: var(--glow, 0 0 16px rgba(42,245,255,.5)); }
+.btn-primary { background: var(--brand); color: #fff; border: none; box-shadow: var(--glow, 0 0 16px rgba(42,245,255,.5)); }
 .btn-primary:hover { box-shadow: 0 0 22px rgba(42,245,255,.7); }
 .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
 .btn-outline.sm, .btn-primary.sm { flex: 0 0 auto; padding: 6px 16px; font-size: 12px; }

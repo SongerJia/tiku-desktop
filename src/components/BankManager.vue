@@ -765,7 +765,7 @@ async function batchDelete() {
   border-radius: 20px; padding: 3px 10px; font-size: 12px; cursor: pointer; transition: all .15s;
 }
 .tag-chip:hover { border-color: var(--brand); color: var(--brand); }
-.tag-chip.on { background: var(--brand); color: #021018; border-color: var(--brand); }
+.tag-chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
 .tag-clear { font-size: 11px; color: var(--muted); background: none; border: none; cursor: pointer; text-decoration: underline; }
 
 /* 题目项标签 */
@@ -792,7 +792,7 @@ async function batchDelete() {
 .tag-input:focus { border-color: var(--brand); box-shadow: var(--glow-soft); }
 .tag-sug { display: flex; flex-wrap: wrap; gap: 6px; }
 .tag-sug-chip { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 14px; padding: 2px 10px; cursor: pointer; }
-.tag-sug-chip.on { background: var(--brand); color: #021018; border-color: var(--brand); }
+.tag-sug-chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
 .tag-foot { display: flex; align-items: center; justify-content: space-between; }
 .tag-tip { font-size: 11px; color: var(--muted); }
 .tag-save { border: 1px solid var(--brand); background: none; color: var(--brand); border-radius: 6px; padding: 5px 16px; font-size: 12px; cursor: pointer; transition: all .15s; }

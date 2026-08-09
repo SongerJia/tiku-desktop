@@ -267,7 +267,7 @@ function confirm() {
 .chips.row { grid-template-columns: repeat(2, 1fr); }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .seg button { background: none; border: none; color: var(--muted); padding: 6px 16px; font-size: 13px; cursor: pointer; }
-.seg button.on { background: var(--brand); color: #021018; font-weight: 600; }
+.seg button.on { background: var(--brand); color: #fff; font-weight: 600; }
 .chip {
   display: flex;
   flex-direction: column;
@@ -284,7 +284,7 @@ function confirm() {
 }
 .chip.sm { align-items: center; flex-direction: row; justify-content: center; font-size: 14px; font-weight: 500; }
 .chip:hover { border-color: var(--brand, #5b7cfa); box-shadow: var(--glow-soft, 0 0 12px rgba(42,245,255,.25)); }
-.chip.active { background: var(--brand, #5b7cfa); color: #021018; border-color: var(--brand, #5b7cfa); box-shadow: var(--glow, 0 0 16px rgba(42,245,255,.5)); }
+.chip.active { background: var(--brand, #5b7cfa); color: #fff; border-color: var(--brand, #5b7cfa); box-shadow: var(--glow, 0 0 16px rgba(42,245,255,.5)); }
 .chip.active .chip-desc { color: rgba(2, 16, 24, 0.7); }
 .chip-label { font-size: 14px; font-weight: 600; }
 .chip-desc { font-size: 10px; opacity: .8; line-height: 1.3; }
@@ -311,7 +311,7 @@ function confirm() {
 .btn { flex: 1; padding: 11px; border-radius: 24px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
 .btn-outline { background: transparent; border-color: var(--line, #1d2740); color: var(--text, #d6e2f5); }
 .btn-outline:hover { border-color: var(--brand, #5b7cfa); color: var(--brand, #5b7cfa); }
-.btn-primary { background: var(--brand, #5b7cfa); color: #021018; border: none; box-shadow: var(--glow, 0 0 16px rgba(42,245,255,.5)); }
+.btn-primary { background: var(--brand, #5b7cfa); color: #fff; border: none; box-shadow: var(--glow, 0 0 16px rgba(42,245,255,.5)); }
 .btn-primary:hover { box-shadow: 0 0 22px rgba(91, 124, 250, 0.7); }
 
 .fade-enter-active, .fade-leave-active { transition: opacity .22s; }

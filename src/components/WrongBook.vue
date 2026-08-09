@@ -229,7 +229,7 @@ async function toggleSimilar(qid) {
 .stubborn { color: var(--bad); border: 1px solid rgba(229, 83, 95, 0.4); background: rgba(229, 83, 95, 0.08); border-radius: 6px; padding: 0 6px; margin-left: 6px; font-size: 11px; }
 .actions { display: flex; gap: 8px; }
 button { border: none; padding: 7px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; }
-.primary { background: var(--brand); color: #021018; }
+.primary { background: var(--brand); color: #fff; }
 .ghost { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); color: var(--text); }
 .ghost:hover { border-color: var(--brand); color: var(--brand); }
 
