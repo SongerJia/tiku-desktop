@@ -271,6 +271,8 @@ module.exports = function schemaModule(ctx) {
       CREATE INDEX IF NOT EXISTS idx_wb_user_status ON wrong_books(user_id, status, next_review_at);
       CREATE INDEX IF NOT EXISTS idx_fav_user ON favorites(user_id, question_id);
       CREATE INDEX IF NOT EXISTS idx_ar_user_q ON answer_records(user_id, question_id);
+      CREATE INDEX IF NOT EXISTS idx_ar_user_created ON answer_records(user_id, created_at); -- 按日/月统计、最近记录（answer_records 增长最快，缺时间索引会全扫）
+      CREATE INDEX IF NOT EXISTS idx_notes_user_q ON notes(user_id, question_id); -- 笔记高频查询（答题页每切一题 getNote）
       CREATE INDEX IF NOT EXISTS idx_qt_tag ON question_tags(tag);
       CREATE INDEX IF NOT EXISTS idx_mat_subject ON materials(subject_id);
     `)
