@@ -416,6 +416,7 @@ ipcMain.handle('kbSaveMd', (e, id, content) => db.kbSaveMd(id, content))
 ipcMain.handle('kbGetNote', (e, docId) => db.getKbNote(docId))
 // ---- 反馈层（XP/每日任务/回顾/专注/习惯/高亮/双链/错题原因）----
 ipcMain.handle('xpStats', () => db.xpStats())
+ipcMain.handle('logXp', (e, xp, source, note) => db.logXp(xp, source, note))
 ipcMain.handle('checkQuests', () => db.checkQuests())
 ipcMain.handle('todayCounts', () => db.todayCounts())
 ipcMain.handle('getDailyReview', (e, limit) => db.getDailyReview(limit))

@@ -2,7 +2,7 @@
 import Icon from './Icon.vue'
 import CountUp from './CountUp.vue'
 import { showConfirm } from '../utils/confirm.js'
-import { ACH_DEFS } from '../utils/achievements.js'
+import { evaluate, achLevel, ACH_DEFS, ACH_SERIES, ACH_RARITY } from '../utils/achievements.js'
 import { ref, onMounted, computed } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { applyAppearance } from '../utils/appearance.js'
@@ -256,17 +256,24 @@ async function setRemindTime(v) {
 
 // ---- 游戏化成就（指标来自 getAchievements，成就定义在前端派生）----
 const metrics = ref(null)
-// progress: 0~1 达成度；fmt: 进度文案（"已完成"由模板统一处理）
-const achievements = computed(() => ACH_DEFS.map(a => {
-  const p = metrics.value ? a.progress(metrics.value) : 0
-  return {
-    ...a,
-    got: p >= 1,
-    pct: Math.round(Math.min(1, Math.max(0, p)) * 100),
-    fmtText: metrics.value ? a.fmt(metrics.value) : ''
-  }
-}))
+// 游戏化成就：evaluate 统一计算（含系列/稀有度/点数/解锁时间/隐藏状态）
+const achievements = computed(() => metrics.value ? evaluate(metrics.value) : [])
 const unlockedCount = computed(() => achievements.value.filter(a => a.got).length)
+const achPoints = computed(() => achievements.value.filter(a => a.got).reduce((s, a) => s + (a.points || 0), 0))
+const achLv = computed(() => achLevel(achPoints.value))
+const achPct = computed(() => achievements.value.length ? Math.round((unlockedCount.value / achievements.value.length) * 100) : 0)
+// 系列折叠状态（默认全部展开）
+const achOpen = ref(new Set(ACH_SERIES.map(s => s.key)))
+function toggleAchSeries(key) {
+  const s = new Set(achOpen.value)
+  if (s.has(key)) s.delete(key); else s.add(key)
+  achOpen.value = s
+}
+// 按系列分组，每组带系列内进度
+const achSeries = computed(() => ACH_SERIES.map(sr => {
+  const list = achievements.value.filter(a => a.series === sr.key)
+  return { ...sr, list, got: list.filter(a => a.got).length, total: list.length }
+}).filter(s => s.list.length))
 
 // ---- 知识库概览（kbStats）----
 const kbStats = ref(null)
@@ -366,25 +373,56 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- 游戏化成就 -->
+    <!-- 游戏化成就：概览条 + 系列分组 + 三态成就卡 -->
     <div class="card">
-      <div class="card-title">我的成就（{{ unlockedCount }}/{{ achievements.length }}）</div>
-      <div class="ach-grid">
-        <div v-for="a in achievements" :key="a.key" class="ach" :class="{ got: a.got }">
-          <div class="ach-head">
-            <span class="ach-icon">{{ a.icon }}</span>
-            <span class="ach-name">{{ a.name }}</span>
-            <span class="ach-pct" :class="{ done: a.got }">
-              <template v-if="a.got"><Icon name="check" :size="14"/> 已达成</template>
-              <template v-else>{{ a.fmtText }}</template>
-            </span>
-          </div>
-          <span class="ach-desc">{{ a.desc }}</span>
-          <div class="ach-bar">
-            <div class="ach-fill" :class="{ done: a.got }" :style="{ width: a.pct + '%' }"></div>
+      <!-- 概览条 -->
+      <div class="ach-summary">
+        <span class="ach-lv" :style="{ borderColor: achLv.min >= 600 ? '#7b46c4' : achLv.min >= 300 ? '#d9a514' : achLv.min >= 100 ? '#8a97a5' : '#b87333' }">{{ achLv.icon }} {{ achLv.name }}</span>
+        <span class="ach-sum-item"><b>{{ achPoints }}</b>成就点数</span>
+        <span class="ach-sum-item"><b>{{ unlockedCount }}/{{ achievements.length }}</b>已解锁</span>
+        <span class="ach-sum-item"><b>{{ achPct }}%</b>完成率</span>
+        <span class="ach-sum-ring" :style="{ background: `conic-gradient(var(--brand) ${achPct * 3.6}deg, var(--line) 0deg)` }"></span>
+      </div>
+
+      <!-- 系列分组 -->
+      <div v-for="sr in achSeries" :key="sr.key" class="ach-series">
+        <div class="ach-series-head" @click="toggleAchSeries(sr.key)">
+          <span class="ach-series-icon">{{ sr.icon }}</span>
+          <span class="ach-series-name">{{ sr.name }}</span>
+          <span class="ach-series-prog">{{ sr.got }}/{{ sr.total }}</span>
+          <span class="ach-series-arrow" :class="{ open: achOpen.has(sr.key) }">▾</span>
+        </div>
+        <div v-show="achOpen.has(sr.key)" class="ach-grid">
+          <div
+            v-for="a in sr.list"
+            :key="a.key"
+            class="ach"
+            :class="{ got: a.got, hidden: a.hidden && !a.got }"
+          >
+            <div class="ach-head">
+              <span class="ach-icon" :style="a.got ? { filter: 'none' } : {}">
+                {{ a.got ? a.icon : (a.hidden ? '❓' : '🔒') }}
+              </span>
+              <span class="ach-name">
+                {{ a.got || !a.hidden ? a.name : '？？？' }}
+                <i v-if="a.got" class="ach-rarity" :style="{ background: (ACH_RARITY[a.rarity] || {}).color }">{{ (ACH_RARITY[a.rarity] || {}).label }}</i>
+              </span>
+              <span class="ach-pct" :class="{ done: a.got }">
+                <template v-if="a.got">{{ a.unlockAt || '已解锁' }}</template>
+                <template v-else-if="a.hidden">？？？</template>
+                <template v-else>{{ a.fmtText }}</template>
+              </span>
+            </div>
+            <span class="ach-desc" v-if="a.got || !a.hidden">{{ a.desc }}<template v-if="!a.got"> · +{{ a.points }} 点</template></span>
+            <span class="ach-desc" v-else>解锁后揭晓</span>
+            <div class="ach-bar" v-if="!a.hidden || a.got">
+              <div class="ach-fill" :class="{ done: a.got }" :style="{ width: a.pct + '%', background: a.got ? ((ACH_RARITY[a.rarity] || {}).color) : undefined }"></div>
+            </div>
+            <div class="ach-bar" v-else></div>
           </div>
         </div>
       </div>
+      <div v-if="!achSeries.length" class="ach-empty">还没有成就数据，先刷几道题吧</div>
     </div>
       </div>
     </div>
@@ -924,15 +962,36 @@ onMounted(async () => {
 .pref-sub { flex: 1; color: var(--muted); font-size: 11px; }
 
 /* 成就墙 */
+/* 成就中心（游戏化）：概览条 + 系列分组 + 三态卡 */
+.ach-summary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding-bottom: 12px; margin-bottom: 10px; border-bottom: 1px dashed var(--line); }
+.ach-lv { font-size: 13px; font-weight: 600; color: var(--text); border: 1.5px solid var(--line); border-radius: 999px; padding: 3px 12px; }
+.ach-sum-item { font-size: 12px; color: var(--muted); display: inline-flex; align-items: baseline; gap: 4px; }
+.ach-sum-item b { font-size: 16px; color: var(--brand); font-weight: 700; }
+.ach-sum-ring { width: 30px; height: 30px; border-radius: 50%; margin-left: auto; position: relative; }
+.ach-sum-ring::after { content: ''; position: absolute; inset: 6px; background: var(--bg, #fff); border-radius: 50%; }
+.ach-series { margin-bottom: 14px; }
+.ach-series-head { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 4px; border-radius: 8px; }
+.ach-series-head:hover { background: rgba(91,124,250,.06); }
+.ach-series-icon { font-size: 15px; }
+.ach-series-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.ach-series-prog { font-size: 11px; color: var(--muted); background: rgba(91,124,250,.1); border-radius: 999px; padding: 1px 8px; }
+.ach-series-arrow { margin-left: auto; font-size: 12px; color: var(--muted); transition: transform .2s; }
+.ach-series-arrow.open { transform: rotate(180deg); }
 .ach-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.ach { display: flex; flex-direction: column; gap: 3px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: rgba(255,255,255,.02); opacity: .62; transition: all .2s; }
+.ach { display: flex; flex-direction: column; gap: 3px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: rgba(255,255,255,.02); opacity: .72; transition: all .2s; }
+.ach:hover { opacity: 1; border-color: rgba(91,124,250,.5); }
 .ach.got { opacity: 1; border-color: var(--brand); background: var(--brand-light); box-shadow: var(--glow-soft); }
-.ach-head { display: flex; align-items: center; gap: 6px; }
-.ach-icon { font-size: 20px; }
-.ach-name { font-size: 13px; font-weight: 600; color: var(--text); }
-.ach-pct { margin-left: auto; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.ach.hidden { opacity: .45; }
+.ach.hidden:hover { opacity: .6; }
+.ach-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ach-icon { font-size: 18px; filter: grayscale(1) brightness(.7); flex-shrink: 0; }
+.ach.got .ach-icon { filter: none; }
+.ach-name { font-size: 13px; font-weight: 600; color: var(--text); display: inline-flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ach.got .ach-name { color: var(--brand); }
+.ach-rarity { font-style: normal; font-size: 10px; color: #fff; border-radius: 6px; padding: 0 5px; line-height: 15px; flex-shrink: 0; }
+.ach-pct { margin-left: auto; font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
 .ach-pct.done { color: var(--ok); font-weight: 600; }
-.ach-desc { font-size: 11px; color: var(--muted); }
+.ach-desc { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ach-bar {
   height: 5px;
   border-radius: 3px;
@@ -947,7 +1006,7 @@ onMounted(async () => {
   transition: width .3s ease;
 }
 .ach-fill.done { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
-.ach.got .ach-state { color: var(--brand); font-weight: 600; }
+.ach-empty { font-size: 12px; color: var(--muted); text-align: center; padding: 12px 0; }
 
 /* 同步冲突明细 */
 .conflict-list { margin-top: 10px; border: 1px solid rgba(255, 160, 60, 0.35); border-radius: 10px; padding: 8px 10px; background: rgba(255, 160, 60, 0.06); }

@@ -111,6 +111,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   kbGetNote: (docId) => ipcRenderer.invoke('kbGetNote', docId),
   kbExport: () => ipcRenderer.invoke('kbExport'),
   xpStats: () => ipcRenderer.invoke('xpStats'),
+  logXp: (xp, source, note) => ipcRenderer.invoke('logXp', xp, source, note),
   checkQuests: () => ipcRenderer.invoke('checkQuests'),
   todayCounts: () => ipcRenderer.invoke('todayCounts'),
   getDailyReview: (limit) => ipcRenderer.invoke('getDailyReview', limit),
