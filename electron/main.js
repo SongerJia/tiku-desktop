@@ -393,7 +393,12 @@ async function importKbPaths(filePaths, subjectId) {
         blocks = r.blocks || []
         error = r.error
       }
-      const docId = db.addKbDoc({ title, type: ext, relPath: rel, size: raw.length, hash, blocks, subjectId: subjectId || null })
+      const kind = db.categoryKind(subjectId) // 导入位置可能是科目或章节
+      const docId = db.addKbDoc({
+        title, type: ext, relPath: rel, size: raw.length, hash, blocks,
+        subjectId: kind === 'subject' ? subjectId : null,
+        categoryId: kind === 'chapter' ? subjectId : null
+      })
       results.push({ ok: true, docId, title, type: ext, blocks: blocks.length, error })
     } catch (e) {
       results.push({ ok: false, file: src, error: String((e && e.message) || e) })

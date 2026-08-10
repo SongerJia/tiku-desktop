@@ -334,6 +334,8 @@ module.exports = function schemaModule(ctx) {
     addColumn('favorites', 'fav_group', "fav_group TEXT DEFAULT ''")
     // 知识库科目关联（第二批：知识库按科目归类，切换科目维度时文档跟随）
     addColumn('kb_docs', 'subject_id', 'subject_id INTEGER')
+    // 知识库章节归属：文档可选归属到科目下的具体章节（顶部选择器选章节时按 category_id 过滤）
+    addColumn('kb_docs', 'category_id', 'category_id INTEGER')
   },
   }
 }

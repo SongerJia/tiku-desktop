@@ -14,7 +14,7 @@ const tagFilter = ref(null) // null=全部
 const keyword = ref('')
 const loading = ref(true)
 const reader = ref({ show: false, doc: null })
-const editor = ref({ show: false, doc: null, tags: [], title: '', folder: '', subjectId: null })
+const editor = ref({ show: false, doc: null, tags: [], title: '', folder: '', subjectId: null, categoryId: null, chapters: [] })
 // 文档编辑弹窗「所属科目」下拉的数据源
 const subjects = ref([])
 // 知识库范围：'current' 跟随顶部科目（tab 默认）；'all' 全部科目管理（「我的→知识库概览」进入）
@@ -159,8 +159,26 @@ async function onDelete(doc) {
   await loadList()
 }
 
-function openEditor(doc) {
-  editor.value = { show: true, doc, tags: [...(doc.tags || [])], title: doc.title, folder: doc.folder || '', subjectId: doc.subject_id ?? null }
+async function openEditor(doc) {
+  editor.value = { show: true, doc, tags: [...(doc.tags || [])], title: doc.title, folder: doc.folder || '', subjectId: doc.subject_id ?? null, categoryId: doc.category_id ?? null, chapters: [] }
+  await loadChapters(editor.value.subjectId || null) // 加载该科目的章节下拉
+}
+
+// 加载某科目的章节列表（getCategories 树里取该科目的 children）
+async function loadChapters(subjectId) {
+  editor.value.chapters = []
+  if (!subjectId) { editor.value.categoryId = null; return }
+  try {
+    const roots = await tiku.getCategories()
+    const sub = roots.find(s => s.id === subjectId)
+    editor.value.chapters = (sub && sub.children) || []
+  } catch (e) { editor.value.chapters = [] }
+}
+
+// 科目切换：清空章节选择并加载新科目的章节
+async function onSubjectChange() {
+  editor.value.categoryId = null
+  await loadChapters(editor.value.subjectId || null)
 }
 
 function addEditorTag() {
@@ -181,8 +199,10 @@ async function saveEditor() {
   const title = editor.value.title.trim()
   if (title && title !== editor.value.doc.title) await tiku.kbUpdate(editor.value.doc.id, { title })
   if ((editor.value.folder || '') !== (editor.value.doc.folder || '')) await tiku.kbMove(editor.value.doc.id, editor.value.folder)
-  if ((editor.value.subjectId ?? null) !== (editor.value.doc.subject_id ?? null)) {
-    await tiku.kbUpdate(editor.value.doc.id, { subjectId: editor.value.subjectId || null })
+  const subChanged = (editor.value.subjectId ?? null) !== (editor.value.doc.subject_id ?? null)
+  const catChanged = (editor.value.categoryId ?? null) !== (editor.value.doc.category_id ?? null)
+  if (subChanged || catChanged) {
+    await tiku.kbUpdate(editor.value.doc.id, { subjectId: editor.value.subjectId || null, categoryId: editor.value.categoryId || null })
   }
   await tiku.kbSetTags(editor.value.doc.id, editor.value.tags)
   editor.value.show = false
@@ -295,9 +315,14 @@ function fmtTime(ts) {
         <label class="kb-lab">文件夹</label>
         <input v-model="editor.folder" class="input" placeholder="留空=未分类（输入新名字即创建文件夹）" />
         <label class="kb-lab">所属科目</label>
-        <select v-model="editor.subjectId" class="input">
+        <select v-model="editor.subjectId" class="input" @change="onSubjectChange">
           <option :value="null">未分类</option>
           <option v-for="s in subjects" :key="s.id" :value="s.id">{{ s.name }}</option>
+        </select>
+        <label class="kb-lab">所属章节</label>
+        <select v-model="editor.categoryId" class="input" :disabled="!editor.subjectId">
+          <option :value="null">不指定章节</option>
+          <option v-for="c in editor.chapters" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
         <label class="kb-lab">标签</label>
         <div class="kb-edit-tags">

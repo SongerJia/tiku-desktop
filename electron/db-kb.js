@@ -23,7 +23,7 @@ module.exports = function kbModule(ctx) {
 
     // 文档笔记：独立 MD 文档，命名固定 = 原文档标题 + '笔记'；已存在则复用，否则创建空笔记
     getKbNote(docId) {
-      const doc = sqlite.prepare('SELECT id, title FROM kb_docs WHERE id=? AND deleted=0').get(docId)
+      const doc = sqlite.prepare('SELECT id, title, subject_id, category_id FROM kb_docs WHERE id=? AND deleted=0').get(docId)
       if (!doc) return { ok: false, error: '文档不存在' }
       // 防套娃：文档本身已是笔记（标题以「笔记」结尾）时直接返回自身，不再生成「笔记笔记」
       if (/笔记$/.test(String(doc.title))) {
@@ -42,8 +42,8 @@ module.exports = function kbModule(ctx) {
       const now = Date.now()
       const buf = fs.readFileSync(path.join(dir, rel))
       const info = sqlite.prepare(
-        'INSERT INTO kb_docs (title, type, rel_path, size, hash, folder, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,?,0,?)'
-      ).run(noteTitle, 'md', rel, buf.length, crypto.createHash('sha1').update(buf).digest('hex'), '', now, now, uuid())
+        'INSERT INTO kb_docs (title, type, rel_path, size, hash, folder, subject_id, category_id, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,?,?,?,0,?)'
+      ).run(noteTitle, 'md', rel, buf.length, crypto.createHash('sha1').update(buf).digest('hex'), '', doc.subject_id || null, doc.category_id || null, now, now, uuid())
       return { ok: true, noteId: Number(info.lastInsertRowid), title: noteTitle, created: true }
     },
 
@@ -52,12 +52,20 @@ module.exports = function kbModule(ctx) {
       return sqlite.prepare('SELECT id, title, type FROM kb_docs WHERE hash=? AND deleted=0 LIMIT 1').get(hash) || null
     },
 
-    addKbDoc({ title, type = 'md', relPath, size = 0, hash, blocks = [], subjectId = null }) {
+    // id 是科目还是章节：categories 里 parent_id 为空/0 = 科目，有父 = 章节；查不到返回 null
+    categoryKind(id) {
+      if (id == null) return null
+      const row = sqlite.prepare('SELECT parent_id FROM categories WHERE id=? AND deleted=0').get(id)
+      if (!row) return null
+      return row.parent_id ? 'chapter' : 'subject'
+    },
+
+    addKbDoc({ title, type = 'md', relPath, size = 0, hash, blocks = [], subjectId = null, categoryId = null }) {
       const now = Date.now()
       const tx = sqlite.transaction(() => {
         const info = sqlite.prepare(
-          'INSERT INTO kb_docs (title, type, rel_path, size, hash, subject_id, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,?,0,?)'
-        ).run(title, type, relPath, size, hash || null, subjectId || null, now, now, uuid())
+          'INSERT INTO kb_docs (title, type, rel_path, size, hash, subject_id, category_id, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,?,?,0,?)'
+        ).run(title, type, relPath, size, hash || null, subjectId || null, categoryId || null, now, now, uuid())
         const docId = info.lastInsertRowid
         const ins = sqlite.prepare(
           'INSERT INTO kb_blocks (doc_id, seq, heading, content, char_start, char_end) VALUES (?,?,?,?,?,?)'
@@ -86,9 +94,12 @@ module.exports = function kbModule(ctx) {
     },
 
     getKbDocs(subjectId) {
-      // subjectId 传具体科目 id → 只返回该科目文档；不传/undefined → 全部
-      const rows = (subjectId
-        ? sqlite.prepare('SELECT * FROM kb_docs WHERE deleted=0 AND subject_id=? ORDER BY updated_at DESC').all(subjectId)
+      // subjectId 传科目 id → 按 subject_id 过滤；传章节 id → 按 category_id 过滤；不传/undefined → 全部
+      const kind = this.categoryKind(subjectId)
+      const rows = (kind
+        ? (kind === 'subject'
+          ? sqlite.prepare('SELECT * FROM kb_docs WHERE deleted=0 AND subject_id=? ORDER BY updated_at DESC').all(subjectId)
+          : sqlite.prepare('SELECT * FROM kb_docs WHERE deleted=0 AND category_id=? ORDER BY updated_at DESC').all(subjectId))
         : sqlite.prepare('SELECT * FROM kb_docs WHERE deleted=0 ORDER BY updated_at DESC').all())
       const tagStmt = sqlite.prepare('SELECT tag FROM kb_tags WHERE doc_id=? ORDER BY tag')
       const linkStmt = sqlite.prepare('SELECT COUNT(*) AS n FROM kb_links WHERE doc_id=?')
@@ -115,8 +126,9 @@ module.exports = function kbModule(ctx) {
       const hash = patch.hash != null ? String(patch.hash) : cur.hash
       const size = patch.size != null ? Number(patch.size) : cur.size
       const subjectId = patch.subjectId !== undefined ? (patch.subjectId || null) : cur.subject_id
-      sqlite.prepare('UPDATE kb_docs SET title=?, hash=?, size=?, subject_id=?, updated_at=? WHERE id=?')
-        .run(title, hash, size, subjectId, Date.now(), id)
+      const categoryId = patch.categoryId !== undefined ? (patch.categoryId || null) : cur.category_id
+      sqlite.prepare('UPDATE kb_docs SET title=?, hash=?, size=?, subject_id=?, category_id=?, updated_at=? WHERE id=?')
+        .run(title, hash, size, subjectId, categoryId, Date.now(), id)
       return this.getKbDoc(id)
     },
 
