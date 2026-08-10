@@ -7,6 +7,9 @@ dist-electron/
 release/
 out/
 
+# Vditor 离线资源必须入库（发布版依赖 ./vditor 加载；dist/ 规则会误匹配 public/vditor/dist，显式放行）
+!public/vditor/dist/
+
 # 本地数据库（含你刷过的题、记录，不应入库）
 *.db
 *.sqlite
