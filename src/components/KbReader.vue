@@ -7,7 +7,6 @@ import { showToast } from '../utils/toast.js'
 import { celebrate } from '../utils/celebrate.js'
 import { useEsc } from '../utils/useEsc.js'
 import SimpleQuestion from './SimpleQuestion.vue'
-import Icon from './Icon.vue'
 
 const props = defineProps({ show: Boolean, doc: Object })
 const emit = defineEmits(['close', 'open-doc'])
@@ -31,13 +30,21 @@ function jumpToToc(id) {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 // 从 Vditor 渲染后的 DOM 收集 h1-h4 目录（Vditor 自带锚点 id）
+// 注意：IR 模式下处于编辑态（源码态）的标题行 DOM 文本带 "## " 等 markdown 前缀，需清洗
+function cleanTocText(raw) {
+  return (raw || '')
+    .replace(/^#{1,6}\s*/, '')       // 去掉开头的 # 前缀（IR 源码态残留）
+    .replace(/^[*\-+]\s+/, '')       // 去掉列表项前缀
+    .replace(/^(\d+[.)])\s+/, '')    // 去掉有序列表编号
+    .trim() || '（无标题）'
+}
 function collectTocFromVditor() {
   const root = mdVditorEl.value
   if (!root) return
   const headings = root.querySelectorAll('.vditor-reset h1, .vditor-reset h2, .vditor-reset h3, .vditor-reset h4')
   tocList.value = Array.from(headings).map((h, i) => {
     if (!h.id) h.id = 'kb-sec-' + i
-    return { id: h.id, level: Number(h.tagName.slice(1)), text: h.textContent || '（无标题）' }
+    return { id: h.id, level: Number(h.tagName.slice(1)), text: cleanTocText(h.textContent) }
   })
 }
 // 保存 MD 文档（Vditor 内容 → kbSaveMd；input 防抖 + Ctrl+S + 返回时立即保存）
@@ -78,7 +85,7 @@ async function initMdVditor() {
   try { await ensureVditorIcons() } catch (e) { /* 图标缺失不阻塞编辑，仅工具栏无图标 */ }
   const isDark = document.documentElement.dataset.theme === 'dark'
   mdVditor = new Vditor(mdVditorEl.value, {
-    mode: 'ir', // 即时渲染：整篇渲染预览，光标所在行显示源码（点击行即进入编辑）
+    mode: 'ir', // 即时渲染：整篇渲染预览，光标所在行显示源码（点击行即进入编辑）——Typora 式所见即所得
     cdn: import.meta.env.DEV ? '/vditor' : './vditor',
     value: text,
     height: '100%',
@@ -86,7 +93,10 @@ async function initMdVditor() {
     lang: 'zh_CN',
     placeholder: '',
     cache: { enable: false },
-    preview: { delay: 120 },
+    preview: { delay: 120, maxWidth: 10000 }, // maxWidth 设超大值——Vditor setPadding 用 (父宽-maxWidth)/2 算左右内距，默认 800 会把文字挤到中间（左右各 ~120px 内距），超大值让内距落到 35px 最小舒适值，文字接近占满右栏
+    toolbar: [],          // 无工具栏 = Typora 式纯正文（依赖 Ctrl+B/I 等快捷键 + 顶栏编辑态操作）
+    counter: false,       // 无字数统计
+    outline: false,       // 无大纲按钮
     input: () => {
       clearTimeout(mdSaveTimer)
       mdSaveStatus.value = 'saving'
@@ -94,7 +104,14 @@ async function initMdVditor() {
       collectTocFromVditor() // 标题变化后更新目录
     },
     after: () => {
-      collectTocFromVditor()
+      try {
+        mdVditor.blur()   // 先失焦 → 所有标题行恢复渲染态（否则源码态的标题文本带 ## 前缀污染大纲）
+        collectTocFromVditor()
+        // 兜底：强制 IR 编辑区宽度 100% + 重渲染预览（防首帧 clientWidth 异常导致 setPadding 锁死极窄——字符垂直排列 bug）
+        const irEl = document.querySelector('.kb-md-vditor .vditor-ir')
+        if (irEl) irEl.style.width = '100%'
+        if (typeof mdVditor.renderPreview === 'function') mdVditor.renderPreview()
+      } catch (e) { /* 忽略 */ }
     }
   })
 }
@@ -106,12 +123,12 @@ function onGlobalKeydown(e) {
     saveMdDoc(true)
   }
 }
-// 统一缩放：MD 用字号倍数（14px = 100%），PDF 用 canvas scale（100 = 基准 1.5）
-const fontSize = ref(14)
-const MD_FONT_BASE = 14
-const MD_ZOOM_MIN = 75   // ≈10.5px
-const MD_ZOOM_MAX = 150  // =21px
-const MD_ZOOM_STEP = 10  // ≈1.4px/步
+// 统一缩放：MD 用字号倍数（20px = 100%，用户要求正文字体更大），PDF 用 canvas scale（100 = 基准 1.5）
+const fontSize = ref(20)
+const MD_FONT_BASE = 20
+const MD_ZOOM_MIN = 75   // =15px
+const MD_ZOOM_MAX = 150  // =30px
+const MD_ZOOM_STEP = 10  // =2px/步
 const isMdDoc = computed(() => props.doc?.type === 'md')
 const zoomPct = computed(() => isMdDoc.value ? Math.round(fontSize.value / MD_FONT_BASE * 100) : pdfZoom.value)
 const ZOOM_MIN = computed(() => isMdDoc.value ? MD_ZOOM_MIN : PDF_ZOOM_MIN)
@@ -320,8 +337,18 @@ const mLoading = ref(false)
 const sq = ref({ show: false, q: null })
 let mTimer = null
 
-// 右侧面板整列收起/展开（沉浸阅读）
-const sidePanelOpen = ref(true)
+// 左侧大纲栏：默认展开，顶栏「大纲」按钮收放
+const tocVisible = ref(true)
+function toggleToc() {
+  tocVisible.value = !tocVisible.value
+  // 大纲收起/展开后右栏宽度变化，触发 Vditor 重测 setPadding（否则正文宽度不更新）
+  setTimeout(() => {
+    window.dispatchEvent(new Event('resize'))
+    if (mdVditor && typeof mdVditor.renderPreview === 'function') mdVditor.renderPreview()
+  }, 50)
+}
+// 右侧相关题目 + 批注抽屉（默认关闭，按需唤出）
+const panelOpen = ref(false)
 
 // 关闭：MD 文档先立即保存（防抖中的改动落盘）；PDF 保存阅读位置
 async function onClose() {
@@ -558,27 +585,26 @@ useEsc(() => emit('close'))
         <span v-else-if="mdSaveStatus === 'saved'" class="kb-save-state ok">已保存</span>
         <span v-else-if="mdSaveStatus === 'err'" class="kb-save-state err">保存失败</span>
       </template>
-      <button class="btn kb-side-toggle" :class="{ off: !sidePanelOpen }" :title="sidePanelOpen ? '收起侧栏' : '展开侧栏'" @click="sidePanelOpen = !sidePanelOpen">
-        <Icon :name="sidePanelOpen ? 'chevron-right' : 'chevron-left'" :size="14" />
-        {{ sidePanelOpen ? '收起侧栏' : '展开侧栏' }}
-      </button>
+      <button v-if="props.doc?.type === 'md' && tocList.length" class="btn kb-side-toggle" :class="{ on: tocVisible }" @click="toggleToc">大纲</button>
+      <button class="btn kb-side-toggle" :class="{ on: panelOpen }" @click="panelOpen = !panelOpen">相关</button>
     </div>
-    <!-- 主体：左目录 | 中正文 | 右相关题目+批注 -->
+    <!-- 主体：双栏 Typora 式（左大纲常驻可收放 + 右正文） -->
     <div class="kb-body">
-      <!-- 左：MD 目录（常驻） -->
-      <div v-if="props.doc?.type === 'md' && tocList.length" class="kb-side-toc">
-        <div class="kb-side-title">目录</div>
+      <!-- 左：MD 大纲（默认展开，顶栏「大纲」按钮收放） -->
+      <aside v-if="props.doc?.type === 'md' && tocList.length && tocVisible" class="kb-side-toc">
+        <div class="kb-side-title">大纲</div>
         <div class="kb-toc">
           <div
             v-for="t in tocList"
             :key="t.id"
             class="kb-toc-item"
-            :style="{ paddingLeft: (t.level - 1) * 12 + 8 + 'px' }"
+            :class="'kb-toc-l' + t.level"
+            :title="t.text"
             @click="jumpToToc(t.id)"
           >{{ t.text || '（无标题）' }}</div>
         </div>
-      </div>
-      <!-- 中：正文（md = Vditor 编辑器 / pdf = 懒渲染） -->
+      </aside>
+      <!-- 右：正文（md = Vditor IR / pdf = 懒渲染） -->
       <div class="kb-main" @scroll.passive="onPdfScroll">
         <template v-if="props.doc?.type === 'md'">
           <div ref="mdVditorEl" class="kb-md-vditor" :style="{ '--kb-md-fs': fontSize + 'px' }"></div>
@@ -593,8 +619,16 @@ useEsc(() => emit('close'))
           <div ref="pdfContainer" class="kb-pdf"></div>
         </template>
       </div>
-      <!-- 右：相关题目 + 批注与关联 -->
-      <div class="kb-side-panel" :class="{ collapsed: !sidePanelOpen }">
+    </div>
+
+    <!-- 右侧相关题目 + 批注抽屉（默认关闭，按需唤出） -->
+    <transition name="kb-slide-right">
+      <aside v-if="panelOpen" class="kb-drawer kb-drawer-right">
+        <div class="kb-drawer-head">
+          <span>相关 &amp; 批注</span>
+          <button class="kb-drawer-close" @click="panelOpen = false" aria-label="关闭">×</button>
+        </div>
+        <div class="kb-drawer-body">
         <!-- 相关题目面板：已关联 + L2 推荐 + 手动搜题关联 -->
         <div class="kb-links">
           <div class="kb-links-head" @click="qPanel = !qPanel">
@@ -655,7 +689,11 @@ useEsc(() => emit('close'))
           </div>
         </div>
       </div>
-    </div>
+      </aside>
+    </transition>
+
+    <!-- 抽屉遮罩：点击关闭（不覆盖顶栏，保持返回可点） -->
+    <div v-if="panelOpen" class="kb-drawer-mask" @click="panelOpen = false"></div>
 
     <!-- 缩放浮层（MD/PDF 统一）：右下角，2.2s 无操作自动隐藏；hover 暂停计时 -->
     <div v-if="zoomUi" class="kb-zoom-ui" @mouseenter="pauseZoomHide" @mouseleave="resumeZoomHide">
@@ -734,23 +772,32 @@ useEsc(() => emit('close'))
 .kb-zoom-reset { font-size: 12px; color: var(--brand); background: none; border: none; cursor: pointer; padding: 2px 4px; }
 .kb-zoom-reset:hover { text-decoration: underline; }
 
+/* 双栏 Typora 式：左大纲常驻 + 右正文 */
 .kb-body {
   flex: 1;
   display: flex;
   flex-direction: row;
   min-height: 0;
-  min-width: 0;
+  min-width: 0;          /* 关键：flex item 可收缩，宽度由父 .kb-page 确定分配，不与子循环 */
   overflow: hidden;
 }
 .kb-side-toc {
-  flex: 0 0 200px;
+  flex: 0 0 260px;       /* 常驻左栏 260px（用户要求大纲更宽；收起时 v-if 移除，右栏自动占满） */
   min-width: 0;
   border-right: 1px solid var(--line);
   overflow-y: auto;
-  padding: 14px 10px;
-  background: rgba(127, 127, 127, 0.03);
+  padding: 18px 12px;
+  background: var(--bg);  /* Typora 左栏略深背景（与正文白色区分） */
 }
-.kb-side-title { font-size: 11px; color: var(--muted); letter-spacing: 2px; padding: 0 6px 8px; }
+.kb-side-title {
+  font-size: 14px;         /* "大纲"标签 11→14px（用户要求变大） */
+  color: var(--muted);
+  letter-spacing: 1px;
+  padding: 0 6px 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 8px;
+  font-weight: 700;
+}
 .kb-toc {
   display: flex;
   flex-direction: column;
@@ -758,7 +805,7 @@ useEsc(() => emit('close'))
 }
 .kb-toc-item {
   padding: 5px 10px;
-  font-size: 12.5px;
+  font-size: 14px;         /* 大纲字号 12.5→14（用户要求更大） */
   color: var(--muted);
   cursor: pointer;
   border-radius: 6px;
@@ -768,6 +815,11 @@ useEsc(() => emit('close'))
   transition: background .15s, color .15s;
 }
 .kb-toc-item:hover { background: var(--brand-light); color: var(--brand); }
+/* 层级缩进（Typora 风格：h1 最左，h2/h3/h4 依次缩进） */
+.kb-toc-l1 { font-weight: 600; color: var(--text); }
+.kb-toc-l2 { padding-left: 24px; }
+.kb-toc-l3 { padding-left: 38px; font-size: 13px; }
+.kb-toc-l4 { padding-left: 52px; font-size: 13px; }
 
 .kb-main {
   flex: 1 1 0;
@@ -775,85 +827,77 @@ useEsc(() => emit('close'))
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden; /* 防止 PDF 页宽于容器时溢出到屏幕外（兜底，正常应靠 :deep 限宽） */
-  padding: 24px 30px 60px;
+  padding: 12px 20px 60px;  /* 左右 padding 30→20（正文更宽）；顶部 24→12 贴合 */
   scroll-behavior: smooth;
   display: flex;
   flex-direction: column; /* MD 编辑器 flex 撑满可视高度；PDF 内容自然撑开滚动 */
 }
-/* Vditor MD 编辑器：全宽撑满中栏，正文内容限宽居中，工具栏单行不换行 */
+/* Vditor MD 编辑器（Typora 式）：让 .kb-main 滚动整篇内容（不在 Vditor 内部滚）——
+   关键：去掉 .vditor 的 overflow:hidden + .vditor-content 的内部滚动 + .vditor-reset 的 height:100%，
+   让 pre（.vditor-reset）高度自适应内容，溢出由外层 .kb-main overflow-y:auto 接管；
+   之前 Vditor 内部滚动导致右栏下方/右侧大片空白（用户红框3块），现在是整篇连贯 */
 .kb-md-vditor {
   flex: 1 1 0;
   min-height: 0;
   width: 100%;
-  display: flex;
-  flex-direction: column;
 }
 .kb-md-vditor :deep(.vditor) {
-  flex: 1 1 0;
-  min-height: 0;
+  width: 100%;
+  min-height: 100%;        /* 至少撑满右栏可视高度；超出时让 pre 高度自适应 */
   border: none;
-  border-radius: 12px;
-  background: var(--card-solid, var(--bg));
-  box-shadow: var(--shadow);
-  overflow: hidden;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;       /* 关键：不再内部裁剪，让 pre 高度自适应 */
+  display: flex;
+  flex-direction: column;
 }
 .kb-md-vditor :deep(.vditor-content),
 .kb-md-vditor :deep(.vditor-ir) {
   background: transparent;
+  overflow: visible;       /* 关键：不内部滚 */
 }
 .kb-md-vditor :deep(.vditor-ir) {
-  padding: 24px 30px 60px;
+  padding: 0 0 60px;        /* 去掉顶部 40px 留白（用户反馈"最上面有一块空白"）；保留底部滚动余量 */
+  width: 100%;
 }
-/* 正文内容限宽居中（编辑框全宽，文字行宽合理） */
+/* 正文排版：18px（更接近图2 参考的字号）+ 行距 1.7（更 Typora 风）+ 撑满右栏 + pre 高度自适应内容 */
 .kb-md-vditor :deep(.vditor-reset) {
-  max-width: 960px;
-  margin: 0 auto;
+  width: 100%;
+  height: auto !important;  /* 覆盖 Vditor 的 height:100%，pre 高度 = 内容高度 */
+  max-width: none;
+  margin: 0;
+  font-size: var(--kb-md-fs, 18px) !important;
+  line-height: 1.7;
+  color: var(--text);
 }
-/* 正文排版：行距、标题层次、段落间距 */
-.kb-md-vditor :deep(.vditor-reset) {
-  font-size: var(--kb-md-fs, 14px) !important;
-  line-height: 1.9;
+.kb-md-vditor :deep(.vditor-reset p) { margin: 0.8em 0; }
+.kb-md-vditor :deep(.vditor-reset h1) {
+  font-size: 2em; margin: 1.2em 0 0.6em; font-weight: 700;
+  border-bottom: 1px solid var(--line); padding-bottom: 0.3em;
 }
-.kb-md-vditor :deep(.vditor-reset p) { margin: 10px 0; }
-.kb-md-vditor :deep(.vditor-reset h1) { font-size: 22px; margin: 24px 0 12px; }
-.kb-md-vditor :deep(.vditor-reset h2) { font-size: 18px; margin: 22px 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
-.kb-md-vditor :deep(.vditor-reset h3) { font-size: 16px; margin: 18px 0 8px; }
-.kb-md-vditor :deep(.vditor-reset pre) { border-radius: 10px; }
-/* 工具栏：单行不换行（超宽横向滚动）、无外框、底部细分隔线、hover 品牌色、滚动时吸顶 */
-.kb-md-vditor :deep(.vditor-toolbar) {
-  display: flex;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-  border: none;
-  border-bottom: 1px solid var(--line);
-  border-radius: 12px 12px 0 0;
-  background: var(--card-solid, var(--bg));
-  padding: 4px 8px;
-  position: sticky;
-  top: 0;
-  z-index: 10;
+.kb-md-vditor :deep(.vditor-reset h2) {
+  font-size: 1.5em; margin: 1.1em 0 0.5em; font-weight: 700;
+  border-bottom: 1px solid var(--line); padding-bottom: 0.3em;
 }
-.kb-md-vditor :deep(.vditor-toolbar__item) {
-  float: none !important;   /* 覆盖 Vditor 的 float:left（float 在窄容器会换行） */
-  flex-shrink: 0;
-}
-.kb-md-vditor :deep(.vditor-toolbar__item .vditor-tooltipped) {
+.kb-md-vditor :deep(.vditor-reset h3) { font-size: 1.25em; margin: 1em 0 0.5em; font-weight: 600; }
+.kb-md-vditor :deep(.vditor-reset h4) { font-size: 1.1em; margin: 0.9em 0 0.4em; font-weight: 600; }
+.kb-md-vditor :deep(.vditor-reset pre) { border-radius: 6px; font-size: 0.9em; }
+.kb-md-vditor :deep(.vditor-reset code) { font-size: 0.9em; }
+.kb-md-vditor :deep(.vditor-reset blockquote) {
+  margin: 1em 0;
+  padding: 0.1em 1em;
+  border-left: 3px solid var(--line);
   color: var(--muted);
-  border-radius: 6px;
-  margin: 1px;
+  background: transparent;
+  border-radius: 0;
 }
-.kb-md-vditor :deep(.vditor-toolbar__item .vditor-tooltipped:hover),
-.kb-md-vditor :deep(.vditor-toolbar__item .vditor-tooltipped:focus) {
-  color: var(--brand) !important;
-  background: var(--brand-light) !important;
+.kb-md-vditor :deep(.vditor-reset blockquote p) { margin: 0.5em 0; }
+.kb-md-vditor :deep(.vditor-reset table) { font-size: 0.95em; }
+/* 工具栏/状态栏：toolbar 传 [] 不渲染，保留样式兜底 */
+.kb-md-vditor :deep(.vditor-toolbar) {
+  display: none !important;  /* 双保险：即使 toolbar 配置失效也不显示 */
 }
-.kb-md-vditor :deep(.vditor-toolbar__divider) {
-  background: var(--line) !important;
-  height: 20px !important;
-  margin-top: 7px !important;
-}
-/* 状态栏：透明融入卡片 */
 .kb-md-vditor :deep(.vditor-status) {
   background: transparent !important;
   color: var(--muted) !important;
@@ -866,28 +910,68 @@ useEsc(() => emit('close'))
 .kb-save-state { font-size: 12px; color: var(--muted); }
 .kb-save-state.ok { color: #2ecc71; }
 .kb-save-state.err { color: #e85f3d; }
-.kb-side-panel {
-  flex: 0 0 300px;
-  min-width: 0;
-  border-left: 1px solid var(--line);
-  overflow-y: auto;         /* 面板按内容自然撑开，内容多时整列滚动 */
+/* 抽屉（Typora 式沉浸：默认关闭，按需滑入；不挤占正文） */
+.kb-drawer {
+  position: fixed;
+  top: 56px;                /* 避开顶栏，保持返回可点 */
+  bottom: 0;
+  width: min(360px, 86vw);
+  z-index: 300;
+  background: var(--card-solid, var(--bg));
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+}
+.kb-drawer-left { left: 0; border-right: 1px solid var(--line); }
+.kb-drawer-right { right: 0; border-left: 1px solid var(--line); }
+.kb-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.kb-drawer-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.kb-drawer-close:hover { color: var(--brand); }
+.kb-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 14px 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  background: rgba(127, 127, 127, 0.03);
-  transition: flex-basis .25s ease, padding .25s ease;
+  gap: 14px;
 }
-.kb-side-panel.collapsed {
-  flex: 0 0 0;
-  padding: 0;
-  border-left-color: transparent;
+.kb-drawer-mask {
+  position: fixed;
+  top: 56px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 290;
+  background: rgba(0, 0, 0, 0.28);
 }
-.kb-side-panel.collapsed > * { opacity: 0; pointer-events: none; }
+/* 滑入动画 */
+.kb-slide-left-enter-active, .kb-slide-left-leave-active,
+.kb-slide-right-enter-active, .kb-slide-right-leave-active { transition: transform .25s ease; }
+.kb-slide-left-enter-from, .kb-slide-left-leave-to { transform: translateX(-100%); }
+.kb-slide-right-enter-from, .kb-slide-right-leave-to { transform: translateX(100%); }
+
+/* 顶栏抽屉开关按钮（.on = 已展开） */
 .kb-side-toggle { padding: 4px 12px; gap: 5px; }
-.kb-side-toggle.off { color: var(--brand); border-color: var(--brand); }
-/* Icon 组件的 svg 已经是 .icon 样式，强制按钮里的图标跟文字基线对齐 */
-.kb-side-toggle :deep(.icon) { stroke-width: 1.8; }
+.kb-side-toggle.on { color: var(--brand); border-color: var(--brand); background: var(--brand-light); }
 .kb-md-vditor :deep(.vditor-reset h1),
 .kb-md-vditor :deep(.vditor-reset h2),
 .kb-md-vditor :deep(.vditor-reset h3),
@@ -918,17 +1002,14 @@ useEsc(() => emit('close'))
 .kb-err { color: #e85f3d; text-align: center; padding: 40px 0; }
 .kb-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
 
-/* 窄屏：三栏 → 单栏（目录隐藏、右侧板落到底部） */
+/* 窄屏：抽屉加宽适配 */
 @media (max-width: 960px) {
-  .kb-body { flex-direction: column; }
-  .kb-side-toc { display: none; }
-  .kb-side-toggle { display: none; }
-  .kb-side-panel { flex: 0 0 auto; border-left: none; border-top: 1px solid var(--line); max-height: 40vh; overflow-y: auto; }
   .kb-main { padding: 18px 18px 40px; }
+  .kb-drawer { width: 86vw; }
 }
 
 .kb-links {
-  margin: 0;                /* 取消原 22px auto 0，由 .kb-side-panel 的 gap 统一控制 */
+  margin: 0;                /* 抽屉 .kb-drawer-body 用 gap 统一控制卡片间距 */
   max-width: none;          /* 取消原 760px 限宽 */
   display: flex;
   flex-direction: column;   /* 高度随内容自然撑开：空时只有 header，有内容再长大 */
