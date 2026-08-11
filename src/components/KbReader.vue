@@ -777,12 +777,14 @@ useEsc(() => emit('close'))
   overflow-x: hidden; /* 防止 PDF 页宽于容器时溢出到屏幕外（兜底，正常应靠 :deep 限宽） */
   padding: 24px 30px 60px;
   scroll-behavior: smooth;
+  display: flex;
+  flex-direction: column; /* MD 编辑器 flex 撑满可视高度；PDF 内容自然撑开滚动 */
 }
-/* Vditor MD 编辑器：撑满中栏、工具栏融入卡片风格、正文排版优化 */
+/* Vditor MD 编辑器：全宽撑满中栏，正文内容限宽居中，工具栏单行不换行 */
 .kb-md-vditor {
-  max-width: 940px;
-  margin: 0 auto;
-  height: 100%;
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -802,6 +804,11 @@ useEsc(() => emit('close'))
 .kb-md-vditor :deep(.vditor-ir) {
   padding: 24px 30px 60px;
 }
+/* 正文内容限宽居中（编辑框全宽，文字行宽合理） */
+.kb-md-vditor :deep(.vditor-reset) {
+  max-width: 960px;
+  margin: 0 auto;
+}
 /* 正文排版：行距、标题层次、段落间距 */
 .kb-md-vditor :deep(.vditor-reset) {
   font-size: var(--kb-md-fs, 14px) !important;
@@ -812,8 +819,12 @@ useEsc(() => emit('close'))
 .kb-md-vditor :deep(.vditor-reset h2) { font-size: 18px; margin: 22px 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 .kb-md-vditor :deep(.vditor-reset h3) { font-size: 16px; margin: 18px 0 8px; }
 .kb-md-vditor :deep(.vditor-reset pre) { border-radius: 10px; }
-/* 工具栏：无外框、底部细分割线、hover 品牌色、滚动时吸顶 */
+/* 工具栏：单行不换行（超宽横向滚动）、无外框、底部细分隔线、hover 品牌色、滚动时吸顶 */
 .kb-md-vditor :deep(.vditor-toolbar) {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: none;
   border-bottom: 1px solid var(--line);
   border-radius: 12px 12px 0 0;
@@ -822,6 +833,10 @@ useEsc(() => emit('close'))
   position: sticky;
   top: 0;
   z-index: 10;
+}
+.kb-md-vditor :deep(.vditor-toolbar__item) {
+  float: none !important;   /* 覆盖 Vditor 的 float:left（float 在窄容器会换行） */
+  flex-shrink: 0;
 }
 .kb-md-vditor :deep(.vditor-toolbar__item .vditor-tooltipped) {
   color: var(--muted);
