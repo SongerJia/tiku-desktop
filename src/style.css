@@ -326,11 +326,19 @@ button:focus:not(:focus-visible) { outline: none; }
 
 /* 按钮按压反馈（C 档） */
 .btn:active { transform: scale(0.96); }
-/* 滚动条 */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-thumb { background: rgba(91, 124, 250, 0.3); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(91, 124, 250, 0.5); }
+/* 滚动条（隐形 macOS 风格：细、半透明、hover 才加深、track 透明） */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-thumb {
+  background: rgba(127, 127, 127, 0.25);   /* 暗色主题：静态半透明 */
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(127, 127, 127, 0.45); }
+::-webkit-scrollbar-thumb:active { background: rgba(127, 127, 127, 0.55); }
 ::-webkit-scrollbar-track { background: transparent; }
+/* 浅色主题：更淡（白底上近乎隐形） */
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(127, 127, 127, 0.15); }
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: rgba(127, 127, 127, 0.3); }
+[data-theme="light"] ::-webkit-scrollbar-thumb:active { background: rgba(127, 127, 127, 0.4); }
 
 /* ===== PC 端布局增强：宽屏时内容铺开成网格 ===== */
 .app.is-wide .question-list {
