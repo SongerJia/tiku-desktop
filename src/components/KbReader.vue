@@ -778,28 +778,75 @@ useEsc(() => emit('close'))
   padding: 24px 30px 60px;
   scroll-behavior: smooth;
 }
-/* Vditor MD 编辑器：填满中栏，内容限宽居中，字号跟随 A-/A+ */
+/* Vditor MD 编辑器：撑满中栏、工具栏融入卡片风格、正文排版优化 */
 .kb-md-vditor {
-  max-width: 860px;
+  max-width: 940px;
   margin: 0 auto;
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 .kb-md-vditor :deep(.vditor) {
+  flex: 1 1 0;
+  min-height: 0;
   border: none;
-  border-radius: 10px;
+  border-radius: 12px;
+  background: var(--card-solid, var(--bg));
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.kb-md-vditor :deep(.vditor-content),
+.kb-md-vditor :deep(.vditor-ir) {
   background: transparent;
 }
+.kb-md-vditor :deep(.vditor-ir) {
+  padding: 24px 30px 60px;
+}
+/* 正文排版：行距、标题层次、段落间距 */
 .kb-md-vditor :deep(.vditor-reset) {
   font-size: var(--kb-md-fs, 14px) !important;
-  line-height: 1.8;
+  line-height: 1.9;
 }
-.kb-md-vditor :deep(.vditor-ir) {
-  padding: 0 6px 40px;
-}
+.kb-md-vditor :deep(.vditor-reset p) { margin: 10px 0; }
+.kb-md-vditor :deep(.vditor-reset h1) { font-size: 22px; margin: 24px 0 12px; }
+.kb-md-vditor :deep(.vditor-reset h2) { font-size: 18px; margin: 22px 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.kb-md-vditor :deep(.vditor-reset h3) { font-size: 16px; margin: 18px 0 8px; }
+.kb-md-vditor :deep(.vditor-reset pre) { border-radius: 10px; }
+/* 工具栏：无外框、底部细分割线、hover 品牌色、滚动时吸顶 */
 .kb-md-vditor :deep(.vditor-toolbar) {
-  border: 1px solid var(--line);
-  border-radius: 10px 10px 0 0;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 12px 12px 0 0;
   background: var(--card-solid, var(--bg));
+  padding: 4px 8px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.kb-md-vditor :deep(.vditor-toolbar__item .vditor-tooltipped) {
+  color: var(--muted);
+  border-radius: 6px;
+  margin: 1px;
+}
+.kb-md-vditor :deep(.vditor-toolbar__item .vditor-tooltipped:hover),
+.kb-md-vditor :deep(.vditor-toolbar__item .vditor-tooltipped:focus) {
+  color: var(--brand) !important;
+  background: var(--brand-light) !important;
+}
+.kb-md-vditor :deep(.vditor-toolbar__divider) {
+  background: var(--line) !important;
+  height: 20px !important;
+  margin-top: 7px !important;
+}
+/* 状态栏：透明融入卡片 */
+.kb-md-vditor :deep(.vditor-status) {
+  background: transparent !important;
+  color: var(--muted) !important;
+  font-size: 12px !important;
+}
+.kb-md-vditor :deep(.vditor-footer) {
+  background: transparent !important;
+  border-top: 1px solid var(--line) !important;
 }
 .kb-save-state { font-size: 12px; color: var(--muted); }
 .kb-save-state.ok { color: #2ecc71; }
