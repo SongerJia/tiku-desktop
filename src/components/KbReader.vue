@@ -56,12 +56,26 @@ function destroyMdVditor() {
   }
   clearTimeout(mdSaveTimer)
 }
+// Vditor 用 XHR + script.text（等价内联脚本）加载图标精灵 ant.js，会被 CSP script-src 'self' 拦截导致图标空白
+// → 改为普通 <script src> 预加载（同源外部脚本，CSP 允许）；Vditor 检测到 #vditorIconScript 已存在会跳过
+function ensureVditorIcons() {
+  if (document.getElementById('vditorIconScript')) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script')
+    s.src = (import.meta.env.DEV ? '/vditor' : './vditor') + '/dist/js/icons/ant.js'
+    s.id = 'vditorIconScript'
+    s.onload = () => resolve()
+    s.onerror = () => reject(new Error('Vditor 图标资源加载失败'))
+    document.head.appendChild(s)
+  })
+}
 async function initMdVditor() {
   const r = await tiku.kbRead(props.doc.id)
   if (!r.ok) { showToast('读取失败：' + r.error, 'err'); return }
   const text = new TextDecoder('utf-8').decode(b64ToUint8(r.base64))
   await nextTick()
   if (!mdVditorEl.value) return
+  try { await ensureVditorIcons() } catch (e) { /* 图标缺失不阻塞编辑，仅工具栏无图标 */ }
   const isDark = document.documentElement.dataset.theme === 'dark'
   mdVditor = new Vditor(mdVditorEl.value, {
     mode: 'ir', // 即时渲染：整篇渲染预览，光标所在行显示源码（点击行即进入编辑）
