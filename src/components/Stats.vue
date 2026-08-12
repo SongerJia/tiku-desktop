@@ -344,7 +344,7 @@ async function loadAnalysis() {
             <div class="heat-months">
               <span v-for="m in heatGrid.months" :key="m.col" class="hm-label" :style="{ left: m.col * (heatCellSize + HEAT_GAP) + 'px' }">{{ m.label }}</span>
             </div>
-            <div class="heat-grid" :style="{ gridTemplateColumns: `repeat(${heatGrid.cols}, ${heatCellSize}px)`, gridTemplateRows: `repeat(7, ${heatCellSize}px)` }">
+            <div class="heat-grid" :style="{ gridTemplateColumns: `repeat(${heatGrid.cols}, ${heatCellSize}px)`, gridTemplateRows: `repeat(7, ${heatCellSize}px)` }" @mousemove="onHeatMove($event)" @mouseleave="onHeatLeave">
               <div
                 v-for="(c, i) in heatGrid.cells"
                 :key="i"
@@ -352,8 +352,6 @@ async function loadAnalysis() {
                 :class="[c.count < 0 ? 'ghost' : 'lvl-' + heatLevel(c.count), c.isToday ? 'today' : '']"
                 :style="{ width: heatCellSize + 'px', height: heatCellSize + 'px' }"
                 @mouseenter="onHeatEnter($event, c)"
-                @mousemove="onHeatMove($event)"
-                @mouseleave="onHeatLeave"
               ></div>
             </div>
           </div>
