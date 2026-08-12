@@ -172,7 +172,7 @@ function showToast(msg, type) {
   animation: maskIn .18s ease;
 }
 .qd-panel {
-  width: 480px; max-width: 92vw; max-height: 86%;
+  width: 960px; max-width: 94vw; max-height: 88%;
   background: var(--card-solid, #0b1020);
   border: 1px solid var(--line, #1d2740);
   border-radius: 16px;
@@ -182,79 +182,79 @@ function showToast(msg, type) {
   animation: riseIn .28s cubic-bezier(.2, .7, .3, 1) both;
 }
 .qd-head {
-  display: flex; align-items: center; gap: 8px;
-  padding: 12px 16px; border-bottom: 1px solid var(--line, #1d2740);
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 24px; border-bottom: 1px solid var(--line, #1d2740);
   flex-shrink: 0;
 }
 .qd-type {
   background: rgba(91, 124, 250, 0.15); color: var(--brand, #5b7cfa);
   border: 1px solid rgba(91, 124, 250, 0.4);
-  font-size: 11px; padding: 2px 8px; border-radius: 6px; flex-shrink: 0;
+  font-size: 12.5px; padding: 4px 12px; border-radius: 7px; flex-shrink: 0;
 }
-.qd-path { font-size: 12px; color: var(--muted, #7c8aa5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.qd-close { margin-left: auto; color: var(--muted, #7c8aa5); font-size: 14px; cursor: pointer; flex-shrink: 0; }
+.qd-path { font-size: 13.5px; color: var(--muted, #7c8aa5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qd-close { margin-left: auto; color: var(--muted, #7c8aa5); font-size: 17px; cursor: pointer; flex-shrink: 0; }
 .qd-close:hover { color: var(--text, #d6e2f5); }
 
 /* 主体可滚动 */
 .qd-body { overflow-y: auto; min-height: 0; }
-.qd-stem { padding: 14px 16px 8px; font-size: 13.5px; line-height: 1.7; }
-.qd-opts { padding: 4px 16px 10px; display: flex; flex-direction: column; gap: 6px; }
+.qd-stem { padding: 20px 24px 10px; font-size: 15.5px; line-height: 1.8; }
+.qd-opts { padding: 6px 24px 14px; display: flex; flex-direction: column; gap: 6px; }
 .qd-opt {
-  border: 1px solid var(--line, #1d2740); border-radius: 8px;
-  padding: 7px 10px; font-size: 12.5px; color: var(--text, #d6e2f5);
-  display: flex; gap: 8px; align-items: baseline;
+  border: 1px solid var(--line, #1d2740); border-radius: 9px;
+  padding: 11px 15px; font-size: 14px; color: var(--text, #d6e2f5);
+  display: flex; gap: 10px; align-items: baseline;
 }
 .qd-opt b { color: var(--muted, #7c8aa5); font-weight: 600; flex-shrink: 0; }
 
 /* 答案遮挡 */
 .qd-answer {
-  position: relative; margin: 0 16px 6px;
+  position: relative; margin: 0 24px 8px;
   border-radius: 8px; overflow: hidden; cursor: pointer;
   border: 1px dashed var(--line, #1d2740);
 }
-.qd-ans-content { padding: 8px 10px; font-size: 12px; line-height: 1.6; color: var(--muted, #7c8aa5); }
+.qd-ans-content { padding: 11px 15px; font-size: 13.5px; line-height: 1.6; color: var(--muted, #7c8aa5); }
 .qd-ans-content.blur { filter: blur(5px); user-select: none; pointer-events: none; }
 .qd-ans-mask {
   position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
   background: rgba(2, 6, 16, 0.55);
-  font-size: 12px; color: var(--muted, #7c8aa5);
+  font-size: 13.5px; color: var(--muted, #7c8aa5);
   transition: opacity .2s;
 }
 .qd-lock { font-size: 11px; }
 
-.qd-sec { padding: 10px 16px; border-top: 1px solid var(--line, #1d2740); }
-.qd-sec-title { font-size: 11px; color: var(--muted, #7c8aa5); margin-bottom: 8px; }
+.qd-sec { padding: 14px 24px; border-top: 1px solid var(--line, #1d2740); }
+.qd-sec-title { font-size: 12.5px; color: var(--muted, #7c8aa5); margin-bottom: 10px; }
 .qd-tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.qd-path-full { font-size: 11.5px; color: var(--text, #d6e2f5); }
+.qd-path-full { font-size: 13px; color: var(--text, #d6e2f5); }
 .qd-tag {
-  font-size: 10.5px; padding: 2px 8px; border-radius: 10px;
+  font-size: 12px; padding: 4px 12px; border-radius: 11px;
   background: rgba(91, 124, 250, 0.12); border: 1px solid rgba(91, 124, 250, 0.35);
   color: #93b1ff;
 }
 
 .qd-status { display: flex; gap: 8px; flex-wrap: wrap; }
 .qd-st {
-  flex: 1; min-width: 90px;
-  border: 1px solid var(--line, #1d2740); border-radius: 8px;
-  padding: 6px; text-align: center;
+  flex: 1; min-width: 110px;
+  border: 1px solid var(--line, #1d2740); border-radius: 9px;
+  padding: 9px; text-align: center;
 }
 .qd-st.bad { border-color: rgba(229, 83, 95, 0.35); background: rgba(229, 83, 95, 0.06); }
 .qd-st.warn { border-color: rgba(255, 184, 77, 0.3); background: rgba(255, 184, 77, 0.05); }
 .qd-st.ok { border-color: rgba(47, 191, 143, 0.3); background: rgba(47, 191, 143, 0.05); }
-.qd-st-num { font-size: 12px; font-weight: 600; }
+.qd-st-num { font-size: 14px; font-weight: 600; }
 .qd-st.bad .qd-st-num { color: var(--bad, #e5535f); }
 .qd-st.warn .qd-st-num { color: var(--warn, #ffb84d); }
 .qd-st.ok .qd-st-num { color: var(--ok, #4fd1a5); }
-.qd-st-sub { font-size: 10px; color: var(--muted, #7c8aa5); margin-top: 2px; }
+.qd-st-sub { font-size: 11.5px; color: var(--muted, #7c8aa5); margin-top: 3px; }
 .qd-st.empty-st .qd-st-num { color: var(--muted, #7c8aa5); }
 
-.qd-actions { display: flex; gap: 10px; padding: 12px 16px 14px; border-top: 1px solid var(--line, #1d2740); flex-wrap: wrap; }
-.qd-actions .btn { flex: 1; min-width: 90px; padding: 9px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.qd-actions { display: flex; gap: 12px; padding: 16px 24px 18px; border-top: 1px solid var(--line, #1d2740); flex-wrap: wrap; }
+.qd-actions .btn { flex: 1; min-width: 110px; padding: 12px; border-radius: 22px; font-size: 14.5px; font-weight: 600; cursor: pointer; }
 .qd-actions .btn.on { border-color: var(--brand, #5b7cfa); color: var(--brand, #5b7cfa); }
-.qd-reasons { display: flex; gap: 8px; padding: 0 16px 12px; }
+.qd-reasons { display: flex; gap: 10px; padding: 0 24px 14px; }
 .qd-reasons .chip {
-  padding: 5px 12px; border-radius: 14px; font-size: 12px; cursor: pointer;
+  padding: 7px 15px; border-radius: 15px; font-size: 13px; cursor: pointer;
   border: 1px solid var(--line, #1d2740); background: rgba(255, 255, 255, 0.03); color: var(--text, #d6e2f5);
 }
 .qd-reasons .chip:hover { border-color: var(--brand, #5b7cfa); }
