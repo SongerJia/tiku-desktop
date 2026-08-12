@@ -143,28 +143,29 @@ function computeHeatSize() {
 }
 let heatObs = null
 
-// hover 浮层：跟随鼠标（Teleport 到 body 防 transform 祖先错位），右侧/底部放不下自动翻转，内容友好
+// hover 浮层：跟随鼠标（Teleport 防 transform 错位）。翻转用 CSS transform 基于实际宽度反向展开，紧贴鼠标不产生空隙
 const hoverCell = ref(null)
 const WEEKS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 const weekLabel = (dateStr) => { try { return WEEKS[new Date(dateStr + 'T00:00:00').getDay()] } catch (e) { return '' } }
-const TIP_W = 170 // 浮层预估宽
-const TIP_H = 56  // 浮层预估高
 function placeTip(e) {
   const pad = 12
   const vw = window.innerWidth
   const vh = window.innerHeight
-  let x = e.clientX + pad
-  let y = e.clientY + pad
-  if (x + TIP_W > vw - 8) x = e.clientX - pad - TIP_W // 右侧放不下 → 放鼠标左边
-  if (y + TIP_H > vh - 8) y = e.clientY - pad - TIP_H // 底部放不下 → 放鼠标上方
-  return { x: Math.max(8, x), y: Math.max(8, y) }
+  // 预估用保守值（200/60），翻转后由 CSS translate(-100%) 按实际宽度精确贴边
+  const flipX = e.clientX + pad + 200 > vw - 8
+  const flipY = e.clientY + pad + 60 > vh - 8
+  hoverCell.value.x = e.clientX + pad
+  hoverCell.value.y = e.clientY + pad
+  hoverCell.value.flipX = flipX
+  hoverCell.value.flipY = flipY
 }
 function onHeatEnter(e, c) {
   if (!c || c.count < 0) { hoverCell.value = null; return }
-  hoverCell.value = { date: c.date, count: c.count, isToday: c.isToday, ...placeTip(e) }
+  hoverCell.value = { date: c.date, count: c.count, isToday: c.isToday, x: 0, y: 0, flipX: false, flipY: false }
+  placeTip(e)
 }
 function onHeatMove(e) {
-  if (hoverCell.value) Object.assign(hoverCell.value, placeTip(e))
+  if (hoverCell.value) placeTip(e)
 }
 function onHeatLeave() { hoverCell.value = null }
 
@@ -358,7 +359,7 @@ async function loadAnalysis() {
           </div>
         </div>
         <Teleport to="body">
-          <div v-if="hoverCell" class="heat-tip" :style="{ left: hoverCell.x + 'px', top: hoverCell.y + 'px' }">
+          <div v-if="hoverCell" class="heat-tip" :class="{ 'flip-x': hoverCell.flipX, 'flip-y': hoverCell.flipY }" :style="{ left: hoverCell.x + 'px', top: hoverCell.y + 'px' }">
             <div class="ht-date">{{ hoverCell.date }} · {{ weekLabel(hoverCell.date) }}<i v-if="hoverCell.isToday" class="ht-today">今天</i></div>
             <div class="ht-count" :class="{ none: !hoverCell.count }">{{ hoverCell.count > 0 ? '刷了 ' + hoverCell.count + ' 题' : '没有学习记录' }}</div>
           </div>
@@ -525,6 +526,9 @@ async function loadAnalysis() {
 .heat-cell.lvl-3 { background: rgba(63, 127, 214, 0.9); }
 .heat-cell.lvl-4 { background: #5b9cfa; }
 .heat-tip { position: fixed; z-index: 9999; background: var(--card, #1b2130); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; box-shadow: 0 6px 24px rgba(0, 0, 0, .35); pointer-events: none; white-space: nowrap; }
+.heat-tip.flip-x { transform: translateX(calc(-100% - 24px)); }
+.heat-tip.flip-y { transform: translateY(calc(-100% - 24px)); }
+.heat-tip.flip-x.flip-y { transform: translateX(calc(-100% - 24px)) translateY(calc(-100% - 24px)); }
 .ht-date { font-size: 12px; color: var(--text); }
 .ht-today { font-style: normal; font-size: 11px; color: var(--brand); margin-left: 6px; }
 .ht-count { font-size: 12px; color: var(--brand); margin-top: 2px; }
