@@ -692,4 +692,19 @@ onBeforeUnmount(() => {
 .dock-btn.daily:hover { box-shadow: 0 6px 22px rgba(47, 191, 143, 0.28), 0 0 0 1px rgba(47, 191, 143, 0.45); }
 .dock-btn.quick:hover { box-shadow: 0 6px 22px rgba(91, 124, 250, 0.3), 0 0 0 1px rgba(91, 124, 250, 0.4); }
 .more-item:hover { box-shadow: var(--glow-soft), 0 0 0 1px rgba(91, 124, 250, 0.3); }
+
+/* ===== 实验：hover 流光描边（2026-08-12，用户好奇项，不合适可回退）===== */
+@property --ang { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+.dock-btn { position: relative; }
+.dock-btn::after {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.85) 80deg, transparent 170deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0; pointer-events: none; transition: opacity .18s;
+}
+.dock-btn:hover::after { opacity: 1; animation: angSpin 2.2s linear infinite; }
+@keyframes angSpin { to { --ang: 360deg; } }
 </style>
