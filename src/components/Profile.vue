@@ -90,7 +90,7 @@ function showToast(msg) {
 }
 
 async function clearLocal() {
-  const ok = await showConfirm('清空本地学习数据？\n将删除全部答题记录、错题本、收藏、笔记、XP，且不可恢复。\n（题库与知识库文档不受影响）')
+  const ok = await showConfirm('清空本地学习数据？\n将删除全部答题记录、错题本、收藏、笔记、XP、记忆卡、番茄记录、复习日志与每日一题连击，且不可恢复。\n（题库与知识库文档不受影响）')
   if (!ok) return
   await tiku.clearUserData()
   showToast('已清空本地学习数据')

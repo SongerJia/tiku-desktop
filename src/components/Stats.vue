@@ -213,19 +213,31 @@ async function login() {
   await Promise.all([loadContent(), loadGlobal()])
   loading.value = false
 }
+let contentSeq = 0 // 防竞态：快速切范围/年份时旧请求晚返回，seq 不匹配则丢弃
 async function loadContent() {
+  const seq = ++contentSeq
   const sid = filterSubjectId.value
-  try { summary.value = await tiku.getSummary(sid) } catch (e) {}
-  try { trend.value = await tiku.getWeeklyTrend(sid) } catch (e) { trend.value = [] }
-  try { heatmap.value = await tiku.getActivityHeatmap(heatYear.value, sid) } catch (e) { heatmap.value = [] }
-  try { calendar.value = await tiku.getMonthlyCalendar(nowY(), nowM(), sid) } catch (e) { calendar.value = {} }
-  try { catAccuracy.value = await tiku.getCategoryAccuracy(sid) } catch (e) { catAccuracy.value = [] }
+  const hy = heatYear.value
+  const [sumR, trendR, heatR, calR, catR] = await Promise.allSettled([
+    tiku.getSummary(sid),
+    tiku.getWeeklyTrend(sid),
+    tiku.getActivityHeatmap(hy, sid),
+    tiku.getMonthlyCalendar(nowY(), nowM(), sid),
+    tiku.getCategoryAccuracy(sid)
+  ])
+  if (seq !== contentSeq) return
+  if (sumR.status === 'fulfilled') summary.value = sumR.value
+  if (trendR.status === 'fulfilled') trend.value = trendR.value; else trend.value = []
+  if (heatR.status === 'fulfilled') heatmap.value = heatR.value; else heatmap.value = []
+  if (calR.status === 'fulfilled') calendar.value = calR.value; else calendar.value = {}
+  if (catR.status === 'fulfilled') catAccuracy.value = catR.value; else catAccuracy.value = []
 }
 async function loadGlobal() {
+  const seq = contentSeq
   try {
     const q = await tiku.checkQuests(filterSubjectId.value)
-    quest.value = { tasks: q.tasks, claimed: q.claimed.join('、') }
-  } catch (e) { quest.value = { tasks: [], claimed: '' } }
+    if (seq === contentSeq) quest.value = { tasks: q.tasks, claimed: q.claimed.join('、') }
+  } catch (e) { if (seq === contentSeq) quest.value = { tasks: [], claimed: '' } }
 }
 
 watch(filterSubjectId, async () => {

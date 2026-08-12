@@ -494,21 +494,23 @@ module.exports = function syncModule(ctx) {
         if (!rows || !rows.length) return
         const ph = cols.map(() => '?').join(',')
         const stmt = sqlite.prepare(`INSERT OR REPLACE INTO ${table} (${cols.join(',')}) VALUES (${ph})`)
+        // 老备份可能缺新列 → r[c] 为 undefined，better-sqlite3 绑定会抛错，兜底为 null
+        const val = (r, c) => (r[c] === undefined ? null : r[c])
         const tx = sqlite.transaction(() => {
-          rows.forEach(r => stmt.run(...cols.map(c => r[c])))
+          rows.forEach(r => stmt.run(...cols.map(c => val(r, c))))
         })
         tx()
       }
       replace('categories', data.categories, ['id', 'name', 'parent_id', 'level', 'stage', 'sort', 'client_id', 'parent_cid', 'updated_at', 'deleted'])
       replace('questions', data.questions, ['id', 'category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'audio_url', 'material_id', 'material_cid', 'client_id', 'category_cid', 'updated_at', 'deleted'])
       replace('answer_records', data.answerRecords, ['id', 'user_id', 'question_id', 'selected_json', 'is_correct', 'duration_ms', 'mode', 'self_graded', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])
-      replace('wrong_books', data.wrongBooks, ['id', 'user_id', 'question_id', 'wrong_count', 'reviewed_count', 'ease', 'interval', 'next_review_at', 'weak_point', 'status', 'client_id', 'question_cid', 'updated_at', 'deleted'])
-      replace('favorites', data.favorites, ['id', 'user_id', 'question_id', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])
+      replace('wrong_books', data.wrongBooks, ['id', 'user_id', 'question_id', 'wrong_count', 'reviewed_count', 'ease', 'interval', 'next_review_at', 'weak_point', 'reason', 'status', 'client_id', 'question_cid', 'updated_at', 'deleted'])
+      replace('favorites', data.favorites, ['id', 'user_id', 'question_id', 'fav_group', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])
       replace('notes', data.notes, ['id', 'user_id', 'question_id', 'content', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])
       replace('papers', data.papers, ['id', 'user_id', 'title', 'subject_id', 'duration_minutes', 'total_score', 'rules_json', 'created_at', 'client_id', 'updated_at', 'deleted'])
       replace('paper_questions', data.paperQuestions, ['id', 'paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted'])
       // 知识库（老备份无 kb 字段时 replace 自动跳过；文件按需写回）
-      replace('kb_docs', data.kbDocs, ['id', 'title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'created_at', 'updated_at', 'deleted', 'client_id'])
+      replace('kb_docs', data.kbDocs, ['id', 'title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'subject_id', 'category_id', 'last_page', 'created_at', 'updated_at', 'deleted', 'client_id'])
       ;(data.kbBlocks || []).forEach(b => {
         b.review_at = b.review_at ?? null
         b.review_count = b.review_count ?? 0
@@ -526,7 +528,7 @@ module.exports = function syncModule(ctx) {
         c.review_count = c.review_count ?? 0
         c.review_lapses = c.review_lapses ?? 0
       })
-      replace('cards', data.cards, ['id', 'front', 'back', 'category', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'])
+      replace('cards', data.cards, ['id', 'front', 'back', 'category', 'subject_id', 'source_question_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'])
       replace('materials', data.materials, ['id', 'title', 'content', 'subject_id', 'created_at', 'updated_at', 'deleted', 'client_id'])
       this.restoreKbFiles(data.kbFiles)
       // 补齐可能缺失的 client_id（老备份无 cid 列）

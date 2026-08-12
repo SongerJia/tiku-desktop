@@ -63,25 +63,30 @@ const examLeft = computed(() => {
 // 今日刷题进度（目标 KPI 格）
 const goalPct = computed(() => dailyGoal.value ? Math.min(100, Math.round((summary.value.today / dailyGoal.value) * 100)) : 0)
 
+let loadSeq = 0 // 防竞态：快速切科目时旧请求晚返回，seq 不匹配则整体丢弃，避免过期数据覆盖
 async function load() {
+  const seq = ++loadSeq
   loading.value = true
+  const sid = props.subject && props.subject.id
   const [sumR, goalR, fsR, cardsR, weakR, accR, puzzleR, dueR, xpR, exR] = await Promise.allSettled([
-    tiku.getSummary(props.subject.id),
-    tiku.getSetting(props.subject && props.subject.id ? `daily_goal_${props.subject.id}` : 'daily_goal'),
+    tiku.getSummary(sid),
+    tiku.getSetting(sid ? `daily_goal_${sid}` : 'daily_goal'),
     tiku.focusStats(),
-    tiku.cardsStats(props.subject.id),
-    tiku.getWeakPoints(5, props.subject.id),
-    tiku.getCategoryAccuracy(props.subject.id),
-    tiku.getDailyPuzzle(props.subject.id),
-    tiku.reviewDueStats(props.subject.id),
+    tiku.cardsStats(sid),
+    tiku.getWeakPoints(5, sid),
+    tiku.getCategoryAccuracy(sid),
+    tiku.getDailyPuzzle(sid),
+    tiku.reviewDueStats(sid),
     tiku.xpStats(),
-    tiku.getSetting(props.subject && props.subject.id ? `exam_date_${props.subject.id}` : 'exam_date')
+    tiku.getSetting(sid ? `exam_date_${sid}` : 'exam_date')
   ])
+  if (seq !== loadSeq) return // 已被更新的加载取代，丢弃本次结果
   summary.value = sumR.status === 'fulfilled' && sumR.value ? sumR.value : { total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0, accuracy: 0, weekAccuracy: 0, weekDelta: 0, streak: 0 }
   dailyGoal.value = goalR.status === 'fulfilled' ? Number(goalR.value) || 0 : 0
   // 科目未设目标时回退全局 daily_goal
-  if (!dailyGoal.value && props.subject && props.subject.id) {
+  if (!dailyGoal.value && sid) {
     try { dailyGoal.value = Number((await tiku.getSetting('daily_goal')) || 0) } catch (e) { dailyGoal.value = 0 }
+    if (seq !== loadSeq) return
   }
   if (fsR.status === 'fulfilled' && fsR.value) { focusToday.value = fsR.value.today; focusWeek.value = fsR.value.week }
   if (cardsR.status === 'fulfilled' && cardsR.value) cardStats.value = cardsR.value
@@ -92,8 +97,9 @@ async function load() {
   xpTotal.value = xpR.status === 'fulfilled' && xpR.value ? (xpR.value.total || 0) : 0
   // 考试日：科目 key 优先，未设置则全局兜底
   examDate.value = exR.status === 'fulfilled' ? (exR.value || '') : ''
-  if (!examDate.value && props.subject && props.subject.id) {
+  if (!examDate.value && sid) {
     try { examDate.value = (await tiku.getSetting('exam_date')) || '' } catch (e) { examDate.value = '' }
+    if (seq !== loadSeq) return
   }
   loading.value = false
 }

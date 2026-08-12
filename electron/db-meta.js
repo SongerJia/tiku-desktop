@@ -81,8 +81,13 @@ module.exports = function metaModule(ctx) {
     sqlite.prepare('DELETE FROM wrong_books WHERE user_id=?').run(LOCAL_USER)
     sqlite.prepare('DELETE FROM favorites WHERE user_id=?').run(LOCAL_USER)
     sqlite.prepare('DELETE FROM notes WHERE user_id=?').run(LOCAL_USER)
+    sqlite.prepare('DELETE FROM xp_logs WHERE user_id=?').run(LOCAL_USER) // XP 根源（此前漏清，等级/累计 XP 残留）
+    sqlite.prepare('DELETE FROM review_logs').run() // 复习轨迹日志（无 user_id 列）
+    sqlite.prepare('DELETE FROM cards').run() // 记忆卡（学习数据，此前漏清）
+    sqlite.prepare('DELETE FROM focus_sessions').run() // 番茄专注记录
     sqlite.prepare('UPDATE users SET total_answered=0, correct_count=0, updated_at=? WHERE id=?').run(Date.now(), LOCAL_USER)
-    sqlite.prepare("DELETE FROM settings WHERE key='current_subject_id'").run()
+    // 每日一题连击/状态 + 断点续做：一并重置，避免旧状态与新学习数据混算
+    sqlite.prepare("DELETE FROM settings WHERE key IN ('current_subject_id','daily_puzzle','resume_session')").run()
     return { ok: true }
   },
 
