@@ -70,6 +70,7 @@ function typeLabel(t) {
           @keyup.enter="search"
         />
         <button class="btn btn-primary" @click="search">搜索</button>
+        <button class="btn btn-outline manage-btn" @click="$emit('manage')" title="增删改查 / 批量导入导出题目">管理题库</button>
       </div>
       <div class="chapter-filter">
         <button
@@ -118,6 +119,7 @@ function typeLabel(t) {
 }
 .search-row .input { flex: 1; }
 .search-row .btn { border-radius: var(--radius-sm); }
+.manage-btn { flex-shrink: 0; }
 
 .chapter-filter {
   display: flex;

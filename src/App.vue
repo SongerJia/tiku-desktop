@@ -331,7 +331,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
           <Transition name="fade" mode="out-in">
             <div :key="currentTab" class="tab-page">
               <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" @quick="onQuickStart" />
-              <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" @start="onStart" />
+              <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" @start="onStart" @manage="showBank = true" />
               <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :scope="kbScope" />
               <Stats v-else-if="currentTab === 'stats'" :subject="currentSubject" />
               <Profile

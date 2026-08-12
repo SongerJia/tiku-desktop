@@ -95,6 +95,9 @@ function confirm() {
           <span class="scope">{{ scopeLabel }}</span>
         </div>
 
+        <!-- 可滚动内容区：header/footer 固定，内容超高时滚动（修复显示不全无法滑动） -->
+        <div class="setup-body">
+
         <!-- 断点续做 -->
         <div v-if="resumeSession && resumeSession.questions" class="resume-bar">
           <span>上次练习到第 {{ (resumeSession.idx || 0) + 1 }}/{{ resumeSession.questions.length }} 题</span>
@@ -191,6 +194,8 @@ function confirm() {
           </div>
         </div>
 
+        </div><!-- /setup-body -->
+
         <div class="footer">
           <button class="btn btn-outline" @click="emit('cancel')">取消</button>
           <button class="btn btn-primary" @click="confirm">{{ recite && !isExam ? '开始背题' : '开始练习' }}</button>
@@ -248,6 +253,8 @@ function confirm() {
 }
 .setup-mask.is-wide { align-items: center; justify-content: center; padding: 24px; }
 .setup-panel.is-wide { width: 480px; max-width: 92vw; height: auto; border-radius: 16px; }
+/* 可滚动内容区：flex 子项须 min-height:0 才允许收缩滚动（经典坑） */
+.setup-body { flex: 1; min-height: 0; overflow-y: auto; }
 
 .header {
   display: flex;
