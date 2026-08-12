@@ -124,8 +124,10 @@ watch(() => [props.show, props.questionId], async ([sh, id]) => {
   if (!sh || !id) return
   revealed.value = false
   reasonOpen.value = false
-  const r = await tiku.getQuestionInfo(id)
-  if (r && r.ok) info.value = r
+  try {
+    const r = await tiku.getQuestionInfo(id)
+    if (r && r.ok) info.value = r
+  } catch (e) { /* 查询失败保持空态，不中断弹层 */ }
 })
 
 function startPractice() {
@@ -167,7 +169,7 @@ function showToast(msg, type) {
 .qd-mask {
   position: fixed; inset: 0; z-index: 300;
   background: rgba(2, 6, 16, 0.72);
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(3px);
   display: flex; align-items: center; justify-content: center; padding: 24px;
   animation: maskIn .18s ease;
 }
@@ -259,6 +261,9 @@ function showToast(msg, type) {
 }
 .qd-reasons .chip:hover { border-color: var(--brand, #5b7cfa); }
 
-@keyframes maskIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes maskIn {
+  from { opacity: 0; backdrop-filter: blur(0); }
+  to { opacity: 1; backdrop-filter: blur(3px); }
+}
 @keyframes riseIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
 </style>
