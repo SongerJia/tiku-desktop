@@ -274,7 +274,7 @@ module.exports = function quizModule(ctx) {
   rateReview(questionId, quality) {
     const q = sqlite.prepare('SELECT id, client_id FROM questions WHERE id=?').get(questionId)
     if (!q) return { error: 'question not found' }
-    quality = Math.max(0, Math.min(5, Number(quality) == null ? 4 : quality))
+    quality = Math.max(0, Math.min(5, quality == null ? 4 : Number(quality))) // 修复：Number(undefined)==null 恒 false 导致 NaN 入库
     const now = Date.now()
     const qCid = q.client_id
     const wb = sqlite.prepare('SELECT id, reviewed_count, ease, interval FROM wrong_books WHERE user_id=? AND question_id=?').get(LOCAL_USER, questionId)

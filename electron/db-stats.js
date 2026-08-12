@@ -3,6 +3,12 @@
 module.exports = function statsModule(ctx) {
   const { sqlite, LOCAL_USER, uuid, descendantCategoryIds } = ctx
 
+  // 本地日期 key（东八区：不能用 toISOString 取 UTC 日期，否则 0-8 点偏移到前一天）
+  const localDateStr = (v) => {
+    const d = v instanceof Date ? v : new Date(v)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+
   return {
     getStats() {
       const overall = sqlite.prepare('SELECT COUNT(*) AS n, SUM(is_correct) AS c FROM answer_records WHERE user_id=? AND deleted=0').get(LOCAL_USER)
@@ -168,12 +174,12 @@ module.exports = function statsModule(ctx) {
         const params = [LOCAL_USER, start, end]
         if (subjectId) {
           const ids = descendantCategoryIds(subjectId)
-          if (!ids.length) { days.push({ date: d.toISOString().slice(0, 10), count: 0 }); continue }
+          if (!ids.length) { days.push({ date: localDateStr(d), count: 0 }); continue }
           sql = 'SELECT COUNT(*) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=? AND ar.created_at<? AND q.category_id IN (' + ids.map(() => '?').join(',') + ')'
           params.push(...ids)
         }
         const row = sqlite.prepare(sql).get(...params)
-        days.push({ date: d.toISOString().slice(0, 10), count: row.n || 0 })
+        days.push({ date: localDateStr(d), count: row.n || 0 })
       }
       return days
     },
@@ -252,11 +258,11 @@ module.exports = function statsModule(ctx) {
       for (let i = 0; i < days; i++) {
         const s = now + i * dayMs
         const e = s + dayMs
-        dist.push({ date: new Date(s).toISOString().slice(0, 10), count: rows.filter(r => r.next_review_at >= s && r.next_review_at < e).length })
+        dist.push({ date: localDateStr(s), count: rows.filter(r => r.next_review_at >= s && r.next_review_at < e).length })
       }
       const items = rows.map(r => ({
         questionId: r.question_id,
-        next: new Date(r.next_review_at).toISOString().slice(0, 10),
+        next: localDateStr(r.next_review_at),
         interval: r.interval,
         ease: Math.round(r.ease * 100) / 100,
         reviewed: r.reviewed_count
