@@ -164,8 +164,8 @@ async function placeTip() {
   if (!el || !hoverCell.value) return
   const seq = ++tipSeq
   const { x, y } = await computePosition(tipAnchor, el, {
-    placement: 'top-start', // 左对齐格子上方；右侧放不下 flip 自动翻 top-end（右对齐向左延伸）——浮层始终有一边紧贴格子
-    middleware: [offset(4), flip(), shift({ padding: 8 })] // 上方放不下翻下方；shift 仅极端情况兜底
+    placement: 'top', // 居中对齐格子（GitHub 标准）；浮层紧凑后右侧极少溢出 shift 不介入
+    middleware: [offset(4), flip(), shift({ padding: 8 })]
   })
   if (seq !== tipSeq) return
   el.style.left = x + 'px'
@@ -376,8 +376,7 @@ async function loadAnalysis() {
         </div>
         <Teleport to="body">
           <div ref="tipEl" v-show="hoverCell" class="heat-tip">
-            <div class="ht-date">{{ hoverCell && hoverCell.date }} · {{ hoverCell ? weekLabel(hoverCell.date) : '' }}<i v-if="hoverCell && hoverCell.isToday" class="ht-today">今天</i></div>
-            <div class="ht-count" :class="{ none: hoverCell && !hoverCell.count }">{{ hoverCell && hoverCell.count > 0 ? '刷了 ' + hoverCell.count + ' 题' : '没有学习记录' }}</div>
+            <i v-if="hoverCell && hoverCell.isToday" class="ht-today">今天</i>{{ hoverCell && hoverCell.date.slice(5) }} · {{ hoverCell ? weekLabel(hoverCell.date) : '' }} · <span class="ht-count" :class="{ none: hoverCell && !hoverCell.count }">{{ hoverCell && hoverCell.count > 0 ? hoverCell.count + '题' : '无记录' }}</span>
           </div>
         </Teleport>
       </div>
@@ -541,9 +540,11 @@ async function loadAnalysis() {
 .heat-cell.lvl-2 { background: rgba(42, 92, 168, 0.85); }
 .heat-cell.lvl-3 { background: rgba(63, 127, 214, 0.9); }
 .heat-cell.lvl-4 { background: #5b9cfa; }
-.heat-tip { position: fixed; z-index: 9999; background: var(--card, #1b2130); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; box-shadow: 0 6px 24px rgba(0, 0, 0, .35); pointer-events: none; white-space: nowrap; }
-.ht-date { font-size: 12px; color: var(--text); }
-.ht-today { font-style: normal; font-size: 11px; color: var(--brand); margin-left: 6px; }
+.heat-tip { position: fixed; z-index: 9999; background: var(--card, #1b2130); border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, .35); pointer-events: none; white-space: nowrap; font-size: 11px; }
+.ht-date { color: var(--text); }
+.ht-count { color: var(--brand); }
+.ht-count.none { color: var(--muted); }
+.ht-today { font-style: normal; color: var(--brand); margin-right: 4px; font-weight: 600; }
 .ht-count { font-size: 12px; color: var(--brand); margin-top: 2px; }
 .ht-count.none { color: var(--muted); }
 
