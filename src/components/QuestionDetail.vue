@@ -168,8 +168,8 @@ function showToast(msg, type) {
 <style scoped>
 .qd-mask {
   position: fixed; inset: 0; z-index: 300;
-  background: rgba(2, 6, 16, 0.72);
-  backdrop-filter: blur(3px);
+  background: rgba(2, 6, 16, 0.78);
+  /* 不用 backdrop-filter：全屏 blur 会重采样整个页面（含背景动画层），打开瞬间整页闪——纯暗色遮罩同样聚焦且零闪烁 */
   display: flex; align-items: center; justify-content: center; padding: 24px;
   animation: maskIn .18s ease;
 }
@@ -261,9 +261,6 @@ function showToast(msg, type) {
 }
 .qd-reasons .chip:hover { border-color: var(--brand, #5b7cfa); }
 
-@keyframes maskIn {
-  from { opacity: 0; backdrop-filter: blur(0); }
-  to { opacity: 1; backdrop-filter: blur(3px); }
-}
+@keyframes maskIn { from { opacity: 0 } to { opacity: 1 } }
 @keyframes riseIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
 </style>
