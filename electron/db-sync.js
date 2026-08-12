@@ -41,7 +41,9 @@ module.exports = function syncModule(ctx) {
            FROM paper_questions pq JOIN papers p ON p.id = pq.paper_id WHERE pq.deleted=0`
         ).all(),
         kbDocs: sqlite.prepare(
-          `SELECT d.*, c.client_id AS category_cid FROM kb_docs d LEFT JOIN categories c ON c.id = d.category_id WHERE d.deleted=0`
+          `SELECT d.*, c.client_id AS category_cid, cs.client_id AS subject_cid FROM kb_docs d
+           LEFT JOIN categories c ON c.id = d.category_id
+           LEFT JOIN categories cs ON cs.id = d.subject_id WHERE d.deleted=0`
         ).all(),
         kbBlocks: dump('kb_blocks', COLS.kbBlocks),
         kbTags: dump('kb_tags', COLS.kbTags),
@@ -51,8 +53,12 @@ module.exports = function syncModule(ctx) {
         focusSessions: dump('focus_sessions'),
         kbHighlights: dump('kb_highlights'),
         kbDocLinks: dump('kb_doc_links'),
-        cards: dump('cards'),
-        materials: dump('materials')
+        cards: sqlite.prepare(
+          `SELECT c.*, cs.client_id AS subject_cid FROM cards c LEFT JOIN categories cs ON cs.id = c.subject_id WHERE c.deleted=0`
+        ).all(),
+        materials: sqlite.prepare(
+          `SELECT m.*, cs.client_id AS subject_cid FROM materials m LEFT JOIN categories cs ON cs.id = m.subject_id WHERE m.deleted=0`
+        ).all()
       }, null, 2)
     },
 
@@ -119,7 +125,9 @@ module.exports = function syncModule(ctx) {
 
       // 知识库：kb_docs（含 client_id）+ 子表按 doc client_id 分组 + MD 文件 base64（PDF 只带 rel_path）
       const kbDocs = sqlite.prepare(
-        `SELECT d.*, c.client_id AS category_cid FROM kb_docs d LEFT JOIN categories c ON c.id = d.category_id WHERE d.deleted=0`
+        `SELECT d.*, c.client_id AS category_cid, cs.client_id AS subject_cid FROM kb_docs d
+         LEFT JOIN categories c ON c.id = d.category_id
+         LEFT JOIN categories cs ON cs.id = d.subject_id WHERE d.deleted=0`
       ).all()
       const incDocCids = new Set(kbDocs.map(d => d.client_id))
       const inIncDocs = (cid) => full || incDocCids.has(cid)
@@ -179,7 +187,12 @@ module.exports = function syncModule(ctx) {
         kbFiles,
         xpLogs: dump('xp_logs'),
         focusSessions: dump('focus_sessions'),
-        cards: dump('cards'),
+        cards: sqlite.prepare(
+          `SELECT c.*, cs.client_id AS subject_cid FROM cards c LEFT JOIN categories cs ON cs.id = c.subject_id WHERE c.deleted=0`
+        ).all(),
+        materials: sqlite.prepare(
+          `SELECT m.*, cs.client_id AS subject_cid FROM materials m LEFT JOIN categories cs ON cs.id = m.subject_id WHERE m.deleted=0`
+        ).all(),
         kbHighlights,
         kbDocLinks
       }, null, 2)
@@ -242,12 +255,12 @@ module.exports = function syncModule(ctx) {
         { table: 'notes', cols: ['user_id', 'question_id', 'content', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
         { table: 'papers', cols: ['title', 'subject_id', 'duration_minutes', 'total_score', 'rules_json', 'created_at', 'client_id', 'updated_at', 'deleted'] },
         { table: 'paper_questions', cols: ['paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted'] },
-        { table: 'kb_docs', cols: ['title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'subject_id', 'category_id', 'last_page', 'created_at', 'updated_at', 'deleted', 'client_id'] },
+        { table: 'kb_docs', cols: ['title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'subject_id', 'subject_cid', 'category_id', 'last_page', 'created_at', 'updated_at', 'deleted', 'client_id'] },
         // 反馈层（批次功能新增，全部 LWW）
         { table: 'xp_logs', cols: ['user_id', 'xp', 'source', 'note', 'created_at', 'deleted', 'client_id'] },
         { table: 'focus_sessions', cols: ['minutes', 'started_at', 'created_at', 'deleted', 'client_id'] },
-        { table: 'cards', cols: ['front', 'back', 'category', 'subject_id', 'source_question_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'] },
-        { table: 'materials', cols: ['title', 'content', 'subject_id', 'created_at', 'updated_at', 'deleted', 'client_id'] },
+        { table: 'cards', cols: ['front', 'back', 'category', 'subject_id', 'subject_cid', 'source_question_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'] },
+        { table: 'materials', cols: ['title', 'content', 'subject_id', 'subject_cid', 'created_at', 'updated_at', 'deleted', 'client_id'] },
         { table: 'kb_highlights', cols: ['doc_id', 'block_id', 'text', 'note', 'color', 'created_at', 'updated_at', 'deleted', 'client_id'] },
         { table: 'kb_doc_links', cols: ['from_doc_id', 'to_doc_id', 'note', 'created_at', 'client_id'], orIgnore: true }
       ]
@@ -296,8 +309,9 @@ module.exports = function syncModule(ctx) {
         }
 
         // 1.5) materials（案例题背景材料，独立合并建 cid→id 映射，questions 引用它）
-        const matUpsert = makeUpsert('materials', cfg[12].cols)
         const matMerged = lwwMerge(readAll('materials'), remote.materials || [])
+        applyFk(matMerged, 'subject_cid', 'subject_id', catCidToId) // 跨端科目归属按 cid 重映射
+        const matUpsert = makeUpsert('materials', cfg[12].cols)
         const matCidToId = new Map()
         for (const r of matMerged) matCidToId.set(r.client_id, matUpsert(r))
 
@@ -354,6 +368,7 @@ module.exports = function syncModule(ctx) {
         const kbRemoteAll = remote.kbDocs || []
         const kbMerged = lwwMerge(kbLocalAll, kbRemoteAll)
         applyFk(kbMerged, 'category_cid', 'category_id', catCidToId) // 章节归属按 cid 映射回本地 categories id
+        applyFk(kbMerged, 'subject_cid', 'subject_id', catCidToId) // 科目归属按 cid 映射（同 category_cid 先例）
         const kbLocalMap = new Map(kbLocalAll.map(r => [r.client_id, r]))
         const kbRemoteMap = new Map(kbRemoteAll.map(r => [r.client_id, r]))
         const relPathUsed = new Map(kbLocalAll.map(r => [r.rel_path, r.client_id]))
@@ -423,7 +438,12 @@ module.exports = function syncModule(ctx) {
         }
         const xpN = mergeSimple(9, 'xpLogs')
         const fsN = mergeSimple(10, 'focusSessions')
-        const cdN = mergeSimple(11, 'cards') // 修复：cards 此前漏合并，跨端闪卡会丢失/被全量覆盖
+        // cards：改手动合并（mergeSimple 无法做 subject 外键映射）——科目归属按 cid 重映射
+        const cdMerged = lwwMerge(readAll('cards'), remote.cards || [])
+        applyFk(cdMerged, 'subject_cid', 'subject_id', catCidToId)
+        const cdUp = makeUpsert('cards', cfg[11].cols)
+        cdMerged.forEach(r => cdUp(r))
+        const cdN = cdMerged.length
         // 高亮/文档双链：doc 引用按 cid 解析成本机 id 后再 upsert
         const hlMerged = lwwMerge(readAll('kb_highlights'), remote.kbHighlights || [])
         applyFk(hlMerged, 'doc_cid', 'doc_id', kbCidToId)
@@ -510,7 +530,7 @@ module.exports = function syncModule(ctx) {
       replace('papers', data.papers, ['id', 'user_id', 'title', 'subject_id', 'duration_minutes', 'total_score', 'rules_json', 'created_at', 'client_id', 'updated_at', 'deleted'])
       replace('paper_questions', data.paperQuestions, ['id', 'paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted'])
       // 知识库（老备份无 kb 字段时 replace 自动跳过；文件按需写回）
-      replace('kb_docs', data.kbDocs, ['id', 'title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'subject_id', 'category_id', 'last_page', 'created_at', 'updated_at', 'deleted', 'client_id'])
+      replace('kb_docs', data.kbDocs, ['id', 'title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'subject_id', 'subject_cid', 'category_id', 'last_page', 'created_at', 'updated_at', 'deleted', 'client_id'])
       ;(data.kbBlocks || []).forEach(b => {
         b.review_at = b.review_at ?? null
         b.review_count = b.review_count ?? 0
@@ -528,8 +548,8 @@ module.exports = function syncModule(ctx) {
         c.review_count = c.review_count ?? 0
         c.review_lapses = c.review_lapses ?? 0
       })
-      replace('cards', data.cards, ['id', 'front', 'back', 'category', 'subject_id', 'source_question_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'])
-      replace('materials', data.materials, ['id', 'title', 'content', 'subject_id', 'created_at', 'updated_at', 'deleted', 'client_id'])
+      replace('cards', data.cards, ['id', 'front', 'back', 'category', 'subject_id', 'subject_cid', 'source_question_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'])
+      replace('materials', data.materials, ['id', 'title', 'content', 'subject_id', 'subject_cid', 'created_at', 'updated_at', 'deleted', 'client_id'])
       this.restoreKbFiles(data.kbFiles)
       // 补齐可能缺失的 client_id（老备份无 cid 列）
       this.backfillClientIds()

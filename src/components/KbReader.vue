@@ -76,11 +76,12 @@ function ensureVditorIcons() {
     document.head.appendChild(s)
   })
 }
-async function initMdVditor() {
+async function initMdVditor(gen) {
   const r = await tiku.kbRead(props.doc.id)
   if (!r.ok) { showToast('读取失败：' + r.error, 'err'); return }
   const text = new TextDecoder('utf-8').decode(b64ToUint8(r.base64))
   await nextTick()
+  if (gen !== loadGen) return // 已被更新的文档接管，放弃初始化，避免双 Vditor 竞争同一 DOM
   if (!mdVditorEl.value) return
   try { await ensureVditorIcons() } catch (e) { /* 图标缺失不阻塞编辑，仅工具栏无图标 */ }
   const isDark = document.documentElement.dataset.theme === 'dark'
@@ -415,7 +416,9 @@ watch(() => [props.show, props.doc && props.doc.id], ([s, did]) => {
   if (s && did) loadCurrent()
 })
 
+let loadGen = 0 // 代际计数：快速连点切文档时，旧 loadCurrent 的异步续作（new Vditor/renderPdf）全部作废，防双实例竞争同一 DOM
 async function loadCurrent() {
+  const gen = ++loadGen
   if (!props.doc) return
   tocList.value = []
   mdSaveStatus.value = ''
@@ -433,11 +436,21 @@ async function loadCurrent() {
   detachZoomWheel()
   destroyMdVditor()
   cleanupPdf()
-  if (props.doc.type === 'md') { await initMdVditor(); attachZoomWheel() }
-  else { await renderPdf(); attachZoomWheel() }
+  if (props.doc.type === 'md') {
+    await initMdVditor(gen)
+    if (gen !== loadGen) { destroyMdVditor(); return } // 已被更新的文档接管，销毁自己创建的实例
+    attachZoomWheel()
+  } else {
+    await renderPdf(gen)
+    if (gen !== loadGen) { cleanupPdf(); return }
+    attachZoomWheel()
+  }
   await loadQPanel()
+  if (gen !== loadGen) return
   await loadHlAndLinks()
+  if (gen !== loadGen) return
   await tiku.kbBumpRead(props.doc.id) // 阅读埋点（计入学习统计）
+  if (gen !== loadGen) return
   celebrate()
 }
 
@@ -479,8 +492,9 @@ function b64ToUint8(b64) {
   return bytes
 }
 
-async function renderPdf() {
+async function renderPdf(gen) {
   const r = await tiku.kbRead(props.doc.id)
+  if (gen !== loadGen) return // 已被更新的文档接管，放弃本次渲染
   if (!r.ok) { pdfState.value.error = `读取失败：${r.error}`; return }
   try {
     pdfState.value.loading = true
@@ -496,12 +510,14 @@ async function renderPdf() {
       useSystemFonts: true
     })
     pdfDoc = await pdfTask.promise
+    if (gen !== loadGen) { cleanupPdf(); return }
     pdfState.value.pages = pdfDoc.numPages
     await rebuildPdfAtZoom() // 建占位 + 渲染可见页（懒渲染）
   } catch (e) {
+    if (gen !== loadGen) return
     pdfState.value.error = String((e && e.message) || e)
   } finally {
-    pdfState.value.loading = false
+    if (gen === loadGen) pdfState.value.loading = false
   }
 }
 

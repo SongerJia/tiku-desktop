@@ -7,7 +7,7 @@ import { useEsc } from '../utils/useEsc.js'
 import Icon from './Icon.vue'
 
 const props = defineProps({ show: Boolean, subject: { type: Object, default: () => ({ id: null, name: '' }) } })
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'updated'])
 
 const cards = ref([])
 const stats = ref({ total: 0, due: 0 })
@@ -138,6 +138,7 @@ async function mark(felt) {
 async function finishReview() {
   mode.value = 'list'
   await load()
+  emit('updated') // 通知首页刷新「记忆卡到期」角标（此前只刷面板内部，首页 stale）
   showToast(`本轮复习完成，共 ${reviewItems.value.length} 张`, 'ok')
 }
 

@@ -117,6 +117,10 @@ module.exports = function kbModule(ctx) {
         sqlite.prepare('DELETE FROM kb_links WHERE doc_id=?').run(id)
         sqlite.prepare('DELETE FROM kb_tags WHERE doc_id=?').run(id)
         sqlite.prepare('DELETE FROM kb_blocks WHERE doc_id=?').run(id)
+        // 高亮有 deleted 列 → 软删（此前漏处理，残留行经 mergeRemote LWW 继续跨端传播）
+        sqlite.prepare('UPDATE kb_highlights SET deleted=1, updated_at=? WHERE doc_id=?').run(now, id)
+        // 文档间双链：双向清理（无 deleted 列 → 物理删）
+        sqlite.prepare('DELETE FROM kb_doc_links WHERE from_doc_id=? OR to_doc_id=?').run(id, id)
       })
       tx()
       try {

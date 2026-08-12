@@ -40,6 +40,7 @@ const essayReviewing = ref(false)  // 问答题：已提交作答，等待用户
 const result = ref(null)
 const results = ref({})  // 每题提交结果，按 idx 存，便于答题卡跳转恢复
 let submitting = false // 提交防重：await submitAnswer 窗口内双击/交卷并发只允许一次写入
+let finishPending = false // 时间到恰逢提交在途：记录待交卷，submit 完成后补执行 finishExam，防考试卡死无出口
 const materialOpen = ref(true) // 材料卡默认展开
 const sessionCorrect = ref(0)
 const sessionStart = ref(0)
@@ -303,6 +304,7 @@ async function submitEssay(grade) {
   const ei = reviews.value.findIndex(r => r.qid === q.value.id)
   if (ei >= 0) reviews.value.splice(ei, 1, entry)
   else reviews.value.push(entry)
+  if (finishPending) { finishPending = false; finishExam() } // 时间到且本在途提交：补执行交卷
 }
 
 async function submit() {
@@ -337,6 +339,7 @@ async function submit() {
   const ei = reviews.value.findIndex(r => r.qid === q.value.id)
   if (ei >= 0) reviews.value.splice(ei, 1, entry)
   else reviews.value.push(entry)
+  if (finishPending) { finishPending = false; finishExam() } // 时间到且本在途提交：补执行交卷
 }
 
 function resetPerQuestion() {
@@ -433,7 +436,7 @@ async function manualFinish() {
 }
 
 async function finishExam() {
-  if (submitting) return // 与手动交卷并发时只执行一次
+  if (submitting) { finishPending = true; return } // 提交在途：标记待交卷，由 submit 完成后补执行；直接 return 会让 interval 已清的考试卡死
   // 时间到：先提交当前题目（若有作答），再结束本场
   if (q.value && !result.value) {
     if (isEssay.value) {
@@ -520,6 +523,8 @@ function redoWrongs() {
   sessionCorrect.value = 0
   sessionStart.value = Date.now()
   sessionEnd.value = 0
+  examRecorded.value = false // 新场次重新计入成绩曲线（此前漏重置导致重做场次不记录）
+  finishPending = false
   reviews.value = []
   results.value = {} // 清空旧场次结果，否则重做每题命中旧判定被锁定
   result.value = null

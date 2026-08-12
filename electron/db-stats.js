@@ -20,7 +20,7 @@ module.exports = function statsModule(ctx) {
         FROM answer_records ar
         JOIN questions q ON q.id=ar.question_id
         JOIN categories cat ON cat.id=q.category_id
-        WHERE ar.user_id=? AND ar.deleted=0
+        WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND cat.deleted=0
         GROUP BY cat.id`).all(LOCAL_USER)
         .map(r => ({ ...r, rate: r.n ? Math.round(((r.c || 0) / r.n) * 100) : 0 }))
 
@@ -170,7 +170,7 @@ module.exports = function statsModule(ctx) {
         d.setHours(0, 0, 0, 0)
         const start = d.getTime()
         const end = start + 24 * 60 * 60 * 1000
-        let sql = 'SELECT COUNT(*) AS n FROM answer_records ar WHERE ar.user_id=? AND ar.deleted=0 AND ar.created_at>=? AND ar.created_at<?'
+        let sql = 'SELECT COUNT(*) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=? AND ar.created_at<?'
         const params = [LOCAL_USER, start, end]
         if (subjectId) {
           const ids = descendantCategoryIds(subjectId)

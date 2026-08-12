@@ -185,7 +185,7 @@ async function stopFocus(completed = false) {
   focusRunning.value = false
   paused.value = false
   stopNoise()
-  if (completed && focusPhase.value === 'work') {
+  if (completed && focusPhase.value === 'work' && !focusCompleting) { // focusCompleting 防与 phaseComplete 并发双记账
     await tiku.addFocusSession(focusMinutes.value)
     const fs = await tiku.focusStats()
     focusToday.value = fs.today
@@ -226,6 +226,13 @@ function toggleNoise() {
   noiseOn.value = !noiseOn.value
   if (noiseOn.value) startNoise()
   else stopNoise()
+}
+// 记忆卡复习/增删后刷新首页「到期」角标
+async function onCardsUpdated() {
+  try {
+    const r = await tiku.cardsStats(props.subject.id)
+    if (r) cardStats.value = r
+  } catch (e) { /* 忽略 */ }
 }
 onBeforeUnmount(() => {
   if (focusTimer) clearInterval(focusTimer)
@@ -389,7 +396,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <CardsPanel :show="cardsOpen" :subject="props.subject" @close="cardsOpen = false" />
+      <CardsPanel :show="cardsOpen" :subject="props.subject" @close="cardsOpen = false" @updated="onCardsUpdated" />
     </template>
   </div>
 </template>

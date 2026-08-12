@@ -194,6 +194,8 @@ module.exports = function quizModule(ctx) {
       const ex = sqlite.prepare('SELECT id FROM favorites WHERE user_id=? AND question_id=? AND deleted=0').get(LOCAL_USER, questionId)
       if (ex) {
         sqlite.prepare('UPDATE favorites SET deleted=1, updated_at=? WHERE id=?').run(Date.now(), ex.id)
+        // 顺手清理历史软删垃圾行（反复收藏/取消累积 deleted=1 行，同步数据膨胀）
+        sqlite.prepare('DELETE FROM favorites WHERE user_id=? AND question_id=? AND deleted=1').run(LOCAL_USER, questionId)
         return { favorited: false }
       }
       sqlite.prepare('INSERT INTO favorites (user_id, question_id, fav_group, created_at, updated_at, client_id, question_cid) VALUES (?,?,?,?,?,?,?)')

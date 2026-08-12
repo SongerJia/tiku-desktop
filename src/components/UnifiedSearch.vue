@@ -77,7 +77,7 @@ function typeLabel(t) {
 }
 
 onBeforeUnmount(() => clearTimeout(timer))
-useEsc(() => emit('close'))
+useEsc(() => { if (!reader.value.show) emit('close') }) // 阅读器打开时 Esc 由 KbReader 处理（先保存再关），避免连搜索层一起关
 </script>
 
 <template>

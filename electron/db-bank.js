@@ -141,6 +141,8 @@ module.exports = function bankModule(ctx) {
 
     deleteQuestion(id) {
       sqlite.prepare('UPDATE questions SET deleted=1, updated_at=? WHERE id=?').run(Date.now(), id)
+      // 题目软删后其标签仍留在 question_tags（listTags 会展示已删题标签、点击筛出空列表）→ 一并清理
+      sqlite.prepare('DELETE FROM question_tags WHERE question_id=?').run(id)
       return { ok: true }
     },
 
@@ -254,6 +256,13 @@ module.exports = function bankModule(ctx) {
       const tx = sqlite.transaction(() => {
         sqlite.prepare(`UPDATE categories SET deleted=1, updated_at=? WHERE id IN (${ph})`).run(now, ...ids)
         sqlite.prepare(`UPDATE questions SET deleted=1, updated_at=? WHERE category_id IN (${ph})`).run(now, ...ids)
+        sqlite.prepare(`DELETE FROM question_tags WHERE question_id IN (SELECT id FROM questions WHERE category_id IN (${ph}))`).run(...ids)
+        // 科目/章节删除后关联内容不随之删除，但归属清空（内容保留可继续用，避免孤儿不可达）
+        // kb_docs.subject_id 存科目根 id、category_id 存章节 id；cards/materials/papers 只有 subject_id
+        sqlite.prepare(`UPDATE kb_docs SET subject_id=NULL, category_id=NULL, updated_at=? WHERE subject_id IN (${ph}) OR category_id IN (${ph})`).run(now, ...ids, ...ids)
+        sqlite.prepare(`UPDATE cards SET subject_id=NULL, updated_at=? WHERE subject_id IN (${ph})`).run(now, ...ids)
+        sqlite.prepare(`UPDATE materials SET subject_id=NULL, updated_at=? WHERE subject_id IN (${ph})`).run(now, ...ids)
+        sqlite.prepare(`UPDATE papers SET subject_id=NULL, updated_at=? WHERE subject_id IN (${ph})`).run(now, ...ids)
       })
       tx()
       return { ok: true, removedCategories: ids.length }

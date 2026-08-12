@@ -86,7 +86,11 @@ function tsStore() {
 export function getAchTs(key) { return tsStore()[key] || null }
 export function markAchTs(key) {
   const s = tsStore()
-  if (!s[key]) { s[key] = new Date().toISOString().slice(0, 10) }
+  if (!s[key]) {
+    // 本地日期（东八区不能用 toISOString 取 UTC 日期，0-7 点会偏移到前一天）
+    const d = new Date()
+    s[key] = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+  }
   try { localStorage.setItem(TS_KEY, JSON.stringify(s)) } catch (e) {}
 }
 

@@ -337,6 +337,10 @@ module.exports = function schemaModule(ctx) {
     // 知识库章节归属：文档可选归属到科目下的具体章节（顶部选择器选章节时按 category_id 过滤）
     addColumn('kb_docs', 'category_id', 'category_id INTEGER')
     addColumn('kb_docs', 'category_cid', 'category_cid TEXT') // 跨端章节归属：merge 时按 cid 重映射
+    // 跨端科目归属：cards/materials/kb_docs 的 subject_id 是本地自增 id，远端同步会挂错科目 → 加 subject_cid 列，merge 按 cid 重映射
+    addColumn('cards', 'subject_cid', 'subject_cid TEXT')
+    addColumn('materials', 'subject_cid', 'subject_cid TEXT')
+    addColumn('kb_docs', 'subject_cid', 'subject_cid TEXT')
   },
   }
 }
