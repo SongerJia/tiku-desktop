@@ -263,24 +263,6 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- 考试倒计时：设了考试日显示天数；没设显示引导（点击去我的页设置） -->
-      <div v-if="examLeft" class="card exam-banner" :class="{ soon: examLeft.days >= 0 && examLeft.days <= 7 }">
-        <span class="exam-ico"><Icon name="clock" :size="18"/></span>
-        <div class="exam-info">
-          <div class="exam-name">{{ examLeft.over ? '考试日已过' : '考试倒计时' }}</div>
-          <div class="exam-sub">{{ examLeft.date }} · 每天坚持刷题，稳扎稳打</div>
-        </div>
-        <div class="exam-num" :class="{ over: examLeft.over }">{{ examLeft.over ? '已过' : examLeft.days }}<small v-if="!examLeft.over"> 天</small></div>
-      </div>
-      <div v-else class="card exam-banner exam-guide" @click="emit('goto', 'profile')">
-        <span class="exam-ico"><Icon name="clock" :size="18"/></span>
-        <div class="exam-info">
-          <div class="exam-name">设置目标考试日</div>
-          <div class="exam-sub">在「我的」里设定考试日期，这里显示倒计时</div>
-        </div>
-        <div class="exam-num guide">去设置 ›</div>
-      </div>
-
       <!-- 复习到期横幅（有到期才显示） -->
       <div v-if="dueReviews > 0" class="review-banner" @click="startSmartReview">
         <span class="rb-ico"><Icon name="clock" :size="15"/></span>
@@ -294,7 +276,7 @@ onBeforeUnmount(() => {
       <!-- 今日行动台：目标进度环 + 三大行动 -->
       <div class="action-dock">
         <div class="dock-ring" :class="{ clickable: !dailyGoal }" @click="dailyGoal ? null : emit('goto', 'profile')">
-          <svg viewBox="0 0 60 60" width="82" height="82">
+          <svg viewBox="0 0 60 60" width="88" height="88">
             <circle cx="30" cy="30" r="25" fill="none" stroke="rgba(148,163,184,0.14)" stroke-width="5"/>
             <circle cx="30" cy="30" r="25" fill="none" stroke="var(--brand)" stroke-width="5" stroke-linecap="round"
               :stroke-dasharray="'157 157'" :stroke-dashoffset="ringOffset" transform="rotate(-90 30 30)"/>
@@ -343,24 +325,16 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- 薄弱点（并入错题本入口，首页保留一条） -->
-      <div v-if="weakPoints.length || weakAccuracy.length" class="card weak-card">
-        <div class="card-title"><Icon name="info" :size="14"/> 待攻克薄弱点</div>
-        <div v-if="weakPoints.length" class="weak-list">
-          <div v-for="w in weakPoints" :key="w.id" class="weak-item" @click="emit('goto', 'bank')">
-            <span class="weak-stem">{{ w.stem || '（空题干）' }}</span>
-            <span class="weak-meta">
-              <span class="weak-tag" v-if="w.cat">{{ w.cat }}</span>
-              <span class="weak-count">错 {{ w.wrong_count }} 次</span>
-            </span>
-          </div>
-        </div>
-        <div v-if="weakAccuracy.length" class="weak-cats">
-          <div v-for="a in weakAccuracy" :key="a.cat" class="weak-cat">
-            <span class="weak-cat-name">{{ a.cat }}</span>
-            <span class="weak-cat-rate" :class="{ low: a.rate < 60 }">正确率 {{ a.rate }}%</span>
-          </div>
-        </div>
+      <!-- 考试倒计时（压缩单行小条：设了考试日显示天数，没设显示引导） -->
+      <div v-if="examLeft" class="exam-mini" @click="emit('goto', 'profile')">
+        <span class="em-ico"><Icon name="clock" :size="13"/></span>
+        <span class="em-name">{{ examLeft.over ? '考试日已过' : '目标考试日' }} · {{ examLeft.date }}</span>
+        <span class="em-num" :class="{ over: examLeft.over }">{{ examLeft.over ? '已过' : examLeft.days + ' 天' }}</span>
+      </div>
+      <div v-else class="exam-mini guide" @click="emit('goto', 'profile')">
+        <span class="em-ico"><Icon name="clock" :size="13"/></span>
+        <span class="em-name">设置目标考试日，首页显示倒计时</span>
+        <span class="em-num">去设置 ›</span>
       </div>
 
       <!-- 番茄专注（单行） -->
@@ -414,6 +388,26 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
+      <!-- 薄弱点（沉底：不占首屏，有数据才显示） -->
+      <div v-if="weakPoints.length || weakAccuracy.length" class="card weak-card">
+        <div class="card-title"><Icon name="info" :size="14"/> 待攻克薄弱点</div>
+        <div v-if="weakPoints.length" class="weak-list">
+          <div v-for="w in weakPoints" :key="w.id" class="weak-item" @click="emit('goto', 'bank')">
+            <span class="weak-stem">{{ w.stem || '（空题干）' }}</span>
+            <span class="weak-meta">
+              <span class="weak-tag" v-if="w.cat">{{ w.cat }}</span>
+              <span class="weak-count">错 {{ w.wrong_count }} 次</span>
+            </span>
+          </div>
+        </div>
+        <div v-if="weakAccuracy.length" class="weak-cats">
+          <div v-for="a in weakAccuracy" :key="a.cat" class="weak-cat">
+            <span class="weak-cat-name">{{ a.cat }}</span>
+            <span class="weak-cat-rate" :class="{ low: a.rate < 60 }">正确率 {{ a.rate }}%</span>
+          </div>
+        </div>
+      </div>
+
       <CardsPanel :show="cardsOpen" :subject="props.subject" @close="cardsOpen = false" @updated="onCardsUpdated" />
     </template>
   </div>
@@ -440,26 +434,20 @@ onBeforeUnmount(() => {
 .growth-text { flex: 1; font-size: 13px; color: var(--text); line-height: 1.5; }
 .growth-go { font-size: 12px; color: var(--brand); white-space: nowrap; }
 
-/* 考试倒计时横幅 */
-.exam-banner {
-  display: flex; align-items: center; gap: 14px;
-  background: rgba(255, 184, 77, 0.07);
-  border: 1px solid rgba(255, 184, 77, 0.4);
-  padding: 12px 16px;
+/* 考试倒计时（压缩单行小条：不占首屏主位） */
+.exam-mini {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255, 184, 77, 0.06);
+  border: 1px solid rgba(255, 184, 77, 0.28);
+  border-radius: 10px; padding: 7px 12px; cursor: pointer; transition: all .15s;
 }
-.exam-banner.soon { border-color: var(--bad); background: rgba(255, 77, 109, 0.08); }
-.exam-ico { width: 34px; height: 34px; border-radius: 9px; background: rgba(255, 184, 77, 0.18); color: var(--warn); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.exam-banner.soon .exam-ico { background: rgba(255, 77, 109, 0.18); color: var(--bad); }
-.exam-info { flex: 1; min-width: 0; }
-.exam-name { font-size: 13px; font-weight: 600; color: var(--text); }
-.exam-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
-.exam-num { font-size: 26px; font-weight: 600; color: var(--warn); font-variant-numeric: tabular-nums; }
-.exam-num small { font-size: 13px; color: var(--muted); }
-.exam-banner.soon .exam-num { color: var(--bad); }
-.exam-num.over { color: var(--muted); font-size: 16px; }
-.exam-num.guide { font-size: 13px; font-weight: 500; color: var(--brand); white-space: nowrap; }
-.exam-guide { cursor: pointer; border-style: dashed; }
-.exam-guide:hover { border-color: var(--brand); background: rgba(91, 124, 250, 0.08); }
+.exam-mini:hover { border-color: var(--warn); }
+.exam-mini.guide { border-style: dashed; }
+.em-ico { color: var(--warn); display: flex; flex-shrink: 0; }
+.em-name { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.em-num { font-size: 13px; font-weight: 600; color: var(--warn); flex-shrink: 0; }
+.em-num.over { color: var(--muted); }
+.exam-mini.guide .em-num { color: var(--brand); }
 
 /* 主行动区 */
 /* 复习到期横幅 */
@@ -477,39 +465,40 @@ onBeforeUnmount(() => {
 .rb-btn { flex-shrink: 0; background: var(--warn); color: #1a160e; border-radius: 9px; padding: 7px 14px; font-size: 13px; font-weight: 600; }
 
 /* 今日行动台：目标进度环 + 三大行动 */
-.action-dock { display: flex; gap: 12px; }
+.action-dock { display: flex; gap: 14px; }
 .dock-ring {
-  flex: 0 0 96px; min-width: 96px;
+  flex: 0 0 108px; min-width: 108px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 6px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 6px;
 }
 .dock-ring.clickable { cursor: pointer; }
 .dock-ring.clickable:hover { border-color: var(--brand); }
-.ring-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
-.dock-actions { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.ring-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+.dock-actions { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .dock-btn {
-  flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 8px 12px; border-radius: 10px; cursor: pointer; transition: all .15s;
+  flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 14px; border-radius: 12px; cursor: pointer; transition: all .15s;
 }
-.dock-btn b { font-size: 14px; font-weight: 600; display: block; }
-.dock-btn span { font-size: 11.5px; color: var(--muted); }
-.dock-btn em { font-style: normal; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.dock-btn b { font-size: 15px; font-weight: 600; display: block; }
+.dock-btn span { font-size: 12px; color: var(--muted); }
+.dock-btn em { font-style: normal; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .dock-btn.review { background: rgba(91, 124, 250, 0.14); border: 1px solid rgba(91, 124, 250, 0.4); }
+.dock-btn.review:hover { box-shadow: var(--glow-soft); }
 .dock-btn.review b { color: #d6ddf7; }
 .dock-btn.review em { color: var(--brand); }
 .dock-btn.daily { background: rgba(47, 191, 143, 0.10); border: 1px solid rgba(47, 191, 143, 0.35); }
+.dock-btn.daily:hover { box-shadow: var(--glow-soft); }
 .dock-btn.daily b { color: #bfe8d8; }
 .dock-btn.daily em { color: var(--ok); }
 .dock-btn.daily.disabled { opacity: .55; cursor: default; }
 .dock-btn.quick { background: var(--card); border: 1px dashed rgba(148, 163, 184, 0.3); }
-.dock-btn.quick:hover { border-style: solid; border-color: var(--brand); }
+.dock-btn.quick:hover { border-style: solid; border-color: var(--brand); box-shadow: var(--glow-soft); }
 .dock-go { font-size: 12px !important; color: var(--muted); }
 
 /* KPI 数据条 */
 .kpi-strip {
   display: flex; align-items: stretch; gap: 0;
-  border: 1px solid var(--line); border-radius: 14px; padding: 12px 8px;
-  background: linear-gradient(135deg, rgba(91, 124, 250, 0.07), rgba(122, 92, 255, 0.04));
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 8px;
 }
 .kpi-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
 .kpi-item.link { cursor: pointer; }
