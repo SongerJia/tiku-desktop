@@ -301,15 +301,15 @@ onBeforeUnmount(() => {
         </div>
         <div class="dock-actions">
           <div class="dock-btn review" @click="startSmartReview">
-            <div><b>今日复习</b><span>{{ dueReviews }} 题到期 · SM-2 排期</span></div>
+            <div><b>今日复习</b><span class="db-sub">{{ dueReviews }} 题到期 · SM-2 排期</span></div>
             <em>{{ dueReviews }}</em>
           </div>
           <div class="dock-btn daily" @click="startDaily" :class="{ disabled: !(dailyPuzzle && dailyPuzzle.question) }">
-            <div><b>每日一题</b><span>{{ dailyPuzzle && dailyPuzzle.question ? (dailyPuzzle.state.answered ? '今天已答 · 查看解析' : '30 秒搞定 · 攒连击') : '明天再来' }}</span></div>
+            <div><b>每日一题</b><span class="db-sub">{{ dailyPuzzle && dailyPuzzle.question ? (dailyPuzzle.state.answered ? '今天已答 · 查看解析' : '30 秒搞定 · 攒连击') : '明天再来' }}</span></div>
             <em>{{ dailyPuzzle && dailyPuzzle.state ? dailyPuzzle.state.streak : 0 }}</em>
           </div>
           <div class="dock-btn quick" @click="emit('quick')">
-            <div><b>3 分钟快刷</b><span>随机 5 题 · 随时开始</span></div>
+            <div><b>3 分钟快刷</b><span class="db-sub">随机 5 题 · 随时开始</span></div>
             <span class="dock-go">开始 ›</span>
           </div>
         </div>
@@ -506,7 +506,7 @@ onBeforeUnmount(() => {
   padding: 12px 14px; border-radius: 12px; cursor: pointer; transition: all .15s;
 }
 .dock-btn b { font-size: 15px; font-weight: 600; display: block; }
-.dock-btn span { font-size: 12px; color: var(--muted); }
+.db-sub { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
 .dock-btn em { font-style: normal; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .dock-btn.review { background: rgba(91, 124, 250, 0.14); border: 1px solid rgba(91, 124, 250, 0.4); }
 .dock-btn.review:hover { box-shadow: var(--glow-soft); }
@@ -609,4 +609,30 @@ onBeforeUnmount(() => {
 /* 更多宫格：hover 抬升 + 亮底 */
 .more-item { transition: transform .15s ease, background .15s ease, box-shadow .15s ease; }
 .more-item:hover { transform: translateY(-2px); background: rgba(91, 124, 250, 0.08); box-shadow: var(--glow-soft); }
+
+/* ===== 首页审查精修（2026-08-12）：hover 质感统一 + 图标对齐 ===== */
+/* 进度环卡：无论是否可点，统一 hover 抬升亮边 */
+.dock-ring { transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.dock-ring:hover { transform: translateY(-2px); box-shadow: var(--glow-soft); border-color: rgba(91, 124, 250, 0.4); }
+
+/* KPI 条 hover 微亮（只增质感，不暗示可点） */
+.kpi-strip { transition: box-shadow .18s ease; }
+.kpi-strip:hover { box-shadow: var(--glow-soft); }
+
+/* 番茄条 hover 抬升 */
+.focus-bar { transition: transform .18s ease, box-shadow .18s ease; }
+.focus-bar:hover { transform: translateY(-2px); box-shadow: var(--glow-soft); }
+
+/* 薄弱点行 hover 亮底 */
+.weak-item { transition: background .15s ease; border-radius: 8px; }
+.weak-item:hover { background: rgba(91, 124, 250, 0.08); }
+/* 薄弱点卡标题：Icon 与文字垂直居中 */
+.weak-card .card-title { display: flex; align-items: center; gap: 6px; }
+
+/* 成长/小结条 hover 微抬 */
+.growth-bar, .brief-bar { transform: translateY(0); }
+.growth-bar:hover, .brief-bar:hover { transform: translateY(-1px); box-shadow: var(--glow-soft); }
+
+/* 快刷 hover：箭头转品牌色 */
+.dock-btn.quick:hover .dock-go { color: var(--brand); }
 </style>
