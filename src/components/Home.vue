@@ -39,6 +39,7 @@ const todayStr = computed(() => {
   const d = new Date()
   return `${d.getMonth() + 1}月${d.getDate()}日 ${['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()]}`
 })
+const typeLabel = (t) => ({ single: '单选', multiple: '多选', judge: '判断', essay: '问答' }[t] || t)
 
 // 一句话成长总结：本周正确率 + 对比 + 错题数（有数据才显示，无数据给引导）
 const growthText = computed(() => {
@@ -86,6 +87,13 @@ function onDockLeave(e) {
 function onDockAnimEnd(e) {
   if (e.animationName === 'riseIn') e.currentTarget.style.animation = 'none'
 }
+
+// ---- 首页交互加码（2026-08-12）：倒计时 / 距差 / 预览浮层数据 ----
+const hoursLeft = computed(() => 24 - new Date().getHours()) // 今天还剩几小时（复习最佳窗口）
+const goalLeft = computed(() => Math.max(0, (dailyGoal.value || 0) - (summary.value.today || 0))) // 距今日目标还差
+const lvGap = computed(() => Math.max(0, lvInfo.value.nextLevelBase - xpTotal.value)) // 距下一级 XP
+const lvQues = computed(() => Math.ceil(lvGap.value / 10)) // 答对折算：每对 +10 XP → 约再刷几题
+const cardMins = computed(() => Math.max(1, Math.ceil((cardStats.value.due || 0) * 0.5))) // 到期卡预计复习分钟
 
 // 通用 3D 倾斜指令（v-tilt）：任何卡片跟随鼠标立体倾斜，入场动画结束后自动解除压制
 // 幅度按元素类型分级：行动台 ±6°，其他区块 ±4°
@@ -148,6 +156,7 @@ async function load() {
       level: x.level || 1,
       curLevelBase: base,
       nextLevelBase: next,
+      week: x.week || 0,
       pct: next > base ? Math.min(100, Math.round(((x.total - base) / (next - base)) * 100)) : 0
     }
   }
@@ -309,13 +318,14 @@ onBeforeUnmount(() => {
           <span class="greet-date">{{ todayStr }}</span>
         </div>
         <!-- 等级进度条（门面③）：Lv 徽章 + 渐变 XP 进度 -->
-        <div class="lv-bar">
+        <div class="lv-bar" v-tilt="{ deg: 2 }">
           <span class="lv-badge">Lv.{{ lvInfo.level }}</span>
           <div class="lv-track">
             <div class="lv-fill" :style="{ width: lvInfo.pct + '%' }"></div>
             <span class="lv-glow" :style="{ left: 'calc(' + lvInfo.pct + '% - 6px)' }"></span>
           </div>
           <span class="lv-xp">{{ xpTotal }} / {{ lvInfo.nextLevelBase }} XP</span>
+          <span class="tip">距 Lv.{{ lvInfo.level + 1 }} 还差 {{ lvGap }} XP，约再刷 {{ lvQues }} 题（答对 +10）</span>
         </div>
         <!-- 昨日小结（昨日有学习记录时优先显示，替代本周总结条） -->
         <div v-if="dailyBrief.answered > 0" class="brief-bar" @click="emit('goto', 'stats')">
@@ -340,9 +350,10 @@ onBeforeUnmount(() => {
         <span class="rb-ico"><Icon name="clock" :size="15"/></span>
         <div class="rb-info">
           <div class="rb-title">{{ dueReviews }} 道错题已到复习期</div>
-          <div class="rb-sub">间隔记忆提醒你：现在复习效果最好</div>
+          <div class="rb-sub">今天还剩 {{ hoursLeft }} 小时最佳复习窗口</div>
         </div>
         <span class="rb-btn">开始复习</span>
+        <span class="tip">间隔记忆提醒你：现在复习效果最好</span>
       </div>
 
       <!-- 今日行动台：目标进度环 + 三大行动 -->
@@ -368,10 +379,14 @@ onBeforeUnmount(() => {
           <div class="dock-btn daily" @click="startDaily" :class="{ disabled: !(dailyPuzzle && dailyPuzzle.question) }">
             <div><b>每日一题</b><span class="db-sub">{{ dailyPuzzle && dailyPuzzle.question ? (dailyPuzzle.state.answered ? '今天已答 · 查看解析' : '30 秒搞定 · 攒连击') : '明天再来' }}</span></div>
             <em>{{ dailyPuzzle && dailyPuzzle.state ? dailyPuzzle.state.streak : 0 }}</em>
+            <span v-if="dailyPuzzle && dailyPuzzle.question" class="tip tip-wide">
+              {{ typeLabel(dailyPuzzle.question.type) }} · {{ (dailyPuzzle.question.stem || '').slice(0, 40) }}{{ (dailyPuzzle.question.stem || '').length > 40 ? '…' : '' }}
+            </span>
           </div>
           <div class="dock-btn quick" @click="emit('quick')">
             <div><b>3 分钟快刷</b><span class="db-sub">随机 5 题 · 随时开始</span></div>
             <span class="dock-go">开始 ›</span>
+            <span class="tip">随机 5 题 · 约 3 分钟 · 计入学习统计</span>
           </div>
         </div>
       </div>
@@ -381,22 +396,26 @@ onBeforeUnmount(() => {
         <div class="kpi-item">
           <span class="kpi-num"><CountUp :value="summary.streak" /></span>
           <span class="kpi-label">连续学习</span>
+          <span class="tip">累计学习 {{ summary.activeDays }} 天 · 坚持就是胜利</span>
         </div>
         <div class="kpi-sep"></div>
         <div class="kpi-item">
           <span class="kpi-num"><CountUp :value="summary.today" /><small v-if="dailyGoal"> / {{ dailyGoal }}</small></span>
           <span class="kpi-label">今日刷题{{ dailyGoal ? ' · 目标' : '' }}</span>
           <div v-if="dailyGoal" class="kpi-bar"><div class="kpi-fill" :style="{ width: goalPct + '%' }"></div></div>
+          <span class="tip" v-if="dailyGoal">距今日目标还差 {{ goalLeft }} 题</span>
         </div>
         <div class="kpi-sep"></div>
         <div class="kpi-item">
           <span class="kpi-num"><CountUp :value="xpTotal" /></span>
           <span class="kpi-label">累计 XP</span>
+          <span class="tip">本周已获得 +{{ lvInfo.week }} XP</span>
         </div>
         <div class="kpi-sep"></div>
         <div class="kpi-item link" @click="emit('goto', 'stats')">
           <span class="kpi-num accent">看足迹</span>
           <span class="kpi-label">热力图</span>
+          <span class="tip">打开学习热力图，回看每天的积累</span>
         </div>
       </div>
 
@@ -459,6 +478,7 @@ onBeforeUnmount(() => {
             <span class="mi-ico cards"><Icon name="bookmark" :size="16"/></span>
             <span class="mi-main">记忆卡</span>
             <span v-if="cardStats.due > 0" class="mi-count due">{{ cardStats.due }} 到期</span>
+            <span class="tip" v-if="cardStats.due > 0">{{ cardStats.due }} 张到期，预计 {{ cardMins }} 分钟复习完，别让卡堆积</span>
           </div>
         </div>
       </div>
@@ -860,4 +880,36 @@ onBeforeUnmount(() => {
 [data-theme="light"] .greet-title { background: linear-gradient(90deg, #3d5bd9, #7c3aed); -webkit-background-clip: text; background-clip: text; }
 [data-theme="light"] .kpi-num { background: linear-gradient(180deg, #1f2937, #64748b); -webkit-background-clip: text; background-clip: text; }
 [data-theme="light"] .lv-badge { color: #3d5bd9; }
+
+/* ===== 首页交互加码（2026-08-12）：统一 hover 浮层 + 按压反馈 ===== */
+/* 浮层基座：暗卡 + 三角箭头，hover 显示（各触发容器须 position:relative） */
+.tip {
+  position: absolute; bottom: calc(100% + 10px); left: 50%;
+  transform: translateX(-50%) translateY(3px);
+  background: #1c2434; border: 1px solid rgba(91, 124, 250, 0.35);
+  border-radius: 8px; padding: 6px 11px;
+  font-size: 11.5px; color: #c8d3f5; white-space: nowrap; line-height: 1.5;
+  opacity: 0; pointer-events: none; z-index: 40;
+  transition: opacity .16s ease, transform .16s ease;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.tip::after {
+  content: ''; position: absolute; top: 100%; left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: #1c2434;
+}
+.tip-wide { white-space: normal; max-width: 220px; text-align: left; }
+[data-theme="light"] .tip { background: #ffffff; color: #3d5bd9; border-color: rgba(61, 91, 217, 0.35); box-shadow: 0 8px 24px rgba(20, 40, 70, 0.15); }
+[data-theme="light"] .tip::after { border-top-color: #ffffff; }
+
+/* 触发容器：relative + hover 显示浮层 */
+.review-banner, .lv-bar, .kpi-item, .dock-btn.daily, .dock-btn.quick, .more-item { position: relative; }
+.review-banner:hover .tip, .lv-bar:hover .tip, .kpi-item:hover .tip,
+.dock-btn.daily:hover .tip, .dock-btn.quick:hover .tip, .more-item:hover .tip {
+  opacity: 1; transform: translateX(-50%) translateY(0);
+}
+
+/* 按压反馈：brightness（不冲突 tilt 的内联 transform） */
+.review-banner:active, .dock-btn:active, .more-item:active, .kpi-item.link:active { filter: brightness(.9); }
+
 </style>
