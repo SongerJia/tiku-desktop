@@ -106,12 +106,14 @@ async function loadContent() {
 }
 async function loadGlobal() {
   try {
-    const q = await tiku.checkQuests()
+    const q = await tiku.checkQuests(filterSubjectId.value)
     quest.value = { tasks: q.tasks, claimed: q.claimed.join('、') }
   } catch (e) { quest.value = { tasks: [], claimed: '' } }
 }
 
-watch(filterSubjectId, () => { if (loggedIn.value) loadContent() }) // 切跟随/总览只刷新内容类
+watch(filterSubjectId, async () => {
+  if (loggedIn.value) { await loadContent(); await loadGlobal() } // 切范围刷新内容类 + 每日任务（目标跟随科目）
+})
 
 onMounted(async () => {
   await login()

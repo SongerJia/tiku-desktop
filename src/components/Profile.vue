@@ -90,6 +90,8 @@ function showToast(msg) {
 }
 
 async function clearLocal() {
+  const ok = await showConfirm('清空本地学习数据？\n将删除全部答题记录、错题本、收藏、笔记、XP，且不可恢复。\n（题库与知识库文档不受影响）')
+  if (!ok) return
   await tiku.clearUserData()
   showToast('已清空本地学习数据')
   emit('reset')
@@ -194,7 +196,6 @@ async function importData(event) {
 // ---- 外观 / 偏好 ----
 const theme = ref('dark')
 const fontScale = ref('1')
-const dailyGoal = ref(0)
 const examDate = ref('') // 目标考试日（YYYY-MM-DD），首页显示倒计时
 async function setTheme(t) {
   theme.value = t
@@ -206,13 +207,36 @@ async function setFontScale(v) {
   await tiku.setSetting('font_scale', String(v))
   await applyAppearance()
 }
-async function setDailyGoal(v) {
-  dailyGoal.value = Number(v) || 0
-  await tiku.setSetting('daily_goal', String(dailyGoal.value))
-}
 function setExamDate(v) {
   examDate.value = v || ''
   tiku.setSetting('exam_date', v || '')
+}
+
+// ---- 学习目标（按科目存，未设置不显示每日任务；跟随科目选择器）----
+const goalSubjects = ref([])
+const goalSubjectId = ref(null) // null = 全部科目（全局兜底）
+const dailyGoal = ref(0)
+const reviewGoal = ref(0)
+const readGoal = ref(0)
+// 科目 key：选中具体科目 → daily_goal_{id}；全部 → daily_goal
+const goalKey = (base) => goalSubjectId.value ? `${base}_${goalSubjectId.value}` : base
+async function loadGoals() {
+  try { goalSubjects.value = await tiku.getSubjects() } catch (e) { goalSubjects.value = [] }
+  dailyGoal.value = Number((await tiku.getSetting(goalKey('daily_goal'))) || 0)
+  reviewGoal.value = Number((await tiku.getSetting(goalKey('review_goal'))) || 0)
+  readGoal.value = Number((await tiku.getSetting(goalKey('read_goal'))) || 0)
+}
+async function setDailyGoal(v) {
+  dailyGoal.value = Number(v) || 0
+  await tiku.setSetting(goalKey('daily_goal'), String(dailyGoal.value))
+}
+async function setReviewGoal(v) {
+  reviewGoal.value = Number(v) || 0
+  await tiku.setSetting(goalKey('review_goal'), String(reviewGoal.value))
+}
+async function setReadGoal(v) {
+  readGoal.value = Number(v) || 0
+  await tiku.setSetting(goalKey('read_goal'), String(readGoal.value))
 }
 
 // ---- 游戏化成就（指标来自 getAchievements，成就定义在前端派生）----
@@ -242,26 +266,26 @@ const kbStats = ref(null)
 const xp = ref(null)
 
 // 页面分组折叠：学习成长默认展开，其余收起（避免平铺过长）
-const secOpen = ref({ learn: true, prefs: false, sync: false, misc: false })
+const secOpen = ref({ learn: true, goals: true, prefs: false, sync: false, misc: false })
 function toggleSec(k) {
   secOpen.value[k] = !secOpen.value[k]
 }
 
 onMounted(async () => {
   try {
-    const [t, f, g, ach, kb, x, ed, ms] = await Promise.all([
+    const [t, f, ach, kb, x, ed, ms] = await Promise.all([
       tiku.getSetting('theme'), tiku.getSetting('font_scale'),
-      tiku.getSetting('daily_goal'), tiku.getAchievements(),
+      tiku.getAchievements(),
       tiku.kbStats(), tiku.xpStats(), tiku.getSetting('exam_date'),
       tiku.getMonthStats()
     ])
     theme.value = t || 'dark'
     fontScale.value = f || '1'
-    dailyGoal.value = Number(g) || 0
     examDate.value = ed || ''
     metrics.value = { ...ach, ...ms }
     kbStats.value = kb
     xp.value = x
+    await loadGoals()
   } catch (e) { /* 成就读取失败不阻塞 */ }
 })
 </script>
@@ -364,6 +388,45 @@ onMounted(async () => {
     </div>
 
 
+    <!-- 学习目标（按科目存，未设置不显示每日任务） -->
+    <div class="sec">
+      <div class="sec-head" @click="toggleSec('goals')">
+        <span class="sec-icon sec-icon-goals"><Icon name="target" :size="16" /></span>
+        <span class="sec-title">学习目标</span>
+        <span class="sec-arrow" :class="{ open: secOpen.goals }"><Icon name="chevron-down" :size="14" /></span>
+      </div>
+      <div v-show="secOpen.goals" class="sec-body">
+
+    <div class="card goal-card">
+      <div class="card-title">学习目标 <span class="goal-scope">设置后每日任务自动生成，达标 +20 XP</span></div>
+      <div class="goal-row">
+        <span class="goal-label">科目</span>
+        <select class="goal-select" :value="goalSubjectId ?? ''" @change="goalSubjectId = $event.target.value || null; loadGoals()">
+          <option value="">全部科目（全局）</option>
+          <option v-for="s in goalSubjects" :key="s.id" :value="s.id">{{ s.name }}</option>
+        </select>
+      </div>
+      <div class="goal-row">
+        <span class="goal-label">每日刷题</span>
+        <input class="pref-input" type="number" min="0" :value="dailyGoal" @change="setDailyGoal($event.target.value)" placeholder="0=不设置" />
+        <span class="pref-unit">题/天 · 展示在首页 KPI</span>
+      </div>
+      <div class="goal-row">
+        <span class="goal-label">每日复习</span>
+        <input class="pref-input" type="number" min="0" :value="reviewGoal" @change="setReviewGoal($event.target.value)" placeholder="0=不设置" />
+        <span class="pref-unit">条/天</span>
+      </div>
+      <div class="goal-row">
+        <span class="goal-label">每日阅读</span>
+        <input class="pref-input" type="number" min="0" :value="readGoal" @change="setReadGoal($event.target.value)" placeholder="0=不设置" />
+        <span class="pref-unit">篇/天</span>
+      </div>
+      <div class="goal-tip">未设置的目标不在「每日任务」显示；设 0 即取消该目标</div>
+    </div>
+
+      </div>
+    </div>
+
     <div class="sec">
       <div class="sec-head" @click="toggleSec('prefs')">
         <span class="sec-icon sec-icon-prefs"><Icon name="settings" :size="16" /></span>
@@ -392,11 +455,6 @@ onMounted(async () => {
       <div class="pref-row">
         <span class="pref-label">字号 {{ Math.round(fontScale * 100) }}%</span>
         <input class="pref-range" type="range" min="0.8" max="1.4" step="0.05" :value="fontScale" @input="setFontScale($event.target.value)" />
-      </div>
-      <div class="pref-row">
-        <span class="pref-label">每日目标</span>
-        <input class="pref-input" type="number" min="0" :value="dailyGoal" @change="setDailyGoal($event.target.value)" placeholder="0=不限" />
-        <span class="pref-unit">题/天</span>
       </div>
       <div class="pref-row">
         <span class="pref-label">目标考试日</span>
@@ -635,6 +693,7 @@ onMounted(async () => {
 }
 .sec-head:hover .sec-icon { transform: scale(1.06); }
 .sec-icon-learn   { background: rgba(47, 191, 143, 0.14);  color: var(--ok); }
+.sec-icon-goals   { background: rgba(91, 124, 250, 0.14);  color: var(--brand); }
 .sec-icon-prefs   { background: rgba(91, 124, 250, 0.14);  color: var(--brand); }
 .sec-icon-sync    { background: rgba(34, 211, 238, 0.14);  color: #22d3ee; }
 .sec-icon-misc    { background: rgba(251, 113, 133, 0.14); color: #fb7185; }
@@ -766,8 +825,7 @@ onMounted(async () => {
 .pref-range { flex: 1; accent-color: var(--brand); }
 .pref-input { width: 80px; background: var(--input-solid-bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 6px 10px; font-size: 13px; outline: none; font-family: inherit; }
 .pref-input:focus { border-color: var(--brand); }
-.kb-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.kb-stat {
+.kb-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }.kb-stat {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -784,6 +842,15 @@ onMounted(async () => {
 
 .pref-unit { color: var(--muted); font-size: 12px; }
 .pref-sub { flex: 1; color: var(--muted); font-size: 11px; }
+
+/* 学习目标 */
+.goal-card { border-color: rgba(91, 124, 250, 0.4); }
+.goal-scope { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+.goal-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid rgba(148, 163, 184, 0.12); }
+.goal-row:last-of-type { border-bottom: none; }
+.goal-label { width: 64px; font-size: 13px; color: var(--text); flex-shrink: 0; }
+.goal-select { flex: 0 0 auto; background: var(--input-solid-bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 6px 10px; font-size: 13px; outline: none; font-family: inherit; }
+.goal-tip { font-size: 11px; color: var(--muted); margin-top: 8px; }
 
 /* 成就墙 */
 /* 成就中心（游戏化）：概览条 + 系列分组 + 三态卡 */

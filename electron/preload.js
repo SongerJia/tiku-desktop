@@ -103,7 +103,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   kbExport: () => ipcRenderer.invoke('kbExport'),
   xpStats: () => ipcRenderer.invoke('xpStats'),
   logXp: (xp, source, note) => ipcRenderer.invoke('logXp', xp, source, note),
-  checkQuests: () => ipcRenderer.invoke('checkQuests'),
+  checkQuests: (subjectId) => ipcRenderer.invoke('checkQuests', subjectId),
   addFocusSession: (minutes) => ipcRenderer.invoke('addFocusSession', minutes),
   focusStats: () => ipcRenderer.invoke('focusStats'),
   getHighlightsForDoc: (docId) => ipcRenderer.invoke('getHighlightsForDoc', docId),

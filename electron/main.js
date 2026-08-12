@@ -409,7 +409,7 @@ ipcMain.handle('kbGetNote', (e, docId) => db.getKbNote(docId))
 // ---- 反馈层（XP/每日任务/回顾/专注/习惯/高亮/双链/错题原因）----
 ipcMain.handle('xpStats', () => db.xpStats())
 ipcMain.handle('logXp', (e, xp, source, note) => db.logXp(xp, source, note))
-ipcMain.handle('checkQuests', () => db.checkQuests())
+ipcMain.handle('checkQuests', (e, subjectId) => db.checkQuests(subjectId))
 ipcMain.handle('addFocusSession', (e, minutes) => db.addFocusSession(minutes))
 ipcMain.handle('focusStats', () => db.focusStats())
 ipcMain.handle('getHighlightsForDoc', (e, docId) => db.getHighlightsForDoc(docId))

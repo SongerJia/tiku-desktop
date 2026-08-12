@@ -54,27 +54,39 @@ module.exports = function gamifyModule(ctx) {
       return { due, estMinutes: Math.max(1, Math.ceil(due / 10)) } // 按 10 题/分钟估
     },
 
-    // 今日行为计数（每日任务用）：今日复习次数（复习模式答题）、今日阅读次数
-    todayCounts() {
+    // 今日行为计数（每日任务用）：今日复习次数（复习模式答题）、今日阅读次数；subjectId 可选按科目过滤
+    todayCounts(subjectId) {
       const todayStart = new Date().setHours(0, 0, 0, 0)
-      const review = sqlite.prepare(
-        "SELECT COUNT(*) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=? AND mode IN ('review-due','wrong','favorite')"
-      ).get(LOCAL_USER, todayStart).n
+      const scope = subjectId ? ` AND q.category_id IN (${descendantCategoryIds(subjectId).map(() => '?').join(',')})` : ''
+      const scopeParams = subjectId ? descendantCategoryIds(subjectId) : []
+      let review = 0
+      if (!subjectId || scopeParams.length) {
+        review = sqlite.prepare(
+          `SELECT COUNT(*) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id
+           WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=? AND ar.mode IN ('review-due','wrong','favorite')${scope}`
+        ).get(LOCAL_USER, todayStart, ...scopeParams).n
+      }
       const kbRead = sqlite.prepare("SELECT COUNT(*) AS n FROM xp_logs WHERE deleted=0 AND created_at>=? AND source='kbread'").get(todayStart).n
       return { review, kbRead }
     },
 
     // 每日任务 Quest：按「学习目标」动态生成任务（未设置的目标不显示），达标且当天未领过 XP 的自动发放（+20/个）
-    checkQuests() {
+    // subjectId 传当前科目 → 读该科目目标（daily_goal_{id} 优先，全局 daily_goal 兜底）；不传 → 全局
+    checkQuests(subjectId) {
       const todayStart = new Date().setHours(0, 0, 0, 0)
       const has = (note) => sqlite.prepare(
         "SELECT COUNT(*) AS n FROM xp_logs WHERE deleted=0 AND created_at>=? AND source='quest' AND note=?"
       ).get(todayStart, note).n > 0
-      const s = this.getSummary()
-      const tc = this.todayCounts()
-      const dailyGoal = Number(this.getSetting('daily_goal') || 0)
-      const reviewGoal = Number(this.getSetting('review_goal') || 0)
-      const readGoal = Number(this.getSetting('read_goal') || 0)
+      const s = this.getSummary(subjectId)
+      const tc = this.todayCounts(subjectId)
+      const goalOf = (type) => {
+        const scoped = subjectId ? this.getSetting(`${type}_${subjectId}`) : null
+        const v = scoped != null ? scoped : this.getSetting(type)
+        return Number(v || 0)
+      }
+      const dailyGoal = goalOf('daily_goal')
+      const reviewGoal = goalOf('review_goal')
+      const readGoal = goalOf('read_goal')
       const tasks = []
       if (dailyGoal > 0) tasks.push({ key: 'quiz', name: `刷 ${dailyGoal} 题`, note: `刷${dailyGoal}题`, done: s.today >= dailyGoal })
       if (reviewGoal > 0) tasks.push({ key: 'review', name: `复习 ${reviewGoal} 条`, note: `复习${reviewGoal}条`, done: tc.review >= reviewGoal })
