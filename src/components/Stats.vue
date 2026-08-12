@@ -4,6 +4,7 @@ import Icon from './Icon.vue'
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
+import { vTilt } from '../utils/tilt.js'
 import { computePosition, offset, flip, shift } from '@floating-ui/dom'
 import { printHtml } from '../utils/print.js'
 
@@ -348,7 +349,7 @@ async function loadAnalysis() {
       </div>
 
       <!-- 学习热力图（GitHub 贡献图：7 行 × N 列 + 月份标签 + 年份切换 + 统计列） -->
-      <div class="card heat-card">
+      <div class="card heat-card" v-tilt="{ deg: 3 }">
         <div class="heat-head">
           <span class="card-title">🔥 学习热力图 <span class="heat-scope">（{{ subjectScope === 'all' ? '全部科目' : (props.subject.name || '全部') }}）</span></span>
           <div class="heat-legend">
@@ -393,8 +394,8 @@ async function loadAnalysis() {
       </div>
 
       <!-- 分析：章节正确率雷达 + 成绩历史 -->
-      <div class="card analysis-card">
-        <div class="card-title">📊 章节正确率雷达 <span class="card-sub">（最弱 {{ radarCats.length }} 章）</span></div>
+      <div class="card analysis-card" v-tilt="{ deg: 3 }">
+        <div class="card-title">章节正确率雷达 <span class="card-sub">（最弱 {{ radarCats.length }} 章）</span></div>
         <svg v-if="radarCats.length" viewBox="0 0 180 176" class="radar">
           <polygon :points="gridHex(56)" fill="none" stroke="var(--line)" stroke-width="1"/>
           <polygon :points="gridHex(28)" fill="none" stroke="var(--line)" stroke-width="1"/>
@@ -403,7 +404,7 @@ async function loadAnalysis() {
           <text v-for="(c, i) in radarCats" :key="'l' + i" :x="labelPos(i).x" :y="labelPos(i).y" class="radar-label" text-anchor="middle">{{ c.cat.length > 4 ? c.cat.slice(0, 4) + '…' : c.cat }}</text>
         </svg>
         <div v-if="!radarCats.length" class="empty-sm">暂无答题数据</div>
-        <div class="card-title hist-title">📈 近 {{ examHistory.length }} 次练习正确率</div>
+        <div class="card-title hist-title">近 {{ examHistory.length }} 次练习正确率</div>
         <svg v-if="histPath" viewBox="0 0 300 70" class="hist">
           <line x1="10" y1="62" x2="290" y2="62" stroke="var(--line)" stroke-width="1"/>
           <path :d="histPath" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round"/>
@@ -415,7 +416,7 @@ async function loadAnalysis() {
       </div>
 
       <!-- 错因分析：本周/全部错因分布 + 归因建议（数据来自结果页/错题本标记） -->
-      <div class="card reason-card">
+      <div class="card reason-card" v-tilt="{ deg: 3 }">
         <div class="rc-head">
           <span class="card-title">错因分析 <span class="card-sub">（丢分习惯洞察）</span></span>
           <div class="rc-scope">
@@ -450,7 +451,7 @@ async function loadAnalysis() {
       </div>
 
       <!-- 学习习惯（连续/累计） -->
-      <div class="card habit-card">
+      <div class="card habit-card" v-tilt="{ deg: 3 }">
         <div class="card-title">学习习惯</div>
         <div class="habit-row">
           <div class="habit-item">
@@ -467,7 +468,7 @@ async function loadAnalysis() {
       </div>
 
       <!-- 每日任务 Quest（未设置显示友好提示） -->
-      <div class="card quest-card">
+      <div class="card quest-card" v-tilt="{ deg: 3 }">
         <div class="card-title">每日任务 <span class="quest-xp">每个 +20 XP</span></div>
         <div v-if="quest.claimed" class="quest-claimed">🎉 {{ quest.claimed }} 已完成，XP 已到账</div>
         <div v-if="!quest.tasks.length" class="quest-empty">
@@ -620,4 +621,36 @@ async function loadAnalysis() {
   border: 1px dashed var(--line); border-radius: 10px; padding: 16px 12px;
 }
 .rc-empty-sub { font-size: 11.5px; color: var(--muted); opacity: .8; margin-top: 6px; }
+
+/* ===== 统计页铺开（2026-08-12）：渐变语言 / 热力图渐变边框+流光 ===== */
+/* KPI 数字渐变光泽 + 分隔线渐变（与首页同语言） */
+.kpi-num {
+  background: linear-gradient(180deg, #f4f7ff, #a9b6da);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+.kpi-num small { -webkit-text-fill-color: var(--muted); }
+.kpi-sep { background: linear-gradient(180deg, transparent, rgba(148, 163, 184, 0.35), transparent); }
+[data-theme="light"] .kpi-num { background: linear-gradient(180deg, #1f2937, #64748b); -webkit-background-clip: text; background-clip: text; }
+
+/* 热力图卡：渐变边框（主角）+ hover 流光描边 */
+.heat-card {
+  border: 1px solid transparent;
+  background-image:
+    linear-gradient(var(--card), var(--card)),
+    linear-gradient(135deg, rgba(91, 124, 250, 0.45), rgba(122, 92, 255, 0.45));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  position: relative;
+}
+.heat-card::after {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.7) 80deg, transparent 170deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0; pointer-events: none; transition: opacity .18s;
+}
+.heat-card:hover::after { opacity: 1; animation: angSpin 2.2s linear infinite; }
 </style>

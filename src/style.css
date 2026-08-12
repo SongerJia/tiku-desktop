@@ -590,3 +590,6 @@ body::after {
   0%, 100% { box-shadow: 0 0 0 0 rgba(91, 124, 250, 0); }
   50% { box-shadow: 0 0 0 12px rgba(91, 124, 250, 0.12); }
 }
+
+/* 流光描边共用的旋转动画（全局注册，供各组件 hover 流光复用） */
+@keyframes angSpin { to { --ang: 360deg; } }
