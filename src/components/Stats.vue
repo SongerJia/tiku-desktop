@@ -143,25 +143,34 @@ function computeHeatSize() {
 }
 let heatObs = null
 
-// hover 浮层：跟随鼠标（Teleport 防 transform 错位）。翻转用 CSS transform 基于实际宽度反向展开，紧贴鼠标不产生空隙
+// hover 浮层：用 floating-ui 定位（业界标准方案）——虚拟元素跟随鼠标，flip/shift 自动翻转防溢出，基于实际浮层尺寸零估算误差
+import { computePosition, offset, flip, shift } from '@floating-ui/dom'
 const hoverCell = ref(null)
+const tipEl = ref(null)
 const WEEKS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 const weekLabel = (dateStr) => { try { return WEEKS[new Date(dateStr + 'T00:00:00').getDay()] } catch (e) { return '' } }
-function placeTip(e) {
-  const pad = 12
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-  // 预估用保守值（200/60），翻转后由 CSS translate(-100%) 按实际宽度精确贴边
-  const flipX = e.clientX + pad + 200 > vw - 8
-  const flipY = e.clientY + pad + 60 > vh - 8
-  hoverCell.value.x = e.clientX + pad
-  hoverCell.value.y = e.clientY + pad
-  hoverCell.value.flipX = flipX
-  hoverCell.value.flipY = flipY
+const mouse = { x: 0, y: 0 }
+const tipVirtual = {
+  getBoundingClientRect: () => ({ width: 0, height: 0, left: mouse.x, top: mouse.y, right: mouse.x, bottom: mouse.y, x: mouse.x, y: mouse.y })
+}
+let tipSeq = 0
+async function placeTip(e) {
+  mouse.x = e.clientX
+  mouse.y = e.clientY
+  const el = tipEl.value
+  if (!el || !hoverCell.value) return
+  const seq = ++tipSeq
+  const { x, y } = await computePosition(tipVirtual, el, {
+    placement: 'right-start', // 鼠标右下方
+    middleware: [offset(12), flip(), shift({ padding: 8 })] // 翻转防溢出 + 视口安全边距
+  })
+  if (seq !== tipSeq) return // mousemove 高频时丢弃旧结果
+  el.style.left = x + 'px'
+  el.style.top = y + 'px'
 }
 function onHeatEnter(e, c) {
   if (!c || c.count < 0) { hoverCell.value = null; return }
-  hoverCell.value = { date: c.date, count: c.count, isToday: c.isToday, x: 0, y: 0, flipX: false, flipY: false }
+  hoverCell.value = { date: c.date, count: c.count, isToday: c.isToday }
   placeTip(e)
 }
 function onHeatMove(e) {
@@ -361,9 +370,9 @@ async function loadAnalysis() {
           </div>
         </div>
         <Teleport to="body">
-          <div v-if="hoverCell" class="heat-tip" :class="{ 'flip-x': hoverCell.flipX, 'flip-y': hoverCell.flipY }" :style="{ left: hoverCell.x + 'px', top: hoverCell.y + 'px' }">
-            <div class="ht-date">{{ hoverCell.date }} · {{ weekLabel(hoverCell.date) }}<i v-if="hoverCell.isToday" class="ht-today">今天</i></div>
-            <div class="ht-count" :class="{ none: !hoverCell.count }">{{ hoverCell.count > 0 ? '刷了 ' + hoverCell.count + ' 题' : '没有学习记录' }}</div>
+          <div ref="tipEl" v-show="hoverCell" class="heat-tip">
+            <div class="ht-date">{{ hoverCell && hoverCell.date }} · {{ hoverCell ? weekLabel(hoverCell.date) : '' }}<i v-if="hoverCell && hoverCell.isToday" class="ht-today">今天</i></div>
+            <div class="ht-count" :class="{ none: hoverCell && !hoverCell.count }">{{ hoverCell && hoverCell.count > 0 ? '刷了 ' + hoverCell.count + ' 题' : '没有学习记录' }}</div>
           </div>
         </Teleport>
       </div>
@@ -528,9 +537,6 @@ async function loadAnalysis() {
 .heat-cell.lvl-3 { background: rgba(63, 127, 214, 0.9); }
 .heat-cell.lvl-4 { background: #5b9cfa; }
 .heat-tip { position: fixed; z-index: 9999; background: var(--card, #1b2130); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; box-shadow: 0 6px 24px rgba(0, 0, 0, .35); pointer-events: none; white-space: nowrap; }
-.heat-tip.flip-x { transform: translateX(calc(-100% - 24px)); }
-.heat-tip.flip-y { transform: translateY(calc(-100% - 24px)); }
-.heat-tip.flip-x.flip-y { transform: translateX(calc(-100% - 24px)) translateY(calc(-100% - 24px)); }
 .ht-date { font-size: 12px; color: var(--text); }
 .ht-today { font-style: normal; font-size: 11px; color: var(--brand); margin-left: 6px; }
 .ht-count { font-size: 12px; color: var(--brand); margin-top: 2px; }

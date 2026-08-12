@@ -57,6 +57,7 @@
     "artifactName": "tiku-desktop-setup-${version}.${ext}"
   },
   "dependencies": {
+    "@floating-ui/dom": "^1.8.0",
     "better-sqlite3": "^11.3.0",
     "electron-updater": "^6.8.9",
     "vditor": "^3.11.2"
