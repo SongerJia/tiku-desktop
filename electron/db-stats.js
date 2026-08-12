@@ -198,29 +198,45 @@ module.exports = function statsModule(ctx) {
       return map
     },
 
-    // 近 N 天每日答题量（学习日历热力图数据源）。返回 [{date:'YYYY-MM-DD', count, isToday}]，含今天。
-    getActivityHeatmap(days = 120, subjectId) {
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const start = today.getTime() - (days - 1) * 86400000
+    // 学习热力图数据源（GitHub 贡献图）：今年=滚动 365 天窗口（today-364~today），往年=自然年。
+    // 返回 [{date:'YYYY-MM-DD', count}]（isToday 由前端判断）。
+    getActivityHeatmap(year, subjectId) {
+      const now = new Date()
+      const curYear = now.getFullYear()
+      const y = Number(year) || curYear
+      let start, end
+      if (y === curYear) {
+        const today = new Date(); today.setHours(0, 0, 0, 0)
+        end = today
+        start = new Date(today.getTime() - 364 * 86400000)
+      } else {
+        start = new Date(y, 0, 1)
+        end = new Date(y, 11, 31)
+        end.setHours(23, 59, 59, 999)
+      }
+      const startMs = start.getTime()
+      const endMs = end.getTime() + 1
       let aSql = `SELECT DATE(ar.created_at/1000, 'unixepoch', 'localtime') AS day, COUNT(*) AS n
-        FROM answer_records ar WHERE ar.user_id=? AND ar.deleted=0 AND ar.created_at>=?`
-      const aParams = [LOCAL_USER, start]
+        FROM answer_records ar WHERE ar.user_id=? AND ar.deleted=0 AND ar.created_at>=? AND ar.created_at<=?`
+      const aParams = [LOCAL_USER, startMs, endMs]
       if (subjectId) {
         const ids = descendantCategoryIds(subjectId)
-        if (!ids.length) { return [] }
-        aSql += ' AND ar.question_id IN (SELECT id FROM questions WHERE deleted=0 AND category_id IN (' + ids.map(() => '?').join(',') + '))'
-        aParams.push(...ids)
+        if (ids.length) {
+          aSql += ' AND ar.question_id IN (SELECT id FROM questions WHERE deleted=0 AND category_id IN (' + ids.map(() => '?').join(',') + '))'
+          aParams.push(...ids)
+        }
+        // ids 为空（该科目无章节）：不筛选，输出全年灰格框架（不返回空数组导致前端整卡消失）
       }
       aSql += ' GROUP BY day'
       const rows = sqlite.prepare(aSql).all(...aParams)
       const map = {}
       rows.forEach(r => { map[r.day] = r.n })
+      const totalDays = Math.round((endMs - startMs) / 86400000)
       const out = []
-      for (let i = 0; i < days; i++) {
-        const d = new Date(start + i * 86400000)
+      for (let i = 0; i < totalDays; i++) {
+        const d = new Date(startMs + i * 86400000)
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-        out.push({ date: key, count: map[key] || 0, isToday: i === days - 1 })
+        out.push({ date: key, count: map[key] || 0 })
       }
       return out
     },

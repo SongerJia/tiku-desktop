@@ -66,9 +66,66 @@ const filterSubjectId = computed(() => {
 
 // 从首页搬入的全局区块
 const heatmap = ref([])
+const heatYear = ref(new Date().getFullYear())
 const quest = ref({ tasks: [], claimed: '' })
-const heatStreak = computed(() => summary.value.streak || 0)
 function heatLevel(c) { return c === 0 ? 0 : c <= 2 ? 1 : c <= 5 ? 2 : c <= 10 ? 3 : 4 }
+const MONTHS = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月']
+const localKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+function shiftHeatYear(delta) {
+  const y = heatYear.value + delta
+  if (y < 2020 || y > new Date().getFullYear()) return
+  heatYear.value = y
+  loadContent()
+}
+
+// GitHub 贡献图布局：7 行（周日~周六）× N 列（每周一列），列首对齐周日，窗口外格子 ghost
+const heatGrid = computed(() => {
+  const list = heatmap.value
+  const empty = { cols: 0, cells: [], months: [], total: 0 }
+  if (!list.length) return empty
+  const first = new Date(list[0].date + 'T00:00:00')
+  const last = new Date(list[list.length - 1].date + 'T00:00:00')
+  const weekStart = new Date(first)
+  weekStart.setDate(first.getDate() - first.getDay()) // 对齐到所在周周日
+  const map = {}
+  list.forEach(d => { map[d.date] = d.count })
+  const todayStr = localKey(new Date())
+  const cells = []
+  const months = []
+  const seenMonthInCol = new Map()
+  let cursor = new Date(weekStart)
+  let col = 0
+  while (cursor <= last) {
+    let monthOfCol = null
+    for (let r = 0; r < 7; r++) {
+      const d = new Date(cursor)
+      const key = localKey(d)
+      const inWin = d >= first && d <= last
+      cells.push({
+        date: key,
+        count: inWin ? (map[key] || 0) : -1, // -1 = 窗口外占位
+        isToday: key === todayStr
+      })
+      if (d.getDate() === 1 && !monthOfCol) monthOfCol = d.getMonth()
+      cursor.setDate(cursor.getDate() + 1)
+    }
+    if (monthOfCol !== null && !seenMonthInCol.has(col)) {
+      seenMonthInCol.set(col, true)
+      months.push({ col, label: MONTHS[monthOfCol] })
+    }
+    col++
+  }
+  const total = list.reduce((a, d) => a + (d.count || 0), 0)
+  return { cols: col, cells, months, total }
+})
+// 左统计列：今日/本周/本窗口/连续天数
+const heatStats = computed(() => {
+  const list = heatmap.value
+  const todayStr = localKey(new Date())
+  const today = (list.find(d => d.date === todayStr) || {}).count || 0
+  const week = list.slice(-7).reduce((a, d) => a + (d.count || 0), 0)
+  return { today, week, total: heatGrid.value.total, streak: summary.value.streak || 0 }
+})
 
 // 动态取当前年月：跨月/跨日停留在页面也能刷新到新月份
 const nowY = () => { const d = new Date(); return d.getFullYear() }
@@ -100,7 +157,7 @@ async function loadContent() {
   const sid = filterSubjectId.value
   try { summary.value = await tiku.getSummary(sid) } catch (e) {}
   try { trend.value = await tiku.getWeeklyTrend(sid) } catch (e) { trend.value = [] }
-  try { heatmap.value = await tiku.getActivityHeatmap(120, sid) } catch (e) { heatmap.value = [] }
+  try { heatmap.value = await tiku.getActivityHeatmap(heatYear.value, sid) } catch (e) { heatmap.value = [] }
   try { calendar.value = await tiku.getMonthlyCalendar(nowY(), nowM(), sid) } catch (e) { calendar.value = {} }
   try { catAccuracy.value = await tiku.getCategoryAccuracy(sid) } catch (e) { catAccuracy.value = [] }
 }
@@ -214,25 +271,42 @@ async function loadAnalysis() {
         </div>
       </div>
 
-      <!-- 学习日历热力图（主角位） -->
+      <!-- 学习热力图（GitHub 贡献图：7 行 × N 列 + 月份标签 + 年份切换 + 统计列） -->
       <div class="card heat-card">
         <div class="heat-head">
           <span class="card-title">🔥 学习热力图 <span class="heat-scope">（{{ subjectScope === 'all' ? '全部科目' : (props.subject.name || '全部') }}）</span></span>
-          <span class="heat-streak">连续 {{ heatStreak }} 天</span>
+          <span class="heat-year-nav">
+            <button class="hy-btn" @click="shiftHeatYear(-1)">‹</button>
+            <span class="hy-year">{{ heatYear }}<small v-if="heatYear === nowY()"> 滚动 365 天</small></span>
+            <button class="hy-btn" @click="shiftHeatYear(1)" :disabled="heatYear >= nowY()">›</button>
+          </span>
         </div>
-        <div class="heat-grid">
-          <div
-            v-for="(d, i) in heatmap"
-            :key="i"
-            class="heat-cell"
-            :class="'lvl-' + heatLevel(d.count)"
-            :title="d.date + (d.isToday ? '（今天）' : '') + ' · ' + d.count + ' 题'"
-          ></div>
-        </div>
-        <div class="heat-legend">
-          <span class="lg-text">少</span>
-          <i class="heat-cell lvl-0"></i><i class="heat-cell lvl-1"></i><i class="heat-cell lvl-2"></i><i class="heat-cell lvl-3"></i><i class="heat-cell lvl-4"></i>
-          <span class="lg-text">多</span>
+        <div class="heat-flex">
+          <div class="heat-stats">
+            <div class="hs-item"><b>{{ heatStats.today }}</b><span>今日</span></div>
+            <div class="hs-item"><b>{{ heatStats.week }}</b><span>本周</span></div>
+            <div class="hs-item"><b>{{ heatStats.total }}</b><span>{{ heatYear === nowY() ? '近一年' : '全年' }}</span></div>
+            <div class="hs-item"><b class="hot">{{ heatStats.streak }}</b><span>连续</span></div>
+          </div>
+          <div class="heat-main">
+            <div class="heat-months">
+              <span v-for="m in heatGrid.months" :key="m.col" class="hm-label" :style="{ left: m.col * 12 + 'px' }">{{ m.label }}</span>
+            </div>
+            <div class="heat-grid" :style="{ gridTemplateColumns: `repeat(${heatGrid.cols}, 10px)` }">
+              <div
+                v-for="(c, i) in heatGrid.cells"
+                :key="i"
+                class="heat-cell"
+                :class="[c.count < 0 ? 'ghost' : '', c.isToday ? 'today' : '', 'lvl-' + heatLevel(c.count)]"
+                :title="c.count < 0 ? '' : c.date + (c.isToday ? '（今天）' : '') + ' · ' + c.count + ' 题'"
+              ></div>
+            </div>
+            <div class="heat-legend">
+              <span class="lg-text">少</span>
+              <i class="heat-cell lvl-0"></i><i class="heat-cell lvl-1"></i><i class="heat-cell lvl-2"></i><i class="heat-cell lvl-3"></i><i class="heat-cell lvl-4"></i>
+              <span class="lg-text">多</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -365,13 +439,29 @@ async function loadAnalysis() {
 .kpi-num small { font-size: 12px; color: var(--muted); font-weight: 400; }
 .kpi-label { font-size: 11px; color: var(--muted); }
 
-/* 热力图 */
+/* 热力图（GitHub 贡献图） */
 .heat-card { display: flex; flex-direction: column; gap: 10px; }
-.heat-head { display: flex; align-items: center; justify-content: space-between; }
+.heat-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .heat-scope { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
-.heat-streak { font-size: 11px; color: var(--brand); }
-.heat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(12px, 1fr)); gap: 3px; }
-.heat-cell { aspect-ratio: 1; border-radius: 3px; background: rgba(148, 163, 184, 0.14); }
+.heat-year-nav { display: flex; align-items: center; gap: 6px; }
+.hy-btn { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; }
+.hy-btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+.hy-btn:disabled { opacity: .35; cursor: default; }
+.hy-year { font-size: 12px; font-weight: 600; color: var(--text); min-width: 72px; text-align: center; }
+.hy-year small { font-size: 10px; color: var(--muted); font-weight: 400; }
+.heat-flex { display: flex; gap: 16px; align-items: stretch; }
+.heat-stats { display: grid; grid-template-columns: repeat(2, auto); gap: 10px 18px; align-content: center; flex-shrink: 0; }
+.hs-item { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.hs-item b { font-size: 16px; color: var(--text); font-variant-numeric: tabular-nums; }
+.hs-item b.hot { color: var(--warn); }
+.hs-item span { font-size: 10px; color: var(--muted); }
+.heat-main { flex: 1; min-width: 0; overflow-x: auto; }
+.heat-months { position: relative; height: 16px; margin-bottom: 2px; }
+.hm-label { position: absolute; top: 0; font-size: 9px; color: var(--muted); white-space: nowrap; }
+.heat-grid { display: grid; grid-template-rows: repeat(7, 10px); grid-auto-flow: column; gap: 2px; }
+.heat-cell { width: 10px; height: 10px; border-radius: 2px; background: rgba(148, 163, 184, 0.14); }
+.heat-cell.ghost { background: transparent; }
+.heat-cell.today { outline: 1.5px solid var(--brand); outline-offset: 1px; }
 .heat-cell.lvl-0 { background: rgba(148, 163, 184, 0.14); }
 .heat-cell.lvl-1 { background: rgba(28, 58, 110, 0.75); }
 .heat-cell.lvl-2 { background: rgba(42, 92, 168, 0.85); }
