@@ -323,7 +323,7 @@ onBeforeUnmount(() => {
         </div>
         <div class="kpi-sep"></div>
         <div class="kpi-item">
-          <span class="kpi-num">{{ summary.today }}<small v-if="dailyGoal"> / {{ dailyGoal }}</small></span>
+          <span class="kpi-num"><CountUp :value="summary.today" /><small v-if="dailyGoal"> / {{ dailyGoal }}</small></span>
           <span class="kpi-label">今日刷题{{ dailyGoal ? ' · 目标' : '' }}</span>
           <div v-if="dailyGoal" class="kpi-bar"><div class="kpi-fill" :style="{ width: goalPct + '%' }"></div></div>
         </div>
@@ -635,4 +635,50 @@ onBeforeUnmount(() => {
 
 /* 快刷 hover：箭头转品牌色 */
 .dock-btn.quick:hover .dock-go { color: var(--brand); }
+
+/* ===== 首页加码（2026-08-12）：呼吸召唤 / 数字滚动 / 图标微弹 / 双层节奏 ===== */
+/* ① 到期横幅：伪元素呼吸光晕（不抢主元素入场动画） */
+.review-banner { position: relative; }
+.review-banner::after {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit;
+  border: 1px solid rgba(217, 154, 61, 0.5);
+  animation: bannerPulse 2.4s ease-in-out infinite; pointer-events: none;
+}
+@keyframes bannerPulse { 0%, 100% { opacity: .15; } 50% { opacity: .9; } }
+
+/* ② KPI 进度条：从 0 填充（配合数字滚动） */
+.kpi-fill { animation: fillBar .9s cubic-bezier(.3, .7, .3, 1) both; }
+@keyframes fillBar { from { width: 0; } }
+
+/* ③ 宫格图标：hover 微弹 */
+.mi-ico { transition: transform .18s cubic-bezier(.3, .7, .3, 1); }
+.more-item:hover .mi-ico { transform: translateY(-2px) scale(1.08); }
+
+/* ④ 行动按钮：父卡入场后逐个弹出（双层节奏） */
+.dock-actions > * { animation: riseIn .38s cubic-bezier(.2, .7, .3, 1) both; }
+.dock-actions > *:nth-child(1) { animation-delay: .10s; }
+.dock-actions > *:nth-child(2) { animation-delay: .15s; }
+.dock-actions > *:nth-child(3) { animation-delay: .20s; }
+
+/* ⑤ 问候卡：更浓渐变 + 顶部高光线 */
+.greet-card {
+  background: linear-gradient(160deg, rgba(91, 124, 250, 0.16), var(--card) 60%);
+  border-color: rgba(91, 124, 250, 0.45);
+  position: relative; overflow: hidden;
+}
+.greet-card::before {
+  content: ''; position: absolute; top: 0; left: 10%; right: 10%;
+  height: 1px; background: linear-gradient(90deg, transparent, rgba(91, 124, 250, 0.65), transparent);
+}
+
+/* ⑥ 日期胶囊化 */
+.greet-date {
+  font-size: 11px; color: var(--muted);
+  background: rgba(148, 163, 184, 0.1); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 10px;
+}
+
+/* ⑦ 看足迹 hover 加深 */
+.kpi-item.link:hover .kpi-num { color: var(--brand-dark); }
+.kpi-item.link:hover .kpi-label { color: var(--brand); }
 </style>
