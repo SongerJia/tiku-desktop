@@ -216,16 +216,11 @@ module.exports = function statsModule(ctx) {
       const rows = sqlite.prepare(aSql).all(...aParams)
       const map = {}
       rows.forEach(r => { map[r.day] = r.n })
-      // 专注分钟叠加（focus_sessions 无 user_id，全局）
-      const fRows = sqlite.prepare(`SELECT DATE(created_at/1000, 'unixepoch', 'localtime') AS day, COALESCE(SUM(minutes),0) AS m
-        FROM focus_sessions WHERE deleted=0 AND created_at>=? GROUP BY day`).all(start)
-      const fMap = {}
-      fRows.forEach(r => { fMap[r.day] = r.m })
       const out = []
       for (let i = 0; i < days; i++) {
         const d = new Date(start + i * 86400000)
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-        out.push({ date: key, count: map[key] || 0, focus: fMap[key] || 0, isToday: i === days - 1 })
+        out.push({ date: key, count: map[key] || 0, isToday: i === days - 1 })
       }
       return out
     },

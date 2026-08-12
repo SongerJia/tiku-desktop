@@ -51,12 +51,13 @@ const growthText = computed(() => {
   return parts.join(' · ')
 })
 
-// 考试倒计时（跟随科目，设了才显示）
+// 考试倒计时（设了考试日显示天数；没设显示引导）
 const examLeft = computed(() => {
   if (!examDate.value) return null
   const target = new Date(examDate.value + 'T00:00:00')
   const now = new Date(); now.setHours(0, 0, 0, 0)
-  return { date: examDate.value, days: Math.round((target - now) / 86400000) }
+  const days = Math.round((target - now) / 86400000)
+  return { date: examDate.value, days, over: days < 0 }
 })
 
 // 今日刷题进度（目标 KPI 格）
@@ -239,14 +240,22 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- 考试倒计时横幅（设了考试日才显示） -->
+      <!-- 考试倒计时：设了考试日显示天数；没设显示引导（点击去我的页设置） -->
       <div v-if="examLeft" class="card exam-banner" :class="{ soon: examLeft.days >= 0 && examLeft.days <= 7 }">
         <span class="exam-ico"><Icon name="clock" :size="18"/></span>
         <div class="exam-info">
-          <div class="exam-name">考试倒计时</div>
+          <div class="exam-name">{{ examLeft.over ? '考试日已过' : '考试倒计时' }}</div>
           <div class="exam-sub">{{ examLeft.date }} · 每天坚持刷题，稳扎稳打</div>
         </div>
-        <div class="exam-num">{{ examLeft.days >= 0 ? examLeft.days : 0 }}<small> 天</small></div>
+        <div class="exam-num" :class="{ over: examLeft.over }">{{ examLeft.over ? '已过' : examLeft.days }}<small v-if="!examLeft.over"> 天</small></div>
+      </div>
+      <div v-else class="card exam-banner exam-guide" @click="emit('goto', 'profile')">
+        <span class="exam-ico"><Icon name="clock" :size="18"/></span>
+        <div class="exam-info">
+          <div class="exam-name">设置目标考试日</div>
+          <div class="exam-sub">在「我的」里设定考试日期，这里显示倒计时</div>
+        </div>
+        <div class="exam-num guide">去设置 ›</div>
       </div>
 
       <!-- 主行动区：今日复习 + 每日一题 -->
@@ -408,6 +417,10 @@ onBeforeUnmount(() => {
 .exam-num { font-size: 26px; font-weight: 600; color: var(--warn); font-variant-numeric: tabular-nums; }
 .exam-num small { font-size: 13px; color: var(--muted); }
 .exam-banner.soon .exam-num { color: var(--bad); }
+.exam-num.over { color: var(--muted); font-size: 16px; }
+.exam-num.guide { font-size: 13px; font-weight: 500; color: var(--brand); white-space: nowrap; }
+.exam-guide { cursor: pointer; border-style: dashed; }
+.exam-guide:hover { border-color: var(--brand); background: rgba(91, 124, 250, 0.08); }
 
 /* 主行动区 */
 .action-row { display: flex; gap: 12px; }

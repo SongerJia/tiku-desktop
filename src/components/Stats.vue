@@ -226,7 +226,7 @@ async function loadAnalysis() {
             :key="i"
             class="heat-cell"
             :class="'lvl-' + heatLevel(d.count)"
-            :title="d.date + (d.isToday ? '（今天）' : '') + ' · ' + d.count + ' 题' + (d.focus ? ' · 专注 ' + d.focus + ' 分钟' : '')"
+            :title="d.date + (d.isToday ? '（今天）' : '') + ' · ' + d.count + ' 题'"
           ></div>
         </div>
         <div class="heat-legend">
