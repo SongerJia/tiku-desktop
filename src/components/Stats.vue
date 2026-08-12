@@ -143,38 +143,54 @@ function computeHeatSize() {
 }
 let heatObs = null
 
-// hover 浮层：用 floating-ui 定位（业界标准方案）——虚拟元素跟随鼠标，flip/shift 自动翻转防溢出，基于实际浮层尺寸零估算误差
+// hover 浮层：anchor 锚定到格子矩形（不是鼠标点），浮层紧贴格子上方；mousemove 时水平跟随鼠标 x，垂直不变
 import { computePosition, offset, flip, shift } from '@floating-ui/dom'
 const hoverCell = ref(null)
 const tipEl = ref(null)
 const WEEKS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 const weekLabel = (dateStr) => { try { return WEEKS[new Date(dateStr + 'T00:00:00').getDay()] } catch (e) { return '' } }
-const mouse = { x: 0, y: 0 }
-const tipVirtual = {
-  getBoundingClientRect: () => ({ width: 0, height: 0, left: mouse.x, top: mouse.y, right: mouse.x, bottom: mouse.y, x: mouse.x, y: mouse.y })
+const anchorState = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 }
+const tipAnchor = {
+  getBoundingClientRect: () => ({
+    width: anchorState.width, height: anchorState.height,
+    left: anchorState.left, top: anchorState.top,
+    right: anchorState.right, bottom: anchorState.bottom,
+    x: anchorState.left, y: anchorState.top
+  })
 }
 let tipSeq = 0
-async function placeTip(e) {
-  mouse.x = e.clientX
-  mouse.y = e.clientY
+async function placeTip() {
   const el = tipEl.value
   if (!el || !hoverCell.value) return
   const seq = ++tipSeq
-  const { x, y } = await computePosition(tipVirtual, el, {
-    placement: 'top', // 鼠标正上方居中（不左右翻转，避免"越靠右浮层越远"）
-    middleware: [offset(10), flip(), shift({ padding: 8 })] // 上方放不下翻下方；右侧溢出由 shift 贴边拉回
+  const { x, y } = await computePosition(tipAnchor, el, {
+    placement: 'top', // 格子上方
+    middleware: [offset(4), flip(), shift({ padding: 8 })] // 紧贴格子 4px + 上方放不下翻下方 + 视口安全
   })
-  if (seq !== tipSeq) return // mousemove 高频时丢弃旧结果
+  if (seq !== tipSeq) return
   el.style.left = x + 'px'
   el.style.top = y + 'px'
 }
 function onHeatEnter(e, c) {
   if (!c || c.count < 0) { hoverCell.value = null; return }
   hoverCell.value = { date: c.date, count: c.count, isToday: c.isToday }
-  placeTip(e)
+  // anchor 锚定格子矩形
+  const rect = e.currentTarget.getBoundingClientRect()
+  anchorState.left = rect.left
+  anchorState.top = rect.top
+  anchorState.right = rect.right
+  anchorState.bottom = rect.bottom
+  anchorState.width = rect.width
+  anchorState.height = rect.height
+  placeTip()
 }
 function onHeatMove(e) {
-  if (hoverCell.value) placeTip(e)
+  if (!hoverCell.value) return
+  // 水平跟随鼠标 x（中心对齐），垂直保持格子顶部
+  const halfW = anchorState.width / 2
+  anchorState.left = e.clientX - halfW
+  anchorState.right = e.clientX + halfW
+  placeTip()
 }
 function onHeatLeave() { hoverCell.value = null }
 
