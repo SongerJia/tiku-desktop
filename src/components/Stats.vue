@@ -143,21 +143,28 @@ function computeHeatSize() {
 }
 let heatObs = null
 
-// hover 浮层：固定在格子正上方居中（不跟随鼠标、不抖动、不遮挡格子），上方放不下自动翻到下方
+// hover 浮层：跟随鼠标（Teleport 到 body 防 transform 祖先错位），右侧/底部放不下自动翻转，内容友好
 const hoverCell = ref(null)
 const WEEKS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 const weekLabel = (dateStr) => { try { return WEEKS[new Date(dateStr + 'T00:00:00').getDay()] } catch (e) { return '' } }
 const TIP_W = 170 // 浮层预估宽
 const TIP_H = 56  // 浮层预估高
+function placeTip(e) {
+  const pad = 12
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  let x = e.clientX + pad
+  let y = e.clientY + pad
+  if (x + TIP_W > vw - 8) x = e.clientX - pad - TIP_W // 右侧放不下 → 放鼠标左边
+  if (y + TIP_H > vh - 8) y = e.clientY - pad - TIP_H // 底部放不下 → 放鼠标上方
+  return { x: Math.max(8, x), y: Math.max(8, y) }
+}
 function onHeatEnter(e, c) {
   if (!c || c.count < 0) { hoverCell.value = null; return }
-  const rect = e.currentTarget.getBoundingClientRect()
-  const vw = window.innerWidth
-  let x = rect.left + rect.width / 2 - TIP_W / 2
-  let y = rect.top - TIP_H - 8 // 默认在格子正上方
-  if (y < 8) y = rect.bottom + 8 // 上方放不下 → 翻到格子下方
-  x = Math.max(8, Math.min(x, vw - 8 - TIP_W))
-  hoverCell.value = { date: c.date, count: c.count, isToday: c.isToday, x, y }
+  hoverCell.value = { date: c.date, count: c.count, isToday: c.isToday, ...placeTip(e) }
+}
+function onHeatMove(e) {
+  if (hoverCell.value) Object.assign(hoverCell.value, placeTip(e))
 }
 function onHeatLeave() { hoverCell.value = null }
 
@@ -344,6 +351,7 @@ async function loadAnalysis() {
                 :class="[c.count < 0 ? 'ghost' : 'lvl-' + heatLevel(c.count), c.isToday ? 'today' : '']"
                 :style="{ width: heatCellSize + 'px', height: heatCellSize + 'px' }"
                 @mouseenter="onHeatEnter($event, c)"
+                @mousemove="onHeatMove($event)"
                 @mouseleave="onHeatLeave"
               ></div>
             </div>
