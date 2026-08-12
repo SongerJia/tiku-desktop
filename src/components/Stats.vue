@@ -53,8 +53,6 @@ h1 { margin: 0 0 4px; }
 const loggedIn = ref(false)
 const loading = ref(false)
 const summary = ref({ total: 0, learned: 0, mastered: 0, streak: 0, activeDays: 0, today: 0, accuracy: 0, weekAccuracy: 0, weekDelta: 0 })
-const trend = ref([])
-const calendar = ref({})
 
 // ---- 统计范围：跟随顶部科目（默认）｜总览（全部科目汇总）----
 const props = defineProps({ subject: { type: Object, default: () => ({ id: null, name: '' }) } })
@@ -187,25 +185,8 @@ function onHeatEnter(e, c) {
 }
 function onHeatLeave() { hoverCell.value = null }
 
-// 动态取当前年月：跨月/跨日停留在页面也能刷新到新月份
+// 动态取当前年：跨年停留在页面也能刷新（热力图年份按钮用）
 const nowY = () => { const d = new Date(); return d.getFullYear() }
-const nowM = () => { const d = new Date(); return d.getMonth() + 1 }
-
-const maxTrend = computed(() => Math.max(1, ...trend.value.map(d => d.count)))
-
-const calendarDays = computed(() => {
-  const firstDay = new Date(nowY(), nowM() - 1, 1)
-  const daysInMonth = new Date(nowY(), nowM(), 0).getDate()
-  const startWeekday = firstDay.getDay() // 0=Sun
-  const days = []
-  for (let i = 0; i < startWeekday; i++) days.push({ empty: true })
-  for (let d = 1; d <= daysInMonth; d++) {
-    const key = `${nowY()}-${String(nowM()).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-    const count = calendar.value[key] || 0
-    days.push({ day: d, count })
-  }
-  return days
-})
 
 async function login() {
   loggedIn.value = true
@@ -238,18 +219,14 @@ async function loadContent() {
   const seq = ++contentSeq
   const sid = filterSubjectId.value
   const hy = heatYear.value
-  const [sumR, trendR, heatR, calR, catR] = await Promise.allSettled([
+  const [sumR, heatR, catR] = await Promise.allSettled([
     tiku.getSummary(sid),
-    tiku.getWeeklyTrend(sid),
     tiku.getActivityHeatmap(hy, sid),
-    tiku.getMonthlyCalendar(nowY(), nowM(), sid),
     tiku.getCategoryAccuracy(sid)
   ])
   if (seq !== contentSeq) return
   if (sumR.status === 'fulfilled') summary.value = sumR.value
-  if (trendR.status === 'fulfilled') trend.value = trendR.value; else trend.value = []
   if (heatR.status === 'fulfilled') heatmap.value = heatR.value; else heatmap.value = []
-  if (calR.status === 'fulfilled') calendar.value = calR.value; else calendar.value = {}
   if (catR.status === 'fulfilled') catAccuracy.value = catR.value; else catAccuracy.value = []
 }
 async function loadGlobal() {
@@ -437,21 +414,6 @@ async function loadAnalysis() {
         <div v-if="!examHistory.length" class="empty-sm">完成练习 / 模考后，这里会记录你的正确率曲线</div>
       </div>
 
-      <!-- 7 天趋势 -->
-      <div class="card trend-card">
-        <div class="card-title">学习趋势</div>
-        <div v-if="!trend.length" class="empty">本周暂无学习记录</div>
-        <div v-else class="trend-bars">
-          <div v-for="d in trend" :key="d.date" class="bar-item" :title="`${d.date}：${d.count} 题`">
-            <div class="bar-track">
-              <div class="bar-fill" :style="{ height: `${(d.count / maxTrend) * 60}px` }"></div>
-            </div>
-            <div class="bar-date">{{ d.date.slice(5) }}</div>
-            <div class="bar-count">{{ d.count }}</div>
-          </div>
-        </div>
-      </div>
-
       <!-- 错因分析：本周/全部错因分布 + 归因建议（数据来自结果页/错题本标记） -->
       <div class="card reason-card">
         <div class="rc-head">
@@ -501,32 +463,6 @@ async function loadAnalysis() {
             <div class="habit-value">{{ summary.activeDays }}<span class="unit">天</span></div>
             <div class="habit-desc">走过的每一步都算数</div>
           </div>
-        </div>
-      </div>
-
-      <!-- 学习日历 -->
-      <div class="card calendar-card">
-        <div class="cal-header">
-          <div class="card-title" style="margin:0">{{ nowY() }}年{{ nowM() }}月</div>
-          <div class="cal-summary">已学习 {{ Object.keys(calendar).length }}/{{ calendarDays.filter(d => !d.empty).length }} 天</div>
-        </div>
-        <div class="weekdays">
-          <span v-for="w in ['日','一','二','三','四','五','六']" :key="w">{{ w }}</span>
-        </div>
-        <div class="days">
-          <span
-            v-for="(d, i) in calendarDays"
-            :key="i"
-            class="day"
-            :class="{ empty: d.empty, active: d.count > 0 }"
-          >{{ d.empty ? '' : d.day }}</span>
-        </div>
-        <div class="cal-legend">
-          <span>少</span>
-          <span class="dot light"></span>
-          <span class="dot mid"></span>
-          <span class="dot heavy"></span>
-          <span>多</span>
         </div>
       </div>
 
@@ -626,14 +562,6 @@ async function loadAnalysis() {
 .empty-sm { font-size: 12px; color: var(--muted); padding: 8px 0; }
 .empty { font-size: 12px; color: var(--muted); padding: 10px 0; }
 
-/* 趋势 */
-.trend-bars { display: flex; align-items: flex-end; gap: 8px; min-height: 80px; }
-.bar-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.bar-track { width: 100%; height: 60px; display: flex; align-items: flex-end; }
-.bar-fill { width: 60%; margin: 0 auto; background: var(--brand); border-radius: 4px 4px 0 0; min-height: 2px; }
-.bar-date { font-size: 10px; color: var(--muted); }
-.bar-count { font-size: 11px; color: var(--text); }
-
 /* 学习习惯 */
 .habit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .habit-item { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 4px; }
@@ -641,25 +569,6 @@ async function loadAnalysis() {
 .habit-value { font-size: 22px; font-weight: 700; color: var(--text); }
 .habit-value .unit { font-size: 12px; color: var(--muted); font-weight: 400; }
 .habit-desc { font-size: 11px; color: var(--muted); }
-
-/* 月度日历 */
-.cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.cal-summary { font-size: 12px; color: var(--muted); }
-.weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
-.weekdays span { text-align: center; font-size: 10px; color: var(--muted); }
-.days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-.day {
-  aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
-  font-size: 11px; color: var(--text); border-radius: 6px;
-  background: rgba(148, 163, 184, 0.06);
-}
-.day.active { background: var(--brand); color: #fff; font-weight: 600; }
-.day.empty { background: transparent; }
-.cal-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); margin-top: 8px; }
-.dot { width: 10px; height: 10px; border-radius: 3px; }
-.dot.light { background: rgba(28, 58, 110, 0.35); }
-.dot.mid { background: rgba(42, 92, 168, 0.6); }
-.dot.heavy { background: #5b9cfa; }
 
 /* 每日任务 */
 .quest-xp { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
