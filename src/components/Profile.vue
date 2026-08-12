@@ -273,20 +273,18 @@ function toggleSec(k) {
 }
 
 onMounted(async () => {
-  try {
-    const [t, f, ach, kb, x, ms] = await Promise.all([
-      tiku.getSetting('theme'), tiku.getSetting('font_scale'),
-      tiku.getAchievements(),
-      tiku.kbStats(), tiku.xpStats(),
-      tiku.getMonthStats()
-    ])
-    theme.value = t || 'dark'
-    fontScale.value = f || '1'
-    metrics.value = { ...ach, ...ms }
-    kbStats.value = kb
-    xp.value = x
-    await loadGoals()
-  } catch (e) { /* 成就读取失败不阻塞 */ }
+  const [tR, fR, achR, kbR, xR, msR] = await Promise.allSettled([
+    tiku.getSetting('theme'), tiku.getSetting('font_scale'),
+    tiku.getAchievements(),
+    tiku.kbStats(), tiku.xpStats(),
+    tiku.getMonthStats()
+  ])
+  if (tR.status === 'fulfilled') theme.value = tR.value || 'dark'
+  if (fR.status === 'fulfilled') fontScale.value = fR.value || '1'
+  if (kbR.status === 'fulfilled') kbStats.value = kbR.value
+  if (xR.status === 'fulfilled') xp.value = xR.value
+  if (achR.status === 'fulfilled' && msR.status === 'fulfilled') metrics.value = { ...achR.value, ...msR.value }
+  try { await loadGoals() } catch (e) { /* 目标读取失败不阻塞 */ }
 })
 </script>
 

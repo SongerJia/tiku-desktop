@@ -9,7 +9,7 @@ import { printHtml } from '../utils/print.js'
 
 // 学习周报：聚合近 7 天数据 → 打印/导出 PDF
 async function exportReport() {
-  const r = await tiku.getWeeklyReport()
+  const r = await tiku.getWeeklyReport(filterSubjectId.value)
   const bar = r.daily.map(d => `<div class="bar-cell"><div class="bar" style="height:${Math.max(4, d.n * 6)}px"></div><span>${d.date}</span><b>${d.n}</b></div>`).join('')
   const body = `
 <h1>学习周报</h1>
@@ -122,9 +122,11 @@ const heatGrid = computed(() => {
 // 左统计列：今日/本周/本窗口/连续天数
 const heatStats = computed(() => {
   const list = heatmap.value
+  const isCur = heatYear.value === new Date().getFullYear()
   const todayStr = localKey(new Date())
-  const today = (list.find(d => d.date === todayStr) || {}).count || 0
-  const week = list.slice(-7).reduce((a, d) => a + (d.count || 0), 0)
+  // 往年是自然年数据，无"今日/本周"概念 → 显示 —（避免误导）
+  const today = isCur ? ((list.find(d => d.date === todayStr) || {}).count || 0) : null
+  const week = isCur ? list.slice(-7).reduce((a, d) => a + (d.count || 0), 0) : null
   return { today, week, total: heatGrid.value.total, streak: summary.value.streak || 0 }
 })
 
@@ -353,8 +355,8 @@ async function loadAnalysis() {
         </div>
         <div ref="heatWrapEl" class="heat-flex">
           <div class="heat-stats">
-            <div class="hs-item"><b>{{ heatStats.today }}</b><span>今日</span></div>
-            <div class="hs-item"><b>{{ heatStats.week }}</b><span>本周</span></div>
+            <div class="hs-item"><b>{{ heatStats.today ?? '—' }}</b><span>今日</span></div>
+            <div class="hs-item"><b>{{ heatStats.week ?? '—' }}</b><span>本周</span></div>
             <div class="hs-item"><b>{{ heatStats.total }}</b><span>{{ heatYear === nowY() ? '近一年' : '全年' }}</span></div>
             <div class="hs-item"><b class="hot">{{ heatStats.streak }}</b><span>连续</span></div>
           </div>

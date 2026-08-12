@@ -67,7 +67,7 @@ async function load() {
   loading.value = true
   const [sumR, goalR, fsR, cardsR, weakR, accR, puzzleR, dueR, xpR, exR] = await Promise.allSettled([
     tiku.getSummary(props.subject.id),
-    tiku.getSetting('daily_goal'),
+    tiku.getSetting(props.subject && props.subject.id ? `daily_goal_${props.subject.id}` : 'daily_goal'),
     tiku.focusStats(),
     tiku.cardsStats(props.subject.id),
     tiku.getWeakPoints(5, props.subject.id),
@@ -79,6 +79,10 @@ async function load() {
   ])
   summary.value = sumR.status === 'fulfilled' && sumR.value ? sumR.value : { total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0, accuracy: 0, weekAccuracy: 0, weekDelta: 0, streak: 0 }
   dailyGoal.value = goalR.status === 'fulfilled' ? Number(goalR.value) || 0 : 0
+  // 科目未设目标时回退全局 daily_goal
+  if (!dailyGoal.value && props.subject && props.subject.id) {
+    try { dailyGoal.value = Number((await tiku.getSetting('daily_goal')) || 0) } catch (e) { dailyGoal.value = 0 }
+  }
   if (fsR.status === 'fulfilled' && fsR.value) { focusToday.value = fsR.value.today; focusWeek.value = fsR.value.week }
   if (cardsR.status === 'fulfilled' && cardsR.value) cardStats.value = cardsR.value
   weakPoints.value = weakR.status === 'fulfilled' && Array.isArray(weakR.value) ? weakR.value : []
