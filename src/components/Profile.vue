@@ -3,6 +3,7 @@ import Icon from './Icon.vue'
 import CountUp from './CountUp.vue'
 import { showConfirm } from '../utils/confirm.js'
 import { evaluate, achLevel, ACH_SERIES } from '../utils/achievements.js'
+import { vTilt } from '../utils/tilt.js'
 import { ref, onMounted, computed } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { applyAppearance } from '../utils/appearance.js'
@@ -296,7 +297,7 @@ onMounted(async () => {
 <template>
   <div class="profile">
     <!-- 用户信息 + XP 等级（紧凑右侧） -->
-    <div class="card user-card">
+    <div class="card user-card" v-tilt="{ deg: 3 }">
       <div class="avatar">{{ userName.slice(0, 1) }}</div>
       <div class="user-info">
         <div class="user-name">{{ userName }}</div>
@@ -325,7 +326,7 @@ onMounted(async () => {
       <div v-show="secOpen.learn" class="sec-body">
 
     <!-- 知识库概览（点击进入全部科目管理） -->
-    <div v-if="kbStats" class="card kb-overview-card" @click="emit('goto-kb-all')">
+    <div v-if="kbStats" class="card kb-overview-card" v-tilt="{ deg: 3 }" @click="emit('goto-kb-all')">
       <div class="card-title">知识库概览 <span class="kb-go">管理全部文档 ›</span></div>
       <div class="kb-stats">
         <div class="kb-stat"><b>{{ kbStats.docs }}</b><span>文档</span></div>
@@ -338,7 +339,7 @@ onMounted(async () => {
     </div>
 
     <!-- 游戏化成就：概览条 + 系列分组 + 三态成就卡 -->
-    <div class="card">
+    <div class="card ach-card" v-tilt="{ deg: 3 }">
       <!-- 概览条 -->
       <div class="ach-summary">
         <span class="ach-lv" :style="{ borderColor: achLv.min >= 600 ? '#7b46c4' : achLv.min >= 300 ? '#d9a514' : achLv.min >= 100 ? '#8a97a5' : '#b87333' }">{{ achLv.icon }} {{ achLv.name }}</span>
@@ -935,4 +936,35 @@ onMounted(async () => {
 .kb-overview-card { cursor: pointer; transition: border-color .15s; }
 .kb-overview-card:hover { border-color: var(--brand); }
 .kb-go { font-size: 11px; color: var(--brand); font-weight: 600; margin-left: 6px; }
+
+/* ===== 我的页铺开（2026-08-12）：渐变语言 / 流光 ===== */
+/* 用户卡/成就墙卡：渐变边框（门面） */
+.user-card, .ach-card {
+  border: 1px solid transparent;
+  background-image:
+    linear-gradient(var(--card), var(--card)),
+    linear-gradient(135deg, rgba(91, 124, 250, 0.4), rgba(122, 92, 255, 0.4));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  position: relative;
+}
+/* 成就墙卡 hover 流光 */
+.ach-card::after {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.7) 80deg, transparent 170deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0; pointer-events: none; transition: opacity .18s;
+}
+.ach-card:hover::after { opacity: 1; animation: angSpin 2.2s linear infinite; }
+
+/* 成就数字/知识库数字：渐变 */
+.ach-sum-item b, .kb-stat b {
+  background: linear-gradient(180deg, #f4f7ff, #a9b6da);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+[data-theme="light"] .ach-sum-item b, [data-theme="light"] .kb-stat b { background: linear-gradient(180deg, #1f2937, #64748b); -webkit-background-clip: text; background-clip: text; }
 </style>
