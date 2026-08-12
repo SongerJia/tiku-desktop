@@ -65,6 +65,9 @@ const examLeft = computed(() => {
 const goalPct = computed(() => dailyGoal.value ? Math.min(100, Math.round((summary.value.today / dailyGoal.value) * 100)) : 0)
 // 目标进度环弧长：157 = 2πr(25)，按完成度缩放
 const ringOffset = computed(() => 157 - (157 * goalPct.value) / 100)
+// 进度环动画：数据加载完成后从空环填充到目标值（精致动效）
+const ringAnim = ref(false)
+watch(loading, (v) => { if (!v) setTimeout(() => { ringAnim.value = true }, 80) })
 
 let loadSeq = 0 // 防竞态：快速切科目时旧请求晚返回，seq 不匹配则整体丢弃，避免过期数据覆盖
 async function load() {
@@ -289,8 +292,8 @@ onBeforeUnmount(() => {
         <div class="dock-ring" :class="{ clickable: !dailyGoal }" @click="dailyGoal ? null : emit('goto', 'profile')">
           <svg viewBox="0 0 60 60" width="88" height="88">
             <circle cx="30" cy="30" r="25" fill="none" stroke="rgba(148,163,184,0.14)" stroke-width="5"/>
-            <circle cx="30" cy="30" r="25" fill="none" stroke="var(--brand)" stroke-width="5" stroke-linecap="round"
-              :stroke-dasharray="'157 157'" :stroke-dashoffset="ringOffset" transform="rotate(-90 30 30)"/>
+            <circle cx="30" cy="30" r="25" fill="none" stroke="var(--brand)" stroke-width="5" stroke-linecap="round" class="ring-anim"
+              :stroke-dasharray="'157 157'" :stroke-dashoffset="ringAnim ? ringOffset : 157" transform="rotate(-90 30 30)"/>
             <text x="30" y="28" text-anchor="middle" font-size="13" fill="var(--text)" font-weight="600">{{ dailyGoal ? summary.today + '/' + dailyGoal : '—' }}</text>
             <text x="30" y="43" text-anchor="middle" font-size="10" fill="var(--muted)">今日目标</text>
           </svg>
@@ -581,4 +584,29 @@ onBeforeUnmount(() => {
 .mi-main { flex: 1; font-size: 13px; color: var(--text); }
 .mi-count { font-size: 11px; color: var(--muted); }
 .mi-count.due { color: var(--warn); font-weight: 600; }
+
+/* ===== 精致化（2026-08-12）：入场 stagger / 问候渐变 / 环动画 / 宫格 hover ===== */
+/* 卡片依次浮入（非 .card 元素如 action-dock/kpi-strip 也覆盖） */
+.home > * { animation: riseIn .4s cubic-bezier(.2, .7, .3, 1) both; }
+.home > *:nth-child(1) { animation-delay: .02s; }
+.home > *:nth-child(2) { animation-delay: .06s; }
+.home > *:nth-child(3) { animation-delay: .10s; }
+.home > *:nth-child(4) { animation-delay: .14s; }
+.home > *:nth-child(5) { animation-delay: .18s; }
+.home > *:nth-child(6) { animation-delay: .22s; }
+.home > *:nth-child(7) { animation-delay: .26s; }
+.home > *:nth-child(8) { animation-delay: .30s; }
+
+/* 问候卡：靛蓝渐变打底 + 品牌描边（门面质感） */
+.greet-card {
+  background: linear-gradient(160deg, rgba(91, 124, 250, 0.12), var(--card) 55%);
+  border-color: rgba(91, 124, 250, 0.35);
+}
+
+/* 目标进度环：从空环填充到目标值 */
+.ring-anim { transition: stroke-dashoffset 1s cubic-bezier(.3, .7, .3, 1); }
+
+/* 更多宫格：hover 抬升 + 亮底 */
+.more-item { transition: transform .15s ease, background .15s ease, box-shadow .15s ease; }
+.more-item:hover { transform: translateY(-2px); background: rgba(91, 124, 250, 0.08); box-shadow: var(--glow-soft); }
 </style>
