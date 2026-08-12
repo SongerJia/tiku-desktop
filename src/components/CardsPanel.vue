@@ -116,10 +116,16 @@ async function startReview() {
 }
 
 const cur = computed(() => reviewItems.value[rIdx.value] || null)
+let marking = false // 防双击：await rateCard 窗口内重复评级跳卡
 
 async function mark(felt) {
-  if (!cur.value) return
-  await tiku.rateCard(cur.value.id, felt ? 1 : 0)
+  if (!cur.value || marking) return
+  marking = true
+  try {
+    await tiku.rateCard(cur.value.id, felt ? 1 : 0)
+  } finally {
+    marking = false
+  }
   rDone.value++
   flipped.value = false
   if (rIdx.value + 1 >= reviewItems.value.length) {

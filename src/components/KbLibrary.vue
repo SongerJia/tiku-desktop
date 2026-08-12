@@ -118,7 +118,7 @@ const groupedDocs = computed(() => {
 
 async function onImport() {
   const res = (await tiku.kbImportFiles(null, filterSubjectId.value)) || []
-  const ok = res.filter(r => r.ok)
+  const ok = res.filter(r => r.ok && !r.duplicated) // duplicated 项不重复计数
   const dup = res.filter(r => r.duplicated)
   const failed = res.filter(r => !r.ok)
   if (ok.length || dup.length) {

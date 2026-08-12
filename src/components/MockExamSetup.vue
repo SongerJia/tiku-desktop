@@ -40,9 +40,10 @@ const totalScore = () => {
   const n = totalCount()
   if (!n) return 0
   const manual = rules.value.reduce((s, r) => s + (r.score && Number(r.score) > 0 ? Number(r.score) * (Number(r.count) || 0) : 0), 0)
-  // 有手动分值就按手动算，否则按等分 100
+  // 与 db-paper 组卷一致：手动分值优先，未设分值的自动题均摊剩余分值 (100 - 手动总分)
   const auto = rules.value.reduce((s, r) => s + (r.score && Number(r.score) > 0 ? 0 : (Number(r.count) || 0)), 0)
-  return Math.round((manual + auto * (100 / n)) * 10) / 10
+  const autoScore = auto > 0 ? Math.max(0, 100 - manual) / auto : 0
+  return Math.round((manual + auto * autoScore) * 10) / 10
 }
 
 async function loadSubjects() {

@@ -347,7 +347,7 @@ async function batchDelete() {
               :class="{ on: tagFilter.includes(t) }"
               @click="toggleTagFilter(t)"
             >#{{ t }}</button>
-            <button v-if="tagFilter.length" class="tag-clear" @click="tagFilter = []">清空筛选</button>
+            <button v-if="tagFilter.length" class="tag-clear" @click="tagFilter = []; loadList()">清空筛选</button>
           </div>
 
           <!-- 列表 -->
