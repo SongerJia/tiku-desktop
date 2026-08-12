@@ -120,6 +120,23 @@ function trackReviewDone() {
   lastDue = dueReviews.value
 }
 
+// H22 时段学习建议：按当前时间 + 数据生成一条行动建议
+const adviceText = computed(() => {
+  const h = new Date().getHours()
+  if (h < 12) return dueReviews.value > 0 ? '早上大脑清醒：先复习到期错题，再刷今日目标' : '早上大脑清醒：适合攻克记忆类内容'
+  if (h < 18) return weakPoints.value.length ? `下午状态稳：攻坚薄弱点「${String(weakPoints.value[0].stem || '').slice(0, 12)}…」` : '下午状态稳：适合做整卷模拟考'
+  return dueReviews.value > 0 ? '晚上收尾：把今天的新错题转成记忆卡，明天再复习' : '晚上适合整理：回顾今天的错因，标记一下为什么错'
+})
+
+// H21 番茄完成反馈：work 阶段完成时番茄条上方绿闪
+const focusDoneFlash = ref(false)
+let focusFlashTimer = null
+function flashFocusDone() {
+  focusDoneFlash.value = true
+  clearTimeout(focusFlashTimer)
+  focusFlashTimer = setTimeout(() => { focusDoneFlash.value = false }, 3200)
+}
+
 // 通用 3D 倾斜指令（v-tilt）：任何卡片跟随鼠标立体倾斜，入场动画结束后自动解除压制
 // 幅度按元素类型分级：行动台 ±6°，其他区块 ±4°
 const vTilt = {
@@ -248,6 +265,7 @@ async function phaseComplete() {
   try {
     if (focusPhase.value === 'work') {
       pomodoroCount.value++
+      flashFocusDone() // H21 番茄完成绿闪
       try {
         await tiku.addFocusSession(25)
         const fs = await tiku.focusStats()
@@ -344,6 +362,11 @@ onBeforeUnmount(() => {
           <span class="greet-title">{{ greeting }}</span>
           <span class="greet-date">{{ todayStr }}</span>
         </div>
+        <!-- H22 时段建议：根据时间+数据生成一条行动建议 -->
+        <div class="advice-line">
+          <span class="adv-ico"><Icon name="target" :size="12"/></span>
+          <span>{{ adviceText }}</span>
+        </div>
         <!-- 等级进度条（门面③）：Lv 徽章 + 渐变 XP 进度 -->
         <div class="lv-bar" v-tilt="{ deg: 2 }">
           <span class="lv-badge">Lv.{{ lvInfo.level }}</span>
@@ -412,8 +435,12 @@ onBeforeUnmount(() => {
           <div class="dock-btn daily" @click="startDaily" :class="{ disabled: !(dailyPuzzle && dailyPuzzle.question) }">
             <div><b>每日一题</b><span class="db-sub">{{ dailyPuzzle && dailyPuzzle.question ? (dailyPuzzle.state.answered ? '今天已答 · 查看解析' : '30 秒搞定 · 攒连击') : '明天再来' }}</span></div>
             <em>{{ dailyPuzzle && dailyPuzzle.state ? dailyPuzzle.state.streak : 0 }}</em>
-            <span v-if="dailyPuzzle && dailyPuzzle.question" class="tip tip-wide">
+            <!-- H20：未答→题干预览；已答→结果反馈 -->
+            <span v-if="dailyPuzzle && dailyPuzzle.question && !dailyPuzzle.state.answered" class="tip tip-wide">
               {{ typeLabel(dailyPuzzle.question.type) }} · {{ (dailyPuzzle.question.stem || '').slice(0, 40) }}{{ (dailyPuzzle.question.stem || '').length > 40 ? '…' : '' }}
+            </span>
+            <span v-else-if="dailyPuzzle && dailyPuzzle.state.answered" class="tip">
+              今天已答 · {{ dailyPuzzle.state.correct ? '答对 ✓' : '答错' }} · 连击 {{ dailyPuzzle.state.streak }} 天
             </span>
           </div>
           <div class="dock-btn quick" @click="emit('quick')">
@@ -462,6 +489,12 @@ onBeforeUnmount(() => {
         <span class="em-ico"><Icon name="clock" :size="13"/></span>
         <span class="em-name">设置目标考试日，首页显示倒计时</span>
         <span class="em-num">去设置 ›</span>
+      </div>
+
+      <!-- 番茄完成反馈（H21） -->
+      <div v-if="focusDoneFlash" class="focus-done">
+        <span class="fd-ico"><Icon name="check" :size="15"/></span>
+        <span>专注完成！第 {{ pomodoroCount }} 个番茄 +50 XP，休息一下</span>
       </div>
 
       <!-- 番茄专注（单行） -->
@@ -967,5 +1000,23 @@ onBeforeUnmount(() => {
 }
 .review-done .rd-ico { color: var(--ok); display: flex; }
 .review-done b { color: #bfe8d8; }
+
+
+/* H20/H21/H22 样式：建议行 / 番茄完成闪条 */
+.advice-line {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 8px; font-size: 11.5px; color: var(--muted);
+}
+.adv-ico { color: var(--brand); display: flex; flex-shrink: 0; }
+
+.focus-done {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(47, 191, 143, 0.10);
+  border: 1px solid rgba(47, 191, 143, 0.45);
+  border-radius: 12px; padding: 12px 14px;
+  font-size: 13.5px; color: #a8d9c5;
+  animation: riseIn .35s cubic-bezier(.2, .7, .3, 1) both;
+}
+.focus-done .fd-ico { color: var(--ok); display: flex; }
 
 </style>
