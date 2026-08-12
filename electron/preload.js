@@ -122,6 +122,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   restoreBackup: (file) => ipcRenderer.invoke('restoreBackup', file),
   addCard: (front, back, category, subjectId) => ipcRenderer.invoke('addCard', front, back, category, subjectId),
   addCardFromQuestion: (questionId) => ipcRenderer.invoke('addCardFromQuestion', questionId),
+  addCardFromHighlight: (highlightId) => ipcRenderer.invoke('addCardFromHighlight', highlightId),
   listCards: (subjectId) => ipcRenderer.invoke('listCards', subjectId),
   updateCard: (id, front, back, category, subjectId) => ipcRenderer.invoke('updateCard', id, front, back, category, subjectId),
   deleteCard: (id) => ipcRenderer.invoke('deleteCard', id),

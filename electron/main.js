@@ -418,6 +418,7 @@ ipcMain.handle('unlinkDocs', (e, fromDocId, toDocId) => db.unlinkDocs(fromDocId,
 ipcMain.handle('setWrongReason', (e, questionId, reason) => db.setWrongReason(questionId, reason))
 ipcMain.handle('addCard', (e, front, back, category, subjectId) => db.addCard(front, back, category, subjectId))
 ipcMain.handle('addCardFromQuestion', (e, questionId) => db.addCardFromQuestion(questionId))
+ipcMain.handle('addCardFromHighlight', (e, highlightId) => db.addCardFromHighlight(highlightId))
 ipcMain.handle('listCards', (e, subjectId) => db.listCards(subjectId))
 ipcMain.handle('updateCard', (e, id, front, back, category, subjectId) => db.updateCard(id, front, back, category, subjectId))
 ipcMain.handle('deleteCard', (e, id) => db.deleteCard(id))

@@ -381,6 +381,19 @@ async function removeHl(id) {
   await loadHlAndLinks()
 }
 
+// 高亮 → 记忆卡（E-2）：正面=高亮文本，背面=原文+文档标题
+let hlCardBusy = null
+async function hlToCard(h) {
+  if (hlCardBusy === h.id) return
+  hlCardBusy = h.id
+  try {
+    const r = await tiku.addCardFromHighlight(h.id)
+    if (r.ok) showToast(r.duplicate ? '该高亮已生成过记忆卡' : '已生成记忆卡，可在「记忆卡」复习', 'ok')
+    else showToast('生成失败：' + (r.error || '未知错误'), 'err')
+  } catch (e) { showToast('生成失败：' + (e.message || e), 'err') }
+  finally { hlCardBusy = null }
+}
+
 function onLinkInput() {
   clearTimeout(linkTimer)
   const kw = linkKw.value.trim()
@@ -680,6 +693,7 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
             <div v-if="hl.length" class="kb-hl">
               <div v-for="h in hl" :key="h.id" class="kb-lq">
                 <span class="kb-hl-text" :style="{ background: hlColor(h.color) }">{{ h.text }}</span>
+                <button class="kb-lq-act" :class="{ busy: hlCardBusy === h.id }" @click="hlToCard(h)">转卡</button>
                 <button class="kb-lq-act" @click="removeHl(h.id)">删除</button>
               </div>
             </div>

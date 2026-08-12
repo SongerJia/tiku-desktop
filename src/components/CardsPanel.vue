@@ -29,6 +29,14 @@ const form = ref({ id: null, front: '', back: '', category: '', subjectId: null 
 
 const dueCount = computed(() => stats.value.due)
 
+// 记忆状态徽标（E-1）：按复习次数/遗忘次数分级
+function cardBadge(c) {
+  if (c.lapses >= 2 && (c.review_count || 0) < 5) return { cls: 'warn', text: `易忘 · 忘过 ${c.lapses} 次` }
+  if ((c.review_count || 0) >= 5) return { cls: 'ok', text: `稳定 · 记过 ${c.review_count} 次` }
+  if ((c.review_count || 0) >= 1) return { cls: 'mid', text: `复习中 · ${c.review_count} 次` }
+  return { cls: 'new', text: '新卡' }
+}
+
 async function load() {
   loading.value = true
   try {
@@ -198,6 +206,7 @@ watch(scope, () => { if (props.show) load() })
               <div class="card-back">{{ c.back }}</div>
             </div>
             <div class="card-meta">
+              <span class="mem-badge" :class="cardBadge(c).cls">{{ cardBadge(c).text }}</span>
               <span v-if="!c.subject_id && isAll" class="cat-badge uncat">未分类</span>
               <span v-if="c.source_question_id" class="cat-badge src">来自题目</span>
               <span v-if="c.category" class="cat-badge">{{ c.category }}</span>
@@ -280,6 +289,12 @@ watch(scope, () => { if (props.show) load() })
 .card-front { font-size: 14px; font-weight: 600; color: var(--text); }
 .card-back { font-size: 13px; color: var(--muted); }
 .card-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+/* 记忆状态徽标（E-1） */
+.mem-badge { font-size: 10px; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.mem-badge.ok { background: rgba(47, 191, 143, 0.12); border: 1px solid rgba(47, 191, 143, 0.45); color: #5dcaa5; }
+.mem-badge.mid { background: rgba(91, 124, 250, 0.15); border: 1px solid rgba(91, 124, 250, 0.5); color: #85b7eb; }
+.mem-badge.warn { background: rgba(217, 154, 61, 0.12); border: 1px solid rgba(217, 154, 61, 0.45); color: #ef9f27; }
+.mem-badge.new { background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.35); color: #b4b2a9; }
 .cat-badge { font-size: 10px; color: var(--brand); border: 1px solid rgba(91, 124, 250, 0.35); border-radius: 5px; padding: 0 6px; }
 .cat-badge.uncat { color: var(--muted); border-color: var(--line); }
 /* 记忆卡范围角标（点击切换全部/当前科目） */

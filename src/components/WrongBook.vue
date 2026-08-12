@@ -68,6 +68,15 @@ const typeLabel = (t) => ({ single: '单选', multiple: '多选', judge: '判断
 const answerText = (q) => (q.answer && q.answer.length) ? q.answer.join('、') : '（主观题）'
 const REASONS = ['粗心', '知识点不懂', '时间不够', '审题不清', '其他']
 
+// 记忆状态徽标（E-1）：按 SM-2 interval/status 分级——记忆可解释
+function memBadge(it) {
+  if (it.status === 'mastered') return { cls: 'ok', text: '已掌握' }
+  const iv = it.interval || 0
+  if (iv >= 7) return { cls: 'ok', text: `稳定 · 间隔 ${iv} 天` }
+  if (iv >= 1) return { cls: 'mid', text: `巩固中 · 间隔 ${iv} 天` }
+  return { cls: 'bad', text: '脆弱 · 明天重点看' }
+}
+
 async function setReason(it, reason) {
   it.reason = reason
   await tiku.setWrongReason(it.question_id, reason)
@@ -164,7 +173,10 @@ async function toggleSimilar(qid) {
     <p v-else-if="!filteredItems.length" class="empty">该分组下暂无错题</p>
     <div v-for="it in filteredItems" :key="it.question_id" class="card">
       <div class="stem">{{ it.stem }}</div>
-      <div class="meta">答错 {{ it.wrong_count }} 次 · 已复习 {{ it.reviewed_count }} 次 <span v-if="it.wrong_count >= 3" class="stubborn">顽固 · 复习优先</span></div>
+      <div class="meta">
+        <span class="mem-badge" :class="memBadge(it).cls">{{ memBadge(it).text }}</span>
+        答错 {{ it.wrong_count }} 次 · 已复习 {{ it.reviewed_count }} 次 <span v-if="it.wrong_count >= 3" class="stubborn">顽固 · 复习优先</span>
+      </div>
       <div class="reason-row">
         <span class="reason-label">错因</span>
         <select class="reason-select" :value="it.reason || ''" @change="setReason(it, $event.target.value)">
@@ -225,8 +237,13 @@ async function toggleSimilar(qid) {
 .wb-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .wb-head h2 { margin: 0; }
 .stem { font-weight: 500; margin-bottom: 6px; }
-.meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .stubborn { color: var(--bad); border: 1px solid rgba(229, 83, 95, 0.4); background: rgba(229, 83, 95, 0.08); border-radius: 6px; padding: 0 6px; margin-left: 6px; font-size: 11px; }
+/* 记忆状态徽标（E-1） */
+.mem-badge { font-size: 10.5px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.mem-badge.ok { background: rgba(47, 191, 143, 0.12); border: 1px solid rgba(47, 191, 143, 0.45); color: #5dcaa5; }
+.mem-badge.mid { background: rgba(91, 124, 250, 0.15); border: 1px solid rgba(91, 124, 250, 0.5); color: #85b7eb; }
+.mem-badge.bad { background: rgba(229, 83, 95, 0.15); border: 1px solid rgba(229, 83, 95, 0.5); color: #f09595; }
 .actions { display: flex; gap: 8px; }
 button { border: none; padding: 7px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; }
 .primary { background: var(--brand); color: #fff; }
