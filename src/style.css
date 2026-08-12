@@ -557,3 +557,36 @@ body::after {
 .app { animation: gridDrift 60s linear infinite; }
 @keyframes gridDrift { to { background-position: 30px 30px, 30px 30px, 0 0, 0 0; } }
 [data-theme="light"] body::after { opacity: .55; }
+
+/* ===== 门面 10 件套：全局项（⑦ 标题竖线 / ⑩ logo 呼吸）===== */
+/* ⑦ 区块标题：左侧品牌渐变竖线（全站统一语言） */
+.card-title { position: relative; padding-left: 10px; }
+.card-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 3px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--brand), var(--brand2));
+}
+
+/* ⑩ 侧栏 logo：呼吸光晕（3s 一圈扩散消隐） */
+.side-brand { position: relative; }
+.side-brand::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: logoPulse 3s ease-in-out infinite;
+}
+@keyframes logoPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(91, 124, 250, 0); }
+  50% { box-shadow: 0 0 0 12px rgba(91, 124, 250, 0.12); }
+}

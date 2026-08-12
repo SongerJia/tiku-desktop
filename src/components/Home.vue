@@ -16,6 +16,8 @@ const loading = ref(true)
 const dailyPuzzle = ref(null) // { question, state }
 const dueReviews = ref(0)
 const xpTotal = ref(0)
+// 等级进度（门面精美③）：xpStats 的 level 曲线信息，首页渲染 Lv 徽章 + 渐变进度条
+const lvInfo = ref({ level: 1, curLevelBase: 0, nextLevelBase: 100, pct: 0 })
 const examDate = ref('')
 const weakPoints = ref([])
 const weakAccuracy = ref([])
@@ -138,6 +140,17 @@ async function load() {
   dailyPuzzle.value = puzzleR.status === 'fulfilled' ? puzzleR.value : null
   dueReviews.value = dueR.status === 'fulfilled' && dueR.value ? dueR.value.due || 0 : 0
   xpTotal.value = xpR.status === 'fulfilled' && xpR.value ? (xpR.value.total || 0) : 0
+  if (xpR.status === 'fulfilled' && xpR.value) {
+    const x = xpR.value
+    const base = x.curLevelBase || 0
+    const next = x.nextLevelBase || base + 100
+    lvInfo.value = {
+      level: x.level || 1,
+      curLevelBase: base,
+      nextLevelBase: next,
+      pct: next > base ? Math.min(100, Math.round(((x.total - base) / (next - base)) * 100)) : 0
+    }
+  }
   // 考试日：科目 key 优先，未设置则全局兜底
   if (exR.status === 'fulfilled') examDate.value = exR.value || ''
   if (briefR.status === 'fulfilled' && briefR.value) dailyBrief.value = briefR.value
@@ -295,6 +308,15 @@ onBeforeUnmount(() => {
           <span class="greet-title">{{ greeting }}</span>
           <span class="greet-date">{{ todayStr }}</span>
         </div>
+        <!-- 等级进度条（门面③）：Lv 徽章 + 渐变 XP 进度 -->
+        <div class="lv-bar">
+          <span class="lv-badge">Lv.{{ lvInfo.level }}</span>
+          <div class="lv-track">
+            <div class="lv-fill" :style="{ width: lvInfo.pct + '%' }"></div>
+            <span class="lv-glow" :style="{ left: 'calc(' + lvInfo.pct + '% - 6px)' }"></span>
+          </div>
+          <span class="lv-xp">{{ xpTotal }} / {{ lvInfo.nextLevelBase }} XP</span>
+        </div>
         <!-- 昨日小结（昨日有学习记录时优先显示，替代本周总结条） -->
         <div v-if="dailyBrief.answered > 0" class="brief-bar" @click="emit('goto', 'stats')">
           <span class="growth-icon"><Icon name="check" :size="14"/></span>
@@ -330,9 +352,12 @@ onBeforeUnmount(() => {
             <circle cx="30" cy="30" r="25" fill="none" stroke="rgba(148,163,184,0.14)" stroke-width="5"/>
             <circle cx="30" cy="30" r="25" fill="none" stroke="var(--brand)" stroke-width="5" stroke-linecap="round" class="ring-anim"
               :stroke-dasharray="'157 157'" :stroke-dashoffset="ringAnim ? ringOffset : 157" transform="rotate(-90 30 30)"/>
-            <text x="30" y="28" text-anchor="middle" font-size="13" fill="var(--text)" font-weight="600">{{ dailyGoal ? summary.today + '/' + dailyGoal : '—' }}</text>
-            <text x="30" y="43" text-anchor="middle" font-size="10" fill="var(--muted)">今日目标</text>
           </svg>
+          <!-- 环中心数字：HTML 覆盖层（CountUp 滚动与环填充同步） -->
+          <div class="ring-center">
+            <span class="rc-num"><CountUp v-if="dailyGoal" :value="summary.today" /></span><span class="rc-total" v-if="dailyGoal">/{{ dailyGoal }}</span>
+            <span class="rc-none" v-else>—</span>
+          </div>
           <div class="ring-sub">{{ dailyGoal ? '完成 ' + goalPct + '%' : '点此设置目标' }}</div>
         </div>
         <div class="dock-actions">
@@ -756,4 +781,83 @@ onBeforeUnmount(() => {
   opacity: 0; pointer-events: none; transition: opacity .18s;
 }
 .more-item:hover::after { opacity: 1; animation: angSpin 2.2s linear infinite; }
+
+/* ===== 门面 10 件套（2026-08-12 全上）===== */
+/* ① 问候语渐变文字（靛蓝→紫） */
+.greet-title {
+  background: linear-gradient(90deg, #93b1ff, #c3a8ff);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+
+/* ② 问候卡装饰波纹（右上同心圆环，overflow hidden 裁切） */
+.greet-card::after {
+  content: ''; position: absolute; top: -42px; right: -34px;
+  width: 150px; height: 150px; border-radius: 50%;
+  border: 1px solid rgba(91, 124, 250, 0.20);
+  box-shadow: 0 0 0 20px rgba(91, 124, 250, 0.05), 0 0 0 40px rgba(91, 124, 250, 0.03);
+  pointer-events: none;
+}
+
+/* ③ 等级进度条：Lv 徽章 + 渐变 XP 进度 + 尽头光点 */
+.lv-bar { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.lv-badge {
+  flex-shrink: 0; font-size: 11px; font-weight: 600;
+  background: linear-gradient(135deg, rgba(91, 124, 250, 0.25), rgba(122, 92, 255, 0.2));
+  border: 1px solid rgba(91, 124, 250, 0.45); color: #c8d3f5;
+  border-radius: 999px; padding: 2px 9px;
+}
+.lv-track { flex: 1; height: 6px; border-radius: 3px; background: rgba(148, 163, 184, 0.14); overflow: hidden; position: relative; }
+.lv-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--brand), var(--brand2)); animation: fillBar .9s cubic-bezier(.3, .7, .3, 1) both; }
+.lv-glow { position: absolute; top: 0; bottom: 0; width: 12px; border-radius: 3px; background: rgba(255, 255, 255, 0.55); filter: blur(3px); pointer-events: none; }
+.lv-xp { font-size: 11px; color: var(--muted); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+
+/* ④ KPI 大数字渐变光泽（small 保持 muted，看足迹保持品牌渐变） */
+.kpi-num {
+  background: linear-gradient(180deg, #f4f7ff, #a9b6da);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+.kpi-num small { -webkit-text-fill-color: var(--muted); }
+.kpi-num.accent { background: linear-gradient(90deg, var(--brand), var(--brand2)); -webkit-background-clip: text; background-clip: text; }
+
+/* ⑤ 渐变边框：问候卡 / 进度环卡（双背景 border-box 技巧） */
+.greet-card {
+  border: 1px solid transparent;
+  background-image:
+    linear-gradient(160deg, rgba(91, 124, 250, 0.16), var(--card) 60%),
+    linear-gradient(135deg, rgba(91, 124, 250, 0.55), rgba(122, 92, 255, 0.55));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+.dock-ring {
+  border: 1px solid transparent;
+  background-image:
+    linear-gradient(var(--card), var(--card)),
+    linear-gradient(135deg, rgba(91, 124, 250, 0.45), rgba(122, 92, 255, 0.45));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  position: relative;
+}
+
+/* ⑥ 宫格图标 hover：渐变底（品牌紫蓝统一语言） */
+.mi-ico { transition: transform .18s cubic-bezier(.3, .7, .3, 1), background .18s ease; }
+.more-item:hover .mi-ico { background: linear-gradient(135deg, rgba(91, 124, 250, 0.3), rgba(122, 92, 255, 0.2)); }
+
+/* ⑧ 环中心数字：HTML 覆盖层（CountUp 滚动与环填充同步） */
+.ring-center {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  padding-bottom: 12px; pointer-events: none;
+}
+.rc-num { font-size: 16px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.rc-total { font-size: 11px; color: var(--muted); margin-left: 2px; }
+.rc-none { font-size: 15px; color: var(--muted); }
+
+/* ⑨ KPI 分隔线渐变（中间亮两端透明） */
+.kpi-sep { background: linear-gradient(180deg, transparent, rgba(148, 163, 184, 0.35), transparent); }
+
+/* 浅色主题：渐变文字换深色系 */
+[data-theme="light"] .greet-title { background: linear-gradient(90deg, #3d5bd9, #7c3aed); -webkit-background-clip: text; background-clip: text; }
+[data-theme="light"] .kpi-num { background: linear-gradient(180deg, #1f2937, #64748b); -webkit-background-clip: text; background-clip: text; }
+[data-theme="light"] .lv-badge { color: #3d5bd9; }
 </style>
