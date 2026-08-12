@@ -11,7 +11,11 @@ const props = defineProps({
 const emit = defineEmits(['confirm', 'cancel', 'resume'])
 
 // 科目范围：默认跟随当前科目（内容闭环按科目维度），可切「全部科目」
-const subjectScope = ref(props.preset.subjectId ? 'current' : 'all')
+// 章节维度（2026-08-12 重构）：题目归属是章节粒度，练习范围按章节选。
+// 默认选中进入时的章节（preset.categoryId），可切同科目其他章节；「全部章节」= 当前科目全部题。
+// 不再提供「科目范围」选择——练习就练当前科目，避免与章节维度重复。
+const chapters = ref([])
+const selectedCatId = ref(props.preset.categoryId)
 
 // 断点续做 + 智能复习到期提示
 const resumeSession = ref(null)
@@ -38,6 +42,12 @@ onMounted(async () => {
   try { allTags.value = (await tiku.listTags()).map(t => t.tag) } catch (e) { allTags.value = [] }
   try { resumeSession.value = await tiku.getResumeSession() } catch (e) { resumeSession.value = null }
   try { reviewDue.value = await tiku.reviewDueStats(props.preset.subjectId) } catch (e) { reviewDue.value = null }
+  // 章节 chips：当前科目下的二级分类（与知识点页同口径）
+  try {
+    const tree = await tiku.getCategories()
+    const node = tree.find(n => n.id === props.preset.subjectId)
+    chapters.value = node ? node.children : []
+  } catch (e) { chapters.value = [] }
 })
 function toggleTag(t) {
   const i = selTags.value.indexOf(t)
@@ -59,7 +69,14 @@ const durationMin = ref(60)
 const recite = ref(false)
 
 const isExam = computed(() => scope.value === 'exam')
-const scopeLabel = computed(() => props.preset.scopeLabel || '全部范围')
+// 头部范围标签：选中章节时显示章节名，否则用进入时的预设（本章节/科目名/全部）
+const scopeLabel = computed(() => {
+  if (selectedCatId.value) {
+    const ch = chapters.value.find(c => c.id === selectedCatId.value)
+    if (ch) return ch.name
+  }
+  return props.preset.scopeLabel || '全部范围'
+})
 
 function pickScope(s) {
   scope.value = s
@@ -72,8 +89,8 @@ function pickScope(s) {
 
 function confirm() {
   const cfg = {
-    categoryId: props.preset.categoryId,
-    subjectId: subjectScope.value === 'all' ? null : props.preset.subjectId,
+    categoryId: selectedCatId.value, // 选中章节（null = 当前科目全部）
+    subjectId: props.preset.subjectId, // 固定当前科目，不再提供跨科目
     mode: scope.value,
     order: order.value,
     limit: limit.value ? Number(limit.value) : (isExam.value ? 50 : null),
@@ -108,12 +125,27 @@ function confirm() {
           <Icon name="clock" :size="13"/> 今日到期 <b>{{ reviewDue.due }}</b> 题 · 预计 {{ reviewDue.estMinutes }} 分钟
         </div>
 
-        <!-- 科目范围（内容闭环默认跟随当前科目，可切全部） -->
-        <div class="section" v-if="props.preset.subjectName">
-          <div class="sec-title">科目范围</div>
-          <div class="seg">
-            <button :class="{ on: subjectScope === 'current' }" @click="subjectScope = 'current'">{{ props.preset.subjectName }}</button>
-            <button :class="{ on: subjectScope === 'all' }" @click="subjectScope = 'all'">全部科目</button>
+        <!-- 章节范围（2026-08-12 重构）：题目归属是章节维度，默认选中进入章节，可切同科目其他章节；「全部章节」= 当前科目全部题 -->
+        <div class="section" v-if="chapters.length">
+          <div class="sec-title">章节范围</div>
+          <div class="chips">
+            <button
+              class="chip"
+              :class="{ active: !selectedCatId }"
+              @click="selectedCatId = null"
+            >
+              <span class="chip-label">全部章节</span>
+              <span class="chip-desc">当前科目全部题</span>
+            </button>
+            <button
+              v-for="ch in chapters"
+              :key="ch.id"
+              class="chip"
+              :class="{ active: selectedCatId === ch.id }"
+              @click="selectedCatId = ch.id"
+            >
+              <span class="chip-label">{{ ch.name }}</span>
+            </button>
           </div>
         </div>
 
