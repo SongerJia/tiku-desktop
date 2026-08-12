@@ -36,8 +36,13 @@ module.exports = function syncModule(ctx) {
         favorites: dump('favorites', COLS.favorites),
         notes: dump('notes', COLS.notes),
         papers: dump('papers', COLS.papers),
-        paperQuestions: dump('paper_questions', COLS.paperQuestions),
-        kbDocs: dump('kb_docs', COLS.kbDocs),
+        paperQuestions: sqlite.prepare(
+          `SELECT pq.id, pq.paper_id, pq.seq, pq.question_id, pq.score, pq.client_id, pq.question_cid, pq.deleted, p.client_id AS paper_cid
+           FROM paper_questions pq JOIN papers p ON p.id = pq.paper_id WHERE pq.deleted=0`
+        ).all(),
+        kbDocs: sqlite.prepare(
+          `SELECT d.*, c.client_id AS category_cid FROM kb_docs d LEFT JOIN categories c ON c.id = d.category_id WHERE d.deleted=0`
+        ).all(),
         kbBlocks: dump('kb_blocks', COLS.kbBlocks),
         kbTags: dump('kb_tags', COLS.kbTags),
         kbLinks: dump('kb_links', COLS.kbLinks),
@@ -113,7 +118,9 @@ module.exports = function syncModule(ctx) {
       // 快照 JSON 仅保留结构化数据，体积大幅瘦身；拉取时按清单按需还原、未变更跳过重传。
 
       // 知识库：kb_docs（含 client_id）+ 子表按 doc client_id 分组 + MD 文件 base64（PDF 只带 rel_path）
-      const kbDocs = dump('kb_docs')
+      const kbDocs = sqlite.prepare(
+        `SELECT d.*, c.client_id AS category_cid FROM kb_docs d LEFT JOIN categories c ON c.id = d.category_id WHERE d.deleted=0`
+      ).all()
       const incDocCids = new Set(kbDocs.map(d => d.client_id))
       const inIncDocs = (cid) => full || incDocCids.has(cid)
       const kbBlocksByCid = {}
@@ -159,7 +166,11 @@ module.exports = function syncModule(ctx) {
         favorites: dump('favorites'),
         notes: dump('notes'),
         papers: dump('papers'),
-        paperQuestions: dump('paper_questions'),
+        // paper_questions 带 paper_cid（JOIN papers 取 client_id），merge 时才能按 cid 映射回本地 paper_id，否则跨端卷题目错位
+        paperQuestions: sqlite.prepare(
+          `SELECT pq.id, pq.paper_id, pq.seq, pq.question_id, pq.score, pq.client_id, pq.question_cid, pq.deleted, p.client_id AS paper_cid
+           FROM paper_questions pq JOIN papers p ON p.id = pq.paper_id WHERE pq.deleted=0`
+        ).all(),
         questionTags,
         kbDocs,
         kbBlocksByCid,
@@ -231,7 +242,7 @@ module.exports = function syncModule(ctx) {
         { table: 'notes', cols: ['user_id', 'question_id', 'content', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
         { table: 'papers', cols: ['title', 'subject_id', 'duration_minutes', 'total_score', 'rules_json', 'created_at', 'client_id', 'updated_at', 'deleted'] },
         { table: 'paper_questions', cols: ['paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted'] },
-        { table: 'kb_docs', cols: ['title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'subject_id', 'last_page', 'created_at', 'updated_at', 'deleted', 'client_id'] },
+        { table: 'kb_docs', cols: ['title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'subject_id', 'category_id', 'last_page', 'created_at', 'updated_at', 'deleted', 'client_id'] },
         // 反馈层（批次功能新增，全部 LWW）
         { table: 'xp_logs', cols: ['user_id', 'xp', 'source', 'note', 'created_at', 'deleted', 'client_id'] },
         { table: 'focus_sessions', cols: ['minutes', 'started_at', 'created_at', 'deleted', 'client_id'] },
@@ -276,6 +287,13 @@ module.exports = function syncModule(ctx) {
         const catMerged = lwwMerge(readAll('categories'), remote.categories || [])
         const catCidToId = new Map()
         for (const r of catMerged) catCidToId.set(r.client_id, catUpsert(r))
+        // 父级按 cid 重映射：远端行 parent_id 是对方机器自增 id，LWW 胜出时父级指向错行 → 科目树父子错乱
+        for (const r of catMerged) {
+          if (r.parent_cid != null && catCidToId.has(r.parent_cid) && catCidToId.get(r.parent_cid) !== r.parent_id) {
+            r.parent_id = catCidToId.get(r.parent_cid)
+            catUpsert(r)
+          }
+        }
 
         // 1.5) materials（案例题背景材料，独立合并建 cid→id 映射，questions 引用它）
         const matUpsert = makeUpsert('materials', cfg[12].cols)
@@ -316,12 +334,17 @@ module.exports = function syncModule(ctx) {
         const pqUpsert = makeUpsert('paper_questions', cfg[7].cols)
         pqMerged.forEach(r => pqUpsert(r))
 
-        // question_tags：按题目 client_id 解析成本机 question_id
+        // question_tags：按题目 client_id 解析成本机 question_id；远端为准重置（远端 dump 全量）→ 删除也能传播，不再只增不删
         const qtMerged = remote.questionTags || []
         const qtIns = sqlite.prepare('INSERT OR IGNORE INTO question_tags (question_id, tag) VALUES (?,?)')
+        const qtDel = sqlite.prepare('DELETE FROM question_tags WHERE question_id=?')
+        const qtSeen = new Set()
         qtMerged.forEach(r => {
           const qid = qCidToId.get(r.question_cid)
-          if (qid) qtIns.run(qid, r.tag)
+          if (qid) {
+            if (!qtSeen.has(qid)) { qtDel.run(qid); qtSeen.add(qid) }
+            qtIns.run(qid, r.tag)
+          }
         })
 
         // 5) 知识库：kb_docs 走 LWW（身份=client_id）；子表（blocks/tags/links）无 client_id，
@@ -330,6 +353,7 @@ module.exports = function syncModule(ctx) {
         const kbLocalAll = readAll('kb_docs')
         const kbRemoteAll = remote.kbDocs || []
         const kbMerged = lwwMerge(kbLocalAll, kbRemoteAll)
+        applyFk(kbMerged, 'category_cid', 'category_id', catCidToId) // 章节归属按 cid 映射回本地 categories id
         const kbLocalMap = new Map(kbLocalAll.map(r => [r.client_id, r]))
         const kbRemoteMap = new Map(kbRemoteAll.map(r => [r.client_id, r]))
         const relPathUsed = new Map(kbLocalAll.map(r => [r.rel_path, r.client_id]))

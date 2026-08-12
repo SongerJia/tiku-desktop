@@ -336,6 +336,7 @@ module.exports = function schemaModule(ctx) {
     addColumn('kb_docs', 'subject_id', 'subject_id INTEGER')
     // 知识库章节归属：文档可选归属到科目下的具体章节（顶部选择器选章节时按 category_id 过滤）
     addColumn('kb_docs', 'category_id', 'category_id INTEGER')
+    addColumn('kb_docs', 'category_cid', 'category_cid TEXT') // 跨端章节归属：merge 时按 cid 重映射
   },
   }
 }

@@ -399,7 +399,8 @@ module.exports = function kbModule(ctx) {
         if (!rel || rel.includes('..') || rel.startsWith('/') || /^[a-zA-Z]:/.test(rel)) continue
         try {
           const full = path.join(dir, rel)
-          if (!fs.existsSync(full) && f.base64) {
+          // 文件存在也以远端快照为准覆盖（原：仅不存在才写 → 远端新内容永不落盘，DB hash 与磁盘不一致回滚循环）
+          if (f.base64) {
             fs.mkdirSync(path.dirname(full), { recursive: true })
             fs.writeFileSync(full, Buffer.from(f.base64, 'base64'))
             n++

@@ -132,6 +132,7 @@ module.exports = function paperModule(ctx) {
         clean.forEach(t => ins.run(questionId, t))
       })
       tx()
+      sqlite.prepare('UPDATE questions SET updated_at=? WHERE id=?').run(Date.now(), questionId) // bump：标签变化进增量同步，删除才能传播
       return { ok: true, tags: clean }
     },
 
