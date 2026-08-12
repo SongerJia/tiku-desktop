@@ -309,6 +309,11 @@ async function loadAnalysis() {
       <div class="card heat-card">
         <div class="heat-head">
           <span class="card-title">🔥 学习热力图 <span class="heat-scope">（{{ subjectScope === 'all' ? '全部科目' : (props.subject.name || '全部') }}）</span></span>
+          <div class="heat-legend">
+            <span class="lg-text">少</span>
+            <i class="heat-cell lvl-0"></i><i class="heat-cell lvl-1"></i><i class="heat-cell lvl-2"></i><i class="heat-cell lvl-3"></i><i class="heat-cell lvl-4"></i>
+            <span class="lg-text">多</span>
+          </div>
           <span class="heat-year-nav">
             <button class="hy-btn" @click="shiftHeatYear(-1)">‹</button>
             <span class="hy-year">{{ heatYear }}<small v-if="heatYear === nowY()"> 滚动 365 天</small></span>
@@ -331,17 +336,12 @@ async function loadAnalysis() {
                 v-for="(c, i) in heatGrid.cells"
                 :key="i"
                 class="heat-cell"
-                :class="[c.count < 0 ? 'ghost' : '', c.isToday ? 'today' : '', 'lvl-' + heatLevel(c.count)]"
+                :class="[c.count < 0 ? 'ghost' : 'lvl-' + heatLevel(c.count), c.isToday ? 'today' : '']"
                 :style="{ width: heatCellSize + 'px', height: heatCellSize + 'px' }"
                 @mouseenter="onHeatEnter($event, c)"
                 @mousemove="onHeatMove($event, c)"
                 @mouseleave="onHeatLeave"
               ></div>
-            </div>
-            <div class="heat-legend">
-              <span class="lg-text">少</span>
-              <i class="heat-cell lvl-0"></i><i class="heat-cell lvl-1"></i><i class="heat-cell lvl-2"></i><i class="heat-cell lvl-3"></i><i class="heat-cell lvl-4"></i>
-              <span class="lg-text">多</span>
             </div>
           </div>
         </div>
@@ -482,8 +482,10 @@ async function loadAnalysis() {
 
 /* 热力图（GitHub 贡献图） */
 .heat-card { display: flex; flex-direction: column; gap: 10px; }
-.heat-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.heat-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .heat-scope { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+.heat-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); margin-left: auto; }
+.heat-legend .heat-cell { width: 12px; height: 12px; cursor: default; }
 .heat-year-nav { display: flex; align-items: center; gap: 6px; }
 .hy-btn { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; }
 .hy-btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
@@ -508,8 +510,6 @@ async function loadAnalysis() {
 .heat-cell.lvl-2 { background: rgba(42, 92, 168, 0.85); }
 .heat-cell.lvl-3 { background: rgba(63, 127, 214, 0.9); }
 .heat-cell.lvl-4 { background: #5b9cfa; }
-.heat-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
-.heat-legend .heat-cell { width: 12px; height: 12px; cursor: default; }
 .heat-tip { position: fixed; z-index: 9999; background: var(--card, #1b2130); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; box-shadow: 0 6px 24px rgba(0, 0, 0, .35); pointer-events: none; white-space: nowrap; }
 .ht-date { font-size: 12px; color: var(--text); }
 .ht-count { font-size: 12px; color: var(--brand); margin-top: 2px; }
