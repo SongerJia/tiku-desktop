@@ -220,9 +220,13 @@ onMounted(async () => {
   computeHeatSize()
   heatObs = new ResizeObserver(() => computeHeatSize())
   if (heatWrapEl.value) heatObs.observe(heatWrapEl.value)
+  window.addEventListener('mousemove', onHeatMove) // 全局监听：保证鼠标静止在格子时浮层停在鼠标当前位置
 })
 watch(() => heatGrid.value.cols, () => { if (loggedIn.value) computeHeatSize() }) // 年份/数据变化后重算格子尺寸
-onBeforeUnmount(() => { if (heatObs) heatObs.disconnect() })
+onBeforeUnmount(() => {
+  if (heatObs) heatObs.disconnect()
+  window.removeEventListener('mousemove', onHeatMove)
+})
 
 // ---- 章节正确率雷达 + 练习成绩历史曲线 ----
 const catAccuracy = ref([])
@@ -344,7 +348,7 @@ async function loadAnalysis() {
             <div class="heat-months">
               <span v-for="m in heatGrid.months" :key="m.col" class="hm-label" :style="{ left: m.col * (heatCellSize + HEAT_GAP) + 'px' }">{{ m.label }}</span>
             </div>
-            <div class="heat-grid" :style="{ gridTemplateColumns: `repeat(${heatGrid.cols}, ${heatCellSize}px)`, gridTemplateRows: `repeat(7, ${heatCellSize}px)` }" @mousemove="onHeatMove($event)" @mouseleave="onHeatLeave">
+            <div class="heat-grid" :style="{ gridTemplateColumns: `repeat(${heatGrid.cols}, ${heatCellSize}px)`, gridTemplateRows: `repeat(7, ${heatCellSize}px)` }" @mouseleave="onHeatLeave">
               <div
                 v-for="(c, i) in heatGrid.cells"
                 :key="i"
