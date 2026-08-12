@@ -207,9 +207,9 @@ async function setFontScale(v) {
   await tiku.setSetting('font_scale', String(v))
   await applyAppearance()
 }
-function setExamDate(v) {
+async function setExamDate(v) {
   examDate.value = v || ''
-  tiku.setSetting('exam_date', v || '')
+  await tiku.setSetting(goalKey('exam_date'), v || '')
 }
 
 // ---- 学习目标（按科目存，未设置不显示每日任务；跟随科目选择器）----
@@ -225,6 +225,7 @@ async function loadGoals() {
   dailyGoal.value = Number((await tiku.getSetting(goalKey('daily_goal'))) || 0)
   reviewGoal.value = Number((await tiku.getSetting(goalKey('review_goal'))) || 0)
   readGoal.value = Number((await tiku.getSetting(goalKey('read_goal'))) || 0)
+  examDate.value = (await tiku.getSetting(goalKey('exam_date'))) || ''
 }
 async function setDailyGoal(v) {
   dailyGoal.value = Number(v) || 0
@@ -273,15 +274,14 @@ function toggleSec(k) {
 
 onMounted(async () => {
   try {
-    const [t, f, ach, kb, x, ed, ms] = await Promise.all([
+    const [t, f, ach, kb, x, ms] = await Promise.all([
       tiku.getSetting('theme'), tiku.getSetting('font_scale'),
       tiku.getAchievements(),
-      tiku.kbStats(), tiku.xpStats(), tiku.getSetting('exam_date'),
+      tiku.kbStats(), tiku.xpStats(),
       tiku.getMonthStats()
     ])
     theme.value = t || 'dark'
     fontScale.value = f || '1'
-    examDate.value = ed || ''
     metrics.value = { ...ach, ...ms }
     kbStats.value = kb
     xp.value = x
@@ -421,6 +421,11 @@ onMounted(async () => {
         <input class="pref-input" type="number" min="0" :value="readGoal" @change="setReadGoal($event.target.value)" placeholder="0=不设置" />
         <span class="pref-unit">篇/天</span>
       </div>
+      <div class="goal-row">
+        <span class="goal-label">目标考试日</span>
+        <input class="pref-input" type="date" :value="examDate" @change="setExamDate($event.target.value)" />
+        <span class="pref-unit">展示在首页倒计时</span>
+      </div>
       <div class="goal-tip">未设置的目标不在「每日任务」显示；设 0 即取消该目标</div>
     </div>
 
@@ -455,11 +460,6 @@ onMounted(async () => {
       <div class="pref-row">
         <span class="pref-label">字号 {{ Math.round(fontScale * 100) }}%</span>
         <input class="pref-range" type="range" min="0.8" max="1.4" step="0.05" :value="fontScale" @input="setFontScale($event.target.value)" />
-      </div>
-      <div class="pref-row">
-        <span class="pref-label">目标考试日</span>
-        <input class="pref-input" type="date" :value="examDate" @change="setExamDate($event.target.value)" />
-        <span class="pref-sub">首页显示倒计时与每日计划</span>
       </div>
     </div>
 

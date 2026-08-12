@@ -75,7 +75,7 @@ async function load() {
     tiku.getDailyPuzzle(props.subject.id),
     tiku.reviewDueStats(props.subject.id),
     tiku.xpStats(),
-    tiku.getSetting('exam_date')
+    tiku.getSetting(props.subject && props.subject.id ? `exam_date_${props.subject.id}` : 'exam_date')
   ])
   summary.value = sumR.status === 'fulfilled' && sumR.value ? sumR.value : { total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0, accuracy: 0, weekAccuracy: 0, weekDelta: 0, streak: 0 }
   dailyGoal.value = goalR.status === 'fulfilled' ? Number(goalR.value) || 0 : 0
@@ -86,7 +86,11 @@ async function load() {
   dailyPuzzle.value = puzzleR.status === 'fulfilled' ? puzzleR.value : null
   dueReviews.value = dueR.status === 'fulfilled' && dueR.value ? dueR.value.due || 0 : 0
   xpTotal.value = xpR.status === 'fulfilled' && xpR.value ? (xpR.value.total || 0) : 0
+  // 考试日：科目 key 优先，未设置则全局兜底
   examDate.value = exR.status === 'fulfilled' ? (exR.value || '') : ''
+  if (!examDate.value && props.subject && props.subject.id) {
+    try { examDate.value = (await tiku.getSetting('exam_date')) || '' } catch (e) { examDate.value = '' }
+  }
   loading.value = false
 }
 
