@@ -407,7 +407,7 @@ async function loadAnalysis() {
         <div class="card-title hist-title">近 {{ examHistory.length }} 次练习正确率</div>
         <svg v-if="histPath" viewBox="0 0 300 70" class="hist">
           <line x1="10" y1="62" x2="290" y2="62" stroke="var(--line)" stroke-width="1"/>
-          <path :d="histPath" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round"/>
+          <path :d="histPath" class="hist-path" pathLength="1" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round"/>
           <circle v-for="(e, i) in examHistory" :key="i" :cx="histX(i)" :cy="histY(e)" r="2.5" fill="var(--brand)">
             <title>{{ e.date }} · {{ e.label }} · {{ e.pct }}%</title>
           </circle>
@@ -653,4 +653,46 @@ async function loadAnalysis() {
   opacity: 0; pointer-events: none; transition: opacity .18s;
 }
 .heat-card:hover::after { opacity: 1; animation: angSpin 2.2s linear infinite; }
+
+/* ===== 统计页加浓（2026-08-12）：首页同款浓度 ===== */
+/* stagger 交错入场：与首页同步（1-2 为标题/范围，3 起卡片依次浮入） */
+.stats > * { animation: riseIn .4s cubic-bezier(.2, .7, .3, 1) both; }
+.stats > *:nth-child(3) { animation-delay: .04s; }
+.stats > *:nth-child(4) { animation-delay: .09s; }
+.stats > *:nth-child(5) { animation-delay: .14s; }
+.stats > *:nth-child(6) { animation-delay: .19s; }
+.stats > *:nth-child(7) { animation-delay: .24s; }
+.stats > *:nth-child(8) { animation-delay: .29s; }
+
+/* 大标题渐变（门面） */
+.stats-title {
+  background: linear-gradient(90deg, #93b1ff, #c3a8ff);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+[data-theme="light"] .stats-title { background: linear-gradient(90deg, #3d5bd9, #7c3aed); -webkit-background-clip: text; background-clip: text; }
+
+/* 成绩曲线：入场后 1s「画出来」（pathLength=1 + dashoffset） */
+.hist-path {
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: drawPath 1.1s cubic-bezier(.4, 0, .2, 1) .5s forwards;
+}
+@keyframes drawPath { to { stroke-dashoffset: 0; } }
+
+/* 错因分布条/百分比条：从 0 填充 */
+.rc-fill { animation: fillBar .9s cubic-bezier(.3, .7, .3, 1) both; }
+.rc-stack .rc-seg { animation: fillBar .9s cubic-bezier(.3, .7, .3, 1) both; }
+
+/* 热力图卡：右上装饰光斑（与流光 ::after 不冲突） */
+.heat-card::before {
+  content: ''; position: absolute; top: -60px; right: -48px;
+  width: 170px; height: 170px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(91, 124, 250, 0.09), transparent 62%);
+  pointer-events: none;
+}
+
+/* KPI 数字弹入（同首页） */
+.kpi-num { animation: numPop .45s cubic-bezier(.2, .7, .3, 1) both; }
+@keyframes numPop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
+
 </style>
