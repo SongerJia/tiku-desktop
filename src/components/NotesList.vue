@@ -1,5 +1,6 @@
 <script setup>
 import Icon from './Icon.vue'
+import EmptyState from './EmptyState.vue'
 import { ref, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 
@@ -49,11 +50,7 @@ async function delNote(item) {
         </div>
 
         <div class="nl-body">
-          <div v-if="!list.length" class="empty">
-            <div class="empty-icon"><Icon name="note" :size="14"/></div>
-            <div>还没有笔记</div>
-            <div class="empty-sub">在答题页点「<Icon name="note" :size="14"/> 笔记」写下你的理解</div>
-          </div>
+          <EmptyState v-if="!list.length" icon="note" text="还没有笔记" sub="在答题页点「笔记」写下你的理解" />
 
           <div v-else class="nl-list">
             <div v-for="n in list" :key="n.question_id" class="nl-item">
@@ -182,4 +179,14 @@ async function delNote(item) {
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.18s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* 次级组件铺开（2026-08-12）：笔记行 hover 渐变底 */
+.nl-item { transition: background .15s ease, border-color .15s ease; }
+.nl-item:hover { background: linear-gradient(135deg, rgba(91, 124, 250, 0.06), rgba(122, 92, 255, 0.03)); }
+
+
+/* 次级组件铺开（2026-08-12）：笔记行 hover 渐变底 */
+.nl-item { transition: background .15s ease, border-color .15s ease; }
+.nl-item:hover { background: linear-gradient(135deg, rgba(91, 124, 250, 0.06), rgba(122, 92, 255, 0.03)); }
+
 </style>

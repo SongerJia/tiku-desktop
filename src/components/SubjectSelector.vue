@@ -1,5 +1,6 @@
 <script setup>
 import Icon from './Icon.vue'
+import EmptyState from './EmptyState.vue'
 import { ref, onMounted, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { useEsc } from '../utils/useEsc.js'
@@ -68,7 +69,7 @@ useEsc(() => emit('close'))
         <div class="selector-tip">点击科目或章节即可选中，左侧 ▸ 可展开下级</div>
 
         <div class="selector-body">
-          <div v-if="!tree.length" class="empty">暂无科目</div>
+          <EmptyState v-if="!tree.length" icon="folder" text="暂无科目" />
           <ul class="tree">
             <li v-for="node in tree" :key="node.id">
               <div

@@ -1,5 +1,6 @@
 <script setup>
 import Icon from './Icon.vue'
+import EmptyState from './EmptyState.vue'
 import { ref, computed, watch, onMounted } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
@@ -355,11 +356,7 @@ async function batchDelete() {
 
           <!-- 列表 -->
           <SkeletonCards v-if="loading" :count="3" />
-          <div v-else-if="!list.items.length" class="empty">
-            <div class="empty-icon">◇</div>
-            <div>没有找到题目</div>
-            <div class="empty-sub">点「批量导入」把你的真实题库导进来</div>
-          </div>
+          <EmptyState v-else-if="!list.items.length" icon="book" text="没有找到题目" sub="点「批量导入」把你的真实题库导进来" />
 
           <div v-else class="q-list">
             <div v-for="q in list.items" :key="q.id" class="q-item" :class="{ sel: batchMode && selectedIds.has(q.id) }">

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import EmptyState from './EmptyState.vue'
 import { tiku } from '../api/tiku.js'
 import { printHtml } from '../utils/print.js'
 import { showToast } from '../utils/toast.js'
@@ -169,8 +170,8 @@ async function toggleSimilar(qid) {
       </div>
     </div>
 
-    <p v-if="!items.length" class="empty">暂无活跃错题，继续保持！</p>
-    <p v-else-if="!filteredItems.length" class="empty">该分组下暂无错题</p>
+    <EmptyState v-if="!items.length" icon="check" text="暂无活跃错题" sub="继续保持！答错的题会自动进错题本并按遗忘曲线排期" />
+    <EmptyState v-else-if="!filteredItems.length" icon="folder" text="该分组下暂无错题" />
     <div v-for="it in filteredItems" :key="it.question_id" class="card">
       <div class="stem">{{ it.stem }}</div>
       <div class="meta">
@@ -267,4 +268,8 @@ button { border: none; padding: 7px 14px; border-radius: 8px; font-size: 13px; c
 .sim-item { border-left: 2px solid var(--brand); padding-left: 8px; }
 .sim-stem { font-size: 12px; color: var(--text); line-height: 1.5; }
 .sim-ans { font-size: 11px; color: var(--ok); margin-top: 2px; }
+
+/* 次级组件铺开（2026-08-12）：列表卡 hover 渐变底 */
+.card:hover { background: linear-gradient(135deg, rgba(91, 124, 250, 0.06), rgba(122, 92, 255, 0.03)); }
+
 </style>

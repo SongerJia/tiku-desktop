@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import EmptyState from './EmptyState.vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
@@ -195,9 +196,7 @@ watch(scope, () => { if (props.show) load() })
           <input ref="csvInput" type="file" accept=".csv,.txt" style="display:none" @change="onPickCsv" />
         </div>
 
-        <div v-if="!cards.length" class="empty">
-          <p>还没有卡片。从第一张开始：<br />在上面输入「问题 + 答案」即可（也可从错题/题目一键生成），复习会按遗忘曲线自动安排（记住 3 天再见 / 忘记明天再来）。</p>
-        </div>
+        <EmptyState v-if="!cards.length" icon="bookmark" text="还没有卡片" sub="在上方输入「问题 + 答案」即可开始，也可从错题/题目一键生成；复习按遗忘曲线自动安排（记住 3 天再见 / 忘记明天再来）" />
 
         <div v-else class="card-list">
           <div v-for="c in cards" :key="c.id" class="card-item">
@@ -339,4 +338,9 @@ watch(scope, () => { if (props.show) load() })
 .mark-btn.yes:hover { border-color: var(--ok); color: var(--ok); background: rgba(47, 191, 143, 0.08); }
 .mark-hint { font-size: 12px; color: var(--muted); }
 .empty { text-align: center; color: var(--muted); font-size: 13px; line-height: 1.8; padding: 20px 0; }
+
+/* 次级组件铺开（2026-08-12）：卡片行 hover 渐变底 */
+.card-item { transition: background .15s ease, border-color .15s ease, box-shadow .15s ease; }
+.card-item:hover { background: linear-gradient(135deg, rgba(91, 124, 250, 0.06), rgba(122, 92, 255, 0.03)); box-shadow: var(--glow-soft); }
+
 </style>

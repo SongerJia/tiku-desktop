@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import EmptyState from './EmptyState.vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 
@@ -54,8 +55,8 @@ async function setGroup(it, val) {
       <button v-for="g in groups" :key="g" class="fav-group" :class="{ on: groupFilter === g }" @click="groupFilter = g">{{ g }} <em>{{ items.filter(i => i.fav_group === g).length }}</em></button>
     </div>
 
-    <p v-if="!items.length" class="empty">还没有收藏题目。</p>
-    <p v-else-if="!filtered.length" class="empty">该分组下暂无收藏。</p>
+    <EmptyState v-if="!items.length" icon="star" text="还没有收藏题目" sub="答题时点「收藏」或按 F，重点题目会出现在这里" />
+    <EmptyState v-else-if="!filtered.length" icon="star" text="该分组下暂无收藏" />
     <div v-for="it in filtered" :key="it.question_id" class="card">
       <div class="stem">{{ it.stem }}</div>
       <div class="group-row">
@@ -85,4 +86,8 @@ async function setGroup(it, val) {
 .fav-group.on { background: rgba(91, 124, 250, 0.12); color: var(--brand); border-color: rgba(91, 124, 250, 0.4); font-weight: 600; }
 .group-row { margin-top: 6px; }
 .group-select { font-size: 12px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; }
+
+/* 次级组件铺开（2026-08-12）：列表卡 hover 渐变底 */
+.card:hover { background: linear-gradient(135deg, rgba(91, 124, 250, 0.06), rgba(122, 92, 255, 0.03)); }
+
 </style>
