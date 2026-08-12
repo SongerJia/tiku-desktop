@@ -69,14 +69,15 @@ const durationMin = ref(60)
 const recite = ref(false)
 
 const isExam = computed(() => scope.value === 'exam')
-// 头部范围标签：选中章节时显示章节名，否则用进入时的预设（本章节/科目名/全部）
+// 头部范围标签：选中章节显示章节名；「全部章节」= 当前科目全部题 → 显示科目名（进入预设可能带'本章节'，全部时不能用）
 const scopeLabel = computed(() => {
   if (selectedCatId.value) {
     const ch = chapters.value.find(c => c.id === selectedCatId.value)
     if (ch) return ch.name
   }
-  return props.preset.scopeLabel || '全部范围'
+  return props.preset.subjectName || props.preset.scopeLabel || '全部范围'
 })
+const showAllCh = ref(false) // 章节折叠：前 6 个 + 更多（弹窗内平铺不下）
 
 function pickScope(s) {
   scope.value = s
@@ -138,13 +139,16 @@ function confirm() {
               <span class="chip-desc">当前科目全部题</span>
             </button>
             <button
-              v-for="ch in chapters"
+              v-for="ch in (showAllCh ? chapters : chapters.slice(0, 6))"
               :key="ch.id"
               class="chip"
               :class="{ active: selectedCatId === ch.id }"
               @click="selectedCatId = ch.id"
             >
               <span class="chip-label">{{ ch.name }}</span>
+            </button>
+            <button v-if="chapters.length > 6" class="chip chip-more" @click="showAllCh = !showAllCh">
+              <span class="chip-label">{{ showAllCh ? '收起 ▴' : `更多 (${chapters.length - 6}) ▾` }}</span>
             </button>
           </div>
         </div>
@@ -322,6 +326,16 @@ function confirm() {
   text-align: left;
 }
 .chip.sm { align-items: center; flex-direction: row; justify-content: center; font-size: 14px; font-weight: 500; }
+.chip-more {
+  border-style: dashed;
+  border-color: rgba(255, 184, 77, 0.5);
+  background: rgba(255, 184, 77, 0.06);
+  color: var(--warn, #ffb84d);
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+.chip-more:hover { border-color: var(--warn, #ffb84d); }
 .chip:hover { border-color: var(--brand, #5b7cfa); box-shadow: var(--glow-soft, 0 0 12px rgba(42,245,255,.25)); }
 .chip.active { background: var(--brand, #5b7cfa); color: #fff; border-color: var(--brand, #5b7cfa); box-shadow: var(--glow, 0 0 16px rgba(42,245,255,.5)); }
 .chip.active .chip-desc { color: rgba(255, 255, 255, 0.78); } /* 蓝底上副标题用半透明白（上一轮漏改） */
