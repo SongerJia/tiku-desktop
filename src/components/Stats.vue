@@ -212,7 +212,27 @@ async function login() {
   loading.value = true
   await Promise.all([loadContent(), loadGlobal()])
   loading.value = false
+  await loadReasonAnalysis()
 }
+// ---- 错因分析（行业空白）：结果页/错题本标记的错因分布 + 归因建议 ----
+const reasonScope = ref('week') // 'week' 本周 | 'all' 全部
+const reasonData = ref(null) // { total, list: [{reason,count,pct}] }
+async function loadReasonAnalysis() {
+  try {
+    const r = await tiku.getReasonAnalysis(reasonScope.value)
+    reasonData.value = r && r.list ? r : null
+  } catch (e) { reasonData.value = null }
+}
+const REASON_COLOR = { '粗心': '#e5535f', '知识点不懂': '#5b7cfa', '时间不够': '#d99a3d' }
+const reasonTip = computed(() => {
+  const list = reasonData.value && reasonData.value.list ? reasonData.value.list : []
+  const top = list[0]
+  if (!top || top.pct < 20) return null
+  if (top.reason === '粗心') return `你的错因集中在<b>粗心（${top.pct}%）</b>：下次答题先放慢速度、逐项核对选项，正确率预计可提升`
+  if (top.reason === '知识点不懂') return `你的错因集中在<b>知识点不懂（${top.pct}%）</b>：错题解析里的知识点建议做一张记忆卡，反复巩固`
+  if (top.reason === '时间不够') return `你的错因集中在<b>时间不够（${top.pct}%）</b>：先做有把握的题，拿不准的标记后回查，别在单题上恋战`
+  return `你的错因集中在「${top.reason}」（${top.pct}%）：针对这个习惯调整答题节奏`
+})
 let contentSeq = 0 // 防竞态：快速切范围/年份时旧请求晚返回，seq 不匹配则丢弃
 async function loadContent() {
   const seq = ++contentSeq
@@ -432,6 +452,41 @@ async function loadAnalysis() {
         </div>
       </div>
 
+      <!-- 错因分析：本周/全部错因分布 + 归因建议（数据来自结果页/错题本标记） -->
+      <div class="card reason-card">
+        <div class="rc-head">
+          <span class="card-title">错因分析 <span class="card-sub">（丢分习惯洞察）</span></span>
+          <div class="rc-scope">
+            <button class="rc-chip" :class="{ on: reasonScope === 'week' }" @click="reasonScope = 'week'; loadReasonAnalysis()">本周</button>
+            <button class="rc-chip" :class="{ on: reasonScope === 'all' }" @click="reasonScope = 'all'; loadReasonAnalysis()">全部</button>
+          </div>
+        </div>
+
+        <div v-if="reasonData && reasonData.total > 0" class="rc-body">
+          <div class="rc-stack">
+            <div v-for="r in reasonData.list" :key="r.reason" class="rc-seg"
+              :style="{ width: r.pct + '%', background: (REASON_COLOR[r.reason] || '#888780') }"
+              :title="`${r.reason} ${r.pct}%`"></div>
+          </div>
+          <div class="rc-rows">
+            <div v-for="r in reasonData.list" :key="'r' + r.reason" class="rc-row">
+              <div class="rc-row-top">
+                <span class="rc-name" :style="{ color: REASON_COLOR[r.reason] || 'var(--text)' }">{{ r.reason }} <span class="rc-count">· {{ r.count }} 次</span></span>
+                <span class="rc-pct" :style="{ color: REASON_COLOR[r.reason] || 'var(--text)' }">{{ r.pct }}%</span>
+              </div>
+              <div class="rc-track">
+                <div class="rc-fill" :style="{ width: r.pct + '%', background: REASON_COLOR[r.reason] || '#888780' }"></div>
+              </div>
+            </div>
+          </div>
+          <div v-if="reasonTip" class="rc-tip" v-html="reasonTip"></div>
+        </div>
+        <div v-else class="rc-empty">
+          <div>暂无错因数据</div>
+          <div class="rc-empty-sub">答题结束后标记「粗心 / 知识点不懂 / 时间不够」，这里会分析你的丢分习惯</div>
+        </div>
+      </div>
+
       <!-- 学习习惯（连续/累计） -->
       <div class="card habit-card">
         <div class="card-title">学习习惯</div>
@@ -624,4 +679,34 @@ async function loadAnalysis() {
 .quest-item.done .quest-check { border-color: var(--ok); color: var(--ok); }
 .quest-name { flex: 1; font-size: 13px; color: var(--text); }
 .quest-state { font-size: 11px; color: var(--muted); }
+
+/* 错因分析卡 */
+.reason-card { padding: 14px 16px; }
+.rc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.rc-scope { display: flex; gap: 6px; }
+.rc-chip {
+  font-size: 11.5px; padding: 3px 10px; border-radius: 7px; cursor: pointer;
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--line); transition: all .15s;
+}
+.rc-chip.on { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
+.rc-stack { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin-bottom: 14px; }
+.rc-seg { height: 100%; }
+.rc-rows { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.rc-row-top { display: flex; justify-content: space-between; align-items: baseline; font-size: 12.5px; margin-bottom: 4px; }
+.rc-name { font-weight: 500; }
+.rc-count { color: var(--muted); font-weight: 400; }
+.rc-pct { font-weight: 500; }
+.rc-track { height: 6px; border-radius: 3px; background: rgba(148, 163, 184, 0.12); overflow: hidden; }
+.rc-fill { height: 100%; border-radius: 3px; }
+.rc-tip {
+  padding: 10px 12px; font-size: 12.5px; line-height: 1.6; color: #c8d3f5;
+  background: rgba(91, 124, 250, 0.08); border: 1px solid rgba(91, 124, 250, 0.3); border-radius: 10px;
+}
+.rc-tip b { color: var(--brand); }
+.rc-empty {
+  font-size: 12.5px; color: var(--muted); text-align: center;
+  border: 1px dashed var(--line); border-radius: 10px; padding: 16px 12px;
+}
+.rc-empty-sub { font-size: 11.5px; color: var(--muted); opacity: .8; margin-top: 6px; }
 </style>

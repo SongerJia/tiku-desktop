@@ -277,6 +277,22 @@ module.exports = function statsModule(ctx) {
         ORDER BY ar.created_at DESC LIMIT ?`).all(LOCAL_USER, limit)
     },
 
+    // 错因分析（行业空白）：本周/全部错题中已标记 reason 的分布。
+    // 数据源：答题结果页错因 3 选 1 / 错题本下拉标记；未标记（NULL/空）不计入，避免干扰占比。
+    getReasonAnalysis(scope = 'week') {
+      const since = scope === 'week'
+        ? (() => { const d = new Date(); const dow = (d.getDay() + 6) % 7; d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - dow); return d.getTime() })()
+        : 0
+      const where = scope === 'week' ? 'AND wb.created_at>=?' : ''
+      const rows = sqlite.prepare(
+        `SELECT TRIM(wb.reason) AS reason, COUNT(*) AS n FROM wrong_books wb
+         WHERE wb.user_id=? AND wb.deleted=0 AND wb.reason IS NOT NULL AND TRIM(wb.reason)<>'' ${where}
+         GROUP BY reason ORDER BY n DESC`
+      ).all(...(scope === 'week' ? [LOCAL_USER, since] : [LOCAL_USER]))
+      const total = rows.reduce((s, r) => s + r.n, 0)
+      return { total, list: rows.map(r => ({ reason: r.reason, count: r.n, pct: total ? Math.round((r.n / total) * 100) : 0 })) }
+    },
+
     // 赛季统计：当月各维度计数（赛季成就按月判定，次月 1 日自动重置进度）
     getMonthStats() {
       const now = new Date()

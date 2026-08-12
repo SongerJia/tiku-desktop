@@ -279,6 +279,7 @@ ipcMain.handle('getActivityHeatmap', (e, days, subjectId) => db.getActivityHeatm
 ipcMain.handle('markMastered', (e, questionId) => db.markMastered(questionId))
 ipcMain.handle('rateReview', (e, questionId, quality) => db.rateReview(questionId, quality))
 ipcMain.handle('getReviewCurve', (e, days) => db.getReviewCurve(days))
+ipcMain.handle('getReasonAnalysis', (e, scope) => db.getReasonAnalysis(scope))
 ipcMain.handle('exportAllZip', () => db.exportAllZip())
 ipcMain.handle('getKbGraph', () => db.getKbGraph())
 ipcMain.handle('getDailyPuzzle', (e, subjectId) => db.getDailyPuzzle(subjectId))
