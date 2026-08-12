@@ -410,15 +410,10 @@ async function loadQPanel() {
   qSugg.value = sugg
 }
 
-watch(() => props.show, async (v) => {
-  if (!v || !props.doc) return
-  loadCurrent()
+// 打开文档（show+doc 同时变）或双链跳转（doc 变）→ 刷新内容。合并为一个 watch：同时变化只触发一次，避免双 loadCurrent 重复初始化 Vditor/PDF
+watch(() => [props.show, props.doc && props.doc.id], ([s, did]) => {
+  if (s && did) loadCurrent()
 })
-
-// 双链跳转/外部打开时 doc 变化（show 保持 true）→ 同样刷新内容
-watch(() => props.doc, (d) => {
-  if (props.show && d) loadCurrent()
-}, { deep: false })
 
 async function loadCurrent() {
   if (!props.doc) return
@@ -568,7 +563,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onGlobalKeydown)
 })
 window.addEventListener('keydown', onGlobalKeydown)
-useEsc(() => emit('close'))
+useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页码再关闭，避免丢编辑
 </script>
 
 <template>
