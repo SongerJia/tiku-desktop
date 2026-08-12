@@ -816,4 +816,8 @@ async function batchDelete() {
 .bb-btn.danger { color: var(--bad); border-color: rgba(255,77,109,.4); }
 .bb-btn.danger:hover { background: rgba(255,77,109,.12); }
 .btn-outline.sm.on { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
+
+/* 题库铺开（2026-08-12）：列表项 hover 渐变底 */
+.q-item { transition: background .15s ease, border-color .15s ease, box-shadow .15s ease; }
+.q-item:hover { background: linear-gradient(135deg, rgba(91, 124, 250, 0.08), rgba(122, 92, 255, 0.04)); }
 </style>

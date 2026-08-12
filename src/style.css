@@ -593,3 +593,10 @@ body::after {
 
 /* 流光描边共用的旋转动画（全局注册，供各组件 hover 流光复用） */
 @keyframes angSpin { to { --ang: 360deg; } }
+
+/* ===== 题库/知识库铺开（2026-08-12）：输入框聚焦光晕 ===== */
+input:focus, textarea:focus, select:focus, .input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(91, 124, 250, 0.28), 0 0 14px rgba(91, 124, 250, 0.12);
+  border-color: var(--brand);
+}

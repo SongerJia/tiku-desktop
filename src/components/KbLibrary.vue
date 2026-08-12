@@ -221,7 +221,7 @@ function fmtTime(ts) {
   <div class="kb">
     <div class="card kb-search-card">
       <div class="kb-scope-line">
-        <span class="kb-scope-tag" :class="{ all: scope === 'all' }">{{ scope === 'all' ? '📚 全部科目文档' : '📖 ' + (props.subject.name || '当前科目') + ' 文档' }}</span>
+        <span class="kb-scope-tag" :class="{ all: scope === 'all' }">{{ scope === 'all' ? '全部科目文档' : (props.subject.name || '当前科目') + ' 文档' }}</span>
       </div>
       <div class="kb-tools">
         <input
@@ -473,4 +473,15 @@ function fmtTime(ts) {
 .g-pdf { fill: rgba(255, 77, 109, 0.72); }
 .g-label { font-size: 9px; fill: var(--muted); text-anchor: middle; }
 .empty-sm { font-size: 12px; color: var(--muted); padding: 10px 0; }
+
+/* 知识库铺开（2026-08-12）：文档卡渐变边框 */
+.kb-card {
+  border: 1px solid transparent;
+  background-image:
+    linear-gradient(var(--card), var(--card)),
+    linear-gradient(135deg, rgba(91, 124, 250, 0.35), rgba(122, 92, 255, 0.35));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+.kb-card:hover { box-shadow: var(--glow-soft); }
 </style>

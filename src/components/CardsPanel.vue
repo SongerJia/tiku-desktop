@@ -173,7 +173,7 @@ watch(scope, () => { if (props.show) load() })
           :class="{ all: isAll }"
           @click="scope = scope === 'all' ? 'current' : 'all'"
           :title="isAll ? '点击切回当前科目' : '点击查看全部科目卡片'"
-        >{{ isAll ? '📚 全部科目' : '📖 ' + (props.subject.name || '当前科目') }}<template v-if="mode === 'list'"> · {{ stats.total }} 张</template></span>
+        >{{ isAll ? '全部科目' : (props.subject.name || '当前科目') }}<template v-if="mode === 'list'"> · {{ stats.total }} 张</template></span>
         <span class="stats" v-if="mode === 'list'">今日到期 {{ dueCount }}</span>
         <div class="spacer"></div>
         <button v-if="mode === 'list' && stats.total" class="btn btn-primary review-btn" @click="startReview">

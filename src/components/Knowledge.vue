@@ -186,4 +186,16 @@ function typeLabel(t) {
   min-width: 0;
 }
 .q-arrow { font-size: 20px; color: var(--brand); margin-left: 8px; text-shadow: var(--glow-soft); }
+
+/* 知识库铺开（2026-08-12）：题目卡渐变边框 + hover 流光 */
+.q-card {
+  border: 1px solid transparent;
+  background-image:
+    linear-gradient(var(--card), var(--card)),
+    linear-gradient(135deg, rgba(91, 124, 250, 0.35), rgba(122, 92, 255, 0.35));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  position: relative;
+}
+.q-card:hover { box-shadow: var(--glow-soft); }
 </style>
