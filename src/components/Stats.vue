@@ -143,7 +143,7 @@ function computeHeatSize() {
 }
 let heatObs = null
 
-// hover 浮层：anchor 锚定到格子矩形（不是鼠标点），浮层紧贴格子上方；mousemove 时水平跟随鼠标 x，垂直不变
+// hover 浮层（对齐 GitHub 贡献图标准）：锚定格子正上方居中，不跟随鼠标（hover 哪个格子浮层就在哪个格子上方，换格子才更新）
 import { computePosition, offset, flip, shift } from '@floating-ui/dom'
 const hoverCell = ref(null)
 const tipEl = ref(null)
@@ -164,8 +164,8 @@ async function placeTip() {
   if (!el || !hoverCell.value) return
   const seq = ++tipSeq
   const { x, y } = await computePosition(tipAnchor, el, {
-    placement: 'top-start', // 左对齐格子上方；右侧溢出时 flip 自动翻成 top-end（右对齐向左延伸），浮层始终有一边贴格子
-    middleware: [offset(4), flip(), shift({ padding: 8 })]
+    placement: 'top', // 格子上方居中（GitHub 式）
+    middleware: [offset(4), flip(), shift({ padding: 8 })] // 紧贴 4px；上方放不下翻下方；贴边防溢出
   })
   if (seq !== tipSeq) return
   el.style.left = x + 'px'
@@ -174,7 +174,6 @@ async function placeTip() {
 function onHeatEnter(e, c) {
   if (!c || c.count < 0) { hoverCell.value = null; return }
   hoverCell.value = { date: c.date, count: c.count, isToday: c.isToday }
-  // anchor 锚定格子矩形
   const rect = e.currentTarget.getBoundingClientRect()
   anchorState.left = rect.left
   anchorState.top = rect.top
@@ -182,14 +181,6 @@ function onHeatEnter(e, c) {
   anchorState.bottom = rect.bottom
   anchorState.width = rect.width
   anchorState.height = rect.height
-  placeTip()
-}
-function onHeatMove(e) {
-  if (!hoverCell.value) return
-  // 水平跟随鼠标 x（中心对齐），垂直保持格子顶部
-  const halfW = anchorState.width / 2
-  anchorState.left = e.clientX - halfW
-  anchorState.right = e.clientX + halfW
   placeTip()
 }
 function onHeatLeave() { hoverCell.value = null }
@@ -245,12 +236,10 @@ onMounted(async () => {
   computeHeatSize()
   heatObs = new ResizeObserver(() => computeHeatSize())
   if (heatWrapEl.value) heatObs.observe(heatWrapEl.value)
-  window.addEventListener('mousemove', onHeatMove) // 全局监听：保证鼠标静止在格子时浮层停在鼠标当前位置
 })
 watch(() => heatGrid.value.cols, () => { if (loggedIn.value) computeHeatSize() }) // 年份/数据变化后重算格子尺寸
 onBeforeUnmount(() => {
   if (heatObs) heatObs.disconnect()
-  window.removeEventListener('mousemove', onHeatMove)
 })
 
 // ---- 章节正确率雷达 + 练习成绩历史曲线 ----
