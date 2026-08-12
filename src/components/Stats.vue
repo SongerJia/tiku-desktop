@@ -537,8 +537,10 @@ async function loadAnalysis() {
 .heat-months { position: relative; height: 16px; margin-bottom: 2px; }
 .hm-label { position: absolute; top: 0; font-size: 9px; color: var(--muted); white-space: nowrap; }
 .heat-grid { display: grid; grid-auto-flow: column; gap: 2px; }
-.heat-cell { width: 10px; height: 10px; border-radius: 2px; background: rgba(148, 163, 184, 0.14); }
+.heat-cell { width: 10px; height: 10px; border-radius: 2px; background: rgba(148, 163, 184, 0.14); transition: transform .12s ease, box-shadow .12s ease; }
+.heat-cell:hover { transform: scale(1.35); box-shadow: 0 0 8px rgba(91, 124, 250, 0.45); position: relative; z-index: 2; }
 .heat-cell.ghost { background: transparent; }
+.heat-cell.ghost:hover { box-shadow: none; }
 .heat-cell.today { outline: 1.5px solid var(--brand); outline-offset: 1px; }
 .heat-cell.lvl-0 { background: rgba(148, 163, 184, 0.14); }
 .heat-cell.lvl-1 { background: rgba(28, 58, 110, 0.75); }

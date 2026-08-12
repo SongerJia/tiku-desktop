@@ -467,3 +467,9 @@ body {
   .tab-page .card { animation: none; }
   * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
+
+/* ===== 精致化补充（2026-08-12 审查后）：弹层入场动画 ===== */
+/* 全部 mask 弹层：遮罩淡入 + 首个面板浮起（排除已有独立 Transition 的 Confirm/Welcome） */
+[class*="-mask"]:not(.cf-mask):not(.wg-mask) { animation: maskIn .18s ease; }
+[class*="-mask"]:not(.cf-mask):not(.wg-mask) > :first-child { animation: riseIn .28s cubic-bezier(.2, .7, .3, 1) both; }
+@keyframes maskIn { from { opacity: 0 } to { opacity: 1 } }

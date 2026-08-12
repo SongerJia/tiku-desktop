@@ -604,12 +604,12 @@ function optionClass(key) {
         <span class="mode-tag">{{ modeLabel(mode) }}·{{ orderLabel(order) }}</span>
         <span v-if="isRecite" class="recite-tag">背题</span>
       </span>
-      <span v-if="isExam && !isDone" class="timer" :class="{ warn: timeLeft <= 60 }">⏱ {{ timeText }}</span>
+      <span v-if="isExam && !isDone" class="timer" :class="{ warn: timeLeft <= 60 }"><Icon name="clock" :size="14"/> {{ timeText }}</span>
       <span v-if="!loading && !isDone && !isRecite" class="kb-hint" style="font-size:11px;color:var(--muted);margin-left:auto;opacity:.7">⌨ 1-9 选 · Enter 提交/下一题 · F 收藏</span>
       <button v-if="isExam && !isDone" class="fav submit-exam" @click="manualFinish">交卷</button>
-      <button class="fav" :class="{ on: q && favSet.has(q.id) }" @click="toggleFav" :disabled="!q">★ 收藏</button>
-      <button class="fav note-btn" :class="{ on: hasNote }" @click="noteOpen = !noteOpen" :disabled="!q">✎ 笔记</button>
-      <button v-if="!isRecite && !isDone" class="fav" :class="{ on: showCard }" @click="showCard = !showCard" :disabled="!q">▦ 答题卡</button>
+      <button class="fav" :class="{ on: q && favSet.has(q.id) }" @click="toggleFav" :disabled="!q"><Icon name="star" :size="14"/> 收藏</button>
+      <button class="fav note-btn" :class="{ on: hasNote }" @click="noteOpen = !noteOpen" :disabled="!q"><Icon name="note" :size="14"/> 笔记</button>
+      <button v-if="!isRecite && !isDone" class="fav" :class="{ on: showCard }" @click="showCard = !showCard" :disabled="!q"><Icon name="grid" :size="14"/> 答题卡</button>
     </div>
 
     <SkeletonCards v-if="loading" :count="2" />
