@@ -411,7 +411,14 @@ function speakAnalysis() {
 
 // 完成一场练习/模考后，把正确率记入本地历史（Stats 页成绩曲线）
 const examRecorded = ref(false)
-watch(isDone, (v) => {
+// ---- 结果页：上周对比/连击元数据 + 错因选择 + 批量转卡 ----
+const resultMeta = ref(null)
+const reasonPick = ref('')
+const reasonBusy = ref(false)
+const cardBatching = ref(false)
+const donePct = computed(() => questions.value.length ? Math.round(sessionCorrect.value / questions.value.length * 100) : 0)
+const doneXp = computed(() => sessionCorrect.value * 10 + wrongs.value.length * 2)
+watch(isDone, async (v) => {
   if (!v || examRecorded.value) return
   examRecorded.value = true
   if (props.recite) return // 背题模式不判分，不计入成绩曲线
@@ -422,7 +429,43 @@ watch(isDone, (v) => {
     h.push({ date: new Date().toLocaleDateString(), pct, label: props.paperId ? '模拟卷' : modeLabel(props.mode) })
     localStorage.setItem('exam_history', JSON.stringify(h.slice(-30)))
   } catch (e) { /* 忽略 */ }
+  // 结果页元数据：上周正确率对比 + 连击天数（一次 IPC）
+  try {
+    const s = await tiku.getSummary(props.subjectId)
+    if (s) resultMeta.value = { weekDelta: s.weekDelta ?? 0, streak: s.streak || 0 }
+  } catch (e) { /* 忽略 */ }
 })
+// 错因批量标记：本场全部错题打同一个错因（为「错因分析」供数）
+async function pickReason(reason) {
+  if (reasonBusy.value) return
+  reasonBusy.value = true
+  reasonPick.value = reason
+  try {
+    let n = 0
+    for (const w of wrongs.value) {
+      if (w.qid) { await tiku.setWrongReason(w.qid, reason); n++ }
+    }
+    showToast(`已记录 ${n} 道错题的错因：${reason}`, 'ok')
+  } catch (e) { showToast('记录失败：' + (e.message || e), 'err') }
+  finally { reasonBusy.value = false }
+}
+// 本场错题一键转记忆卡（addCardFromQuestion 内部按 source_question_id 去重）
+async function batchToCards() {
+  if (cardBatching.value || !wrongs.value.length) return
+  cardBatching.value = true
+  try {
+    let created = 0, dup = 0
+    for (const w of wrongs.value) {
+      if (!w.qid) continue
+      const r = await tiku.addCardFromQuestion(w.qid)
+      if (r && r.ok) { if (r.duplicate) dup++; else created++ }
+    }
+    if (created) showToast(`已生成 ${created} 张记忆卡${dup ? `，${dup} 张已存在` : ''}，可在「记忆卡」复习`, 'ok')
+    else if (dup) showToast(`这 ${dup} 道题已有记忆卡，未重复生成`, 'ok')
+    else showToast('生成失败，请重试', 'err')
+  } catch (e) { showToast('生成失败：' + (e.message || e), 'err') }
+  finally { cardBatching.value = false }
+}
 
 // 考试模式：手动提前交卷（带确认，当前题未提交会先提交再结束）
 async function manualFinish() {
@@ -614,25 +657,54 @@ function optionClass(key) {
       <button class="rv-done" @click="onExit">回到首页</button>
     </div>
     <div v-else-if="isDone" class="done card">
-      <h2>{{ isRecite ? '已过完本轮' : (props.paperId ? '模拟卷完成' : '本场结束') }}</h2>
-      <p v-if="props.paperId">共 {{ questions.length }} 题，答对 {{ sessionCorrect }} 题，得分
-        <b class="score">{{ Math.round(earnedScore * 10) / 10 }}</b> / {{ paperScore }} 分
-        （正确率 {{ questions.length ? Math.round(sessionCorrect / questions.length * 100) : 0 }}%）</p>
-      <p v-else-if="isRecite">共浏览 {{ questions.length }} 题。背题不判分、不计入统计，想检验效果就切回「答题」再来一遍。</p>
-      <p v-else>共 {{ questions.length }} 题，答对 {{ sessionCorrect }} 题，正确率
-        {{ questions.length ? Math.round(sessionCorrect / questions.length * 100) : 0 }}% · 用时 {{ fmtDuration(sessionEnd.value - sessionStart.value) }}</p>
-
-      <div v-if="wrongs.length && !isRecite && !props.paperId" class="done-wrongs">
-        <div class="dw-title">本次答错 {{ wrongs.length }} 题<template v-if="wrongs.length > 5">（展示前 5）</template></div>
-        <div v-for="w in wrongs.slice(0, 5)" :key="w.qid" class="dw-item">
-          <span class="dw-badge">{{ typeLabel(w.type) }}</span>
-          <span class="dw-stem">{{ w.stem }}</span>
+      <template v-if="isRecite">
+        <h2>已过完本轮</h2>
+        <p>共浏览 {{ questions.length }} 题。背题不判分、不计入统计，想检验效果就切回「答题」再来一遍。</p>
+      </template>
+      <template v-else>
+        <!-- 结果主卡：正确率 + 对比 + 四格 -->
+        <div class="result-hero">
+          <div class="rh-sub">{{ props.paperId ? '模拟卷完成' : '本场练习完成' }} · 共 {{ questions.length }} 题</div>
+          <div v-if="props.paperId" class="rh-score">
+            <b class="score">{{ Math.round(earnedScore * 10) / 10 }}</b><span class="rh-score-total"> / {{ paperScore }} 分</span>
+          </div>
+          <div v-else class="rh-pct">{{ donePct }}<small>%</small></div>
+          <div v-if="!props.paperId && resultMeta" class="rh-delta" :class="{ down: resultMeta.weekDelta < 0 }">
+            {{ resultMeta.weekDelta >= 0 ? '比上周平均 +' + resultMeta.weekDelta + '%' : '比上周平均 ' + resultMeta.weekDelta + '%' }}
+            <span class="rh-delta-sub"> · 连续 {{ resultMeta.streak }} 天</span>
+          </div>
+          <div v-else-if="!props.paperId" class="rh-delta">用时 {{ fmtDuration(sessionEnd.value - sessionStart.value) }}</div>
+          <div class="rh-grid">
+            <div class="rh-item"><b>{{ sessionCorrect }}</b><span>答对</span></div>
+            <div class="rh-item"><b :class="{ warn: wrongs.length }">{{ wrongs.length }}</b><span>待复习</span></div>
+            <div class="rh-item"><b class="xp">+{{ doneXp }}</b><span>本场 XP</span></div>
+            <div class="rh-item"><b>{{ fmtDuration(sessionEnd.value - sessionStart.value) }}</b><span>用时</span></div>
+          </div>
         </div>
-        <button class="btn-review" @click="redoWrongs">重做这 {{ wrongs.length }} 道错题</button>
-      </div>
 
-      <button v-if="reviews.length && !isRecite" class="btn-review" @click="showReview = true">查看逐题解析</button>
-      <button @click="onExit">回到首页</button>
+        <!-- 错题区：排期提示 + 错因选择 + 行动 -->
+        <div v-if="wrongs.length && !props.paperId" class="done-wrongs">
+          <div class="dw-title">{{ wrongs.length }} 道错题已排入复习队列，明天再见</div>
+          <div v-for="w in wrongs.slice(0, 5)" :key="w.qid" class="dw-item">
+            <span class="dw-badge">{{ typeLabel(w.type) }}</span>
+            <span class="dw-stem">{{ w.stem }}</span>
+          </div>
+          <div class="dw-reason">
+            <div class="dw-reason-q">刚才的错题，主要因为？</div>
+            <div class="dw-reason-opts">
+              <button v-for="r in ['粗心', '知识点不懂', '时间不够']" :key="r" class="reason-opt" :class="{ on: reasonPick === r }" :disabled="reasonBusy" @click="pickReason(r)">{{ r }}</button>
+            </div>
+            <div class="dw-reason-hint">选择后用于「错因分析」：定位你最容易丢分的习惯</div>
+          </div>
+          <div class="dw-actions">
+            <button class="btn-review" @click="redoWrongs">重做这 {{ wrongs.length }} 道错题</button>
+            <button class="btn-review ghost" :disabled="cardBatching" @click="batchToCards">{{ cardBatching ? '生成中…' : wrongs.length + ' 题转记忆卡' }}</button>
+          </div>
+        </div>
+
+        <button v-if="reviews.length" class="btn-review" @click="showReview = true">查看逐题解析</button>
+        <button @click="onExit">返回首页</button>
+      </template>
     </div>
 
     <div v-else class="card">
@@ -1119,6 +1191,43 @@ function optionClass(key) {
 .done h2 { color: var(--brand); text-shadow: var(--glow-soft); }
 .done .score { color: var(--brand); font-size: 18px; }
 .done p { color: var(--muted); margin: 8px 0 16px; }
+
+/* 结果页主卡 */
+.result-hero { padding: 6px 4px 12px; }
+.rh-sub { font-size: 12.5px; color: var(--muted); }
+.rh-pct { font-size: 42px; font-weight: 700; color: var(--brand); line-height: 1.15; margin-top: 2px; text-shadow: var(--glow-soft); }
+.rh-pct small { font-size: 22px; font-weight: 600; }
+.rh-score { font-size: 34px; font-weight: 700; color: var(--brand); margin-top: 4px; }
+.rh-score-total { font-size: 15px; font-weight: 400; color: var(--muted); }
+.rh-delta { font-size: 12.5px; color: var(--ok); margin: 4px 0 14px; }
+.rh-delta.down { color: var(--bad); }
+.rh-delta-sub { color: var(--muted); }
+.rh-grid { display: flex; border-top: 1px solid var(--line); padding-top: 12px; }
+.rh-item { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.rh-item b { font-size: 16px; font-weight: 600; }
+.rh-item b.warn { color: var(--bad); }
+.rh-item b.xp { color: var(--warn); }
+.rh-item span { font-size: 11.5px; color: var(--muted); }
+
+/* 错因选择 */
+.dw-reason { margin-top: 8px; border-top: 1px dashed var(--line); padding-top: 10px; }
+.dw-reason-q { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.dw-reason-opts { display: flex; gap: 8px; }
+.reason-opt {
+  flex: 1; text-align: center; padding: 8px 4px; font-size: 12.5px; cursor: pointer;
+  background: transparent; color: var(--text);
+  border: 1px solid var(--line); border-radius: 9px; transition: all .15s;
+}
+.reason-opt:hover { border-color: var(--brand); color: var(--brand); }
+.reason-opt.on { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
+.reason-opt:disabled { opacity: .5; cursor: default; }
+.dw-reason-hint { font-size: 11px; color: var(--muted); margin-top: 8px; }
+.dw-actions { display: flex; gap: 8px; margin-top: 8px; }
+.dw-actions .btn-review { flex: 1; }
+.btn-review.ghost { background: transparent; color: var(--ok); border: 1px solid rgba(47, 191, 143, 0.45); box-shadow: none; }
+.btn-review.ghost:hover { background: rgba(47, 191, 143, 0.1); box-shadow: none; }
+.btn-review.ghost:disabled { opacity: .5; cursor: default; }
+
 .done-wrongs { text-align: left; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 0 0 14px; display: flex; flex-direction: column; gap: 6px; background: rgba(229, 83, 95, 0.04); }
 .dw-title { font-size: 13px; font-weight: 600; color: var(--bad); }
 .dw-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
