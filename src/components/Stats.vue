@@ -528,7 +528,7 @@ async function loadAnalysis() {
 .hs-item b { font-size: 16px; color: var(--text); font-variant-numeric: tabular-nums; }
 .hs-item b.hot { color: var(--warn); }
 .hs-item span { font-size: 10px; color: var(--muted); }
-.heat-main { flex: 1; min-width: 0; overflow-x: auto; }
+.heat-main { flex: 1; min-width: 0; overflow-x: hidden; }
 .heat-months { position: relative; height: 16px; margin-bottom: 2px; }
 .hm-label { position: absolute; top: 0; font-size: 9px; color: var(--muted); white-space: nowrap; }
 .heat-grid { display: grid; grid-auto-flow: column; gap: 2px; }
