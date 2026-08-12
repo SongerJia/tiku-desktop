@@ -164,8 +164,8 @@ async function placeTip() {
   if (!el || !hoverCell.value) return
   const seq = ++tipSeq
   const { x, y } = await computePosition(tipAnchor, el, {
-    placement: 'top', // 格子上方居中（GitHub 式）
-    middleware: [offset(4), flip(), shift({ padding: 8 })] // 紧贴 4px；上方放不下翻下方；贴边防溢出
+    placement: 'top-start', // 左对齐格子上方；右侧放不下 flip 自动翻 top-end（右对齐向左延伸）——浮层始终有一边紧贴格子
+    middleware: [offset(4), flip(), shift({ padding: 8 })] // 上方放不下翻下方；shift 仅极端情况兜底
   })
   if (seq !== tipSeq) return
   el.style.left = x + 'px'
