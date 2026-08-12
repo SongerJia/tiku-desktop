@@ -85,6 +85,26 @@ function onDockAnimEnd(e) {
   if (e.animationName === 'riseIn') e.currentTarget.style.animation = 'none'
 }
 
+// 通用 3D 倾斜指令（v-tilt）：任何卡片跟随鼠标立体倾斜，入场动画结束后自动解除压制
+// 幅度按元素类型分级：行动台 ±6°，其他区块 ±4°
+const vTilt = {
+  mounted(el, binding) {
+    const max = (binding.value && binding.value.deg) || 4
+    el.dataset.tiltBound = '1'
+    el.style.transition = 'transform .25s cubic-bezier(.2,.7,.3,1), box-shadow .18s ease, background .15s ease'
+    el.style.transformStyle = 'preserve-3d'
+    el.style.willChange = 'transform'
+    el.addEventListener('mousemove', (e) => {
+      const r = el.getBoundingClientRect()
+      const px = (e.clientX - r.left) / r.width - 0.5
+      const py = (e.clientY - r.top) / r.height - 0.5
+      el.style.transform = `perspective(700px) rotateY(${(px * max).toFixed(2)}deg) rotateX(${(-py * max).toFixed(2)}deg)`
+    })
+    el.addEventListener('mouseleave', () => { el.style.transform = '' })
+    el.addEventListener('animationend', (e) => { if (e.animationName === 'riseIn') el.style.animation = 'none' })
+  }
+}
+
 let loadSeq = 0 // 防竞态：快速切科目时旧请求晚返回，seq 不匹配则整体丢弃，避免过期数据覆盖
 async function load() {
   const seq = ++loadSeq
@@ -294,7 +314,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 复习到期横幅（有到期才显示） -->
-      <div v-if="dueReviews > 0" class="review-banner" @click="startSmartReview">
+      <div v-if="dueReviews > 0" class="review-banner" v-tilt @click="startSmartReview">
         <span class="rb-ico"><Icon name="clock" :size="15"/></span>
         <div class="rb-info">
           <div class="rb-title">{{ dueReviews }} 道错题已到复习期</div>
@@ -332,7 +352,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- KPI 数据条 -->
-      <div class="kpi-strip">
+      <div class="kpi-strip" v-tilt>
         <div class="kpi-item">
           <span class="kpi-num"><CountUp :value="summary.streak" /></span>
           <span class="kpi-label">连续学习</span>
@@ -368,7 +388,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 番茄专注（单行） -->
-      <div class="card focus-bar">
+      <div class="card focus-bar" v-tilt>
         <span class="fb-ico"><Icon name="clock" :size="16"/></span>
         <div class="fb-info">
           <span class="fb-title">番茄专注</span>
@@ -386,7 +406,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 更多功能 -->
-      <div class="card more-card">
+      <div class="card more-card" v-tilt>
         <div class="card-title">更多功能</div>
         <div class="more-grid">
           <div class="more-item" @click="emit('start', { mode: 'wrong' })">
@@ -419,7 +439,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 薄弱点（沉底：不占首屏，有数据才显示） -->
-      <div v-if="weakPoints.length || weakAccuracy.length" class="card weak-card">
+      <div v-if="weakPoints.length || weakAccuracy.length" class="card weak-card" v-tilt>
         <div class="card-title"><Icon name="info" :size="14"/> 待攻克薄弱点</div>
         <div v-if="weakPoints.length" class="weak-list">
           <div v-for="w in weakPoints" :key="w.id" class="weak-item" @click="emit('goto', 'bank')">
@@ -723,4 +743,17 @@ onBeforeUnmount(() => {
 }
 .dock-btn:hover::after { opacity: 1; animation: angSpin 2.2s linear infinite; }
 @keyframes angSpin { to { --ang: 360deg; } }
+
+/* 更多宫格也挂流光（复用 --ang，hover 光点绕边框转） */
+.more-item { position: relative; }
+.more-item::after {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.7) 80deg, transparent 170deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0; pointer-events: none; transition: opacity .18s;
+}
+.more-item:hover::after { opacity: 1; animation: angSpin 2.2s linear infinite; }
 </style>
