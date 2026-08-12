@@ -1,7 +1,7 @@
 <script setup>
 import CountUp from './CountUp.vue'
 import Icon from './Icon.vue'
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 import { printHtml } from '../utils/print.js'
@@ -127,6 +127,35 @@ const heatStats = computed(() => {
   return { today, week, total: heatGrid.value.total, streak: summary.value.streak || 0 }
 })
 
+// 热力图自适应格子尺寸：顶满卡片宽度不留空白（clamp 8~20）
+const heatCellSize = ref(10)
+const heatWrapEl = ref(null)
+const HEAT_GAP = 2
+function computeHeatSize() {
+  const wrap = heatWrapEl.value
+  if (!wrap) return
+  const avail = wrap.clientWidth
+  const statsEl = wrap.querySelector('.heat-stats')
+  const statsW = statsEl ? statsEl.offsetWidth + 16 : 0 // 统计列宽 + 列间距
+  const cols = Math.max(1, heatGrid.value.cols || 53)
+  const cell = Math.floor((avail - statsW - (cols - 1) * HEAT_GAP - 4) / cols)
+  heatCellSize.value = Math.max(8, Math.min(20, cell))
+}
+let heatObs = null
+
+// hover 浮层：日期 + 星期 + 题数（fixed 定位避免被 overflow 容器裁剪）
+const hoverCell = ref(null)
+const WEEKS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+const weekLabel = (dateStr) => { try { return WEEKS[new Date(dateStr + 'T00:00:00').getDay()] } catch (e) { return '' } }
+function onHeatEnter(e, c) {
+  if (!c || c.count < 0) { hoverCell.value = null; return }
+  hoverCell.value = { date: c.date, count: c.count, isToday: c.isToday, x: e.clientX + 14, y: e.clientY + 14 }
+}
+function onHeatMove(e, c) {
+  if (hoverCell.value) { hoverCell.value.x = e.clientX + 14; hoverCell.value.y = e.clientY + 14 }
+}
+function onHeatLeave() { hoverCell.value = null }
+
 // 动态取当前年月：跨月/跨日停留在页面也能刷新到新月份
 const nowY = () => { const d = new Date(); return d.getFullYear() }
 const nowM = () => { const d = new Date(); return d.getMonth() + 1 }
@@ -175,7 +204,12 @@ watch(filterSubjectId, async () => {
 onMounted(async () => {
   await login()
   await loadAnalysis()
+  computeHeatSize()
+  heatObs = new ResizeObserver(() => computeHeatSize())
+  if (heatWrapEl.value) heatObs.observe(heatWrapEl.value)
 })
+watch(() => heatGrid.value.cols, () => { if (loggedIn.value) computeHeatSize() }) // 年份/数据变化后重算格子尺寸
+onBeforeUnmount(() => { if (heatObs) heatObs.disconnect() })
 
 // ---- 章节正确率雷达 + 练习成绩历史曲线 ----
 const catAccuracy = ref([])
@@ -281,7 +315,7 @@ async function loadAnalysis() {
             <button class="hy-btn" @click="shiftHeatYear(1)" :disabled="heatYear >= nowY()">›</button>
           </span>
         </div>
-        <div class="heat-flex">
+        <div ref="heatWrapEl" class="heat-flex">
           <div class="heat-stats">
             <div class="hs-item"><b>{{ heatStats.today }}</b><span>今日</span></div>
             <div class="hs-item"><b>{{ heatStats.week }}</b><span>本周</span></div>
@@ -290,15 +324,18 @@ async function loadAnalysis() {
           </div>
           <div class="heat-main">
             <div class="heat-months">
-              <span v-for="m in heatGrid.months" :key="m.col" class="hm-label" :style="{ left: m.col * 12 + 'px' }">{{ m.label }}</span>
+              <span v-for="m in heatGrid.months" :key="m.col" class="hm-label" :style="{ left: m.col * (heatCellSize + HEAT_GAP) + 'px' }">{{ m.label }}</span>
             </div>
-            <div class="heat-grid" :style="{ gridTemplateColumns: `repeat(${heatGrid.cols}, 10px)` }">
+            <div class="heat-grid" :style="{ gridTemplateColumns: `repeat(${heatGrid.cols}, ${heatCellSize}px)`, gridTemplateRows: `repeat(7, ${heatCellSize}px)` }">
               <div
                 v-for="(c, i) in heatGrid.cells"
                 :key="i"
                 class="heat-cell"
                 :class="[c.count < 0 ? 'ghost' : '', c.isToday ? 'today' : '', 'lvl-' + heatLevel(c.count)]"
-                :title="c.count < 0 ? '' : c.date + (c.isToday ? '（今天）' : '') + ' · ' + c.count + ' 题'"
+                :style="{ width: heatCellSize + 'px', height: heatCellSize + 'px' }"
+                @mouseenter="onHeatEnter($event, c)"
+                @mousemove="onHeatMove($event, c)"
+                @mouseleave="onHeatLeave"
               ></div>
             </div>
             <div class="heat-legend">
@@ -307,6 +344,10 @@ async function loadAnalysis() {
               <span class="lg-text">多</span>
             </div>
           </div>
+        </div>
+        <div v-if="hoverCell" class="heat-tip" :style="{ left: hoverCell.x + 'px', top: hoverCell.y + 'px' }">
+          <div class="ht-date">{{ hoverCell.date }} · {{ weekLabel(hoverCell.date) }}</div>
+          <div class="ht-count">{{ hoverCell.isToday ? '今天 · ' : '' }}{{ hoverCell.count }} 题</div>
         </div>
       </div>
 
@@ -458,7 +499,7 @@ async function loadAnalysis() {
 .heat-main { flex: 1; min-width: 0; overflow-x: auto; }
 .heat-months { position: relative; height: 16px; margin-bottom: 2px; }
 .hm-label { position: absolute; top: 0; font-size: 9px; color: var(--muted); white-space: nowrap; }
-.heat-grid { display: grid; grid-template-rows: repeat(7, 10px); grid-auto-flow: column; gap: 2px; }
+.heat-grid { display: grid; grid-auto-flow: column; gap: 2px; }
 .heat-cell { width: 10px; height: 10px; border-radius: 2px; background: rgba(148, 163, 184, 0.14); }
 .heat-cell.ghost { background: transparent; }
 .heat-cell.today { outline: 1.5px solid var(--brand); outline-offset: 1px; }
@@ -469,6 +510,9 @@ async function loadAnalysis() {
 .heat-cell.lvl-4 { background: #5b9cfa; }
 .heat-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
 .heat-legend .heat-cell { width: 12px; height: 12px; cursor: default; }
+.heat-tip { position: fixed; z-index: 9999; background: var(--card, #1b2130); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; box-shadow: 0 6px 24px rgba(0, 0, 0, .35); pointer-events: none; white-space: nowrap; }
+.ht-date { font-size: 12px; color: var(--text); }
+.ht-count { font-size: 12px; color: var(--brand); margin-top: 2px; }
 
 /* 分析卡 */
 .analysis-card { display: flex; flex-direction: column; gap: 6px; }
