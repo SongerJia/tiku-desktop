@@ -279,11 +279,12 @@ module.exports = function statsModule(ctx) {
 
     // 错因分析（行业空白）：本周/全部错题中已标记 reason 的分布。
     // 数据源：答题结果页错因 3 选 1 / 错题本下拉标记；未标记（NULL/空）不计入，避免干扰占比。
+    // 时间口径：wrong_books 无 created_at 列，用 updated_at（答错/复习/标记错因都会更新）≈「最近活动过的错题」
     getReasonAnalysis(scope = 'week') {
       const since = scope === 'week'
         ? (() => { const d = new Date(); const dow = (d.getDay() + 6) % 7; d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - dow); return d.getTime() })()
         : 0
-      const where = scope === 'week' ? 'AND wb.created_at>=?' : ''
+      const where = scope === 'week' ? 'AND wb.updated_at>=?' : ''
       const rows = sqlite.prepare(
         `SELECT TRIM(wb.reason) AS reason, COUNT(*) AS n FROM wrong_books wb
          WHERE wb.user_id=? AND wb.deleted=0 AND wb.reason IS NOT NULL AND TRIM(wb.reason)<>'' ${where}
