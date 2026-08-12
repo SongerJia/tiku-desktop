@@ -14,9 +14,10 @@ const loading = ref(true)
 const PAGE = 50
 const visibleCount = ref(PAGE)
 
+let alive = true // 卸载后作废在途请求结果（须在 watch/onMounted 之前声明，避免 setup 同步触发时 TDZ）
 onMounted(load)
-// 科目/章节任一变化统一触发一次 fetchQuestions（原 load 显式调 + watch(currentChapterId) 双触发 = 并发双请求）
-watch(() => [props.subject.id, currentChapterId.value], fetchQuestions, { immediate: true })
+watch(() => props.subject.id, load) // 切科目：重载章节列表 + 题目
+watch(currentChapterId, fetchQuestions) // 切章节：拉该章题目
 
 async function load() {
   loading.value = true
@@ -24,11 +25,13 @@ async function load() {
   // 取当前科目下的二级分类作为章节
   const subjectNode = tree.find(n => n.id === props.subject.id)
   chapters.value = subjectNode ? subjectNode.children : (tree[0]?.children || [])
+  const was = currentChapterId.value
   currentChapterId.value = null
+  // 仅当值未变（不会触发 watch）时手动补拉一次；非 null→null 已由 watch 触发，避免并发双请求
+  if (was === null) await fetchQuestions()
   loading.value = false
 }
 
-let alive = true // 卸载后作废在途请求结果（写 ref 无害但浪费）
 onBeforeUnmount(() => { alive = false })
 
 async function fetchQuestions() {
