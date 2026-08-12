@@ -967,4 +967,39 @@ onMounted(async () => {
   -webkit-text-fill-color: transparent; color: transparent;
 }
 [data-theme="light"] .ach-sum-item b, [data-theme="light"] .kb-stat b { background: linear-gradient(180deg, #1f2937, #64748b); -webkit-background-clip: text; background-clip: text; }
+
+/* ===== 我的页加浓（2026-08-12）：首页同款浓度 ===== */
+/* stagger 交错入场：用户卡 → 学习成长 → 学习目标 */
+.profile > * { animation: riseIn .4s cubic-bezier(.2, .7, .3, 1) both; }
+.profile > *:nth-child(2) { animation-delay: .06s; }
+.profile > *:nth-child(3) { animation-delay: .12s; }
+
+/* 用户卡 XP 进度条：从 0 填充 */
+.user-xp-fill { animation: fillBar .9s cubic-bezier(.3, .7, .3, 1) both; }
+/* XP 数字：渐变 + 弹入 */
+.user-xp-num {
+  background: linear-gradient(180deg, #f4f7ff, #a9b6da);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  animation: numPop .45s cubic-bezier(.2, .7, .3, 1) both;
+}
+@keyframes numPop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
+[data-theme="light"] .user-xp-num { background: linear-gradient(180deg, #1f2937, #64748b); -webkit-background-clip: text; background-clip: text; }
+
+/* 成就数字弹入 */
+.ach-sum-item b, .kb-stat b { animation: numPop .45s cubic-bezier(.2, .7, .3, 1) both; }
+
+/* 成就完成率环：入场弹入 */
+.ach-sum-ring { animation: ringPop .5s cubic-bezier(.2, .7, .3, 1) .15s both; }
+@keyframes ringPop { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: scale(1); } }
+
+/* 头像区：装饰光斑 */
+.user-card { position: relative; overflow: hidden; }
+.user-card::before {
+  content: ''; position: absolute; top: -46px; right: -36px;
+  width: 150px; height: 150px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(91, 124, 250, 0.10), transparent 62%);
+  pointer-events: none;
+}
+
 </style>
