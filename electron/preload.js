@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   rateReview: (questionId, quality) => ipcRenderer.invoke('rateReview', questionId, quality),
   getReviewCurve: (days) => ipcRenderer.invoke('getReviewCurve', days),
   getReasonAnalysis: (scope) => ipcRenderer.invoke('getReasonAnalysis', scope),
+  getDailyBrief: () => ipcRenderer.invoke('getDailyBrief'),
   exportAllZip: () => ipcRenderer.invoke('exportAllZip'),
   getKbGraph: () => ipcRenderer.invoke('getKbGraph'),
   getDailyPuzzle: (subjectId) => ipcRenderer.invoke('getDailyPuzzle', subjectId),

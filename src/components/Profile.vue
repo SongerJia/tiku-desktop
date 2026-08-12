@@ -260,6 +260,11 @@ const achSeries = computed(() => ACH_SERIES.map(sr => {
   const list = achievements.value.filter(a => a.series === sr.key)
   return { ...sr, list, got: list.filter(a => a.got).length, total: list.length }
 }).filter(s => s.list.length))
+// 最近解锁（成就墙高亮：按解锁日期最新 4 个，替代 toast 一闪而过）
+const recentUnlocked = computed(() => achievements.value
+  .filter(a => a.got && a.unlockAt)
+  .sort((a, b) => String(b.unlockAt).localeCompare(String(a.unlockAt)))
+  .slice(0, 4))
 
 // ---- 知识库概览（kbStats）----
 const kbStats = ref(null)
@@ -341,6 +346,15 @@ onMounted(async () => {
         <span class="ach-sum-item"><b>{{ unlockedCount }}/{{ achievements.length }}</b>已解锁</span>
         <span class="ach-sum-item"><b>{{ achPct }}%</b>完成率</span>
         <span class="ach-sum-ring" :style="{ background: `conic-gradient(var(--brand) ${achPct * 3.6}deg, var(--line) 0deg)` }"></span>
+      </div>
+
+      <!-- 最近解锁（高亮条） -->
+      <div v-if="recentUnlocked.length" class="ach-recent">
+        <div v-for="a in recentUnlocked" :key="'recent' + a.key" class="ach-recent-item">
+          <span class="ari-icon">{{ a.icon }}</span>
+          <span class="ari-name">{{ a.name }}</span>
+          <span class="ari-date">{{ (a.unlockAt || '').slice(5).replace('-', '/') }} 解锁</span>
+        </div>
       </div>
 
       <!-- 系列分组 -->
@@ -859,6 +873,16 @@ onMounted(async () => {
 .ach-sum-item b { font-size: 16px; color: var(--brand); font-weight: 700; }
 .ach-sum-ring { width: 30px; height: 30px; border-radius: 50%; margin-left: auto; position: relative; }
 .ach-sum-ring::after { content: ''; position: absolute; inset: 6px; background: var(--bg, #fff); border-radius: 50%; }
+/* 最近解锁高亮条 */
+.ach-recent { display: flex; gap: 8px; padding-bottom: 12px; margin-bottom: 10px; border-bottom: 1px dashed var(--line); }
+.ach-recent-item {
+  flex: 1; min-width: 0; text-align: center;
+  background: rgba(91, 124, 250, 0.08); border: 1px solid rgba(91, 124, 250, 0.25);
+  border-radius: 10px; padding: 8px 4px;
+}
+.ari-icon { font-size: 17px; display: block; }
+.ari-name { font-size: 11.5px; color: var(--text); display: block; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ari-date { font-size: 10.5px; color: var(--muted); display: block; margin-top: 2px; }
 .ach-series { margin-bottom: 14px; }
 .ach-series-head { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 4px; border-radius: 8px; }
 .ach-series-head:hover { background: rgba(91,124,250,.06); }

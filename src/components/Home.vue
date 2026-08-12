@@ -19,6 +19,7 @@ const xpTotal = ref(0)
 const examDate = ref('')
 const weakPoints = ref([])
 const weakAccuracy = ref([])
+const dailyBrief = ref({ answered: 0, correct: 0, pct: 0, mastered: 0 }) // 昨日小结（问候卡下）
 
 onMounted(load)
 watch(() => props.subject.id, load)
@@ -70,7 +71,7 @@ async function load() {
   const seq = ++loadSeq
   loading.value = true
   const sid = props.subject && props.subject.id
-  const [sumR, goalR, fsR, cardsR, weakR, accR, puzzleR, dueR, xpR, exR] = await Promise.allSettled([
+  const [sumR, goalR, fsR, cardsR, weakR, accR, puzzleR, dueR, xpR, exR, briefR] = await Promise.allSettled([
     tiku.getSummary(sid),
     tiku.getSetting(sid ? `daily_goal_${sid}` : 'daily_goal'),
     tiku.focusStats(),
@@ -80,7 +81,8 @@ async function load() {
     tiku.getDailyPuzzle(sid),
     tiku.reviewDueStats(sid),
     tiku.xpStats(),
-    tiku.getSetting(sid ? `exam_date_${sid}` : 'exam_date')
+    tiku.getSetting(sid ? `exam_date_${sid}` : 'exam_date'),
+    tiku.getDailyBrief()
   ])
   if (seq !== loadSeq) return // 已被更新的加载取代，丢弃本次结果
   summary.value = sumR.status === 'fulfilled' && sumR.value ? sumR.value : { total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0, accuracy: 0, weekAccuracy: 0, weekDelta: 0, streak: 0 }
@@ -98,7 +100,8 @@ async function load() {
   dueReviews.value = dueR.status === 'fulfilled' && dueR.value ? dueR.value.due || 0 : 0
   xpTotal.value = xpR.status === 'fulfilled' && xpR.value ? (xpR.value.total || 0) : 0
   // 考试日：科目 key 优先，未设置则全局兜底
-  examDate.value = exR.status === 'fulfilled' ? (exR.value || '') : ''
+  if (exR.status === 'fulfilled') examDate.value = exR.value || ''
+  if (briefR.status === 'fulfilled' && briefR.value) dailyBrief.value = briefR.value
   if (!examDate.value && sid) {
     try { examDate.value = (await tiku.getSetting('exam_date')) || '' } catch (e) { examDate.value = '' }
     if (seq !== loadSeq) return
@@ -253,7 +256,15 @@ onBeforeUnmount(() => {
           <span class="greet-title">{{ greeting }}</span>
           <span class="greet-date">{{ todayStr }}</span>
         </div>
-        <div v-if="growthText" class="growth-bar" @click="emit('goto', 'stats')">
+        <!-- 昨日小结（昨日有学习记录时优先显示，替代本周总结条） -->
+        <div v-if="dailyBrief.answered > 0" class="brief-bar" @click="emit('goto', 'stats')">
+          <span class="growth-icon"><Icon name="check" :size="14"/></span>
+          <span class="brief-text">
+            昨日小结：刷题 <b>{{ dailyBrief.answered }}</b> 题 · 正确率 <b>{{ dailyBrief.pct }}%</b><template v-if="dailyBrief.mastered"> · 新增掌握 <b>{{ dailyBrief.mastered }}</b></template>
+            <span class="brief-sub">今日还有 {{ dueReviews }} 题待复习 ›</span>
+          </span>
+        </div>
+        <div v-else-if="growthText" class="growth-bar" @click="emit('goto', 'stats')">
           <span class="growth-icon"><Icon name="pulse" :size="14"/></span>
           <span class="growth-text">{{ growthText }}</span>
           <span class="growth-go">看统计 ›</span>
@@ -428,6 +439,18 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(91, 124, 250, 0.35);
   border-radius: 10px; cursor: pointer; transition: all .15s;
 }
+/* 昨日小结条 */
+.brief-bar {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 12px; padding: 10px 12px;
+  background: rgba(47, 191, 143, 0.08);
+  border: 1px solid rgba(47, 191, 143, 0.3);
+  border-radius: 10px; cursor: pointer; transition: all .15s;
+}
+.brief-bar:hover { box-shadow: var(--glow-soft); }
+.brief-text { font-size: 12.5px; color: #a8d9c5; }
+.brief-text b { color: #bfe8d8; font-weight: 600; }
+.brief-sub { color: var(--muted); margin-left: 6px; }
 .growth-bar:hover { border-color: var(--brand); }
 .growth-bar.ghost { background: transparent; border-style: dashed; cursor: default; }
 .growth-icon { color: var(--brand); flex-shrink: 0; }

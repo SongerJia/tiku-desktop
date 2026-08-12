@@ -293,6 +293,22 @@ module.exports = function statsModule(ctx) {
       return { total, list: rows.map(r => ({ reason: r.reason, count: r.n, pct: total ? Math.round((r.n / total) * 100) : 0 })) }
     },
 
+    // 昨日小结：昨日答题数/正确率/新增掌握（首页问候卡下方展示，激励连续学习）
+    getDailyBrief() {
+      const now = new Date()
+      const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+      const y0 = today0 - 86400000
+      const row = sqlite.prepare(
+        'SELECT COUNT(*) AS n, SUM(is_correct) AS c FROM answer_records WHERE user_id=? AND deleted=0 AND created_at>=? AND created_at<?'
+      ).get(LOCAL_USER, y0, today0)
+      const answered = row.n || 0
+      // 新增掌握：昨日复习后毕业（wrong→mastered）的题数，updated_at 近似毕业时间
+      const mastered = sqlite.prepare(
+        "SELECT COUNT(*) AS n FROM wrong_books WHERE user_id=? AND deleted=0 AND status='mastered' AND updated_at>=? AND updated_at<?"
+      ).get(LOCAL_USER, y0, today0).n || 0
+      return { answered, correct: row.c || 0, pct: answered ? Math.round((row.c / answered) * 100) : 0, mastered }
+    },
+
     // 赛季统计：当月各维度计数（赛季成就按月判定，次月 1 日自动重置进度）
     getMonthStats() {
       const now = new Date()
