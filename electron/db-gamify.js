@@ -37,22 +37,6 @@ module.exports = function gamifyModule(ctx) {
       }
     },
 
-    // ---- XP 明细：今日按来源 + 最近记录 ----
-    xpDetail() {
-      const todayStart = new Date().setHours(0, 0, 0, 0)
-      const bySource = sqlite.prepare(
-        "SELECT source, COUNT(*) AS n, SUM(xp) AS total FROM xp_logs WHERE deleted=0 AND created_at>=? GROUP BY source ORDER BY total DESC"
-      ).all(todayStart)
-      const recent = sqlite.prepare(
-        'SELECT xp, source, note, created_at FROM xp_logs WHERE deleted=0 ORDER BY created_at DESC LIMIT 20'
-      ).all()
-      const SOURCE_LABEL = { quiz: '刷题', review: '每日回顾', kbread: '文档阅读', focus: '专注', quest: '每日任务' }
-      return {
-        bySource: bySource.map(r => ({ ...r, label: SOURCE_LABEL[r.source] || r.source })),
-        recent: recent.map(r => ({ ...r, label: SOURCE_LABEL[r.source] || r.source }))
-      }
-    },
-
     // ---- 复习到期统计（智能复习入口提示）----
     reviewDueStats(subjectId) {
       // 支持按科目统计到期错题（内容闭环跟科目走）；不传则全局
@@ -70,12 +54,11 @@ module.exports = function gamifyModule(ctx) {
       return { due, estMinutes: Math.max(1, Math.ceil(due / 10)) } // 按 10 题/分钟估
     },
 
-    // 今日行为计数（每日任务/回顾用）：今日复习条数、今日阅读次数
+    // 今日行为计数（每日任务用）：今日阅读次数（复习量在阶段 4 改为按 answer_records 复习模式统计）
     todayCounts() {
       const todayStart = new Date().setHours(0, 0, 0, 0)
-      const review = sqlite.prepare('SELECT COUNT(*) AS n FROM review_logs WHERE created_at>=?').get(todayStart).n
       const kbRead = sqlite.prepare("SELECT COUNT(*) AS n FROM xp_logs WHERE deleted=0 AND created_at>=? AND source='kbread'").get(todayStart).n
-      return { review, kbRead }
+      return { kbRead }
     },
 
     // 每日任务 Quest：按当天指标实时判定，达标且当天未领过 XP 的自动发放（+20/个）
@@ -87,9 +70,8 @@ module.exports = function gamifyModule(ctx) {
       const s = this.getSummary()
       const tc = this.todayCounts()
       const tasks = [
-        { key: 'quiz20', name: '刷 20 题', note: '刷20题', done: s.today >= 20 },
-        { key: 'review5', name: '复习 5 条', note: '复习5条', done: tc.review >= 5 },
-        { key: 'read1', name: '阅读 1 篇文档', note: '阅读1篇', done: tc.kbRead >= 1 }
+        { key: 'quiz', name: '刷 20 题', note: '刷20题', done: s.today >= 20 },
+        { key: 'read', name: '阅读 1 篇文档', note: '阅读1篇', done: tc.kbRead >= 1 }
       ]
       const claimed = []
       tasks.forEach(t => {

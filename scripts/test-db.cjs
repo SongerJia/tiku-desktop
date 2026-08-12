@@ -191,30 +191,13 @@ try {
   ok('upsertMaterial 重复内容复用', db.upsertMaterial(1, '案例背景材料内容', '案例一').id === mat.id)
   ok('listMaterials 含材料', db.listMaterials().some(m => m.id === mat.id))
 
-  // 20) 习惯/专注/回顾模块（拆出的 db-habits 回归）
-  const hid = db.addHabit('基线习惯', '✅')
-  ok('addHabit 返回 id', Number(hid) > 0)
-  const hb = db.listHabits().find(h => h.id === hid)
-  ok('listHabits 含新习惯且连续天数=0', !!hb && hb.streak === 0)
-  db.checkHabit(hid, '2026-08-01')
-  db.checkHabit(hid, '2026-08-02')
-  ok('checkHabit 后 total=2', db.listHabits().find(h => h.id === hid).total === 2)
-  db.uncheckHabit(hid, '2026-08-01')
-  ok('uncheckHabit 后 total=1', db.listHabits().find(h => h.id === hid).total === 1)
-  db.updateHabit(hid, { name: '习惯改名' })
-  ok('updateHabit 改名', db.listHabits().find(h => h.id === hid).name === '习惯改名')
+  // 20) 专注/断点续做模块（拆出的 db-habits 回归，习惯打卡已砍）
   db.addFocusSession(25)
   ok('addFocusSession 后今日专注>0', db.focusStats().today >= 25)
   db.saveResumeSession({ questions: [1, 2, 3], idx: 1 })
   ok('saveResumeSession/getResumeSession 往返', db.getResumeSession() && db.getResumeSession().questions.length === 3)
   db.clearResumeSession()
   ok('clearResumeSession 清空', db.getResumeSession() === null)
-  const dr = db.getDailyReview(8)
-  ok('getDailyReview 返回 questions/blocks', Array.isArray(dr.questions) && Array.isArray(dr.blocks))
-  db.logReview('block', 1, true)
-  ok('logReview 记录成功', db.logReview('question', 1, false).ok === true)
-  db.deleteHabit(hid)
-  ok('deleteHabit 删除（含打卡记录）', !db.listHabits().some(h => h.id === hid))
 
   // 21) 高亮/双链/错因/周报模块（拆出的 db-misc 回归）
   const hlId = db.addHighlight({ docId: docId, blockId: 1, text: '高亮文字' })
@@ -410,32 +393,6 @@ try {
   const dp2 = db.getDailyPuzzle()
   ok('getDailyPuzzle 跨天未答连击清零+期数+1', dp2.state.streak === 0 && dp2.state.period === 4 && dp2.state.date !== yesterday)
   ok('getDailyPuzzle 跨天换新题', !!dp2.question && dp2.question.id !== dp1.question.id)
-
-  // 29) 目标契约（db-stats.js）
-  const g0 = db.getGoalContract()
-  ok('getGoalContract 无契约时返回 null', g0.contract === null)
-  // 先答一题产生本周记录（clearUserData 清空过 answer_records）
-  const qAns = db.getQuestionById(q.id)
-  if (qAns && qAns.type === 'single' && qAns.answer && qAns.answer.length) {
-    db.submitAnswer({ questionId: q.id, selected: qAns.answer, durationMs: 0, mode: 'practice' })
-  }
-  db.setGoalContract({ type: 'quiz', value: 999999 })
-  const g1 = db.getGoalContract()
-  ok('getGoalContract 统计本周答题进度', g1.contract && g1.contract.type === 'quiz' && g1.progress >= 1 && g1.achieved === false)
-  db.setGoalContract({ type: 'focus', value: 30 })
-  const gFocus = db.getGoalContract()
-  ok('getGoalContract focus 类型进度', gFocus.contract && gFocus.contract.type === 'focus')
-  db.setGoalContract({ type: 'quiz', value: 1 })
-  const g2 = db.getGoalContract()
-  ok('setGoalContract 小目标立即达成', g2.achieved === true)
-  const cl = db.claimGoalReward()
-  ok('claimGoalReward 领奖 +50 XP', cl.ok === true && cl.xp === 50)
-  const cl2 = db.claimGoalReward()
-  ok('claimGoalReward 重复领取拒绝', cl2.ok === false)
-  // 跨周重置：把 weekStart 拨到上周且未达成 → lastMissed 记录、进度清零重来（大目标避免重置后立即达成）
-  db.setSetting('goal_contract', JSON.stringify({ type: 'quiz', value: 999999, weekStart: Date.now() - 8 * 86400000, progress: 0, achieved: false, claimed: false, lastMissed: null }))
-  const g3 = db.getGoalContract()
-  ok('跨周自动重置 + lastMissed 记录', g3.contract && g3.lastMissed !== null && g3.lastMissed.missedBy === 999999 && g3.achieved === false && g3.progress < 999999)
 
   // 30) kbStats.unread（今日任务单数据源）
   const kbSt = db.kbStats()

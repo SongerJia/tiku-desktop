@@ -43,9 +43,6 @@ module.exports = function syncModule(ctx) {
         kbLinks: dump('kb_links', COLS.kbLinks),
         kbFiles,
         xpLogs: dump('xp_logs'),
-        habits: dump('habits'),
-        habitChecks: dump('habit_checks'),
-        reviewLogs: dump('review_logs'),
         focusSessions: dump('focus_sessions'),
         kbHighlights: dump('kb_highlights'),
         kbDocLinks: dump('kb_doc_links'),
@@ -88,7 +85,7 @@ module.exports = function syncModule(ctx) {
 
     exportSync(since = 0) {
       const full = !since
-      const eventTables = new Set(['xp_logs', 'habit_checks', 'review_logs', 'focus_sessions'])
+      const eventTables = new Set(['xp_logs', 'focus_sessions'])
       const dump = (table) => {
         if (full) return sqlite.prepare(`SELECT * FROM ${table}`).all()
         const col = eventTables.has(table) ? 'created_at' : 'updated_at'
@@ -170,9 +167,6 @@ module.exports = function syncModule(ctx) {
         kbLinksByCid,
         kbFiles,
         xpLogs: dump('xp_logs'),
-        habits: dump('habits'),
-        habitChecks: dump('habit_checks'),
-        reviewLogs: dump('review_logs'),
         focusSessions: dump('focus_sessions'),
         cards: dump('cards'),
         kbHighlights,
@@ -240,9 +234,6 @@ module.exports = function syncModule(ctx) {
         { table: 'kb_docs', cols: ['title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'subject_id', 'last_page', 'created_at', 'updated_at', 'deleted', 'client_id'] },
         // 反馈层（批次功能新增，全部 LWW）
         { table: 'xp_logs', cols: ['user_id', 'xp', 'source', 'note', 'created_at', 'deleted', 'client_id'] },
-        { table: 'habits', cols: ['name', 'icon', 'sort', 'created_at', 'updated_at', 'deleted', 'client_id'] },
-        { table: 'habit_checks', cols: ['habit_id', 'check_date', 'created_at', 'client_id'], orIgnore: true },
-        { table: 'review_logs', cols: ['item_type', 'item_id', 'result', 'created_at', 'client_id'] },
         { table: 'focus_sessions', cols: ['minutes', 'started_at', 'created_at', 'deleted', 'client_id'] },
         { table: 'cards', cols: ['front', 'back', 'category', 'subject_id', 'source_question_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'] },
         { table: 'materials', cols: ['title', 'content', 'subject_id', 'created_at', 'updated_at', 'deleted', 'client_id'] },
@@ -287,7 +278,7 @@ module.exports = function syncModule(ctx) {
         for (const r of catMerged) catCidToId.set(r.client_id, catUpsert(r))
 
         // 1.5) materials（案例题背景材料，独立合并建 cid→id 映射，questions 引用它）
-        const matUpsert = makeUpsert('materials', cfg[15].cols)
+        const matUpsert = makeUpsert('materials', cfg[12].cols)
         const matMerged = lwwMerge(readAll('materials'), remote.materials || [])
         const matCidToId = new Map()
         for (const r of matMerged) matCidToId.set(r.client_id, matUpsert(r))
@@ -407,23 +398,20 @@ module.exports = function syncModule(ctx) {
           return rows.length
         }
         const xpN = mergeSimple(9, 'xpLogs')
-        const hbN = mergeSimple(10, 'habits')
-        const hcN = mergeSimple(11, 'habitChecks')
-        const rvN = mergeSimple(12, 'reviewLogs')
-        const fsN = mergeSimple(13, 'focusSessions')
-        const cdN = mergeSimple(14, 'cards') // 修复：cards 此前漏合并，跨端闪卡会丢失/被全量覆盖
+        const fsN = mergeSimple(10, 'focusSessions')
+        const cdN = mergeSimple(11, 'cards') // 修复：cards 此前漏合并，跨端闪卡会丢失/被全量覆盖
         // 高亮/文档双链：doc 引用按 cid 解析成本机 id 后再 upsert
         const hlMerged = lwwMerge(readAll('kb_highlights'), remote.kbHighlights || [])
         applyFk(hlMerged, 'doc_cid', 'doc_id', kbCidToId)
-        const hlUp = makeUpsert('kb_highlights', cfg[16].cols) // 修复：原 cfg[14]（cards）索引错位
+        const hlUp = makeUpsert('kb_highlights', cfg[13].cols) // 修复：原 cfg[14]（cards）索引错位
         hlMerged.forEach(r => hlUp(r))
         const dlMerged = lwwMerge(readAll('kb_doc_links'), remote.kbDocLinks || [])
         applyFk(dlMerged, 'from_cid', 'from_doc_id', kbCidToId)
         applyFk(dlMerged, 'to_cid', 'to_doc_id', kbCidToId)
-        const dlUp = makeUpsert('kb_doc_links', cfg[17].cols, true) // 修复：原 cfg[15]（materials）索引错位
+        const dlUp = makeUpsert('kb_doc_links', cfg[14].cols, true) // 修复：原 cfg[15]（materials）索引错位
         dlMerged.forEach(r => dlUp(r))
 
-        return { categories: catMerged.length, questions: qMerged.length, answerRecords: arN, wrongBooks: wbN, favorites: fvN, notes: ntN, papers: paperMerged.length, paperQuestions: pqMerged.length, kbDocs: kbDocsN, kbBlocks: kbBlocksN, kbTags: kbTagsN, kbLinks: kbLinksN, xpLogs: xpN, habits: hbN, habitChecks: hcN, reviewLogs: rvN, focusSessions: fsN, cards: cdN, kbHighlights: hlMerged.length, kbDocLinks: dlMerged.length, conflicts: syncConflicts, conflictItems: syncConflictItems.slice(0, 50) }
+        return { categories: catMerged.length, questions: qMerged.length, answerRecords: arN, wrongBooks: wbN, favorites: fvN, notes: ntN, papers: paperMerged.length, paperQuestions: pqMerged.length, kbDocs: kbDocsN, kbBlocks: kbBlocksN, kbTags: kbTagsN, kbLinks: kbLinksN, xpLogs: xpN, focusSessions: fsN, cards: cdN, kbHighlights: hlMerged.length, kbDocLinks: dlMerged.length, conflicts: syncConflicts, conflictItems: syncConflictItems.slice(0, 50) }
       })
       const result = tx()
       // 图片还原已下沉到独立通道（restoreImages）：拉取后由同步编排层解码远端图片文件并落盘，
@@ -468,7 +456,7 @@ module.exports = function syncModule(ctx) {
         kbDocs: diff('kb_docs', data.kbDocs),
         notes: diff('notes', data.notes),
         wrongBooks: diff('wrong_books', data.wrongBooks),
-        otherTables: ['xp_logs', 'habits', 'habit_checks', 'review_logs', 'focus_sessions', 'kb_highlights', 'kb_doc_links', 'cards', 'papers', 'answer_records', 'favorites']
+        otherTables: ['xp_logs', 'focus_sessions', 'kb_highlights', 'kb_doc_links', 'cards', 'papers', 'answer_records', 'favorites']
           .filter(t => Array.isArray(data[t]) && data[t].length)
           .length
       }
@@ -506,9 +494,6 @@ module.exports = function syncModule(ctx) {
       replace('kb_tags', data.kbTags, ['doc_id', 'tag'])
       replace('kb_links', data.kbLinks, ['id', 'doc_id', 'block_id', 'question_id', 'note', 'created_at'])
       replace('xp_logs', data.xpLogs, ['id', 'user_id', 'xp', 'source', 'note', 'created_at', 'deleted', 'client_id'])
-      replace('habits', data.habits, ['id', 'name', 'icon', 'sort', 'created_at', 'updated_at', 'deleted', 'client_id'])
-      replace('habit_checks', data.habitChecks, ['id', 'habit_id', 'check_date', 'created_at', 'client_id'])
-      replace('review_logs', data.reviewLogs, ['id', 'item_type', 'item_id', 'result', 'created_at', 'client_id'])
       replace('focus_sessions', data.focusSessions, ['id', 'minutes', 'started_at', 'created_at', 'deleted', 'client_id'])
       replace('kb_highlights', data.kbHighlights, ['id', 'doc_id', 'block_id', 'text', 'note', 'color', 'created_at', 'updated_at', 'deleted', 'client_id'])
       replace('kb_doc_links', data.kbDocLinks, ['id', 'from_doc_id', 'to_doc_id', 'note', 'created_at', 'client_id'])

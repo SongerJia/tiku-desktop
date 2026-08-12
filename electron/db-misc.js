@@ -69,7 +69,6 @@ module.exports = function miscModule(ctx) {
       const xp = sqlite.prepare('SELECT COALESCE(SUM(xp),0) AS n FROM xp_logs WHERE deleted=0 AND created_at>=?').get(weekStart).n
       const focus = sqlite.prepare('SELECT COALESCE(SUM(minutes),0) AS n FROM focus_sessions WHERE deleted=0 AND created_at>=?').get(weekStart).n
       const review = sqlite.prepare('SELECT COUNT(*) AS n FROM review_logs WHERE created_at>=?').get(weekStart).n
-      const habits = sqlite.prepare('SELECT COUNT(DISTINCT habit_id) AS h, COUNT(*) AS c FROM habit_checks WHERE check_date>=?').get(new Date(weekStart).toISOString().slice(0, 10))
       const s = this.getSummary(subjectId)
       const kb = this.kbStats()
       const x = this.xpStats()
@@ -104,8 +103,6 @@ module.exports = function miscModule(ctx) {
         totalXp: x.total,
         focus,
         review,
-        habitDays: habits.h || 0,
-        habitChecks: habits.c || 0,
         wrongActive: s.wrongCount,
         mastered: s.mastered,
         totalAnswered: s.learned || s.totalAnswered || 0,

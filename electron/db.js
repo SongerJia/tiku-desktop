@@ -10,7 +10,7 @@ const quizModule = require('./db-quiz') // 题库核心（取题/判分/错题�
 const kbModule = require('./db-kb') // 知识库文档基础（读/CRUD/标签/图谱）
 const bankModule = require('./db-bank') // 题库管理（导入/列表/增删改/统计/导出 + 分类/批量）
 const cardsModule = require('./db-cards') // 卡片记忆 + 材料题
-const habitsModule = require('./db-habits') // 习惯/专注/回顾/断点续做
+const habitsModule = require('./db-habits') // 专注/断点续做
 const miscModule = require('./db-misc') // 高亮/双链/错因/周报
 const weakModule = require('./db-weak') // 薄弱项/相似题/弱点抽题
 const paperModule = require('./db-paper') // 模拟卷/标签/章节进度
@@ -238,8 +238,7 @@ const api = {
 
   // 今日行为计数 / 每日任务：已抽到 electron/db-gamify.js
 
-  // 每日回顾：到期错题（复用智能复习调度）+ 知识库随机块
-  // ---- 习惯/专注/回顾/断点续做方法已抽到 electron/db-habits.js（init 中合并）----
+  // ---- 专注/断点续做方法已抽到 electron/db-habits.js（init 中合并）----
 
   // ---- 文档高亮批注 ----
   // ---- 高亮/双链/错因/周报方法已抽到 electron/db-misc.js（init 中合并）----

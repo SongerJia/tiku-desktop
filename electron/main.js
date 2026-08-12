@@ -235,44 +235,12 @@ app.whenReady().then(() => {
   // Windows 通知需 AppUserModelID（打包后生效；开发模式走 Electron 默认）
   try { app.setAppUserModelId('com.songerjia.tiku-desktop') } catch (e) { /* 忽略 */ }
   createWindow()
-  startReminderLoop()
   setupAutoUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
-
-// ---- 学习提醒（系统通知）：每天 remind_time 到点提醒一次 ----
-const pad2 = n => String(n).padStart(2, '0')
-const dateStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
-
-function checkReminder() {
-  try {
-    if (db.getSetting('remind_enabled') !== '1') return
-    const time = db.getSetting('remind_time') || '21:00'
-    const now = new Date()
-    const hm = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
-    if (hm !== time) return // 未到提醒分钟：不查统计（每 60s tick 时省掉重查询）
-    if (db.getSetting('last_remind_date') === dateStr()) return
-    const s = db.getSummary() || {}
-    const dueStats = db.reviewDueStats()
-    const due = dueStats ? dueStats.due : 0
-    const goal = Number(db.getSetting('daily_goal') || 0)
-    const body = `今日已刷 ${s.today || 0} 题${goal ? `，目标 ${goal} 题` : ''}；错题本待复习 ${s.wrongCount || 0} 题，今日到期 ${due} 题。`
-    if (Notification.isSupported()) {
-      new Notification({ title: '学习提醒 📚', body }).show()
-      db.setSetting('last_remind_date', dateStr())
-    }
-  } catch (e) { /* 提醒失败静默，不影响主流程 */ }
-}
-
-function startReminderLoop() {
-  try {
-    checkReminder() // 启动即查一次（刚好到点也能触发）
-    setInterval(checkReminder, 60 * 1000)
-  } catch (e) { /* 忽略 */ }
-}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -315,9 +283,6 @@ ipcMain.handle('exportAllZip', () => db.exportAllZip())
 ipcMain.handle('getKbGraph', () => db.getKbGraph())
 ipcMain.handle('getDailyPuzzle', (e, subjectId) => db.getDailyPuzzle(subjectId))
 ipcMain.handle('submitDailyPuzzle', (e, questionId, correct) => db.submitDailyPuzzle(questionId, correct))
-ipcMain.handle('getGoalContract', () => db.getGoalContract())
-ipcMain.handle('setGoalContract', (e, cfg) => db.setGoalContract(cfg))
-ipcMain.handle('claimGoalReward', () => db.claimGoalReward())
 ipcMain.handle('clearUserData', () => db.clearUserData())
 ipcMain.handle('exportData', () => db.exportData())
 ipcMain.handle('importData', (e, json) => db.importData(json))
@@ -445,16 +410,8 @@ ipcMain.handle('kbGetNote', (e, docId) => db.getKbNote(docId))
 ipcMain.handle('xpStats', () => db.xpStats())
 ipcMain.handle('logXp', (e, xp, source, note) => db.logXp(xp, source, note))
 ipcMain.handle('checkQuests', () => db.checkQuests())
-ipcMain.handle('getDailyReview', (e, limit) => db.getDailyReview(limit))
-ipcMain.handle('logReview', (e, itemType, itemId, result) => db.logReview(itemType, itemId, result))
 ipcMain.handle('addFocusSession', (e, minutes) => db.addFocusSession(minutes))
 ipcMain.handle('focusStats', () => db.focusStats())
-ipcMain.handle('listHabits', () => db.listHabits())
-ipcMain.handle('addHabit', (e, name, icon) => db.addHabit(name, icon))
-ipcMain.handle('updateHabit', (e, id, patch) => db.updateHabit(id, patch))
-ipcMain.handle('deleteHabit', (e, id) => db.deleteHabit(id))
-ipcMain.handle('checkHabit', (e, habitId, dateStr) => db.checkHabit(habitId, dateStr))
-ipcMain.handle('uncheckHabit', (e, habitId, dateStr) => db.uncheckHabit(habitId, dateStr))
 ipcMain.handle('getHighlightsForDoc', (e, docId) => db.getHighlightsForDoc(docId))
 ipcMain.handle('removeHighlight', (e, id) => db.removeHighlight(id))
 ipcMain.handle('getDocLinks', (e, docId) => db.getDocLinks(docId))
@@ -472,7 +429,6 @@ ipcMain.handle('cardsStats', (e, subjectId) => db.cardsStats(subjectId))
 ipcMain.handle('saveResumeSession', (e, p) => db.saveResumeSession(p))
 ipcMain.handle('getResumeSession', () => db.getResumeSession())
 ipcMain.handle('clearResumeSession', () => db.clearResumeSession())
-ipcMain.handle('xpDetail', () => db.xpDetail())
 ipcMain.handle('reviewDueStats', (e, subjectId) => db.reviewDueStats(subjectId))
 ipcMain.handle('saveKbScroll', (e, docId, page) => db.saveKbScroll(docId, page))
 ipcMain.handle('listBackups', () => db.listBackups())
