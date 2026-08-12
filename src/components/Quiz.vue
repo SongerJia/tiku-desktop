@@ -1353,4 +1353,39 @@ function optionClass(key) {
 .tts-btn { background: none; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 12px; padding: 2px 8px; cursor: pointer; margin-left: 6px; line-height: 1.4; vertical-align: middle; }
 .tts-btn:hover { color: var(--brand); border-color: var(--brand); }
 .tts-btn.sm { font-size: 11px; padding: 1px 6px; }
+
+/* ===== 答题页铺开（2026-08-12）：渐变语言 / 流光（不做倾斜——答题专注场景）===== */
+/* 题目卡/结果卡：渐变边框（scoped 覆盖全局 .card） */
+.card {
+  border: 1px solid transparent;
+  background-image:
+    linear-gradient(var(--card), var(--card)),
+    linear-gradient(135deg, rgba(91, 124, 250, 0.4), rgba(122, 92, 255, 0.4));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  position: relative;
+}
+/* 主卡 hover 流光描边（pointer-events none 不挡选项点击） */
+.card::after {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.7) 80deg, transparent 170deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0; pointer-events: none; transition: opacity .18s;
+}
+.card:hover::after { opacity: 1; animation: angSpin 2.2s linear infinite; }
+
+/* 选项 hover：品牌渐变底（比原纯色更有层次） */
+.option:hover { background: linear-gradient(135deg, rgba(91, 124, 250, 0.10), rgba(122, 92, 255, 0.06)); }
+
+/* 结果页大数字：渐变（正确率/得分） */
+.rh-pct {
+  background: linear-gradient(180deg, #93b1ff, #5b7cfa);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+.rh-score { background: linear-gradient(180deg, #93b1ff, #5b7cfa); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+[data-theme="light"] .rh-pct, [data-theme="light"] .rh-score { background: linear-gradient(180deg, #3d5bd9, #7c3aed); -webkit-background-clip: text; background-clip: text; }
 </style>
