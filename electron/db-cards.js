@@ -74,6 +74,19 @@ module.exports = function cardsModule(ctx) {
       return { ok: true }
     },
 
+    // 卡片复习评级：记住 → 3 天后见；忘记 → 1 天后见（缩短间隔重来），记 5 XP
+    rateCard(cardId, felt) {
+      const now = Date.now()
+      const rc = sqlite.prepare('SELECT review_count FROM cards WHERE id=? AND deleted=0').get(cardId)
+      if (!rc) return { ok: false, error: 'card not found' }
+      const n = (rc.review_count || 0) + 1
+      const interval = felt ? 3 : 1
+      sqlite.prepare('UPDATE cards SET review_at=?, review_count=?, review_lapses=review_lapses+? WHERE id=?')
+        .run(now + interval * 86400000, n, felt ? 0 : 1, cardId)
+      if (felt) this.logXp(5, 'card', 'review')
+      return { ok: true }
+    },
+
     // 单词卡复习抽取：到期卡优先（含新卡），最多 limit 张；subjectId 限定科目范围
     getCardReview(limit = 10, subjectId) {
       const now = Date.now()

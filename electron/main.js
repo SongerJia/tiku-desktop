@@ -423,6 +423,7 @@ ipcMain.handle('addCardFromQuestion', (e, questionId) => db.addCardFromQuestion(
 ipcMain.handle('listCards', (e, subjectId) => db.listCards(subjectId))
 ipcMain.handle('updateCard', (e, id, front, back, category, subjectId) => db.updateCard(id, front, back, category, subjectId))
 ipcMain.handle('deleteCard', (e, id) => db.deleteCard(id))
+ipcMain.handle('rateCard', (e, cardId, felt) => db.rateCard(cardId, felt))
 ipcMain.handle('getCardReview', (e, limit, subjectId) => db.getCardReview(limit, subjectId))
 ipcMain.handle('cardsStats', (e, subjectId) => db.cardsStats(subjectId))
 

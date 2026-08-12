@@ -135,7 +135,24 @@ module.exports = function statsModule(ctx) {
         else break
       }
 
-      return { total, learned, mastered, today, wrongCount, activeDays, streak }
+      // 正确率口径：真实答题（排除背题 recite / 卡片 card / 问答题自评 self_graded），带科目过滤
+      const accSql = (ts) => `SELECT COUNT(*) AS n, SUM(CASE WHEN ar.is_correct=1 THEN 1 ELSE 0 END) AS c
+        FROM answer_records ar JOIN questions q ON q.id=ar.question_id
+        WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.mode NOT IN ('recite','card') AND ar.self_graded=0
+        AND ar.created_at>=?${sc.sql}`
+      const accAll = sqlite.prepare(accSql(0)).get(LOCAL_USER, 0, ...sc.params)
+      const accuracy = accAll.n ? Math.round((accAll.c / accAll.n) * 100) : 0
+      // 本周/上周正确率对比（周一为周起点）
+      const d0 = new Date()
+      const dow = (d0.getDay() + 6) % 7
+      const weekStart = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() - dow).getTime()
+      const weekAcc = sqlite.prepare(accSql(weekStart)).get(LOCAL_USER, weekStart, ...sc.params)
+      const prevStart = weekStart - 7 * 86400000
+      const prevAcc = sqlite.prepare(accSql(prevStart)).get(LOCAL_USER, prevStart, ...sc.params)
+      const weekAccuracy = weekAcc.n ? Math.round((weekAcc.c / weekAcc.n) * 100) : 0
+      const prevWeekAccuracy = prevAcc.n ? Math.round((prevAcc.c / prevAcc.n) * 100) : 0
+
+      return { total, learned, mastered, today, wrongCount, activeDays, streak, accuracy, weekAccuracy, prevWeekAccuracy, weekDelta: weekAccuracy - prevWeekAccuracy }
     },
 
     getWeeklyTrend(subjectId) {
