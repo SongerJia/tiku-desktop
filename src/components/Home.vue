@@ -95,6 +95,31 @@ const lvGap = computed(() => Math.max(0, lvInfo.value.nextLevelBase - xpTotal.va
 const lvQues = computed(() => Math.ceil(lvGap.value / 10)) // 答对折算：每对 +10 XP → 约再刷几题
 const cardMins = computed(() => Math.max(1, Math.ceil((cardStats.value.due || 0) * 0.5))) // 到期卡预计复习分钟
 
+// H13 破纪录：历史最长连击（localStorage 持久化）
+const bestStreak = ref(0)
+function trackBestStreak() {
+  try {
+    const best = Number(localStorage.getItem('tiku_streak_best') || 0)
+    const cur = summary.value.streak || 0
+    bestStreak.value = Math.max(best, cur)
+    if (cur > best) localStorage.setItem('tiku_streak_best', String(cur))
+  } catch (e) { /* 隐私模式忽略 */ }
+}
+const streakGap = computed(() => Math.max(0, bestStreak.value - summary.value.streak))
+
+// H16 复习完成反馈：对比复习前后到期数，减少则首页绿闪「复习完成」
+const reviewFlash = ref(false)
+let lastDue = -1
+let reviewFlashTimer = null
+function trackReviewDone() {
+  if (lastDue >= 0 && dueReviews.value < lastDue) {
+    reviewFlash.value = true
+    clearTimeout(reviewFlashTimer)
+    reviewFlashTimer = setTimeout(() => { reviewFlash.value = false }, 3200)
+  }
+  lastDue = dueReviews.value
+}
+
 // 通用 3D 倾斜指令（v-tilt）：任何卡片跟随鼠标立体倾斜，入场动画结束后自动解除压制
 // 幅度按元素类型分级：行动台 ±6°，其他区块 ±4°
 const vTilt = {
@@ -147,6 +172,8 @@ async function load() {
   weakAccuracy.value = accR.status === 'fulfilled' && Array.isArray(accR.value) ? accR.value.slice(0, 3) : []
   dailyPuzzle.value = puzzleR.status === 'fulfilled' ? puzzleR.value : null
   dueReviews.value = dueR.status === 'fulfilled' && dueR.value ? dueR.value.due || 0 : 0
+  trackReviewDone() // H16 复习完成对比
+  trackBestStreak() // H13 破纪录追踪
   xpTotal.value = xpR.status === 'fulfilled' && xpR.value ? (xpR.value.total || 0) : 0
   if (xpR.status === 'fulfilled' && xpR.value) {
     const x = xpR.value
@@ -345,8 +372,14 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- 复习到期横幅（有到期才显示） -->
-      <div v-if="dueReviews > 0" class="review-banner" v-tilt @click="startSmartReview">
+      <!-- 复习完成反馈（H16：复习回来到期数减少时短暂绿闪） -->
+      <div v-if="reviewFlash" class="review-done">
+        <span class="rd-ico"><Icon name="check" :size="15"/></span>
+        <span>复习完成！还剩 <b>{{ dueReviews }}</b> 题待复习，明天继续巩固</span>
+      </div>
+
+      <!-- 复习到期横幅（有到期才显示；H14：到期多时红色紧迫） -->
+      <div v-else-if="dueReviews > 0" class="review-banner" :class="{ urgent: dueReviews > 20 }" v-tilt @click="startSmartReview">
         <span class="rb-ico"><Icon name="clock" :size="15"/></span>
         <div class="rb-info">
           <div class="rb-title">{{ dueReviews }} 道错题已到复习期</div>
@@ -358,7 +391,7 @@ onBeforeUnmount(() => {
 
       <!-- 今日行动台：目标进度环 + 三大行动 -->
       <div class="action-dock" @mousemove="onDockMove" @mouseleave="onDockLeave" @animationend="onDockAnimEnd">
-        <div class="dock-ring" :class="{ clickable: !dailyGoal }" @click="dailyGoal ? null : emit('goto', 'profile')">
+        <div class="dock-ring" :class="{ clickable: true }" @click="dailyGoal ? emit('goto', 'stats') : emit('goto', 'profile')" :title="dailyGoal ? '看学习热力图' : '设置今日目标'">
           <svg viewBox="0 0 60 60" width="88" height="88">
             <circle cx="30" cy="30" r="25" fill="none" stroke="rgba(148,163,184,0.14)" stroke-width="5"/>
             <circle cx="30" cy="30" r="25" fill="none" stroke="var(--brand)" stroke-width="5" stroke-linecap="round" class="ring-anim"
@@ -396,7 +429,7 @@ onBeforeUnmount(() => {
         <div class="kpi-item">
           <span class="kpi-num"><CountUp :value="summary.streak" /></span>
           <span class="kpi-label">连续学习</span>
-          <span class="tip">累计学习 {{ summary.activeDays }} 天 · 坚持就是胜利</span>
+          <span class="tip">累计学习 {{ summary.activeDays }} 天<template v-if="streakGap > 0"> · 再坚持 {{ streakGap }} 天破纪录（历史最长 {{ bestStreak }} 天）</template></span>
         </div>
         <div class="kpi-sep"></div>
         <div class="kpi-item">
@@ -457,6 +490,7 @@ onBeforeUnmount(() => {
             <span class="mi-ico wrong"><Icon name="x" :size="16"/></span>
             <span class="mi-main">错题本</span>
             <span class="mi-count">{{ summary.wrongCount }} 题</span>
+            <span class="tip">待复习 {{ summary.wrongCount }} 题 · 已掌握 {{ summary.mastered }} · 今日到期 {{ dueReviews }}</span>
           </div>
           <div class="more-item" @click="emit('start', { mode: 'favorite' })">
             <span class="mi-ico fav"><Icon name="star" :size="16"/></span>
@@ -911,5 +945,27 @@ onBeforeUnmount(() => {
 
 /* 按压反馈：brightness（不冲突 tilt 的内联 transform） */
 .review-banner:active, .dock-btn:active, .more-item:active, .kpi-item.link:active { filter: brightness(.9); }
+
+
+/* H14 到期紧迫升级：>20 题横幅转红 */
+.review-banner.urgent {
+  background: rgba(229, 83, 95, 0.10);
+  border-color: rgba(229, 83, 95, 0.5);
+}
+.review-banner.urgent .rb-title { color: #f0a8ad; }
+.review-banner.urgent .rb-btn { background: var(--bad); }
+.review-banner.urgent::after { border-color: rgba(229, 83, 95, 0.5); }
+
+/* H16 复习完成绿闪条 */
+.review-done {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(47, 191, 143, 0.10);
+  border: 1px solid rgba(47, 191, 143, 0.45);
+  border-radius: 12px; padding: 12px 14px;
+  font-size: 13.5px; color: #a8d9c5;
+  animation: riseIn .35s cubic-bezier(.2, .7, .3, 1) both;
+}
+.review-done .rd-ico { color: var(--ok); display: flex; }
+.review-done b { color: #bfe8d8; }
 
 </style>
