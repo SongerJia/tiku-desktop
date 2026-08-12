@@ -143,16 +143,28 @@ function computeHeatSize() {
 }
 let heatObs = null
 
-// hover 浮层：日期 + 星期 + 题数（fixed 定位避免被 overflow 容器裁剪）
+// hover 浮层：日期 + 星期 + 题数。Teleport 到 body + fixed 定位（脱离 transform 祖先），右侧/底部放不下自动翻转
 const hoverCell = ref(null)
 const WEEKS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 const weekLabel = (dateStr) => { try { return WEEKS[new Date(dateStr + 'T00:00:00').getDay()] } catch (e) { return '' } }
+const TIP_W = 170 // 浮层预估宽（内容固定两行）
+const TIP_H = 56  // 浮层预估高
+function placeTip(e) {
+  const pad = 14
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  let x = e.clientX + pad
+  let y = e.clientY + pad
+  if (x + TIP_W > vw - 8) x = e.clientX - pad - TIP_W // 右侧放不下 → 放鼠标左边
+  if (y + TIP_H > vh - 8) y = e.clientY - pad - TIP_H // 底部放不下 → 放鼠标上方
+  return { x: Math.max(8, x), y: Math.max(8, y) }
+}
 function onHeatEnter(e, c) {
   if (!c || c.count < 0) { hoverCell.value = null; return }
-  hoverCell.value = { date: c.date, count: c.count, isToday: c.isToday, x: e.clientX + 14, y: e.clientY + 14 }
+  hoverCell.value = { date: c.date, count: c.count, isToday: c.isToday, ...placeTip(e) }
 }
-function onHeatMove(e, c) {
-  if (hoverCell.value) { hoverCell.value.x = e.clientX + 14; hoverCell.value.y = e.clientY + 14 }
+function onHeatMove(e) {
+  if (hoverCell.value) Object.assign(hoverCell.value, placeTip(e))
 }
 function onHeatLeave() { hoverCell.value = null }
 
@@ -345,10 +357,12 @@ async function loadAnalysis() {
             </div>
           </div>
         </div>
-        <div v-if="hoverCell" class="heat-tip" :style="{ left: hoverCell.x + 'px', top: hoverCell.y + 'px' }">
-          <div class="ht-date">{{ hoverCell.date }} · {{ weekLabel(hoverCell.date) }}</div>
-          <div class="ht-count">{{ hoverCell.isToday ? '今天 · ' : '' }}{{ hoverCell.count }} 题</div>
-        </div>
+        <Teleport to="body">
+          <div v-if="hoverCell" class="heat-tip" :style="{ left: hoverCell.x + 'px', top: hoverCell.y + 'px' }">
+            <div class="ht-date">{{ hoverCell.date }} · {{ weekLabel(hoverCell.date) }}</div>
+            <div class="ht-count">{{ hoverCell.isToday ? '今天 · ' : '' }}{{ hoverCell.count }} 题</div>
+          </div>
+        </Teleport>
       </div>
 
       <!-- 分析：章节正确率雷达 + 成绩历史 -->
