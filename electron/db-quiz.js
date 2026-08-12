@@ -117,42 +117,46 @@ module.exports = function quizModule(ctx) {
         return { correct: false, mode: 'recite' }
       }
 
-      sqlite.prepare(`INSERT INTO answer_records
-        (user_id, question_id, selected_json, is_correct, duration_ms, mode, self_graded, created_at, updated_at, client_id, question_cid)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
-        .run(LOCAL_USER, questionId, JSON.stringify(selected), correct ? 1 : 0, durationMs || 0, mode || 'practice', isEssay ? 1 : 0, now, now, uuid(), qCid)
+      // 四步写（答题记录+用户统计+XP+错题本）包事务：中途异常整体回滚，防半状态
+      const tx = sqlite.transaction(() => {
+        sqlite.prepare(`INSERT INTO answer_records
+          (user_id, question_id, selected_json, is_correct, duration_ms, mode, self_graded, created_at, updated_at, client_id, question_cid)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
+          .run(LOCAL_USER, questionId, JSON.stringify(selected), correct ? 1 : 0, durationMs || 0, mode || 'practice', isEssay ? 1 : 0, now, now, uuid(), qCid)
 
-      sqlite.prepare('UPDATE users SET total_answered=total_answered+1, correct_count=correct_count+?, updated_at=? WHERE id=?')
-        .run(correct ? 1 : 0, now, LOCAL_USER)
+        sqlite.prepare('UPDATE users SET total_answered=total_answered+1, correct_count=correct_count+?, updated_at=? WHERE id=?')
+          .run(correct ? 1 : 0, now, LOCAL_USER)
 
-      // XP 埋点：答对 +10，答错 +2（事件行带 client_id，多端同步总量正确）
-      this.logXp(correct ? 10 : 2, 'quiz', q.type)
+        // XP 埋点：答对 +10，答错 +2（事件行带 client_id，多端同步总量正确）
+        this.logXp(correct ? 10 : 2, 'quiz', q.type)
 
-      // 质量分：答错=2（失败，间隔重置）；答对=4（通过）；问答题按自评质量（1~5）。
-      const quality = isEssay ? (correct ? 5 : 1) : (correct ? 4 : 2)
-      if (!correct) {
-        const sched = scheduleNextReview({ interval: 0, ease: 2.5 }, quality)
-        sqlite.prepare(`INSERT INTO wrong_books (user_id, question_id, wrong_count, reviewed_count, status, next_review_at, ease, interval, updated_at, client_id, question_cid)
-          VALUES (?,?,1,0,?,?,?,?,?,?,?)
-          ON CONFLICT(user_id, question_id) DO UPDATE SET
-            wrong_count=wrong_books.wrong_count+1,
-            reviewed_count=0,
-            status='wrong',
-            next_review_at=excluded.next_review_at,
-            ease=excluded.ease,
-            interval=excluded.interval,
-            updated_at=?`)
-          .run(LOCAL_USER, questionId, 'wrong', sched.next, sched.ease, sched.interval, now, uuid(), qCid, now)
-      } else {
-        const wb = sqlite.prepare('SELECT id, reviewed_count, ease, interval FROM wrong_books WHERE user_id=? AND question_id=?').get(LOCAL_USER, questionId)
-        if (wb) {
-          const rc = (wb.reviewed_count || 0) + 1
-          const graduated = rc >= 3
-          const sched = scheduleNextReview({ interval: wb.interval || 0, ease: wb.ease || 2.5 }, quality)
-          sqlite.prepare('UPDATE wrong_books SET reviewed_count=?, status=?, next_review_at=?, ease=?, interval=?, updated_at=? WHERE id=?')
-            .run(rc, graduated ? 'mastered' : 'wrong', sched.next, sched.ease, sched.interval, now, wb.id)
+        // 质量分：答错=2（失败，间隔重置）；答对=4（通过）；问答题按自评质量（1~5）。
+        const quality = isEssay ? (correct ? 5 : 1) : (correct ? 4 : 2)
+        if (!correct) {
+          const sched = scheduleNextReview({ interval: 0, ease: 2.5 }, quality)
+          sqlite.prepare(`INSERT INTO wrong_books (user_id, question_id, wrong_count, reviewed_count, status, next_review_at, ease, interval, updated_at, client_id, question_cid)
+            VALUES (?,?,1,0,?,?,?,?,?,?,?)
+            ON CONFLICT(user_id, question_id) DO UPDATE SET
+              wrong_count=wrong_books.wrong_count+1,
+              reviewed_count=0,
+              status='wrong',
+              next_review_at=excluded.next_review_at,
+              ease=excluded.ease,
+              interval=excluded.interval,
+              updated_at=?`)
+            .run(LOCAL_USER, questionId, 'wrong', sched.next, sched.ease, sched.interval, now, uuid(), qCid, now)
+        } else {
+          const wb = sqlite.prepare('SELECT id, reviewed_count, ease, interval FROM wrong_books WHERE user_id=? AND question_id=?').get(LOCAL_USER, questionId)
+          if (wb) {
+            const rc = (wb.reviewed_count || 0) + 1
+            const graduated = rc >= 3
+            const sched = scheduleNextReview({ interval: wb.interval || 0, ease: wb.ease || 2.5 }, quality)
+            sqlite.prepare('UPDATE wrong_books SET reviewed_count=?, status=?, next_review_at=?, ease=?, interval=?, updated_at=? WHERE id=?')
+              .run(rc, graduated ? 'mastered' : 'wrong', sched.next, sched.ease, sched.interval, now, wb.id)
+          }
         }
-      }
+      })
+      tx()
 
       return {
         isCorrect: correct,

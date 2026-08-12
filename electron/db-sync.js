@@ -255,7 +255,7 @@ module.exports = function syncModule(ctx) {
         { table: 'notes', cols: ['user_id', 'question_id', 'content', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
         { table: 'papers', cols: ['title', 'subject_id', 'duration_minutes', 'total_score', 'rules_json', 'created_at', 'client_id', 'updated_at', 'deleted'] },
         { table: 'paper_questions', cols: ['paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted'] },
-        { table: 'kb_docs', cols: ['title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'subject_id', 'subject_cid', 'category_id', 'last_page', 'created_at', 'updated_at', 'deleted', 'client_id'] },
+        { table: 'kb_docs', cols: ['title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'subject_id', 'subject_cid', 'category_id', 'category_cid', 'last_page', 'created_at', 'updated_at', 'deleted', 'client_id'] },
         // 反馈层（批次功能新增，全部 LWW）
         { table: 'xp_logs', cols: ['user_id', 'xp', 'source', 'note', 'created_at', 'deleted', 'client_id'] },
         { table: 'focus_sessions', cols: ['minutes', 'started_at', 'created_at', 'deleted', 'client_id'] },
@@ -305,6 +305,17 @@ module.exports = function syncModule(ctx) {
           if (r.parent_cid != null && catCidToId.has(r.parent_cid) && catCidToId.get(r.parent_cid) !== r.parent_id) {
             r.parent_id = catCidToId.get(r.parent_cid)
             catUpsert(r)
+          }
+        }
+        // 跨端孤儿分类：A 端删了父级、B 端在其下新建的子（无 parent_cid 映射）仍指向已软删父 → 脱离挂根，
+        // 避免 getCategories 把「有父但父已删」的行当 roots 展示成科目
+        for (const r of catMerged) {
+          if (r.parent_id != null && !r.parent_cid) {
+            const parent = sqlite.prepare('SELECT deleted FROM categories WHERE id=?').get(r.parent_id)
+            if (parent && parent.deleted && r.parent_id !== r.id) {
+              r.parent_id = null
+              catUpsert(r)
+            }
           }
         }
 

@@ -12,21 +12,21 @@ module.exports = function gamifyModule(ctx) {
 
     // 等级 = floor(sqrt(总XP/100))+1，每级所需 XP 递增（100/300/600/1000…）
     xpStats() {
-      const total = sqlite.prepare('SELECT COALESCE(SUM(xp),0) AS n FROM xp_logs WHERE deleted=0').get().n
+      const total = sqlite.prepare('SELECT COALESCE(SUM(xp),0) AS n FROM xp_logs WHERE deleted=0 AND user_id=?').get(LOCAL_USER).n
       const todayStart = new Date().setHours(0, 0, 0, 0)
-      const today = sqlite.prepare('SELECT COALESCE(SUM(xp),0) AS n FROM xp_logs WHERE deleted=0 AND created_at>=?').get(todayStart).n
+      const today = sqlite.prepare('SELECT COALESCE(SUM(xp),0) AS n FROM xp_logs WHERE deleted=0 AND user_id=? AND created_at>=?').get(LOCAL_USER, todayStart).n
       const d = new Date()
       const dow = (d.getDay() + 6) % 7 // 周一=0
       const weekStart = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow).getTime()
-      const week = sqlite.prepare('SELECT COALESCE(SUM(xp),0) AS n FROM xp_logs WHERE deleted=0 AND created_at>=?').get(weekStart).n
+      const week = sqlite.prepare('SELECT COALESCE(SUM(xp),0) AS n FROM xp_logs WHERE deleted=0 AND user_id=? AND created_at>=?').get(LOCAL_USER, weekStart).n
       const level = Math.floor(Math.sqrt(total / 100)) + 1
       const curLevelBase = 100 * (level - 1) * (level - 1)
       const nextLevelBase = 100 * level * level
       // 近 8 周排行（自己 vs 历史周）
       const weeks = sqlite.prepare(
         `SELECT strftime('%Y-%W', datetime(created_at/1000,'unixepoch','localtime')) AS wk, SUM(xp) AS n
-         FROM xp_logs WHERE deleted=0 GROUP BY wk ORDER BY wk DESC LIMIT 8`
-      ).all()
+         FROM xp_logs WHERE deleted=0 AND user_id=? GROUP BY wk ORDER BY wk DESC LIMIT 8`
+      ).all(LOCAL_USER)
       return {
         total, today, week,
         level,
@@ -66,7 +66,7 @@ module.exports = function gamifyModule(ctx) {
            WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=? AND ar.mode IN ('review-due','wrong','favorite')${scope}`
         ).get(LOCAL_USER, todayStart, ...scopeParams).n
       }
-      const kbRead = sqlite.prepare("SELECT COUNT(*) AS n FROM xp_logs WHERE deleted=0 AND created_at>=? AND source='kbread'").get(todayStart).n
+      const kbRead = sqlite.prepare("SELECT COUNT(*) AS n FROM xp_logs WHERE deleted=0 AND user_id=? AND created_at>=? AND source='kbread'").get(LOCAL_USER, todayStart).n
       return { review, kbRead }
     },
 
@@ -75,8 +75,8 @@ module.exports = function gamifyModule(ctx) {
     checkQuests(subjectId) {
       const todayStart = new Date().setHours(0, 0, 0, 0)
       const has = (note) => sqlite.prepare(
-        "SELECT COUNT(*) AS n FROM xp_logs WHERE deleted=0 AND created_at>=? AND source='quest' AND note=?"
-      ).get(todayStart, note).n > 0
+        "SELECT COUNT(*) AS n FROM xp_logs WHERE deleted=0 AND user_id=? AND created_at>=? AND source='quest' AND note=?"
+      ).get(LOCAL_USER, todayStart, note).n > 0
       const s = this.getSummary(subjectId)
       const tc = this.todayCounts(subjectId)
       const goalOf = (type) => {

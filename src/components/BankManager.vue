@@ -51,10 +51,12 @@ async function loadMeta() {
   allTags.value = (tags || []).map(t => t.tag)
 }
 
+let listSeq = 0 // 防竞态：切科目/章节立即刷新与 keyword 防抖刷新并发时，只应用最新一次结果
 async function loadList() {
+  const seq = ++listSeq
   loading.value = true
   try {
-    list.value = await tiku.listQuestions({
+    const res = await tiku.listQuestions({
       subjectId: subjectId.value ? Number(subjectId.value) : null,
       categoryId: categoryId.value ? Number(categoryId.value) : null,
       keyword: keyword.value.trim(),
@@ -62,8 +64,9 @@ async function loadList() {
       pageSize,
       tags: tagFilter.value.length ? tagFilter.value : null
     })
+    if (seq === listSeq) list.value = res
   } finally {
-    loading.value = false
+    if (seq === listSeq) loading.value = false
   }
 }
 

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, onBeforeUnmount } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 
@@ -15,8 +15,8 @@ const PAGE = 50
 const visibleCount = ref(PAGE)
 
 onMounted(load)
-watch(() => props.subject.id, load)
-watch(currentChapterId, fetchQuestions)
+// 科目/章节任一变化统一触发一次 fetchQuestions（原 load 显式调 + watch(currentChapterId) 双触发 = 并发双请求）
+watch(() => [props.subject.id, currentChapterId.value], fetchQuestions, { immediate: true })
 
 async function load() {
   loading.value = true
@@ -25,19 +25,26 @@ async function load() {
   const subjectNode = tree.find(n => n.id === props.subject.id)
   chapters.value = subjectNode ? subjectNode.children : (tree[0]?.children || [])
   currentChapterId.value = null
-  await fetchQuestions()
   loading.value = false
 }
 
+let alive = true // 卸载后作废在途请求结果（写 ref 无害但浪费）
+onBeforeUnmount(() => { alive = false })
+
 async function fetchQuestions() {
+  if (!alive) return
   loading.value = true
   visibleCount.value = PAGE
-  questions.value = await tiku.getQuestions({
-    subjectId: props.subject.id || undefined,
-    categoryId: currentChapterId.value,
-    keyword: keyword.value.trim() || undefined
-  })
-  loading.value = false
+  try {
+    const list = await tiku.getQuestions({
+      subjectId: props.subject.id || undefined,
+      categoryId: currentChapterId.value,
+      keyword: keyword.value.trim() || undefined
+    })
+    if (alive) questions.value = list
+  } finally {
+    if (alive) loading.value = false
+  }
 }
 
 function search() {
