@@ -1388,4 +1388,21 @@ function optionClass(key) {
 }
 .rh-score { background: linear-gradient(180deg, #93b1ff, #5b7cfa); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
 [data-theme="light"] .rh-pct, [data-theme="light"] .rh-score { background: linear-gradient(180deg, #3d5bd9, #7c3aed); -webkit-background-clip: text; background-clip: text; }
+
+/* ===== 答题页加浓（2026-08-12）：结果反馈层（不干扰答题操作）===== */
+/* 结果页大数字：弹入（配合渐变） */
+.rh-pct, .rh-score { animation: numPop .5s cubic-bezier(.2, .7, .3, 1) .1s both; }
+@keyframes numPop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
+
+/* 结果卡/逐题解析卡：入场浮起（Quiz 不在 .tab-page，手动补） */
+.done, .review { animation: riseIn .4s cubic-bezier(.2, .7, .3, 1) both; }
+
+/* 选项选中：轻微弹入反馈 */
+.option.sel { animation: optSel .25s cubic-bezier(.2, .7, .3, 1); }
+@keyframes optSel { 0% { transform: scale(.98); } 60% { transform: scale(1.015); } 100% { transform: scale(1); } }
+
+/* 考试计时器危急：红色呼吸（时间压力可视化） */
+.timer.warn { animation: timerWarn 1s ease-in-out infinite; }
+@keyframes timerWarn { 0%, 100% { color: var(--bad); opacity: 1; } 50% { color: var(--bad); opacity: .55; } }
+
 </style>
