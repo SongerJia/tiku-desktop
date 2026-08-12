@@ -69,6 +69,22 @@ const ringOffset = computed(() => 157 - (157 * goalPct.value) / 100)
 const ringAnim = ref(false)
 watch(loading, (v) => { if (!v) setTimeout(() => { ringAnim.value = true }, 80) })
 
+// 3D 倾斜（加码 3）：行动台跟随鼠标轻微立体倾斜（perspective 6deg），离开展平
+function onDockMove(e) {
+  const el = e.currentTarget
+  const r = el.getBoundingClientRect()
+  const px = (e.clientX - r.left) / r.width - 0.5
+  const py = (e.clientY - r.top) / r.height - 0.5
+  el.style.transform = `perspective(700px) rotateY(${(px * 6).toFixed(2)}deg) rotateX(${(-py * 6).toFixed(2)}deg)`
+}
+function onDockLeave(e) {
+  e.currentTarget.style.transform = ''
+}
+// 入场动画结束（riseIn fill both 会压制内联 transform）：动画完成后解除压制，3D 倾斜才生效
+function onDockAnimEnd(e) {
+  if (e.animationName === 'riseIn') e.currentTarget.style.animation = 'none'
+}
+
 let loadSeq = 0 // 防竞态：快速切科目时旧请求晚返回，seq 不匹配则整体丢弃，避免过期数据覆盖
 async function load() {
   const seq = ++loadSeq
@@ -288,7 +304,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 今日行动台：目标进度环 + 三大行动 -->
-      <div class="action-dock">
+      <div class="action-dock" @mousemove="onDockMove" @mouseleave="onDockLeave" @animationend="onDockAnimEnd">
         <div class="dock-ring" :class="{ clickable: !dailyGoal }" @click="dailyGoal ? null : emit('goto', 'profile')">
           <svg viewBox="0 0 60 60" width="88" height="88">
             <circle cx="30" cy="30" r="25" fill="none" stroke="rgba(148,163,184,0.14)" stroke-width="5"/>
@@ -491,7 +507,7 @@ onBeforeUnmount(() => {
 .rb-btn { flex-shrink: 0; background: var(--warn); color: #1a160e; border-radius: 9px; padding: 7px 14px; font-size: 13px; font-weight: 600; }
 
 /* 今日行动台：目标进度环 + 三大行动 */
-.action-dock { display: flex; gap: 14px; }
+.action-dock { display: flex; gap: 14px; transition: transform .25s cubic-bezier(.2, .7, .3, 1); transform-style: preserve-3d; will-change: transform; }
 .dock-ring {
   flex: 0 0 108px; min-width: 108px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -694,7 +710,7 @@ onBeforeUnmount(() => {
 .more-item:hover { box-shadow: var(--glow-soft), 0 0 0 1px rgba(91, 124, 250, 0.3); }
 
 /* ===== 实验：hover 流光描边（2026-08-12，用户好奇项，不合适可回退）===== */
-@property --ang { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+/* @property --ang 已移 style.css 全局注册 */
 .dock-btn { position: relative; }
 .dock-btn::after {
   content: ''; position: absolute; inset: -1px; border-radius: inherit;
