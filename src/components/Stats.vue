@@ -161,8 +161,8 @@ async function placeTip(e) {
   if (!el || !hoverCell.value) return
   const seq = ++tipSeq
   const { x, y } = await computePosition(tipVirtual, el, {
-    placement: 'right-start', // 鼠标右下方
-    middleware: [offset(12), flip(), shift({ padding: 8 })] // 翻转防溢出 + 视口安全边距
+    placement: 'top', // 鼠标正上方居中（不左右翻转，避免"越靠右浮层越远"）
+    middleware: [offset(10), flip(), shift({ padding: 8 })] // 上方放不下翻下方；右侧溢出由 shift 贴边拉回
   })
   if (seq !== tipSeq) return // mousemove 高频时丢弃旧结果
   el.style.left = x + 'px'
