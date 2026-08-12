@@ -11,6 +11,7 @@ import { speakText } from '../utils/speech.js'
 
 const props = defineProps({
   categoryId: { default: null },
+  categoryIds: { default: null }, // 多章节练习（练习设置章节多选）
   subjectId: { default: null },
   mode: { default: 'practice' },
   order: { default: 'sequential' },
@@ -201,6 +202,7 @@ onMounted(async () => {
   } else {
     list = await tiku.getQuestions({
       categoryId: props.categoryId,
+      categoryIds: props.categoryIds && props.categoryIds.length ? props.categoryIds : null,
       subjectId: props.subjectId,
       mode: props.mode,
       tags: props.tags
@@ -237,7 +239,7 @@ async function onExit() {
   const isPractice = !props.paperId && !props.recite && !props.durationMin
   if (isPractice && !isDone.value && questions.value.length > 1) {
     await tiku.saveResumeSession({
-      subjectId: props.subjectId, categoryId: props.categoryId, order: props.order,
+      subjectId: props.subjectId, categoryId: props.categoryId, categoryIds: props.categoryIds, order: props.order,
       mode: 'practice', questions: questions.value, idx: idx.value,
       sessionCorrect: sessionCorrect.value
     })

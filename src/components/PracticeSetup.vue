@@ -10,12 +10,16 @@ const props = defineProps({
 })
 const emit = defineEmits(['confirm', 'cancel', 'resume'])
 
-// 科目范围：默认跟随当前科目（内容闭环按科目维度），可切「全部科目」
 // 章节维度（2026-08-12 重构）：题目归属是章节粒度，练习范围按章节选。
-// 默认选中进入时的章节（preset.categoryId），可切同科目其他章节；「全部章节」= 当前科目全部题。
+// 多选：默认选中进入时的章节，可增删同科目其他章节；一个都不选 = 「全部章节」= 当前科目全部题。
 // 不再提供「科目范围」选择——练习就练当前科目，避免与章节维度重复。
 const chapters = ref([])
-const selectedCatId = ref(props.preset.categoryId)
+const selectedCatIds = ref(props.preset.categoryId ? [props.preset.categoryId] : [])
+function toggleCat(id) {
+  const i = selectedCatIds.value.indexOf(id)
+  if (i >= 0) selectedCatIds.value.splice(i, 1)
+  else selectedCatIds.value.push(id)
+}
 
 // 断点续做 + 智能复习到期提示
 const resumeSession = ref(null)
@@ -69,11 +73,14 @@ const durationMin = ref(60)
 const recite = ref(false)
 
 const isExam = computed(() => scope.value === 'exam')
-// 头部范围标签：选中章节显示章节名；「全部章节」= 当前科目全部题 → 显示科目名（进入预设可能带'本章节'，全部时不能用）
+// 头部范围标签：1 个章节 → 章节名；多个 → 「已选 N 章」；一个都不选（全部章节）→ 科目名（进入预设可能带'本章节'，全部时不能用）
 const scopeLabel = computed(() => {
-  if (selectedCatId.value) {
-    const ch = chapters.value.find(c => c.id === selectedCatId.value)
+  const n = selectedCatIds.value.length
+  if (n === 1) {
+    const ch = chapters.value.find(c => c.id === selectedCatIds.value[0])
     if (ch) return ch.name
+  } else if (n > 1) {
+    return `已选 ${n} 章`
   }
   return props.preset.subjectName || props.preset.scopeLabel || '全部范围'
 })
@@ -90,7 +97,8 @@ function pickScope(s) {
 
 function confirm() {
   const cfg = {
-    categoryId: selectedCatId.value, // 选中章节（null = 当前科目全部）
+    categoryId: null,
+    categoryIds: selectedCatIds.value.length ? selectedCatIds.value.slice() : null, // 多章节（空=当前科目全部）
     subjectId: props.preset.subjectId, // 固定当前科目，不再提供跨科目
     mode: scope.value,
     order: order.value,
@@ -126,14 +134,14 @@ function confirm() {
           <Icon name="clock" :size="13"/> 今日到期 <b>{{ reviewDue.due }}</b> 题 · 预计 {{ reviewDue.estMinutes }} 分钟
         </div>
 
-        <!-- 章节范围（2026-08-12 重构）：题目归属是章节维度，默认选中进入章节，可切同科目其他章节；「全部章节」= 当前科目全部题 -->
+        <!-- 章节范围（2026-08-12 重构）：多选，默认选中进入章节，可增删；一个都不选 = 当前科目全部题 -->
         <div class="section" v-if="chapters.length">
-          <div class="sec-title">章节范围</div>
+          <div class="sec-title">章节范围（可多选 · 不选=全部）</div>
           <div class="chips">
             <button
               class="chip"
-              :class="{ active: !selectedCatId }"
-              @click="selectedCatId = null"
+              :class="{ active: !selectedCatIds.length }"
+              @click="selectedCatIds = []"
             >
               <span class="chip-label">全部章节</span>
               <span class="chip-desc">当前科目全部题</span>
@@ -142,10 +150,11 @@ function confirm() {
               v-for="ch in (showAllCh ? chapters : chapters.slice(0, 6))"
               :key="ch.id"
               class="chip"
-              :class="{ active: selectedCatId === ch.id }"
-              @click="selectedCatId = ch.id"
+              :class="{ active: selectedCatIds.includes(ch.id) }"
+              @click="toggleCat(ch.id)"
             >
               <span class="chip-label">{{ ch.name }}</span>
+              <span class="chip-desc">{{ selectedCatIds.includes(ch.id) ? '已选 ✓' : '点击选择' }}</span>
             </button>
             <button v-if="chapters.length > 6" class="chip chip-more" @click="showAllCh = !showAllCh">
               <span class="chip-label">{{ showAllCh ? '收起 ▴' : `更多 (${chapters.length - 6}) ▾` }}</span>

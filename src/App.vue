@@ -173,6 +173,7 @@ function onSetupConfirm(cfg) {
   quiz.value = {
     active: true,
     categoryId: cfg.categoryId,
+    categoryIds: cfg.categoryIds && cfg.categoryIds.length ? cfg.categoryIds : null,
     subjectId: cfg.subjectId,
     mode: cfg.mode,
     order: cfg.order || 'sequential',
@@ -191,6 +192,7 @@ function onResume(session) {
   quiz.value = {
     active: true,
     categoryId: session.categoryId || null,
+    categoryIds: session.categoryIds && session.categoryIds.length ? session.categoryIds : null,
     subjectId: session.subjectId || null,
     mode: 'practice',
     order: session.order || 'sequential',

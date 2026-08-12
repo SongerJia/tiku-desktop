@@ -20,14 +20,18 @@ module.exports = function quizModule(ctx) {
       }
     },
 
-    getQuestions({ subjectId, categoryId, mode, limit, offset, keyword, tags } = {}) {
+    getQuestions({ subjectId, categoryId, categoryIds, mode, limit, offset, keyword, tags } = {}) {
       // 弱点强化：按错题数/正确率加权返回最弱的题，不走普通筛选
       if (mode === 'weak') {
         return this.getWeakQuestions(limit ? Number(limit) : 30, subjectId, categoryId)
       }
       let sql = 'SELECT q.*, m.title AS material_title, m.content AS material_content FROM questions q LEFT JOIN materials m ON m.id=q.material_id WHERE q.deleted=0'
       const params = []
-      if (categoryId) {
+      if (categoryIds && categoryIds.length) {
+        // 多章节：IN 查询（练习设置章节多选）
+        sql += ' AND q.category_id IN (' + categoryIds.map(() => '?').join(',') + ')'
+        params.push(...categoryIds)
+      } else if (categoryId) {
         sql += ' AND q.category_id=?'
         params.push(categoryId)
       } else if (subjectId) {
