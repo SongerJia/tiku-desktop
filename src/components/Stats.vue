@@ -4,6 +4,7 @@ import Icon from './Icon.vue'
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
+import { computePosition, offset, flip, shift } from '@floating-ui/dom'
 import { printHtml } from '../utils/print.js'
 
 // 学习周报：聚合近 7 天数据 → 打印/导出 PDF
@@ -144,7 +145,6 @@ function computeHeatSize() {
 let heatObs = null
 
 // hover 浮层（对齐 GitHub 贡献图标准）：锚定格子正上方居中，不跟随鼠标（hover 哪个格子浮层就在哪个格子上方，换格子才更新）
-import { computePosition, offset, flip, shift } from '@floating-ui/dom'
 const hoverCell = ref(null)
 const tipEl = ref(null)
 const WEEKS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
