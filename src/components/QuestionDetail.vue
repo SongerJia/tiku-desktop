@@ -1,5 +1,7 @@
 <template>
-  <div v-if="show" class="qd-mask" @click.self="emit('close')">
+  <!-- Teleport 到 body：弹层脱离父组件内容树（Knowledge），避免 v-if 切换牵动父树 patch 导致背景页闪动 -->
+  <Teleport to="body">
+    <div v-if="show" class="qd-mask" @click.self="emit('close')">
     <div class="qd-panel">
       <!-- header -->
       <div class="qd-head">
@@ -81,7 +83,8 @@
         <button v-for="r in REASONS" :key="r" class="chip" @click="markReason(r)">{{ r }}</button>
       </div>
     </div>
-  </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
