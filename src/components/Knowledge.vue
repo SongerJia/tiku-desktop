@@ -198,4 +198,11 @@ function typeLabel(t) {
   position: relative;
 }
 .q-card:hover { box-shadow: var(--glow-soft); }
+
+/* 知识库加浓（2026-08-12）：stagger 交错入场 */
+.knowledge > * { animation: riseIn .4s cubic-bezier(.2, .7, .3, 1) both; }
+.knowledge > *:nth-child(2) { animation-delay: .06s; }
+.knowledge > *:nth-child(3) { animation-delay: .12s; }
+.knowledge > *:nth-child(4) { animation-delay: .18s; }
+
 </style>
