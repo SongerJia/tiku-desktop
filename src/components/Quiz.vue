@@ -39,6 +39,7 @@ const essayText = ref('')          // 问答题作答文本
 const essayReviewing = ref(false)  // 问答题：已提交作答，等待用户自评
 const result = ref(null)
 const results = ref({})  // 每题提交结果，按 idx 存，便于答题卡跳转恢复
+let submitting = false // 提交防重：await submitAnswer 窗口内双击/交卷并发只允许一次写入
 const materialOpen = ref(true) // 材料卡默认展开
 const sessionCorrect = ref(0)
 const sessionStart = ref(0)
@@ -178,6 +179,7 @@ onMounted(async () => {
   if (props.resume && props.resume.questions && props.resume.questions.length) {
     questions.value = props.resume.questions
     idx.value = Math.min(Number(props.resume.idx) || 0, questions.value.length - 1)
+    sessionCorrect.value = Number(props.resume.sessionCorrect) || 0 // 续做保留已答对计数，正确率统计完整
     reviews.value = []
     showReview.value = false
     loading.value = false
@@ -235,7 +237,8 @@ async function onExit() {
   if (isPractice && !isDone.value && questions.value.length > 1) {
     await tiku.saveResumeSession({
       subjectId: props.subjectId, categoryId: props.categoryId, order: props.order,
-      mode: 'practice', questions: questions.value, idx: idx.value
+      mode: 'practice', questions: questions.value, idx: idx.value,
+      sessionCorrect: sessionCorrect.value
     })
     showToast('已保存进度，下次练习可继续', 'ok')
   } else if (isPractice && isDone.value) {
@@ -269,14 +272,20 @@ async function reportDailyIfNeeded(correct) {
 }
 
 async function submitEssay(grade) {
-  if (!q.value || result.value) return
-  const res = await tiku.submitAnswer({
-    questionId: q.value.id,
-    selected: essayText.value,
-    durationMs: 0,
-    mode: props.mode,
-    selfGrade: grade
-  })
+  if (!q.value || result.value || submitting) return
+  submitting = true
+  let res
+  try {
+    res = await tiku.submitAnswer({
+      questionId: q.value.id,
+      selected: essayText.value,
+      durationMs: 0,
+      mode: props.mode,
+      selfGrade: grade
+    })
+  } finally {
+    submitting = false
+  }
   result.value = res
   await reportDailyIfNeeded(res.isCorrect)
   results.value = { ...results.value, [idx.value]: res }
@@ -297,13 +306,19 @@ async function submitEssay(grade) {
 }
 
 async function submit() {
-  if (!selected.value.length || !q.value || result.value || timeUp.value || isEssay.value) return
-  const res = await tiku.submitAnswer({
-    questionId: q.value.id,
-    selected: selected.value,
-    durationMs: 0,
-    mode: props.mode
-  })
+  if (submitting || !selected.value.length || !q.value || result.value || timeUp.value || isEssay.value) return
+  submitting = true
+  let res
+  try {
+    res = await tiku.submitAnswer({
+      questionId: q.value.id,
+      selected: selected.value,
+      durationMs: 0,
+      mode: props.mode
+    })
+  } finally {
+    submitting = false
+  }
   result.value = res
   await reportDailyIfNeeded(res.isCorrect)
   results.value = { ...results.value, [idx.value]: res }
@@ -418,6 +433,7 @@ async function manualFinish() {
 }
 
 async function finishExam() {
+  if (submitting) return // 与手动交卷并发时只执行一次
   // 时间到：先提交当前题目（若有作答），再结束本场
   if (q.value && !result.value) {
     if (isEssay.value) {
@@ -505,6 +521,7 @@ function redoWrongs() {
   sessionStart.value = Date.now()
   sessionEnd.value = 0
   reviews.value = []
+  results.value = {} // 清空旧场次结果，否则重做每题命中旧判定被锁定
   result.value = null
   resetPerQuestion()
 }
