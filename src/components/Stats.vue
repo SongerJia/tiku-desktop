@@ -51,45 +51,28 @@ h1 { margin: 0 0 4px; }
 
 const loggedIn = ref(false)
 const loading = ref(false)
-const summary = ref({ total: 0, learned: 0, mastered: 0, streak: 0, activeDays: 0 })
+const summary = ref({ total: 0, learned: 0, mastered: 0, streak: 0, activeDays: 0, today: 0, accuracy: 0, weekAccuracy: 0, weekDelta: 0 })
 const trend = ref([])
 const calendar = ref({})
 
-// ---- 全局学习中心：科目范围切换（默认跟随顶部科目，可切全部/单科目）----
+// ---- 统计范围：跟随顶部科目（默认）｜总览（全部科目汇总）----
 const props = defineProps({ subject: { type: Object, default: () => ({ id: null, name: '' }) } })
 const subjects = ref([])
-const subjectScope = ref('current') // 'current'(跟随顶部) | 'all' | 具体科目 id
+const subjectScope = ref('current') // 'current'(跟随顶部) | 'all'(总览)
 const filterSubjectId = computed(() => {
   if (subjectScope.value === 'all') return undefined
-  if (subjectScope.value === 'current') return props.subject.id || undefined
-  return Number(subjectScope.value) || undefined
+  return props.subject.id || undefined
 })
-// chips 高亮：'current' → 高亮当前科目对应的 chip；'all' → 高亮「全部科目」；具体 id → 高亮该 chip
-const activeChipKey = computed(() => {
-  if (subjectScope.value === 'current') return props.subject.id
-  if (subjectScope.value === 'all') return 'all'
-  return Number(subjectScope.value)
-})
+
 // 从首页搬入的全局区块
 const heatmap = ref([])
 const quest = ref({ tasks: [], claimed: '' })
-const examDate = ref('')
-const examLeft = computed(() => {
-  if (!examDate.value) return null
-  const target = new Date(examDate.value + 'T00:00:00')
-  const now = new Date(); now.setHours(0, 0, 0, 0)
-  return { date: examDate.value, days: Math.round((target - now) / 86400000) }
-})
 const heatStreak = computed(() => summary.value.streak || 0)
 function heatLevel(c) { return c === 0 ? 0 : c <= 2 ? 1 : c <= 5 ? 2 : c <= 10 ? 3 : 4 }
 
 // 动态取当前年月：跨月/跨日停留在页面也能刷新到新月份
 const nowY = () => { const d = new Date(); return d.getFullYear() }
 const nowM = () => { const d = new Date(); return d.getMonth() + 1 }
-
-const rate = computed(() => {
-  return summary.value.total ? Math.round((summary.value.mastered / summary.value.total) * 100) : 0
-})
 
 const maxTrend = computed(() => Math.max(1, ...trend.value.map(d => d.count)))
 
@@ -107,7 +90,6 @@ const calendarDays = computed(() => {
   return days
 })
 
-// 内容类统计（跟随科目切换）；行为类（XP/契约/Quest/习惯/连击）全局
 async function login() {
   loggedIn.value = true
   loading.value = true
@@ -123,18 +105,15 @@ async function loadContent() {
   try { catAccuracy.value = await tiku.getCategoryAccuracy(sid) } catch (e) { catAccuracy.value = [] }
 }
 async function loadGlobal() {
-  try { subjects.value = await tiku.getSubjects() } catch (e) { subjects.value = [] }
   try {
     const q = await tiku.checkQuests()
     quest.value = { tasks: q.tasks, claimed: q.claimed.join('、') }
   } catch (e) { quest.value = { tasks: [], claimed: '' } }
-  try { examDate.value = (await tiku.getSetting('exam_date')) || '' } catch (e) { examDate.value = '' }
 }
 
-watch(filterSubjectId, () => { if (loggedIn.value) loadContent() }) // 切科目/切范围只刷新内容类（filterSubjectId 依赖两者，单一 watch 全覆盖）
+watch(filterSubjectId, () => { if (loggedIn.value) loadContent() }) // 切跟随/总览只刷新内容类
 
 onMounted(async () => {
-  // 本地单用户直接视为已登录，加载真实数据；如需演示未登录 UI 可注释掉下面这行
   await login()
   await loadAnalysis()
 })
@@ -148,7 +127,7 @@ const radarPoints = computed(() => {
   const n = Math.max(3, radarCats.value.length)
   return radarCats.value.map((c, i) => {
     const ang = -Math.PI / 2 + (2 * Math.PI * i) / n
-    const r = 56 * (Math.max(8, c.rate) / 100)
+    const r = 56 - (c.rate / 100) * 46
     return { x: radarCenter.x + r * Math.cos(ang), y: radarCenter.y + r * Math.sin(ang), cat: c.cat }
   })
 })
@@ -179,7 +158,6 @@ const histPath = computed(() => {
 const histX = (i) => examHistory.value.length === 1 ? 150 : 10 + (i * 280) / (examHistory.value.length - 1)
 const histY = (e) => 62 - (e.pct / 100) * 50
 async function loadAnalysis() {
-  // 章节正确率已由 loadContent 按科目范围加载，这里只补成绩曲线（localStorage）
   try { examHistory.value = JSON.parse(localStorage.getItem('exam_history') || '[]').slice(-30) } catch (e) { examHistory.value = [] }
 }
 </script>
@@ -192,25 +170,70 @@ async function loadAnalysis() {
       <button class="btn btn-primary report-btn" @click="exportReport">导出学习周报</button>
     </div>
 
-    <!-- 科目范围切换：内容类统计跟随，行为类全局；默认跟随顶部科目 -->
+    <!-- 统计范围：跟随顶部科目 ｜ 总览（全部汇总） -->
     <div class="stats-scope" v-if="loggedIn">
+      <span class="scope-label">统计范围</span>
       <button
         class="filter-chip"
-        :class="{ active: activeChipKey === 'all' }"
+        :class="{ active: subjectScope === 'current' }"
+        @click="subjectScope = 'current'"
+      >跟随顶部：{{ props.subject.name || '全部' }}</button>
+      <button
+        class="filter-chip"
+        :class="{ active: subjectScope === 'all' }"
         @click="subjectScope = 'all'"
-      >全部科目</button>
-      <button
-        v-for="s in subjects"
-        :key="s.id"
-        class="filter-chip"
-        :class="{ active: activeChipKey === s.id }"
-        @click="subjectScope = String(s.id)"
-      >{{ s.name }}</button>
-      <span class="scope-hint">跟随顶部科目 · XP/契约/习惯 始终全局</span>
+      >总览（全部科目）</button>
+      <span class="scope-hint">切顶部科目 → 此处自动跟随</span>
     </div>
 
-    <div v-if="loggedIn">
-      <div class="stats-grid">
+    <SkeletonCards v-if="loading" :count="3" />
+
+    <template v-if="loggedIn && !loading">
+      <!-- KPI 数据条 -->
+      <div class="kpi-strip">
+        <div class="kpi-item">
+          <span class="kpi-num"><CountUp :value="summary.streak" /></span>
+          <span class="kpi-label">连续学习</span>
+        </div>
+        <div class="kpi-sep"></div>
+        <div class="kpi-item">
+          <span class="kpi-num"><CountUp :value="summary.today" /></span>
+          <span class="kpi-label">今日刷题</span>
+        </div>
+        <div class="kpi-sep"></div>
+        <div class="kpi-item">
+          <span class="kpi-num"><CountUp :value="summary.accuracy" /><small>%</small></span>
+          <span class="kpi-label">正确率</span>
+        </div>
+        <div class="kpi-sep"></div>
+        <div class="kpi-item">
+          <span class="kpi-num"><CountUp :value="summary.mastered" /></span>
+          <span class="kpi-label">已掌握</span>
+        </div>
+      </div>
+
+      <!-- 学习日历热力图（主角位） -->
+      <div class="card heat-card">
+        <div class="heat-head">
+          <span class="card-title">🔥 学习热力图 <span class="heat-scope">（{{ subjectScope === 'all' ? '全部科目' : (props.subject.name || '全部') }}）</span></span>
+          <span class="heat-streak">连续 {{ heatStreak }} 天</span>
+        </div>
+        <div class="heat-grid">
+          <div
+            v-for="(d, i) in heatmap"
+            :key="i"
+            class="heat-cell"
+            :class="'lvl-' + heatLevel(d.count)"
+            :title="d.date + (d.isToday ? '（今天）' : '') + ' · ' + d.count + ' 题' + (d.focus ? ' · 专注 ' + d.focus + ' 分钟' : '')"
+          ></div>
+        </div>
+        <div class="heat-legend">
+          <span class="lg-text">少</span>
+          <i class="heat-cell lvl-0"></i><i class="heat-cell lvl-1"></i><i class="heat-cell lvl-2"></i><i class="heat-cell lvl-3"></i><i class="heat-cell lvl-4"></i>
+          <span class="lg-text">多</span>
+        </div>
+      </div>
+
       <!-- 分析：章节正确率雷达 + 成绩历史 -->
       <div class="card analysis-card">
         <div class="card-title">📊 章节正确率雷达 <span class="card-sub">（最弱 {{ radarCats.length }} 章）</span></div>
@@ -232,60 +255,6 @@ async function loadAnalysis() {
         </svg>
         <div v-if="!examHistory.length" class="empty-sm">完成练习 / 模考后，这里会记录你的正确率曲线</div>
       </div>
-      <!-- 概览：掌握进度环形 + 数字 -->
-      <div class="duo-row">
-      <div class="card overview-card">
-        <div class="ring-wrap">
-          <svg class="ring" viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(91, 124, 250, 0.14)" stroke-width="10" />
-            <circle
-              cx="60" cy="60" r="50" fill="none" stroke="var(--brand)"
-              stroke-width="10" stroke-linecap="round"
-              :stroke-dasharray="`${rate * 3.14} ${314 - rate * 3.14}`"
-              transform="rotate(-90 60 60)"
-            />
-          </svg>
-          <div class="ring-text">
-            <div class="ring-num">{{ rate }}%</div>
-            <div class="ring-label">掌握进度</div>
-          </div>
-        </div>
-
-      <div class="overview-numbers">
-        <div class="num-item">
-          <div class="num-value"><CountUp :value="summary.total" /></div>
-          <div class="num-label">总卡片数</div>
-        </div>
-        <div class="num-item">
-          <div class="num-value"><CountUp :value="summary.learned" /></div>
-          <div class="num-label">已学习</div>
-        </div>
-        <div class="num-item">
-          <div class="num-value"><CountUp :value="summary.mastered" /></div>
-          <div class="num-label">已掌握</div>
-        </div>
-      </div>
-      </div>
-
-      <!-- 学习日历热力图（120 天）—— 与概览并排显示（duo-row）-->
-      <div class="card heat-card" v-if="heatmap.length">
-        <div class="card-title">🔥 学习日历热力图 <span class="heat-streak">连续 {{ heatStreak }} 天</span></div>
-        <div class="heat-grid">
-          <div
-            v-for="(d, i) in heatmap"
-            :key="i"
-            class="heat-cell"
-            :class="'lvl-' + heatLevel(d.count)"
-            :title="d.date + (d.isToday ? '（今天）' : '') + ' · ' + d.count + ' 题' + (d.focus ? ' · 专注 ' + d.focus + ' 分钟' : '')"
-          ></div>
-        </div>
-        <div class="heat-legend">
-          <span class="lg-text">少</span>
-          <i class="heat-cell lvl-0"></i><i class="heat-cell lvl-1"></i><i class="heat-cell lvl-2"></i><i class="heat-cell lvl-3"></i><i class="heat-cell lvl-4"></i>
-          <span class="lg-text">多</span>
-        </div>
-      </div>
-      </div><!-- /duo-row: overview + heatmap 并排 -->
 
       <!-- 7 天趋势 -->
       <div class="card trend-card">
@@ -302,7 +271,7 @@ async function loadAnalysis() {
         </div>
       </div>
 
-      <!-- 学习习惯 -->
+      <!-- 学习习惯（连续/累计） -->
       <div class="card habit-card">
         <div class="card-title">学习习惯</div>
         <div class="habit-row">
@@ -345,20 +314,14 @@ async function loadAnalysis() {
         </div>
       </div>
 
-      <!-- 考试倒计时（全局） -->
-      <div class="card exam-card" v-if="examLeft">
-        <div class="exam-head">
-          <span class="exam-label">🎯 考试倒计时</span>
-          <span class="exam-num" :class="{ soon: examLeft.days >= 0 && examLeft.days <= 7 }">{{ examLeft.days >= 0 ? examLeft.days : 0 }}<small> 天</small></span>
-        </div>
-        <div class="exam-sub">{{ examLeft.date }} {{ examLeft.days > 0 ? '· 每天坚持刷题，稳扎稳打' : (examLeft.days === 0 ? '· 就是今天！加油 🎉' : '· 已过考试日，可在「我的」更新日期') }}</div>
-      </div>
-
-      <!-- 每日任务 Quest（全局） -->
+      <!-- 每日任务 Quest（未设置显示友好提示） -->
       <div class="card quest-card">
         <div class="card-title">每日任务 <span class="quest-xp">每个 +20 XP</span></div>
         <div v-if="quest.claimed" class="quest-claimed">🎉 {{ quest.claimed }} 已完成，XP 已到账</div>
-        <div class="quest-list">
+        <div v-if="!quest.tasks.length" class="quest-empty">
+          未设置任务，去「我的 → 学习目标」设置每日刷题 / 复习 / 阅读目标吧
+        </div>
+        <div v-else class="quest-list">
           <div v-for="t in quest.tasks" :key="t.key" class="quest-item" :class="{ done: t.done }">
             <span class="quest-check"><Icon v-if="t.done" name="check" :size="14"/><i v-else class="hollow"></i></span>
             <span class="quest-name">{{ t.name }}</span>
@@ -366,213 +329,107 @@ async function loadAnalysis() {
           </div>
         </div>
       </div>
-      </div>
-    </div>
-
-    <SkeletonCards v-if="loading" :count="3" />
+    </template>
   </div>
 </template>
 
 <style scoped>
-.stats-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.stats { display: flex; flex-direction: column; gap: 14px; }
+.stats-head { display: flex; align-items: center; justify-content: space-between; }
 .stats-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--text); }
 
-.overview-card {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-  padding: 20px 24px;
-}
-@media (max-width: 520px) {
-  .overview-card { flex-direction: column; gap: 16px; }
-}
-.overview-numbers {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.overview-numbers .num-item {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  border-bottom: 1px dashed var(--line);
-  padding-bottom: 12px;
-}
-.overview-numbers .num-item:last-child { border-bottom: none; padding-bottom: 0; }
-.overview-numbers .num-value { font-size: 24px; }
-.overview-numbers .num-label { margin-top: 0; font-size: 12px; }
-.avatar {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: var(--brand-light);
-  color: var(--brand);
-  font-size: 24px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--line);
-  box-shadow: var(--glow-soft);
-}
-.avatar.solid { background: var(--brand); color: #ffffff; }
-
-.ring-wrap {
-  position: relative;
-  width: 140px;
-  height: 140px;
-  margin: 10px auto 0;
-}
-.ring { width: 100%; height: 100%; }
-.ring-text {
-  position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-}
-.ring-num { font-size: 28px; font-weight: 700; color: var(--brand); }
-.ring-label { font-size: 12px; color: var(--muted); }
-
-.numbers {
-  display: flex;
-  justify-content: space-around;
-  text-align: center;
-}
-.num-value { font-size: 26px; font-weight: 700; color: var(--brand); }
-.num-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
-
-.trend-bars {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  height: 90px;
-  padding-top: 10px;
-}
-.bar-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-.bar-track {
-  width: 14px;
-  height: 60px;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 7px;
-  position: relative;
-  overflow: hidden;
-}
-.bar-fill {
-  position: absolute;
-  bottom: 0;
-  width: 100%;
-  background: linear-gradient(180deg, var(--brand), var(--brand2));
-  border-radius: 7px;
-  min-height: 4px;
-  box-shadow: 0 0 8px rgba(91, 124, 250, 0.5);
-}
-.bar-date { font-size: 10px; color: var(--muted); }
-.bar-count { font-size: 10px; color: var(--brand); }
-
-.habit-row { display: flex; gap: 12px; }
-.habit-item {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 12px;
-}
-.habit-label { font-size: 13px; color: var(--text); }
-.habit-value { font-size: 22px; font-weight: 700; color: var(--brand); margin: 6px 0; }
-.habit-value .unit { font-size: 12px; margin-left: 2px; }
-.habit-desc { font-size: 11px; color: var(--muted); }
-
-.cal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.cal-summary { font-size: 12px; color: var(--muted); }
-.weekdays, .days { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; gap: 6px; }
-.weekdays { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-.day {
-  width: 30px;
-  height: 30px;
-  line-height: 30px;
-  border-radius: 50%;
-  font-size: 12px;
-  margin: 0 auto;
-  color: var(--text);
-}
-.day.active { background: var(--brand); color: #ffffff; font-weight: 600; }
-.day.empty { visibility: hidden; }
-.cal-legend {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  margin-top: 10px;
-  font-size: 11px;
-  color: var(--muted);
-}
-.dot { width: 10px; height: 10px; border-radius: 2px; }
-.dot.light { background: rgba(91, 124, 250, 0.25); }
-.dot.mid { background: rgba(91, 124, 250, 0.55); }
-.dot.heavy { background: var(--brand); box-shadow: var(--glow); }
-.report-btn { margin: 0; }
-
-/* 分析卡：雷达图 + 成绩曲线 */
-.analysis-card { min-width: 260px; }
-.card-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
-.card-sub { font-size: 11px; color: var(--muted); font-weight: 400; }
-.radar { width: 100%; max-width: 220px; display: block; margin: 0 auto; }
-.radar-label { font-size: 9px; fill: var(--muted); }
-.hist-title { margin-top: 12px; }
-.hist { width: 100%; max-width: 320px; display: block; }
-.empty-sm { font-size: 12px; color: var(--muted); padding: 8px 0; }
-
-/* ===== 全局中心新增：科目切换 / 热力图 / 考试倒计时 / 目标契约 / Quest / 习惯 ===== */
-.stats-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
-/* 概览 + 热力图并排 */
-.duo-row { display: flex; gap: 14px; flex-wrap: wrap; }
-.duo-row > .card { flex: 1; min-width: 280px; }
-/* duo 内热力图紧凑化：格子更小，避免横向溢出 */
-.duo-row .heat-card .heat-grid { grid-template-rows: repeat(7, 10px); grid-auto-columns: 10px; }
-.duo-row .heat-card .heat-cell { width: 10px; height: 10px; }
-.duo-row .overview-card { padding: 16px; }
-.duo-row .overview-numbers .num-value { font-size: 20px; }
+/* 统计范围切换：跟随顶部 / 总览 */
+.stats-scope { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.scope-label { font-size: 12px; color: var(--muted); }
 .filter-chip {
-  background: none; border: 1px solid var(--line); border-radius: 999px;
-  font-size: 12px; color: var(--muted); padding: 5px 14px; cursor: pointer; transition: all .15s;
+  font-size: 12px; padding: 6px 14px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: transparent; color: var(--text); cursor: pointer;
+  transition: all .15s;
 }
+.filter-chip:hover { border-color: var(--brand); }
 .filter-chip.active { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
 .scope-hint { font-size: 11px; color: var(--muted); margin-left: auto; }
 
-.heat-card .heat-streak { margin-left: 6px; font-size: 11px; color: var(--brand); font-weight: 600; }
-.heat-grid {
-  display: grid; grid-template-rows: repeat(7, 12px); grid-auto-flow: column; grid-auto-columns: 12px;
-  gap: 3px; overflow-x: auto; padding-bottom: 4px;
+/* KPI 数据条 */
+.kpi-strip {
+  display: flex; align-items: stretch; gap: 0;
+  border: 1px solid var(--line); border-radius: 14px; padding: 12px 8px;
+  background: linear-gradient(135deg, rgba(91, 124, 250, 0.07), rgba(122, 92, 255, 0.04));
 }
-.heat-cell { width: 12px; height: 12px; border-radius: 3px; background: var(--line); transition: transform .12s ease; }
-.heat-cell:hover { transform: scale(1.25); }
-.heat-cell.lvl-1 { background: rgba(91,124,250,0.35); }
-.heat-cell.lvl-2 { background: rgba(91,124,250,0.6); }
-.heat-cell.lvl-3 { background: rgba(91,124,250,0.84); }
-.heat-cell.lvl-4 { background: var(--brand); }
-.heat-legend { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 11px; color: var(--muted); }
-.heat-legend .heat-cell { cursor: default; }
-.lg-text { margin: 0 2px; }
+.kpi-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+.kpi-sep { width: 1px; background: var(--line); margin: 4px 6px; }
+.kpi-num { font-size: 20px; font-weight: 700; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi-num small { font-size: 12px; color: var(--muted); font-weight: 400; }
+.kpi-label { font-size: 11px; color: var(--muted); }
 
-.exam-card { display: flex; flex-direction: column; gap: 6px; }
-.exam-head { display: flex; align-items: center; justify-content: space-between; }
-.exam-label { font-size: 13px; font-weight: 600; color: var(--text); }
-.exam-num { font-size: 22px; font-weight: 800; color: var(--brand); }
-.exam-num small { font-size: 12px; font-weight: 500; color: var(--muted); }
-.exam-num.soon { color: var(--bad); animation: stblink 1s steps(2) infinite; }
-.exam-sub { font-size: 12px; color: var(--muted); }
-@keyframes stblink { 50% { opacity: .55; } }
+/* 热力图 */
+.heat-card { display: flex; flex-direction: column; gap: 10px; }
+.heat-head { display: flex; align-items: center; justify-content: space-between; }
+.heat-scope { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+.heat-streak { font-size: 11px; color: var(--brand); }
+.heat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(12px, 1fr)); gap: 3px; }
+.heat-cell { aspect-ratio: 1; border-radius: 3px; background: rgba(148, 163, 184, 0.14); }
+.heat-cell.lvl-0 { background: rgba(148, 163, 184, 0.14); }
+.heat-cell.lvl-1 { background: rgba(28, 58, 110, 0.75); }
+.heat-cell.lvl-2 { background: rgba(42, 92, 168, 0.85); }
+.heat-cell.lvl-3 { background: rgba(63, 127, 214, 0.9); }
+.heat-cell.lvl-4 { background: #5b9cfa; }
+.heat-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
+.heat-legend .heat-cell { width: 12px; height: 12px; cursor: default; }
 
+/* 分析卡 */
+.analysis-card { display: flex; flex-direction: column; gap: 6px; }
+.radar { width: 100%; max-width: 280px; margin: 0 auto; }
+.radar-label { font-size: 10px; fill: var(--muted); }
+.hist { width: 100%; max-width: 420px; margin: 0 auto; }
+.hist-title { margin-top: 10px; }
+.empty-sm { font-size: 12px; color: var(--muted); padding: 8px 0; }
+.empty { font-size: 12px; color: var(--muted); padding: 10px 0; }
+
+/* 趋势 */
+.trend-bars { display: flex; align-items: flex-end; gap: 8px; min-height: 80px; }
+.bar-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.bar-track { width: 100%; height: 60px; display: flex; align-items: flex-end; }
+.bar-fill { width: 60%; margin: 0 auto; background: var(--brand); border-radius: 4px 4px 0 0; min-height: 2px; }
+.bar-date { font-size: 10px; color: var(--muted); }
+.bar-count { font-size: 11px; color: var(--text); }
+
+/* 学习习惯 */
+.habit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.habit-item { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+.habit-label { font-size: 12px; color: var(--muted); }
+.habit-value { font-size: 22px; font-weight: 700; color: var(--text); }
+.habit-value .unit { font-size: 12px; color: var(--muted); font-weight: 400; }
+.habit-desc { font-size: 11px; color: var(--muted); }
+
+/* 月度日历 */
+.cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cal-summary { font-size: 12px; color: var(--muted); }
+.weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
+.weekdays span { text-align: center; font-size: 10px; color: var(--muted); }
+.days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.day {
+  aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: var(--text); border-radius: 6px;
+  background: rgba(148, 163, 184, 0.06);
+}
+.day.active { background: var(--brand); color: #fff; font-weight: 600; }
+.day.empty { background: transparent; }
+.cal-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); margin-top: 8px; }
+.dot { width: 10px; height: 10px; border-radius: 3px; }
+.dot.light { background: rgba(28, 58, 110, 0.35); }
+.dot.mid { background: rgba(42, 92, 168, 0.6); }
+.dot.heavy { background: #5b9cfa; }
+
+/* 每日任务 */
 .quest-xp { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
 .quest-claimed { font-size: 12px; color: var(--ok); margin-bottom: 8px; }
+.quest-empty {
+  font-size: 12px; color: var(--muted);
+  border: 1px dashed var(--line); border-radius: 10px; padding: 14px;
+  text-align: center;
+}
 .quest-list { display: flex; flex-direction: column; gap: 8px; }
 .quest-item {
   display: flex; align-items: center; gap: 10px;
