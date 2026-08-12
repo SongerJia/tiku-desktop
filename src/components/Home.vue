@@ -681,4 +681,15 @@ onBeforeUnmount(() => {
 /* ⑦ 看足迹 hover 加深 */
 .kpi-item.link:hover .kpi-num { color: var(--brand-dark); }
 .kpi-item.link:hover .kpi-label { color: var(--brand); }
+
+/* ===== 加码 2（2026-08-12）：数字弹入 / hover 彩色光晕描边 ===== */
+/* KPI 数字：加载弹入（scale .85 → 1） */
+.kpi-num { animation: numPop .45s cubic-bezier(.2, .7, .3, 1) both; }
+@keyframes numPop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
+
+/* 行动按钮 hover：彩色光晕描边（品牌色晕 + 1px 亮边，质感拉满） */
+.dock-btn.review:hover { box-shadow: 0 6px 22px rgba(91, 124, 250, 0.35), 0 0 0 1px rgba(91, 124, 250, 0.5); }
+.dock-btn.daily:hover { box-shadow: 0 6px 22px rgba(47, 191, 143, 0.28), 0 0 0 1px rgba(47, 191, 143, 0.45); }
+.dock-btn.quick:hover { box-shadow: 0 6px 22px rgba(91, 124, 250, 0.3), 0 0 0 1px rgba(91, 124, 250, 0.4); }
+.more-item:hover { box-shadow: var(--glow-soft), 0 0 0 1px rgba(91, 124, 250, 0.3); }
 </style>
