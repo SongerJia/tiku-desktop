@@ -423,8 +423,8 @@ onMounted(async () => {
       </div>
       <div class="goal-row">
         <span class="goal-label">目标考试日</span>
-        <input class="pref-input" type="date" :value="examDate" @change="setExamDate($event.target.value)" />
-        <span class="pref-unit">展示在首页倒计时</span>
+        <input class="pref-input goal-date" type="date" :value="examDate" @change="setExamDate($event.target.value)" />
+        <span class="pref-unit">首页倒计时</span>
       </div>
       <div class="goal-tip">未设置的目标不在「每日任务」显示；设 0 即取消该目标</div>
     </div>
@@ -842,6 +842,7 @@ onMounted(async () => {
 
 .pref-unit { color: var(--muted); font-size: 12px; }
 .pref-sub { flex: 1; color: var(--muted); font-size: 11px; }
+.goal-date { flex: 1; width: auto; min-width: 0; }
 
 /* 学习目标 */
 .goal-card { border-color: rgba(91, 124, 250, 0.4); }
