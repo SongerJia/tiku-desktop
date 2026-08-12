@@ -17,7 +17,8 @@ const dailyPuzzle = ref(null) // { question, state }
 const dueReviews = ref(0)
 const xpTotal = ref(0)
 // 等级进度（门面精美③）：xpStats 的 level 曲线信息，首页渲染 Lv 徽章 + 渐变进度条
-const lvInfo = ref({ level: 1, curLevelBase: 0, nextLevelBase: 100, pct: 0 })
+// 字段对齐：后端返回 curLevelXp(本级已得)/nextLevelXp(本级所需)/levelPct
+const lvInfo = ref({ level: 1, curLevelXp: 0, nextLevelXp: 100, pct: 0 })
 const examDate = ref('')
 const weakPoints = ref([])
 const weakAccuracy = ref([])
@@ -91,7 +92,7 @@ function onDockAnimEnd(e) {
 // ---- 首页交互加码（2026-08-12）：倒计时 / 距差 / 预览浮层数据 ----
 const hoursLeft = computed(() => 24 - new Date().getHours()) // 今天还剩几小时（复习最佳窗口）
 const goalLeft = computed(() => Math.max(0, (dailyGoal.value || 0) - (summary.value.today || 0))) // 距今日目标还差
-const lvGap = computed(() => Math.max(0, lvInfo.value.nextLevelBase - xpTotal.value)) // 距下一级 XP
+const lvGap = computed(() => Math.max(0, lvInfo.value.nextLevelXp - lvInfo.value.curLevelXp)) // 距下一级还差
 const lvQues = computed(() => Math.ceil(lvGap.value / 10)) // 答对折算：每对 +10 XP → 约再刷几题
 const cardMins = computed(() => Math.max(1, Math.ceil((cardStats.value.due || 0) * 0.5))) // 到期卡预计复习分钟
 
@@ -194,14 +195,12 @@ async function load() {
   xpTotal.value = xpR.status === 'fulfilled' && xpR.value ? (xpR.value.total || 0) : 0
   if (xpR.status === 'fulfilled' && xpR.value) {
     const x = xpR.value
-    const base = x.curLevelBase || 0
-    const next = x.nextLevelBase || base + 100
     lvInfo.value = {
       level: x.level || 1,
-      curLevelBase: base,
-      nextLevelBase: next,
+      curLevelXp: x.curLevelXp || 0,
+      nextLevelXp: x.nextLevelXp || 100,
       week: x.week || 0,
-      pct: next > base ? Math.min(100, Math.round(((x.total - base) / (next - base)) * 100)) : 0
+      pct: x.levelPct || 0
     }
   }
   // 考试日：科目 key 优先，未设置则全局兜底
@@ -374,7 +373,7 @@ onBeforeUnmount(() => {
             <div class="lv-fill" :style="{ width: lvInfo.pct + '%' }"></div>
             <span class="lv-glow" :style="{ left: 'calc(' + lvInfo.pct + '% - 6px)' }"></span>
           </div>
-          <span class="lv-xp">{{ xpTotal }} / {{ lvInfo.nextLevelBase }} XP</span>
+          <span class="lv-xp">{{ lvInfo.curLevelXp }} / {{ lvInfo.nextLevelXp }} XP</span>
           <span class="tip">距 Lv.{{ lvInfo.level + 1 }} 还差 {{ lvGap }} XP，约再刷 {{ lvQues }} 题（答对 +10）</span>
         </div>
         <!-- 昨日小结（昨日有学习记录时优先显示，替代本周总结条） -->
@@ -599,8 +598,8 @@ onBeforeUnmount(() => {
   border-radius: 10px; cursor: pointer; transition: all .15s;
 }
 .brief-bar:hover { box-shadow: var(--glow-soft); }
-.brief-text { font-size: 12.5px; color: #a8d9c5; }
-.brief-text b { color: #bfe8d8; font-weight: 600; }
+.brief-text { font-size: 12.5px; color: #6fd4ac; }
+.brief-text b { color: #4fd1a5; font-weight: 600; }
 .brief-sub { color: var(--muted); margin-left: 6px; }
 .growth-bar:hover { border-color: var(--brand); }
 .growth-bar.ghost { background: transparent; border-style: dashed; cursor: default; }
@@ -662,7 +661,7 @@ onBeforeUnmount(() => {
 .dock-btn.review em { color: var(--brand); }
 .dock-btn.daily { background: rgba(47, 191, 143, 0.10); border: 1px solid rgba(47, 191, 143, 0.35); }
 .dock-btn.daily:hover { box-shadow: var(--glow-soft); }
-.dock-btn.daily b { color: #bfe8d8; }
+.dock-btn.daily b { color: #4fd1a5; }
 .dock-btn.daily em { color: var(--ok); }
 .dock-btn.daily.disabled { opacity: .55; cursor: default; }
 .dock-btn.quick { background: var(--card); border: 1px dashed rgba(148, 163, 184, 0.3); }
@@ -1018,5 +1017,11 @@ onBeforeUnmount(() => {
   animation: riseIn .35s cubic-bezier(.2, .7, .3, 1) both;
 }
 .focus-done .fd-ico { color: var(--ok); display: flex; }
+
+
+/* 浅色主题：绿色文字更深（浅绿底对比修复） */
+[data-theme="light"] .dock-btn.daily b { color: #0f9d6b; }
+[data-theme="light"] .brief-text, [data-theme="light"] .brief-text b { color: #0f9d6b; }
+[data-theme="light"] .dock-btn.daily em { color: #0f9d6b; }
 
 </style>
