@@ -164,7 +164,7 @@ async function toggleSimilar(qid) {
     <p v-else-if="!filteredItems.length" class="empty">该分组下暂无错题</p>
     <div v-for="it in filteredItems" :key="it.question_id" class="card">
       <div class="stem">{{ it.stem }}</div>
-      <div class="meta">答错 {{ it.wrong_count }} 次 · 已复习 {{ it.reviewed_count }} 次 <span v-if="it.wrong_count >= 3" class="stubborn">顽固 · 每日回顾优先</span></div>
+      <div class="meta">答错 {{ it.wrong_count }} 次 · 已复习 {{ it.reviewed_count }} 次 <span v-if="it.wrong_count >= 3" class="stubborn">顽固 · 复习优先</span></div>
       <div class="reason-row">
         <span class="reason-label">错因</span>
         <select class="reason-select" :value="it.reason || ''" @change="setReason(it, $event.target.value)">

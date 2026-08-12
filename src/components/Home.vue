@@ -5,7 +5,6 @@ import SkeletonCards from './SkeletonCards.vue'
 import CountUp from './CountUp.vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
-import ReviewPanel from './ReviewPanel.vue'
 import CardsPanel from './CardsPanel.vue'
 
 const props = defineProps({ subject: Object, refreshKey: { default: 0 } })
@@ -56,8 +55,7 @@ const taskItems = computed(() => {
   return items
 })
 
-// 每日回顾 + 番茄钟
-const reviewOpen = ref(false)
+// 番茄钟 + 记忆卡
 const cardsOpen = ref(false)
 const cardStats = ref({ total: 0, due: 0 })
 const focusMinutes = ref(25)
@@ -330,13 +328,9 @@ onBeforeUnmount(() => {
       <div v-if="!weakPoints.length && !weakAccuracy.length" class="weak-empty">暂无薄弱点，继续保持！</div>
     </div>
 
-    <!-- 每日回顾 + 番茄专注（专注概览已并入） -->
+    <!-- 番茄专注 -->
     <div class="card duo-card">
       <div class="duo-row">
-        <div class="duo-left" @click="reviewOpen = true">
-          <span class="duo-title"><Icon name="pulse" :size="14"/> 每日回顾</span>
-          <span class="duo-sub">主动回忆 · 对抗遗忘</span>
-        </div>
         <div class="duo-right">
           <span class="duo-title">
             <Icon name="clock" :size="14"/>
@@ -392,7 +386,6 @@ onBeforeUnmount(() => {
     </div>
     <SkeletonCards v-if="loading" :count="3" />
 
-    <ReviewPanel :show="reviewOpen" @close="reviewOpen = false" />
     <CardsPanel :show="cardsOpen" :subject="props.subject" @close="cardsOpen = false" />
   </div>
 </template>

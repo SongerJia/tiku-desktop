@@ -19,8 +19,6 @@ async function exportReport() {
   <div class="kpi"><b>${r.accuracy}%</b><span>正确率</span></div>
   <div class="kpi"><b>${r.xp}</b><span>获得 XP</span></div>
   <div class="kpi"><b>${r.focus}</b><span>专注分钟</span></div>
-  <div class="kpi"><b>${r.review}</b><span>回顾条数</span></div>
-  <div class="kpi"><b>${r.habitDays}</b><span>习惯打卡天</span></div>
 </div>
 <div class="sec">近 7 天答题分布</div>
 <div class="bars">${bar}</div>
@@ -74,9 +72,7 @@ const activeChipKey = computed(() => {
 })
 // 从首页搬入的全局区块
 const heatmap = ref([])
-const goalData = ref(null)
 const quest = ref({ tasks: [], claimed: '' })
-const habits = ref([])
 const examDate = ref('')
 const examLeft = computed(() => {
   if (!examDate.value) return null
@@ -128,29 +124,14 @@ async function loadContent() {
 }
 async function loadGlobal() {
   try { subjects.value = await tiku.getSubjects() } catch (e) { subjects.value = [] }
-  try { goalData.value = await tiku.getGoalContract() } catch (e) { goalData.value = null }
   try {
     const q = await tiku.checkQuests()
     quest.value = { tasks: q.tasks, claimed: q.claimed.join('、') }
   } catch (e) { quest.value = { tasks: [], claimed: '' } }
-  try { habits.value = await tiku.listHabits() } catch (e) { habits.value = [] }
   try { examDate.value = (await tiku.getSetting('exam_date')) || '' } catch (e) { examDate.value = '' }
 }
 
 watch(filterSubjectId, () => { if (loggedIn.value) loadContent() }) // 切科目/切范围只刷新内容类（filterSubjectId 依赖两者，单一 watch 全覆盖）
-
-async function toggleHabit(h) {
-  if (h.checkedToday) { await tiku.uncheckHabit(h.id) }
-  else { await tiku.checkHabit(h.id) }
-  habits.value = await tiku.listHabits()
-}
-
-async function claimGoal() {
-  try {
-    const r = await tiku.claimGoalReward()
-    if (r.ok) goalData.value = await tiku.getGoalContract()
-  } catch (e) {}
-}
 
 onMounted(async () => {
   // 本地单用户直接视为已登录，加载真实数据；如需演示未登录 UI 可注释掉下面这行
@@ -373,23 +354,6 @@ async function loadAnalysis() {
         <div class="exam-sub">{{ examLeft.date }} {{ examLeft.days > 0 ? '· 每天坚持刷题，稳扎稳打' : (examLeft.days === 0 ? '· 就是今天！加油 🎉' : '· 已过考试日，可在「我的」更新日期') }}</div>
       </div>
 
-      <!-- 目标契约（全局） -->
-      <div class="card goal-c-card" v-if="goalData && goalData.contract">
-        <div class="goal-c-head">
-          <span class="goal-c-title">目标契约 · {{ ({ quiz: '本周刷题', review: '本周复习', focus: '本周专注' })[goalData.contract.type] }}</span>
-          <span class="goal-c-badge" :class="{ done: goalData.achieved }">{{ goalData.achieved ? '已达成 🎉' : '进行中' }}</span>
-        </div>
-        <div class="goal-c-bar"><div class="goal-c-fill" :style="{ width: Math.min(100, Math.round((goalData.progress / goalData.contract.value) * 100)) + '%' }"></div></div>
-        <div class="goal-c-meta">
-          <span>已完成 {{ goalData.progress }} / {{ goalData.contract.value }}</span>
-          <span>{{ Math.min(100, Math.round((goalData.progress / goalData.contract.value) * 100)) }}%</span>
-        </div>
-        <div v-if="goalData.achieved && !goalData.contract.claimed" class="goal-c-claim-row">
-          <button class="btn btn-primary" @click="claimGoal">领取 +50 XP</button>
-        </div>
-        <div v-else-if="goalData.achieved" class="goal-c-claimed">+50 XP 已领取</div>
-      </div>
-
       <!-- 每日任务 Quest（全局） -->
       <div class="card quest-card">
         <div class="card-title">每日任务 <span class="quest-xp">每个 +20 XP</span></div>
@@ -399,20 +363,6 @@ async function loadAnalysis() {
             <span class="quest-check"><Icon v-if="t.done" name="check" :size="14"/><i v-else class="hollow"></i></span>
             <span class="quest-name">{{ t.name }}</span>
             <span class="quest-state">{{ t.done ? '已完成' : '待完成' }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 习惯打卡（全局） -->
-      <div class="card habit-list-card">
-        <div class="card-title">我的习惯 <span class="quest-xp">每天打卡 +5 XP</span></div>
-        <div v-if="!habits.length" class="empty-sm">还没有习惯，在「我的 → 习惯管理」添加一个吧</div>
-        <div v-else class="habit-list">
-          <div v-for="h in habits" :key="h.id" class="habit-item" :class="{ done: h.checkedToday }" @click="toggleHabit(h)">
-            <span class="habit-icon">{{ h.icon }}</span>
-            <span class="habit-name">{{ h.name }}</span>
-            <span class="habit-streak">🔥 {{ h.streak }} 天</span>
-            <span class="habit-check"><Icon v-if="h.checkedToday" name="check" :size="14"/><i v-else class="hollow"></i></span>
           </div>
         </div>
       </div>
@@ -621,17 +571,6 @@ async function loadAnalysis() {
 .exam-sub { font-size: 12px; color: var(--muted); }
 @keyframes stblink { 50% { opacity: .55; } }
 
-.goal-c-card { display: flex; flex-direction: column; gap: 8px; }
-.goal-c-head { display: flex; align-items: center; justify-content: space-between; }
-.goal-c-title { font-size: 13px; font-weight: 600; color: var(--text); }
-.goal-c-badge { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
-.goal-c-badge.done { color: var(--ok); border-color: rgba(44,196,138,.4); }
-.goal-c-bar { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
-.goal-c-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--brand), var(--brand2, #7b46c4)); transition: width .4s; }
-.goal-c-meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
-.goal-c-claim-row { margin-top: 2px; }
-.goal-c-claimed { font-size: 12px; color: var(--ok); font-weight: 600; }
-
 .quest-xp { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
 .quest-claimed { font-size: 12px; color: var(--ok); margin-bottom: 8px; }
 .quest-list { display: flex; flex-direction: column; gap: 8px; }
@@ -644,17 +583,4 @@ async function loadAnalysis() {
 .quest-item.done .quest-check { border-color: var(--ok); color: var(--ok); }
 .quest-name { flex: 1; font-size: 13px; color: var(--text); }
 .quest-state { font-size: 11px; color: var(--muted); }
-
-.habit-list { display: flex; flex-direction: column; gap: 6px; }
-.habit-item {
-  display: flex; align-items: center; gap: 10px;
-  border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; cursor: pointer; transition: all .15s;
-}
-.habit-item:hover { border-color: var(--brand); }
-.habit-item.done { border-color: rgba(44, 229, 168, 0.4); background: rgba(44, 229, 168, 0.05); }
-.habit-icon { font-size: 16px; }
-.habit-name { flex: 1; font-size: 13px; color: var(--text); }
-.habit-streak { font-size: 12px; color: var(--warn); font-weight: 600; }
-.habit-check .hollow { display: inline-block; width: 12px; height: 12px; border: 1.5px solid var(--line); border-radius: 50%; }
-.habit-item.done .habit-check { color: var(--ok); }
 </style>

@@ -119,7 +119,7 @@ const cur = computed(() => reviewItems.value[rIdx.value] || null)
 
 async function mark(felt) {
   if (!cur.value) return
-  await tiku.logReview('card', cur.value.id, felt ? 1 : 0)
+  await tiku.rateCard(cur.value.id, felt ? 1 : 0)
   rDone.value++
   flipped.value = false
   if (rIdx.value + 1 >= reviewItems.value.length) {

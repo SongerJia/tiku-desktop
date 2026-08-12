@@ -2,7 +2,7 @@
 import Icon from './Icon.vue'
 import CountUp from './CountUp.vue'
 import { showConfirm } from '../utils/confirm.js'
-import { evaluate, achLevel, ACH_SERIES, ACH_RARITY, currentSeason, evaluateSeason, syncSeasonArchive } from '../utils/achievements.js'
+import { evaluate, achLevel, ACH_SERIES } from '../utils/achievements.js'
 import { ref, onMounted, computed } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { applyAppearance } from '../utils/appearance.js'
@@ -196,8 +196,6 @@ const theme = ref('dark')
 const fontScale = ref('1')
 const dailyGoal = ref(0)
 const examDate = ref('') // 目标考试日（YYYY-MM-DD），首页显示倒计时
-const remindEnabled = ref(false)
-const remindTime = ref('21:00')
 async function setTheme(t) {
   theme.value = t
   await tiku.setSetting('theme', t)
@@ -216,15 +214,6 @@ function setExamDate(v) {
   examDate.value = v || ''
   tiku.setSetting('exam_date', v || '')
 }
-async function setRemindEnabled(v) {
-  remindEnabled.value = !!v
-  await tiku.setSetting('remind_enabled', remindEnabled.value ? '1' : '0')
-}
-
-async function setRemindTime(v) {
-  remindTime.value = v || '21:00'
-  await tiku.setSetting('remind_time', remindTime.value)
-}
 
 // ---- 游戏化成就（指标来自 getAchievements，成就定义在前端派生）----
 const metrics = ref(null)
@@ -234,15 +223,6 @@ const unlockedCount = computed(() => achievements.value.filter(a => a.got).lengt
 const achPoints = computed(() => achievements.value.filter(a => a.got).reduce((s, a) => s + (a.points || 0), 0))
 const achLv = computed(() => achLevel(achPoints.value))
 const achPct = computed(() => achievements.value.length ? Math.round((unlockedCount.value / achievements.value.length) * 100) : 0)
-// ---- 赛季系统：当前赛季挑战 + 历史赛季存档 ----
-const seasonInfo = computed(() => currentSeason())
-const seasonData = ref([])
-const seasonArc = ref({})
-const seasonDone = computed(() => seasonData.value.filter(r => r.got).length)
-const seasonArcList = computed(() => Object.entries(seasonArc.value)
-  .map(([no, v]) => ({ no: Number(no), ...v }))
-  .sort((a, b) => b.no - a.no))
-const seasonOpen = ref(false)
 // 系列折叠状态（默认全部展开）
 const achOpen = ref(new Set(ACH_SERIES.map(s => s.key)))
 function toggleAchSeries(key) {
@@ -260,39 +240,18 @@ const achSeries = computed(() => ACH_SERIES.map(sr => {
 const kbStats = ref(null)
 // ---- XP 等级 ----
 const xp = ref(null)
-// ---- 习惯管理 ----
-const habits = ref([])
-const newHabitName = ref('')
 
 // 页面分组折叠：学习成长默认展开，其余收起（避免平铺过长）
-const secOpen = ref({ learn: true, habits: false, prefs: false, sync: false, misc: false })
+const secOpen = ref({ learn: true, prefs: false, sync: false, misc: false })
 function toggleSec(k) {
   secOpen.value[k] = !secOpen.value[k]
-}
-async function loadHabits() {
-  habits.value = await tiku.listHabits()
-}
-async function addHabit() {
-  const name = newHabitName.value.trim()
-  if (!name) return
-  await tiku.addHabit(name)
-  newHabitName.value = ''
-  await loadHabits()
-}
-async function removeHabit(h) {
-  const ok = await showConfirm(`删除习惯「${h.name}」？
-其打卡记录一并删除。`)
-  if (!ok) return
-  await tiku.deleteHabit(h.id)
-  await loadHabits()
 }
 
 onMounted(async () => {
   try {
-    const [t, f, g, ach, re, rt, kb, x, ed, ms] = await Promise.all([
+    const [t, f, g, ach, kb, x, ed, ms] = await Promise.all([
       tiku.getSetting('theme'), tiku.getSetting('font_scale'),
       tiku.getSetting('daily_goal'), tiku.getAchievements(),
-      tiku.getSetting('remind_enabled'), tiku.getSetting('remind_time'),
       tiku.kbStats(), tiku.xpStats(), tiku.getSetting('exam_date'),
       tiku.getMonthStats()
     ])
@@ -301,13 +260,8 @@ onMounted(async () => {
     dailyGoal.value = Number(g) || 0
     examDate.value = ed || ''
     metrics.value = { ...ach, ...ms }
-    seasonData.value = evaluateSeason(metrics.value)
-    seasonArc.value = syncSeasonArchive(metrics.value)
-    remindEnabled.value = re === '1'
-    remindTime.value = rt || '21:00'
     kbStats.value = kb
     xp.value = x
-    await loadHabits()
   } catch (e) { /* 成就读取失败不阻塞 */ }
 })
 </script>
@@ -356,7 +310,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <!-- 游戏化成就：概览条 + 赛季挑战 + 系列分组 + 三态成就卡 -->
+    <!-- 游戏化成就：概览条 + 系列分组 + 三态成就卡 -->
     <div class="card">
       <!-- 概览条 -->
       <div class="ach-summary">
@@ -365,40 +319,6 @@ onMounted(async () => {
         <span class="ach-sum-item"><b>{{ unlockedCount }}/{{ achievements.length }}</b>已解锁</span>
         <span class="ach-sum-item"><b>{{ achPct }}%</b>完成率</span>
         <span class="ach-sum-ring" :style="{ background: `conic-gradient(var(--brand) ${achPct * 3.6}deg, var(--line) 0deg)` }"></span>
-      </div>
-
-      <!-- 赛季挑战（当前赛季，次月自动换新） -->
-      <div class="sea-block">
-        <div class="sea-head">
-          <span class="sea-title">🏆 第 {{ seasonInfo.no }} 赛季 · {{ seasonInfo.label }}</span>
-          <span class="sea-days" :class="{ soon: seasonInfo.daysLeft <= 7 }">⏳ 剩 {{ seasonInfo.daysLeft }} 天</span>
-          <span class="sea-prog">{{ seasonDone }}/{{ seasonData.length }}</span>
-        </div>
-        <div class="sea-bar"><div class="sea-fill" :style="{ width: (seasonData.length ? Math.round((seasonDone / seasonData.length) * 100) : 0) + '%' }"></div></div>
-        <div class="sea-grid">
-          <div v-for="c in seasonData" :key="c.key" class="sea-item" :class="{ done: c.got }">
-            <span class="sea-icon">{{ c.icon }}</span>
-            <div class="sea-main">
-              <span class="sea-name">{{ c.name }}</span>
-              <div class="sea-track"><div class="sea-fill-sm" :class="{ done: c.got }" :style="{ width: c.pct + '%' }"></div></div>
-            </div>
-            <span class="sea-val" :class="{ done: c.got }">{{ c.got ? '✓' : c.fmtText }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 历史赛季存档 -->
-      <div v-if="seasonArcList.length" class="sea-arc">
-        <div class="sea-arc-head" @click="seasonOpen = !seasonOpen">
-          <span>📅 历史赛季</span>
-          <span class="sea-arc-arrow" :class="{ open: seasonOpen }">▾</span>
-        </div>
-        <div v-show="seasonOpen" class="sea-arc-list">
-          <div v-for="s in seasonArcList" :key="s.no" class="sea-arc-item">
-            <span class="sea-arc-no">第 {{ s.no }} 赛季</span>
-            <span class="sea-arc-prog">{{ s.achieved }}/{{ s.total }}</span>
-          </div>
-        </div>
       </div>
 
       <!-- 系列分组 -->
@@ -422,7 +342,6 @@ onMounted(async () => {
               </span>
               <span class="ach-name">
                 {{ a.got || !a.hidden ? a.name : '？？？' }}
-                <i v-if="a.got" class="ach-rarity" :style="{ background: (ACH_RARITY[a.rarity] || {}).color }">{{ (ACH_RARITY[a.rarity] || {}).label }}</i>
               </span>
               <span class="ach-pct" :class="{ done: a.got }">
                 <template v-if="a.got">{{ a.unlockAt || '已解锁' }}</template>
@@ -433,7 +352,7 @@ onMounted(async () => {
             <span class="ach-desc" v-if="a.got || !a.hidden">{{ a.desc }}<template v-if="!a.got"> · +{{ a.points }} 点</template></span>
             <span class="ach-desc" v-else>解锁后揭晓</span>
             <div class="ach-bar" v-if="!a.hidden || a.got">
-              <div class="ach-fill" :class="{ done: a.got }" :style="{ width: a.pct + '%', background: a.got ? ((ACH_RARITY[a.rarity] || {}).color) : undefined }"></div>
+              <div class="ach-fill" :class="{ done: a.got }" :style="{ width: a.pct + '%' }"></div>
             </div>
             <div class="ach-bar" v-else></div>
           </div>
@@ -483,46 +402,6 @@ onMounted(async () => {
         <span class="pref-label">目标考试日</span>
         <input class="pref-input" type="date" :value="examDate" @change="setExamDate($event.target.value)" />
         <span class="pref-sub">首页显示倒计时与每日计划</span>
-      </div>
-      <div class="pref-row">
-        <span class="pref-label">学习提醒</span>
-        <input class="pref-input pref-time" type="time" :value="remindTime" @change="setRemindTime($event.target.value)" />
-        <label class="pref-switch">
-          <input type="checkbox" :checked="remindEnabled" @change="setRemindEnabled($event.target.checked)" />
-          <span class="pref-switch-slider"></span>
-        </label>
-      </div>
-    </div>
-
-      </div>
-    </div>
-
-
-    <!-- 习惯管理 -->
-    <div class="sec">
-      <div class="sec-head" @click="toggleSec('habits')">
-        <span class="sec-icon sec-icon-habits"><Icon name="refresh" :size="16" /></span>
-        <span class="sec-title">习惯管理</span>
-        <span class="sec-badge">{{ habits.length }} 个</span>
-        <span class="sec-arrow" :class="{ open: secOpen.habits }"><Icon name="chevron-down" :size="14" /></span>
-      </div>
-      <div v-show="secOpen.habits" class="sec-body">
-
-    <!-- 习惯管理 -->
-    <div class="card">
-      <div class="card-title">习惯管理</div>
-      <div class="habit-mgr">
-        <div v-for="h in habits" :key="h.id" class="habit-mgr-item">
-          <span class="habit-mgr-icon">{{ h.icon }}</span>
-          <span class="habit-mgr-name">{{ h.name }}</span>
-          <span class="habit-mgr-streak"><Icon name="fire" :size="14"/> {{ h.streak }} 天</span>
-          <button class="habit-mgr-del" @click="removeHabit(h)">删除</button>
-        </div>
-        <div v-if="!habits.length" class="habit-mgr-empty">还没有习惯，加一个吧（如：雅思刷题 / 健身 / 阅读）</div>
-        <div class="habit-mgr-add">
-          <input v-model="newHabitName" class="input" placeholder="新习惯名称，回车或点添加" @keyup.enter="addHabit" />
-          <button class="btn btn-primary" @click="addHabit">添加</button>
-        </div>
       </div>
     </div>
 
@@ -757,7 +636,6 @@ onMounted(async () => {
 .sec-head:hover .sec-icon { transform: scale(1.06); }
 .sec-icon-learn   { background: rgba(47, 191, 143, 0.14);  color: var(--ok); }
 .sec-icon-prefs   { background: rgba(91, 124, 250, 0.14);  color: var(--brand); }
-.sec-icon-habits  { background: rgba(167, 139, 250, 0.16); color: #a78bfa; }
 .sec-icon-sync    { background: rgba(34, 211, 238, 0.14);  color: #22d3ee; }
 .sec-icon-misc    { background: rgba(251, 113, 133, 0.14); color: #fb7185; }
 .sec-icon-chapter { background: rgba(251, 191, 36, 0.14);  color: #fbbf24; }
@@ -888,30 +766,6 @@ onMounted(async () => {
 .pref-range { flex: 1; accent-color: var(--brand); }
 .pref-input { width: 80px; background: var(--input-solid-bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 6px 10px; font-size: 13px; outline: none; font-family: inherit; }
 .pref-input:focus { border-color: var(--brand); }
-.pref-time { width: auto; }
-.pref-switch { display: inline-flex; align-items: center; margin-left: auto; cursor: pointer; }
-.pref-switch input { display: none; }
-.pref-switch-slider {
-  width: 38px;
-  height: 20px;
-  border-radius: 12px;
-  background: var(--line);
-  position: relative;
-  transition: background .2s;
-}
-.pref-switch-slider::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--muted);
-  transition: all .2s;
-}
-.pref-switch input:checked + .pref-switch-slider { background: var(--brand); }
-.pref-switch input:checked + .pref-switch-slider::after { left: 20px; background: #021018; }
 .kb-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .kb-stat {
   display: flex;
@@ -928,24 +782,6 @@ onMounted(async () => {
 
 /* XP 等级已精简为用户卡右侧 .user-xp（见上方） */
 
-/* 习惯管理 */
-.habit-mgr { display: flex; flex-direction: column; gap: 8px; }
-.habit-mgr-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 8px 12px;
-}
-.habit-mgr-icon { font-size: 16px; }
-.habit-mgr-name { flex: 1; font-size: 13px; color: var(--text); }
-.habit-mgr-streak { font-size: 11px; color: var(--warn); }
-.habit-mgr-del { font-size: 12px; color: var(--muted); background: none; border: none; cursor: pointer; }
-.habit-mgr-del:hover { color: var(--bad); }
-.habit-mgr-empty { font-size: 12px; color: var(--muted); }
-.habit-mgr-add { display: flex; gap: 8px; }
-.habit-mgr-add .input { flex: 1; }
 .pref-unit { color: var(--muted); font-size: 12px; }
 .pref-sub { flex: 1; color: var(--muted); font-size: 11px; }
 
@@ -976,7 +812,6 @@ onMounted(async () => {
 .ach.got .ach-icon { filter: none; }
 .ach-name { font-size: 13px; font-weight: 600; color: var(--text); display: inline-flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ach.got .ach-name { color: var(--brand); }
-.ach-rarity { font-style: normal; font-size: 10px; color: #fff; border-radius: 6px; padding: 0 5px; line-height: 15px; flex-shrink: 0; }
 .ach-pct { margin-left: auto; font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
 .ach-pct.done { color: var(--ok); font-weight: 600; }
 .ach-desc { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -995,36 +830,6 @@ onMounted(async () => {
 }
 .ach-fill.done { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
 .ach-empty { font-size: 12px; color: var(--muted); text-align: center; padding: 12px 0; }
-
-/* 赛季系统 */
-.sea-block { border: 1px solid rgba(91,124,250,.3); background: rgba(91,124,250,.05); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
-.sea-head { display: flex; align-items: center; gap: 8px; }
-.sea-title { font-size: 13px; font-weight: 600; color: var(--text); }
-.sea-days { font-size: 11px; color: var(--muted); }
-.sea-days.soon { color: var(--bad); font-weight: 600; }
-.sea-prog { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--brand); }
-.sea-bar { height: 6px; border-radius: 999px; background: rgba(127,127,127,.25); overflow: hidden; margin: 8px 0 10px; }
-.sea-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--brand), #7b46c4); transition: width .4s; }
-.sea-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.sea-item { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: rgba(255,255,255,.02); }
-.sea-item.done { border-color: rgba(44,229,168,.4); background: rgba(44,229,168,.05); }
-.sea-icon { font-size: 16px; flex-shrink: 0; }
-.sea-main { flex: 1; min-width: 0; }
-.sea-name { font-size: 12px; color: var(--text); display: block; margin-bottom: 4px; }
-.sea-track { height: 4px; border-radius: 2px; background: rgba(127,127,127,.25); overflow: hidden; }
-.sea-fill-sm { height: 100%; border-radius: 2px; background: var(--muted); transition: width .3s; }
-.sea-fill-sm.done { background: var(--ok); }
-.sea-val { font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
-.sea-val.done { color: var(--ok); font-weight: 700; }
-.sea-arc { margin-bottom: 12px; }
-.sea-arc-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; padding: 4px; border-radius: 6px; }
-.sea-arc-head:hover { color: var(--brand); }
-.sea-arc-arrow { transition: transform .2s; }
-.sea-arc-arrow.open { transform: rotate(180deg); }
-.sea-arc-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
-.sea-arc-item { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
-.sea-arc-no { color: var(--text); }
-.sea-arc-prog { color: var(--brand); font-weight: 600; }
 
 /* 同步冲突明细 */
 

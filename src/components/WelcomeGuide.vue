@@ -10,7 +10,7 @@ const step = ref(0)
 const STEPS = [
   { icon: '📚', title: '导入你的题库', desc: '支持 CSV / Excel / JSON 批量导入（我的 → 题库管理），也可以先用内置「二级建造师」样题体验。', btn: '知道了' },
   { icon: '🗂️', title: '导入知识文档', desc: '把教材 md / pdf 拖进「知识库」，自动切块、全文搜索，还能和题目双向联动。', btn: '知道了' },
-  { icon: '🎯', title: '设定目标与同步', desc: '在「我的」里设定每日目标、开启学习提醒；多台设备用 GitHub Gist 零后端同步。', btn: '开始使用' }
+  { icon: '🎯', title: '设定目标与同步', desc: '在「我的 · 学习目标」里设定每日刷题/复习/阅读目标；多台设备用 GitHub 私有仓库零后端同步。', btn: '开始使用' }
 ]
 
 async function next() {
