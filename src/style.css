@@ -429,3 +429,41 @@ button:focus:not(:focus-visible) { outline: none; }
 @media print {
   body { background: #fff; }
 }
+
+/* ===== 全面精致化基座（2026-08-12）：氛围光 / 入场动画 / 滚动条 / 聚焦环 ===== */
+
+/* 背景氛围光：靛蓝柔光打底，页面有呼吸感（深色为主，浅色主题低饱和覆盖） */
+body {
+  background:
+    radial-gradient(1100px 520px at 78% -12%, rgba(91, 124, 250, 0.12), transparent 60%),
+    radial-gradient(900px 460px at -12% 108%, rgba(122, 92, 255, 0.08), transparent 55%),
+    var(--bg);
+}
+[data-theme="light"] body {
+  background:
+    radial-gradient(1100px 520px at 78% -12%, rgba(61, 91, 217, 0.08), transparent 60%),
+    radial-gradient(900px 460px at -12% 108%, rgba(124, 58, 237, 0.05), transparent 55%),
+    var(--bg);
+}
+
+/* 卡片入场：打开页面卡片浮起淡入（配合页面切换过渡） */
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.tab-page .card { animation: riseIn .4s cubic-bezier(.2, .7, .3, 1) both; }
+
+/* 深色滚动条：细条 + 圆角（浅色主题 339 行已有） */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.25); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.45); }
+
+/* 键盘聚焦环：统一品牌色（精致可访问性） */
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 6px; }
+
+/* 尊重系统「减弱动效」偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .tab-page .card { animation: none; }
+  * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
