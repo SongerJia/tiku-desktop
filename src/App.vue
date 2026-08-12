@@ -232,6 +232,22 @@ function startDailyPuzzle(question) {
 function onStartMock() {
   mock.value.active = true
 }
+// 3 分钟快刷：跳过练习设置弹层，随机 5 题即点即刷（降低启动摩擦，首页行动台入口）
+function onQuickStart() {
+  quiz.value = {
+    active: true,
+    categoryId: null,
+    subjectId: currentSubject.value.id,
+    mode: 'practice',
+    order: 'random',
+    limit: 5,
+    durationMin: null,
+    recite: false,
+    paperId: null,
+    tags: null,
+    resume: null
+  }
+}
 function onMockConfirm(cfg) {
   quiz.value = {
     active: true,
@@ -314,7 +330,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
         <template v-else>
           <Transition name="fade" mode="out-in">
             <div :key="currentTab" class="tab-page">
-              <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" />
+              <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" @quick="onQuickStart" />
               <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" @start="onStart" />
               <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :scope="kbScope" />
               <Stats v-else-if="currentTab === 'stats'" :subject="currentSubject" />

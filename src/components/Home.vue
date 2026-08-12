@@ -8,7 +8,7 @@ import { showToast } from '../utils/toast.js'
 import CardsPanel from './CardsPanel.vue'
 
 const props = defineProps({ subject: Object, refreshKey: { default: 0 } })
-const emit = defineEmits(['start', 'start-mock', 'goto', 'daily'])
+const emit = defineEmits(['start', 'start-mock', 'goto', 'daily', 'quick'])
 
 const summary = ref({ total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0, accuracy: 0, weekAccuracy: 0, weekDelta: 0, streak: 0 })
 const dailyGoal = ref(0)
@@ -62,6 +62,8 @@ const examLeft = computed(() => {
 
 // 今日刷题进度（目标 KPI 格）
 const goalPct = computed(() => dailyGoal.value ? Math.min(100, Math.round((summary.value.today / dailyGoal.value) * 100)) : 0)
+// 目标进度环弧长：157 = 2πr(25)，按完成度缩放
+const ringOffset = computed(() => 157 - (157 * goalPct.value) / 100)
 
 let loadSeq = 0 // 防竞态：快速切科目时旧请求晚返回，seq 不匹配则整体丢弃，避免过期数据覆盖
 async function load() {
@@ -279,25 +281,41 @@ onBeforeUnmount(() => {
         <div class="exam-num guide">去设置 ›</div>
       </div>
 
-      <!-- 主行动区：今日复习 + 每日一题 -->
-      <div class="action-row">
-        <div class="action-card review" @click="startSmartReview">
-          <span class="ac-title">今日复习</span>
-          <div class="ac-num-row">
-            <span class="ac-num">{{ dueReviews }}</span>
-            <span class="ac-unit">题到期</span>
-          </div>
-          <span class="ac-sub">错题本还剩 {{ summary.wrongCount }} 题 · SM-2 智能排期</span>
-          <span class="ac-btn">开始复习</span>
+      <!-- 复习到期横幅（有到期才显示） -->
+      <div v-if="dueReviews > 0" class="review-banner" @click="startSmartReview">
+        <span class="rb-ico"><Icon name="clock" :size="15"/></span>
+        <div class="rb-info">
+          <div class="rb-title">{{ dueReviews }} 道错题已到复习期</div>
+          <div class="rb-sub">间隔记忆提醒你：现在复习效果最好</div>
         </div>
-        <div class="action-card daily" @click="startDaily" :class="{ disabled: !(dailyPuzzle && dailyPuzzle.question) }">
-          <span class="ac-title">每日一题</span>
-          <div class="ac-num-row">
-            <span class="ac-num">{{ dailyPuzzle && dailyPuzzle.state ? dailyPuzzle.state.streak : 0 }}</span>
-            <span class="ac-unit">天连击</span>
+        <span class="rb-btn">开始复习</span>
+      </div>
+
+      <!-- 今日行动台：目标进度环 + 三大行动 -->
+      <div class="action-dock">
+        <div class="dock-ring" :class="{ clickable: !dailyGoal }" @click="dailyGoal ? null : emit('goto', 'profile')">
+          <svg viewBox="0 0 60 60" width="82" height="82">
+            <circle cx="30" cy="30" r="25" fill="none" stroke="rgba(148,163,184,0.14)" stroke-width="5"/>
+            <circle cx="30" cy="30" r="25" fill="none" stroke="var(--brand)" stroke-width="5" stroke-linecap="round"
+              :stroke-dasharray="'157 157'" :stroke-dashoffset="ringOffset" transform="rotate(-90 30 30)"/>
+            <text x="30" y="28" text-anchor="middle" font-size="13" fill="var(--text)" font-weight="600">{{ dailyGoal ? summary.today + '/' + dailyGoal : '—' }}</text>
+            <text x="30" y="43" text-anchor="middle" font-size="10" fill="var(--muted)">今日目标</text>
+          </svg>
+          <div class="ring-sub">{{ dailyGoal ? '完成 ' + goalPct + '%' : '点此设置目标' }}</div>
+        </div>
+        <div class="dock-actions">
+          <div class="dock-btn review" @click="startSmartReview">
+            <div><b>今日复习</b><span>{{ dueReviews }} 题到期 · SM-2 排期</span></div>
+            <em>{{ dueReviews }}</em>
           </div>
-          <span class="ac-sub">{{ dailyPuzzle && dailyPuzzle.question ? (dailyPuzzle.state.answered ? '今天已答 · 查看解析' : '30 秒搞定，答对攒连击') : '明天再来' }}</span>
-          <span class="ac-btn ghost">{{ dailyPuzzle && dailyPuzzle.question && !dailyPuzzle.state.answered ? '去挑战' : '查看' }}</span>
+          <div class="dock-btn daily" @click="startDaily" :class="{ disabled: !(dailyPuzzle && dailyPuzzle.question) }">
+            <div><b>每日一题</b><span>{{ dailyPuzzle && dailyPuzzle.question ? (dailyPuzzle.state.answered ? '今天已答 · 查看解析' : '30 秒搞定 · 攒连击') : '明天再来' }}</span></div>
+            <em>{{ dailyPuzzle && dailyPuzzle.state ? dailyPuzzle.state.streak : 0 }}</em>
+          </div>
+          <div class="dock-btn quick" @click="emit('quick')">
+            <div><b>3 分钟快刷</b><span>随机 5 题 · 随时开始</span></div>
+            <span class="dock-go">开始 ›</span>
+          </div>
         </div>
       </div>
 
@@ -444,30 +462,48 @@ onBeforeUnmount(() => {
 .exam-guide:hover { border-color: var(--brand); background: rgba(91, 124, 250, 0.08); }
 
 /* 主行动区 */
-.action-row { display: flex; gap: 12px; }
-.action-card {
-  flex: 1; min-width: 0;
-  display: flex; flex-direction: column; gap: 6px;
-  padding: 14px 16px;
-  border: 1px solid var(--line); border-radius: 12px;
-  cursor: pointer; transition: all .15s;
+/* 复习到期横幅 */
+.review-banner {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(217, 154, 61, 0.10);
+  border: 1px solid rgba(217, 154, 61, 0.45);
+  border-radius: 12px; padding: 12px 14px; cursor: pointer; transition: all .15s;
 }
-.action-card.review { border-color: rgba(91, 124, 250, 0.5); }
-.action-card.daily { border-color: var(--line); }
-.action-card:hover { box-shadow: var(--glow-soft); }
-.action-card.disabled { opacity: .55; cursor: default; }
-.ac-title { font-size: 13px; font-weight: 600; color: var(--text); }
-.ac-num-row { display: flex; align-items: baseline; gap: 6px; }
-.ac-num { font-size: 30px; font-weight: 600; color: var(--brand); line-height: 1.1; font-variant-numeric: tabular-nums; }
-.action-card.daily .ac-num { color: var(--warn); }
-.ac-unit { font-size: 12px; color: var(--muted); }
-.ac-sub { font-size: 12px; color: var(--muted); }
-.ac-btn {
-  margin-top: 4px; text-align: center;
-  background: var(--brand); color: #fff;
-  border-radius: 8px; padding: 8px 0; font-size: 13px; font-weight: 600;
+.review-banner:hover { box-shadow: var(--glow-soft); }
+.rb-ico { color: var(--warn); flex-shrink: 0; display: flex; }
+.rb-info { flex: 1; min-width: 0; }
+.rb-title { font-size: 14px; font-weight: 600; color: #f0c98a; }
+.rb-sub { font-size: 12px; color: var(--muted); }
+.rb-btn { flex-shrink: 0; background: var(--warn); color: #1a160e; border-radius: 9px; padding: 7px 14px; font-size: 13px; font-weight: 600; }
+
+/* 今日行动台：目标进度环 + 三大行动 */
+.action-dock { display: flex; gap: 12px; }
+.dock-ring {
+  flex: 0 0 96px; min-width: 96px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 6px;
 }
-.ac-btn.ghost { background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.3); color: var(--text); }
+.dock-ring.clickable { cursor: pointer; }
+.dock-ring.clickable:hover { border-color: var(--brand); }
+.ring-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.dock-actions { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.dock-btn {
+  flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 12px; border-radius: 10px; cursor: pointer; transition: all .15s;
+}
+.dock-btn b { font-size: 14px; font-weight: 600; display: block; }
+.dock-btn span { font-size: 11.5px; color: var(--muted); }
+.dock-btn em { font-style: normal; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.dock-btn.review { background: rgba(91, 124, 250, 0.14); border: 1px solid rgba(91, 124, 250, 0.4); }
+.dock-btn.review b { color: #d6ddf7; }
+.dock-btn.review em { color: var(--brand); }
+.dock-btn.daily { background: rgba(47, 191, 143, 0.10); border: 1px solid rgba(47, 191, 143, 0.35); }
+.dock-btn.daily b { color: #bfe8d8; }
+.dock-btn.daily em { color: var(--ok); }
+.dock-btn.daily.disabled { opacity: .55; cursor: default; }
+.dock-btn.quick { background: var(--card); border: 1px dashed rgba(148, 163, 184, 0.3); }
+.dock-btn.quick:hover { border-style: solid; border-color: var(--brand); }
+.dock-go { font-size: 12px !important; color: var(--muted); }
 
 /* KPI 数据条 */
 .kpi-strip {
