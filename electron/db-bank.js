@@ -146,6 +146,64 @@ module.exports = function bankModule(ctx) {
       return { ok: true }
     },
 
+    // 题目详情聚合：题目本体 + 章节路径 + 标签 + 状态（收藏/错题/记忆卡/历史正确率）
+    getQuestionInfo(id) {
+      const q = sqlite.prepare(
+        `SELECT q.*, c.name AS category_name, c.parent_id AS cat_parent
+         FROM questions q LEFT JOIN categories c ON c.id = q.category_id
+         WHERE q.id=? AND q.deleted=0`
+      ).get(id)
+      if (!q) return { ok: false, error: '题目不存在' }
+      // 章节路径：从所属分类向上找父级（科目 › 章节）
+      const path = []
+      let pid = q.cat_parent
+      if (q.category_name) path.unshift(q.category_name)
+      while (pid) {
+        const p = sqlite.prepare('SELECT name, parent_id FROM categories WHERE id=?').get(pid)
+        if (!p) break
+        path.unshift(p.name)
+        pid = p.parent_id
+      }
+      // 标签
+      const tags = sqlite.prepare('SELECT tag FROM question_tags WHERE question_id=? ORDER BY tag').all(id).map(r => r.tag)
+      // 收藏
+      const fav = sqlite.prepare('SELECT fav_group FROM favorites WHERE user_id=? AND question_id=? AND deleted=0').get(LOCAL_USER, id)
+      // 错题本
+      const wb = sqlite.prepare(
+        `SELECT wrong_count, reviewed_count, status, reason, next_review_at FROM wrong_books
+         WHERE user_id=? AND question_id=? AND deleted=0`
+      ).get(LOCAL_USER, id)
+      // 记忆卡（题目来源卡）
+      const card = sqlite.prepare('SELECT review_count, review_lapses FROM cards WHERE source_question_id=? AND deleted=0 LIMIT 1').get(id)
+      // 历史答题
+      const ar = sqlite.prepare(
+        'SELECT COUNT(*) AS n, COALESCE(SUM(is_correct),0) AS c FROM answer_records WHERE user_id=? AND question_id=? AND deleted=0'
+      ).get(LOCAL_USER, id)
+      const answered = ar.n || 0
+      return {
+        ok: true,
+        question: {
+          id: q.id, categoryId: q.category_id, type: q.type, stem: q.stem, options_json: q.options_json,
+          answer_json: q.answer_json, analysis: q.analysis, difficulty: q.difficulty,
+          categoryPath: path, tags
+        },
+        status: {
+          favorited: !!fav,
+          favGroup: fav ? fav.fav_group : '',
+          wrong: !!wb,
+          wrongCount: wb ? wb.wrong_count : 0,
+          reviewedCount: wb ? wb.reviewed_count : 0,
+          wbStatus: wb ? wb.status : '',
+          reason: wb ? (wb.reason || '') : '',
+          nextReviewAt: wb ? wb.next_review_at : 0,
+          hasCard: !!card,
+          cardReviewCount: card ? card.review_count : 0,
+          cardLapses: card ? card.review_lapses : 0,
+          answered, correctRate: answered ? Math.round((ar.c / answered) * 100) : 0
+        }
+      }
+    },
+
     getBankStats() {
       const total = sqlite.prepare('SELECT COUNT(*) AS n FROM questions WHERE deleted=0').get().n
       const byType = sqlite.prepare('SELECT type, COUNT(*) AS n FROM questions WHERE deleted=0 GROUP BY type').all()

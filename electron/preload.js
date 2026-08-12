@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 题库管理
   listQuestions: (opts) => ipcRenderer.invoke('listQuestions', opts),
+  getQuestionInfo: (id) => ipcRenderer.invoke('getQuestionInfo', id),
   addQuestion: (q) => ipcRenderer.invoke('addQuestion', q),
   updateQuestion: (q) => ipcRenderer.invoke('updateQuestion', q),
   deleteQuestion: (id) => ipcRenderer.invoke('deleteQuestion', id),

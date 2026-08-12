@@ -1,10 +1,11 @@
 <script setup>
 import { ref, onMounted, watch, onBeforeUnmount } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
+import QuestionDetail from './QuestionDetail.vue'
 import { tiku } from '../api/tiku.js'
 
 const props = defineProps({ subject: Object })
-const emit = defineEmits(['start'])
+const emit = defineEmits(['start', 'manage'])
 
 const keyword = ref('')
 const chapters = ref([])
@@ -13,6 +14,8 @@ const questions = ref([])
 const loading = ref(true)
 const PAGE = 50
 const visibleCount = ref(PAGE)
+const showAllCh = ref(false) // 章节筛选：折叠「更多」展开态（方案②）
+const detailId = ref(null) // 当前查看详情的题目 id
 
 let alive = true // 卸载后作废在途请求结果（须在 watch/onMounted 之前声明，避免 setup 同步触发时 TDZ）
 onMounted(load)
@@ -25,6 +28,7 @@ async function load() {
   // 取当前科目下的二级分类作为章节
   const subjectNode = tree.find(n => n.id === props.subject.id)
   chapters.value = subjectNode ? subjectNode.children : (tree[0]?.children || [])
+  showAllCh.value = false // 切科目重置章节展开态
   const was = currentChapterId.value
   currentChapterId.value = null
   // 仅当值未变（不会触发 watch）时手动补拉一次；非 null→null 已由 watch 触发，避免并发双请求
@@ -54,6 +58,15 @@ function search() {
   fetchQuestions()
 }
 
+// 点题目卡 → 打开详情弹层（不再直接开刷，消除歧义）；详情里「开始练习」才进答题
+function openDetail(q) {
+  detailId.value = q.id
+}
+function onDetailStart(payload) {
+  detailId.value = null
+  emit('start', payload)
+}
+
 function typeLabel(t) {
   return { single: '单选', multiple: '多选', judge: '判断' }[t] || t
 }
@@ -79,12 +92,15 @@ function typeLabel(t) {
           @click="currentChapterId = null"
         >全部</button>
         <button
-          v-for="ch in chapters"
+          v-for="ch in (showAllCh ? chapters : chapters.slice(0, 6))"
           :key="ch.id"
           class="filter-chip"
           :class="{ active: currentChapterId === ch.id }"
           @click="currentChapterId = ch.id"
         >{{ ch.name }}</button>
+        <button v-if="chapters.length > 6" class="filter-chip more-chip" @click="showAllCh = !showAllCh">
+          {{ showAllCh ? '收起 ▴' : `更多 (${chapters.length - 6}) ▾` }}
+        </button>
       </div>
     </div>
 
@@ -95,7 +111,7 @@ function typeLabel(t) {
         v-for="q in questions.slice(0, visibleCount)"
         :key="q.id"
         class="card q-card"
-        @click="$emit('start', { categoryId: q.category_id, mode: 'practice' })"
+        @click="openDetail(q)"
       >
         <div class="q-meta">
           <span class="badge">{{ typeLabel(q.type) }}</span>
@@ -107,6 +123,13 @@ function typeLabel(t) {
         加载更多（{{ questions.length - visibleCount }} 道）
       </button>
     </div>
+
+    <QuestionDetail
+      :show="!!detailId"
+      :question-id="detailId"
+      @close="detailId = null"
+      @start="onDetailStart"
+    />
   </div>
 </template>
 
@@ -144,6 +167,14 @@ function typeLabel(t) {
   font-weight: 600;
   box-shadow: 0 2px 10px rgba(91, 124, 250, 0.32);
 }
+.more-chip {
+  border-style: dashed;
+  border-color: rgba(255, 184, 77, 0.5);
+  color: var(--warn);
+  background: rgba(255, 184, 77, 0.06);
+  font-weight: 600;
+}
+.more-chip:hover { border-color: var(--warn); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); }
 
 .question-list { display: flex; flex-direction: column; gap: 10px; }
 .load-more {
