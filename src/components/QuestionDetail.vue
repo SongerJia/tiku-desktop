@@ -171,7 +171,7 @@ function showToast(msg, type) {
 <style scoped>
 .qd-mask {
   position: fixed; inset: 0; z-index: 300;
-  background: rgba(2, 6, 16, 0.72);
+  background: rgba(2, 6, 16, 0.65);
   /* 毛玻璃：blur 随 maskIn 渐变（0→4px）平滑出现，避免瞬间糊；闪动根因已由 Teleport 根治，blur 可放心保留 */
   backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center; padding: 24px;
