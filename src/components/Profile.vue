@@ -997,9 +997,9 @@ onMounted(async () => {
 .sync-ico {
   width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(148, 163, 184, 0.12); color: var(--muted);
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25);
-  transition: background .2s ease, color .2s ease, box-shadow .2s ease;
+  background: rgba(34, 211, 238, 0.10); color: #22d3ee;
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.3);
+  transition: background .2s ease, box-shadow .2s ease;
 }
 .sync-ico.on {
   background: rgba(34, 211, 238, 0.15); color: #22d3ee;
