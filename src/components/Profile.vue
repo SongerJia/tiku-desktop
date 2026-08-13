@@ -630,11 +630,15 @@ onMounted(async () => {
     <div class="card sync-card">
       <!-- 状态头 -->
       <div class="sync-status">
-        <span class="sync-status-dot" :class="{ on: ghHasToken }"></span>
-        <b>{{ ghHasToken ? '已连接' : '未连接' }}</b>
-        <span v-if="ghHasToken" class="sync-repo">{{ ghOwner }}/{{ ghRepo }}</span>
-        <span v-else class="sync-loc">数据只在本机</span>
-        <span class="sync-last">{{ fmtTime(ghLast) }}</span>
+        <span class="sync-ico" :class="{ on: ghHasToken }"><Icon name="cloud" :size="18" /></span>
+        <div class="sync-status-main">
+          <div class="sync-status-line">
+            <span class="sync-status-dot" :class="{ on: ghHasToken }"></span>
+            <b>{{ ghHasToken ? '已连接' : '未连接' }}</b>
+          </div>
+          <span class="sync-sub">{{ ghHasToken ? (ghOwner + '/' + ghRepo + ' · 跨 Windows / macOS / 安卓') : '数据只在本机 · 配置后跨设备同步' }}</span>
+        </div>
+        <span class="sync-time">{{ fmtTime(ghLast) }}</span>
       </div>
 
       <!-- 已连接态：立即同步 + 结果三格 + 上次结果 -->
@@ -658,10 +662,10 @@ onMounted(async () => {
 
       <!-- 配置表单（未连接引导 或 编辑配置展开） -->
       <div v-show="!ghHasToken || showCfg" class="wd-form">
-        <p v-if="!ghHasToken" class="sync-tip">
-          用 GitHub 私有仓库同步<b>全部数据</b>（学习数据 + 题库 + 知识库文档 + 题目图片），跨 Windows / macOS / 安卓。
-          <br />Token 需有 <code>repo</code> 权限（GitHub → Settings → Developer settings → Personal access tokens）。<b>建议仓库设为 Private</b>（学习数据含个人隐私）。
-        </p>
+        <div v-if="!ghHasToken" class="sync-info">
+          <Icon name="clock" :size="14" />
+          <p>用 GitHub 私有仓库同步<b>全部数据</b>（学习数据 + 题库 + 知识库文档 + 题目图片），Token 需 <code>repo</code> 权限，<b>建议仓库设为 Private</b> 保护隐私。</p>
+        </div>
         <div v-if="ghHasToken && !ghToken" class="sync-row sub" style="margin:6px 0 8px">
           <span class="sync-dot" style="background:var(--ok)"></span>
           <span><b>Token 已配置</b>（留空保持不变，无需重新填写）</span>
@@ -983,21 +987,62 @@ onMounted(async () => {
 }
 .list-item.danger .title { color: #ff6b6b; }
 
-/* 云同步卡片（2026-08-13：连接状态卡） */
+/* 云同步卡片（2026-08-13：连接状态卡 V2） */
 .sync-card { border-color: rgba(34, 211, 238, 0.35); }
+/* 状态头：图标胶囊 + 分层信息 + 时间胶囊 */
 .sync-status {
-  display: flex; align-items: center; gap: 8px;
-  padding-bottom: 12px; border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 12px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--line);
 }
-.sync-status b { font-size: 14px; font-weight: 600; color: var(--text); }
+.sync-ico {
+  width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(148, 163, 184, 0.12); color: var(--muted);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25);
+  transition: background .2s ease, color .2s ease, box-shadow .2s ease;
+}
+.sync-ico.on {
+  background: rgba(34, 211, 238, 0.15); color: #22d3ee;
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.4), 0 0 12px rgba(34, 211, 238, 0.15);
+}
+.sync-status-main { flex: 1; min-width: 0; }
+.sync-status-line { display: flex; align-items: center; gap: 7px; }
+.sync-status-line b { font-size: 14px; font-weight: 600; color: var(--text); }
 .sync-status-dot {
-  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
-  background: var(--muted); opacity: .6;
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: var(--muted); opacity: .55;
 }
-.sync-status-dot.on { background: var(--ok); opacity: 1; box-shadow: 0 0 7px var(--ok); }
-.sync-repo { font-size: 12px; color: var(--muted); }
-.sync-loc { font-size: 12px; color: var(--muted); }
-.sync-last { margin-left: auto; font-size: 12px; color: var(--muted); }
+.sync-status-dot.on {
+  background: var(--ok); opacity: 1;
+  animation: syncPulse 2s ease-in-out infinite;
+}
+@keyframes syncPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79, 209, 165, 0.45); }
+  50% { box-shadow: 0 0 0 5px rgba(79, 209, 165, 0); }
+}
+.sync-sub {
+  display: block; margin-top: 2px;
+  font-size: 12px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sync-time {
+  flex-shrink: 0;
+  font-size: 12px; color: var(--muted);
+  background: var(--bg-soft); border: 1px solid var(--line);
+  border-radius: 999px; padding: 4px 10px;
+}
+/* 未连接引导信息条 */
+.sync-info {
+  display: flex; gap: 9px; align-items: flex-start;
+  background: rgba(34, 211, 238, 0.08); border: 1px solid rgba(34, 211, 238, 0.28);
+  border-radius: 10px; padding: 9px 12px;
+}
+.sync-info > svg { flex-shrink: 0; margin-top: 2px; color: #22d3ee; }
+.sync-info p { font-size: 12px; line-height: 1.6; color: var(--muted); margin: 0; }
+.sync-info code {
+  background: rgba(34, 211, 238, 0.15); color: #22d3ee;
+  padding: 1px 5px; border-radius: 4px; font-size: 11px;
+}
 /* 已连接态：立即同步主按钮 + 编辑配置 */
 .sync-actions-main { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
 .sync-btn-big { flex: 1; padding: 11px 0; font-size: 14px; }
@@ -1028,13 +1073,6 @@ onMounted(async () => {
 .wd-result { font-size: 12px; color: var(--ok); }
 .gh-title { margin-top: 14px; }
 .sync-connect { display: flex; flex-direction: column; gap: 10px; }
-.sync-tip { font-size: 12px; color: var(--muted); line-height: 1.6; }
-.sync-tip code {
-  background: var(--line);
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 11px;
-}
 .sync-input {
   width: 100%;
   box-sizing: border-box;
