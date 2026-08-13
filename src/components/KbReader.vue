@@ -1130,7 +1130,8 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
 }
 
 /* ===== 阅读页打磨（2026-08-13）：C1 顶部进度条 + C2 大纲 scrollspy ===== */
-.kb-page { position: relative; }
+/* 注意：不得给 .kb-page 重设 position（763 行 fixed 全屏覆盖是全屏阅读器的根本）；
+   .kb-progress absolute 以 fixed 的 .kb-page 为包含块，定位不受影响 */
 .kb-progress {
   position: absolute; top: 0; left: 0; right: 0; height: 2px; z-index: 20;
   background: rgba(148, 163, 184, 0.12);
