@@ -898,15 +898,6 @@ onMounted(async () => {
 .ach-sum-ring { width: 30px; height: 30px; border-radius: 50%; margin-left: auto; position: relative; }
 .ach-sum-ring::after { content: ''; position: absolute; inset: 6px; background: var(--bg, #fff); border-radius: 50%; }
 /* 最近解锁高亮条 */
-.ach-recent { display: flex; gap: 8px; padding-bottom: 12px; margin-bottom: 10px; border-bottom: 1px dashed var(--line); }
-.ach-recent-item {
-  flex: 1; min-width: 0; text-align: center;
-  background: rgba(91, 124, 250, 0.08); border: 1px solid rgba(91, 124, 250, 0.25);
-  border-radius: 10px; padding: 8px 4px;
-}
-.ari-icon { font-size: 17px; display: block; }
-.ari-name { font-size: 11.5px; color: var(--text); display: block; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ari-date { font-size: 10.5px; color: var(--muted); display: block; margin-top: 2px; }
 .ach-series { margin-bottom: 14px; }
 .ach-series-head { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 4px; border-radius: 8px; }
 .ach-series-head:hover { background: rgba(91,124,250,.06); }
