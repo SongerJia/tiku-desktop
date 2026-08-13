@@ -286,6 +286,14 @@ async function setReadGoal(v) {
   readGoal.value = Number(v) || 0
   await tiku.setSetting(goalKey('read_goal'), String(readGoal.value))
 }
+// 数字目标步进（−/+ 按钮）：不小于 0
+function stepGoal(get, set) {
+  return (delta) => {
+    const cur = Number(get()) || 0
+    const next = Math.max(0, cur + delta)
+    if (next !== cur) set(String(next))
+  }
+}
 
 // ---- 游戏化成就（指标来自 getAchievements，成就定义在前端派生）----
 const metrics = ref(null)
@@ -514,7 +522,11 @@ onMounted(async () => {
           <span class="goal-name">每日刷题</span>
           <span class="goal-desc">首页 KPI · 今日刷题数</span>
         </div>
-        <input class="goal-input" type="number" min="0" :value="dailyGoal" @change="setDailyGoal($event.target.value)" placeholder="0" />
+        <div class="goal-stepper">
+          <button class="gs-btn" type="button" @click="stepGoal(() => dailyGoal, setDailyGoal)(-5)">−</button>
+          <input class="goal-input" type="number" min="0" :value="dailyGoal" @change="setDailyGoal($event.target.value)" placeholder="0" />
+          <button class="gs-btn" type="button" @click="stepGoal(() => dailyGoal, setDailyGoal)(5)">+</button>
+        </div>
         <span class="goal-unit">题/天</span>
         <span v-if="dailyGoal > 0" class="goal-on">已设</span>
       </div>
@@ -525,7 +537,11 @@ onMounted(async () => {
           <span class="goal-name">每日复习</span>
           <span class="goal-desc">记忆卡复习次数</span>
         </div>
-        <input class="goal-input" type="number" min="0" :value="reviewGoal" @change="setReviewGoal($event.target.value)" placeholder="0" />
+        <div class="goal-stepper">
+          <button class="gs-btn" type="button" @click="stepGoal(() => reviewGoal, setReviewGoal)(-5)">−</button>
+          <input class="goal-input" type="number" min="0" :value="reviewGoal" @change="setReviewGoal($event.target.value)" placeholder="0" />
+          <button class="gs-btn" type="button" @click="stepGoal(() => reviewGoal, setReviewGoal)(5)">+</button>
+        </div>
         <span class="goal-unit">条/天</span>
         <span v-if="reviewGoal > 0" class="goal-on">已设</span>
       </div>
@@ -536,7 +552,11 @@ onMounted(async () => {
           <span class="goal-name">每日阅读</span>
           <span class="goal-desc">知识库文档阅读</span>
         </div>
-        <input class="goal-input" type="number" min="0" :value="readGoal" @change="setReadGoal($event.target.value)" placeholder="0" />
+        <div class="goal-stepper">
+          <button class="gs-btn" type="button" @click="stepGoal(() => readGoal, setReadGoal)(-1)">−</button>
+          <input class="goal-input" type="number" min="0" :value="readGoal" @change="setReadGoal($event.target.value)" placeholder="0" />
+          <button class="gs-btn" type="button" @click="stepGoal(() => readGoal, setReadGoal)(1)">+</button>
+        </div>
         <span class="goal-unit">篇/天</span>
         <span v-if="readGoal > 0" class="goal-on">已设</span>
       </div>
@@ -547,7 +567,10 @@ onMounted(async () => {
           <span class="goal-name">目标考试日</span>
           <span class="goal-desc">首页倒计时</span>
         </div>
-        <input class="goal-input goal-date" type="date" :value="examDate" @change="setExamDate($event.target.value)" />
+        <div class="goal-date-wrap">
+          <Icon name="calendar" :size="13" class="gd-ico" />
+          <input class="goal-input goal-date" type="date" :value="examDate" @change="setExamDate($event.target.value)" />
+        </div>
         <span v-if="examDate" class="goal-on">已设</span>
       </div>
       <div class="goal-tip">未设置的目标不在「每日任务」显示；设 0 即取消该目标</div>
@@ -984,7 +1007,6 @@ onMounted(async () => {
 .pref-input:focus { border-color: var(--brand); }
 .pref-unit { color: var(--muted); font-size: 12px; }
 .pref-sub { flex: 1; color: var(--muted); font-size: 11px; }
-.goal-date { flex: 1; width: auto; min-width: 0; }
 
 /* 学习目标（卡片式：图标 + 名称 + 输入 + 状态徽标） */
 .goal-card { border-color: rgba(91, 124, 250, 0.4); }
@@ -1023,22 +1045,52 @@ onMounted(async () => {
 .goal-desc { font-size: 11px; color: var(--muted); }
 /* 数值输入：紧凑右对齐 */
 .goal-input {
-  margin-left: auto;
-  width: 72px;
-  background: var(--input-solid-bg); border: 1px solid var(--line);
-  border-radius: 8px; color: var(--text); padding: 6px 8px;
+  width: 56px;
+  background: transparent; border: none; border-radius: 0;
+  color: var(--text); padding: 6px 0;
   font-size: 13px; outline: none; font-family: inherit; text-align: center;
-  transition: border-color .15s;
+  -moz-appearance: textfield; appearance: textfield;
 }
-.goal-input:focus { border-color: var(--brand); }
-.goal-unit { font-size: 11px; color: var(--muted); flex-shrink: 0; }
-/* 已设徽标 */
+.goal-input::-webkit-outer-spin-button, .goal-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.goal-input:focus { border-color: transparent; }
+/* 步进胶囊：− [数值] + 一体，hover/focus 蓝边发光 */
+.goal-stepper {
+  margin-left: auto;
+  display: flex; align-items: center;
+  background: var(--input-solid-bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color .15s, box-shadow .15s;
+}
+.goal-stepper:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.15); }
+.gs-btn {
+  width: 28px; height: 30px;
+  background: transparent; border: none;
+  color: var(--muted); font-size: 15px; line-height: 1;
+  cursor: pointer; transition: color .15s, background .15s;
+}
+.gs-btn:hover { color: var(--brand); background: rgba(91, 124, 250, 0.1); }
+.gs-btn:active { transform: scale(.92); }
+.goal-unit { font-size: 11px; color: var(--muted); flex-shrink: 0; margin-left: 6px; }
+/* 日期输入：图标 + 输入一体胶囊 */
+.goal-date-wrap {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 6px;
+  background: var(--input-solid-bg);
+  border: 1px solid var(--line);
+  border-radius: 10px; padding: 0 10px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.goal-date-wrap:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.15); }
+.gd-ico { color: var(--muted); flex-shrink: 0; }
+.goal-date-wrap .goal-date { width: auto; min-width: 118px; text-align: left; padding: 6px 0; }
+.goal-date-wrap .goal-date::-webkit-calendar-picker-indicator { filter: invert(.6); cursor: pointer; }
 .goal-on {
   font-size: 10px; font-weight: 700; color: #0e1512;
   background: var(--ok); border-radius: 999px; padding: 2px 8px;
   flex-shrink: 0; letter-spacing: .3px;
 }
-.goal-date { width: auto; min-width: 0; }
 .goal-tip { font-size: 11px; color: var(--muted); margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); }
 
 /* 成就墙 */
