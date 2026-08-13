@@ -58,6 +58,50 @@ const graph = ref({ nodes: [], links: [] })
 const graphNodes = computed(() => graph.value.nodes.slice(0, 40))
 const graphNodeIds = computed(() => new Set(graphNodes.value.map(n => n.id)))
 const graphLinks = computed(() => graph.value.links.filter(l => graphNodeIds.value.has(l.from_doc_id) && graphNodeIds.value.has(l.to_doc_id)))
+
+// 图谱节点着色（2026-08-13）：按科目/章节/标签维度切换 + 色板 hash 分配 + 图例
+const GRAPH_DIMS = [
+  { key: 'subject', label: '按科目' },
+  { key: 'category', label: '按章节' },
+  { key: 'tag', label: '按标签' }
+]
+const graphColorDim = ref('subject')
+const GRAPH_COLORS = ['#5b7cfa', '#2fbf8f', '#ffb84d', '#e5535f', '#c084fc', '#38bdf8', '#f472b6', '#a3e635']
+const catNameMap = ref({}) // category_id → 章节名（含父级路径）
+function colorKey(v) {
+  let h = 0
+  for (let i = 0; i < String(v).length; i++) h = (h * 31 + String(v).charCodeAt(i)) >>> 0
+  return GRAPH_COLORS[h % GRAPH_COLORS.length]
+}
+function nodeDimKey(node) {
+  if (graphColorDim.value === 'subject') return node.subjectId ? 's' + node.subjectId : ''
+  if (graphColorDim.value === 'category') return node.categoryId ? 'c' + node.categoryId : ''
+  return node.tags && node.tags.length ? 't' + node.tags[0] : ''
+}
+function nodeDimName(key) {
+  if (!key) return '未分类'
+  if (graphColorDim.value === 'subject') {
+    const s = subjects.value.find(x => String(x.id) === key.slice(1))
+    return s ? s.name : key.slice(1)
+  }
+  if (graphColorDim.value === 'category') return catNameMap.value[key.slice(1)] || ('章节 #' + key.slice(1))
+  return key.slice(1)
+}
+function nodeColor(node) {
+  const k = nodeDimKey(node)
+  return k ? colorKey(k) : 'rgba(148, 163, 184, 0.45)'
+}
+// 图例：当前维度下出现的 key → 名称/颜色（去重，前 8）
+const graphLegend = computed(() => {
+  const seen = new Map()
+  for (const n of graphNodes.value) {
+    const k = nodeDimKey(n)
+    if (!k) continue
+    if (!seen.has(k)) seen.set(k, { name: nodeDimName(k), color: colorKey(k) })
+  }
+  return [...seen.values()].slice(0, 8)
+})
+
 const gPos = computed(() => {
   const n = graphNodes.value.length
   const map = {}
@@ -86,6 +130,27 @@ function toggleGraph() {
 }
 async function loadGraph() {
   try { graph.value = await tiku.getKbGraph() } catch (e) { graph.value = { nodes: [], links: [] } }
+  // 章节名映射（图例用）：展平分类树 id → name（二级章节直接取，一级科目名拼接）
+  try {
+    const tree = await tiku.getCategories()
+    const flat = {}
+    const walk = (nodes, parentName) => {
+      for (const n of nodes || []) {
+        flat[n.id] = parentName ? `${parentName} · ${n.name}` : n.name
+        walk(n.children, flat[n.id])
+      }
+    }
+    walk(tree)
+    catNameMap.value = flat
+  } catch (e) { catNameMap.value = {} }
+}
+
+// 分组可折叠（2026-08-13）：点击分组头收起/展开
+const collapsedGroups = ref([])
+function toggleGroup(k) {
+  const i = collapsedGroups.value.indexOf(k)
+  if (i >= 0) collapsedGroups.value.splice(i, 1)
+  else collapsedGroups.value.push(k)
 }
 
 function onSearchInput() {
@@ -257,10 +322,28 @@ function fmtTime(ts) {
       <div class="graph-title">知识互链图谱 · {{ graph.nodes.length }} 篇文档 / {{ graph.links.length }} 条互链
         <span class="graph-hint">点击节点打开文档 · 在阅读页可建立文档互链</span>
       </div>
+      <!-- 着色维度切换 + 图例（2026-08-13） -->
+      <div class="graph-legend">
+        <div class="graph-seg">
+          <button
+            v-for="dim in GRAPH_DIMS"
+            :key="dim.key"
+            class="g-dim"
+            :class="{ on: graphColorDim === dim.key }"
+            @click="graphColorDim = dim.key"
+          >{{ dim.label }}</button>
+        </div>
+        <div class="g-legend-items">
+          <span v-for="(item, i) in graphLegend" :key="i" class="g-legend-item">
+            <i :style="{ background: item.color }"></i>{{ item.name }}
+          </span>
+          <span v-if="!graphLegend.length" class="g-legend-item muted">暂无归属信息</span>
+        </div>
+      </div>
       <svg v-if="graphNodes.length" viewBox="0 0 320 240" class="graph-svg">
         <line v-for="(e, i) in gEdges" :key="'e' + i" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2" class="g-edge"/>
         <g v-for="n in graphNodes" :key="n.id" class="g-node" @click="openGraphDoc(n)">
-          <circle :cx="gPos[n.id].x" :cy="gPos[n.id].y" :r="n.type === 'pdf' ? 7 : 5.5" :class="'g-' + (n.type === 'pdf' ? 'pdf' : 'md')"/>
+          <circle :cx="gPos[n.id].x" :cy="gPos[n.id].y" :r="n.type === 'pdf' ? 7 : 5.5" :fill="nodeColor(n)"/>
           <text :x="gPos[n.id].x" :y="gPos[n.id].y + 16" class="g-label">{{ shortTitle(n.title) }}</text>
         </g>
       </svg>
@@ -276,10 +359,12 @@ function fmtTime(ts) {
     <div v-else-if="!filteredDocs.length" class="empty card">没有匹配的文档</div>
     <div v-else class="kb-groups">
       <div v-for="g in groupedDocs" :key="g.folder" class="kb-group">
-        <div class="kb-group-head">
+        <div class="kb-group-head" @click="toggleGroup(g.folder)">
+          <span class="kb-fold">{{ collapsedGroups.includes(g.folder) ? '▸' : '▾' }}</span>
           <span class="kb-group-name">{{ g.label }}</span>
           <span class="kb-group-n">{{ g.docs.length }} 篇</span>
         </div>
+        <template v-if="!collapsedGroups.includes(g.folder)">
             <div class="kb-grid">
           <div
             v-for="d in g.docs"
@@ -300,7 +385,7 @@ function fmtTime(ts) {
             </div>
             <div class="kb-head">
               <span class="badge kb-type" :class="d.type">{{ d.type === 'pdf' ? 'PDF' : 'MD' }}</span>
-              <span class="kb-title">{{ d.title }}</span>
+              <span class="kb-title" :title="d.title">{{ d.title }}</span>
             </div>
             <div v-if="d.tags && d.tags.length" class="kb-tags">
               <span v-for="t in d.tags" :key="t" class="q-tag">{{ t }}</span>
@@ -318,6 +403,7 @@ function fmtTime(ts) {
             </div>
           </div>
         </div>
+        </template>
       </div>
     </div>
 
@@ -565,5 +651,29 @@ function fmtTime(ts) {
   background: rgba(47, 191, 143, 0.08);
   border-radius: 8px; padding: 0 6px; font-size: 10.5px;
 }
+
+
+/* ===== 知识库第二波（2026-08-13）：图谱着色 / 分组折叠 / 标题省略 ===== */
+/* 文档标题：单行省略 + hover 全名（title 属性已挂） */
+.kb-title {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0; flex: 1;
+}
+.kb-fold { font-size: 11px; color: var(--muted); transition: color .15s; }
+.kb-group-head { cursor: pointer; user-select: none; }
+.kb-group-head:hover .kb-fold { color: var(--brand); }
+
+/* 图谱：维度 seg + 图例 */
+.graph-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.graph-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.g-dim { padding: 3px 10px; font-size: 11px; background: transparent; border: none; color: var(--muted); cursor: pointer; }
+.g-dim + .g-dim { border-left: 1px solid var(--line); }
+.g-dim.on { background: rgba(91, 124, 250, 0.15); color: #93b1ff; font-weight: 600; }
+.g-legend-items { display: flex; gap: 10px; flex-wrap: wrap; }
+.g-legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+.g-legend-item i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.g-legend-item.muted { color: var(--muted); opacity: .7; }
+.g-node circle { transition: r .12s ease, filter .15s ease; }
+.g-node:hover circle { filter: brightness(1.35) drop-shadow(0 0 4px rgba(91, 124, 250, 0.8)); }
 
 </style>

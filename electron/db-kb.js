@@ -53,9 +53,14 @@ module.exports = function kbModule(ctx) {
     },
 
     // 知识库互链图谱：节点=文档，边=有效互链（两端文档都存在）
+    // 节点带归属字段（subject/category/tags）供前端按维度着色（2026-08-13）
     getKbGraph() {
-      const nodes = sqlite.prepare('SELECT id, title, type, folder FROM kb_docs WHERE deleted=0').all()
-        .map(d => ({ id: d.id, title: d.title, type: d.type, folder: d.folder || '' }))
+      const nodes = sqlite.prepare('SELECT id, title, type, folder, subject_id, category_id FROM kb_docs WHERE deleted=0').all()
+        .map(d => ({
+          id: d.id, title: d.title, type: d.type, folder: d.folder || '',
+          subjectId: d.subject_id, categoryId: d.category_id,
+          tags: sqlite.prepare('SELECT tag FROM kb_tags WHERE doc_id=?').all(d.id).map(t => t.tag)
+        }))
       const idSet = new Set(nodes.map(n => n.id))
       const links = sqlite.prepare('SELECT from_doc_id, to_doc_id FROM kb_doc_links').all()
         .filter(l => idSet.has(l.from_doc_id) && idSet.has(l.to_doc_id))
