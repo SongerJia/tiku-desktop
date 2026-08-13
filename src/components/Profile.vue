@@ -1,5 +1,6 @@
 <script setup>
 import Icon from './Icon.vue'
+import MedalIcon from './MedalIcon.vue'
 import CountUp from './CountUp.vue'
 import { showConfirm } from '../utils/confirm.js'
 import { evaluate, achLevel, ACH_SERIES } from '../utils/achievements.js'
@@ -425,7 +426,7 @@ onMounted(async () => {
                @mouseenter="showTip($event, { title: a.name, sub: (a.unlockAt || '已解锁') + ' 解锁', desc: a.desc, got: true })"
                @mouseleave="hideTip">
             <svg class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(a.rarity)" /></svg>
-            <Icon :name="a.icon" :size="15" class="medal-icon" />
+            <MedalIcon :series="a.series" :got="true" :size="15" class="medal-icon" />
             <span v-if="isNewAch(a)" class="medal-new">NEW</span>
           </div>
         </template>
@@ -487,7 +488,7 @@ onMounted(async () => {
              @mouseenter="showTip($event, { title: sm.series.name, sub: sm.medal.got ? (sm.got + '/' + sm.total + ' · ' + sm.medal.name) : '未点亮', desc: sm.medal.desc, got: sm.medal.got })"
              @mouseleave="hideTip">
           <svg v-if="sm.medal.got" class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(sm.medal.rarity)" /></svg>
-          <Icon :name="sm.medal.icon" :size="26" class="medal-icon" />
+          <MedalIcon :series="sm.medal.series" :got="sm.medal.got" :size="26" class="medal-icon" />
           <span v-if="sm.medal.got && isNewAch(sm.medal)" class="medal-new">NEW</span>
         </div>
       </div>
