@@ -1145,7 +1145,7 @@ onMounted(async () => {
   animation: medalIn .4s cubic-bezier(.2, .7, .3, 1) both;
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
-.medal-icon { line-height: 1; color: var(--muted); opacity: .65; transition: color .18s ease, opacity .18s ease, transform .18s ease; }
+.medal-icon { position: relative; z-index: 3; line-height: 1; color: var(--muted); opacity: .65; transition: color .18s ease, opacity .18s ease, transform .18s ease; }
 /* 稀有度配色（2026-08-13）：外层统一圆形徽章，--rr 驱动圆底/边框/光晕与图标色；内层形状作稀有度徽记 */
 .medal.got {
   --rr: 91, 124, 250;
@@ -1161,6 +1161,26 @@ onMounted(async () => {
 .medal.got.gold     { --rr: 217, 165, 20; }
 .medal.got.platinum { --rr: 125, 211, 252; outline: 1px solid rgba(var(--rr), 0.35); outline-offset: 2px; }
 .medal.got .medal-icon { color: rgba(var(--rr), 0.95); opacity: 1; filter: none; }
+/* 特效加码（2026-08-13）：流光描边（conic 光点绕圆旋转，--ang 全局注册）+ 呼吸光晕，稀有度差异化 */
+.medal.got::before {
+  content: ''; position: absolute; inset: -2px; border-radius: 50%;
+  padding: 2px; z-index: 2; pointer-events: none;
+  background: conic-gradient(from var(--ang), transparent 0deg, rgba(var(--rr), 0.7) 70deg, transparent 140deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: angSpin 3s linear infinite;
+  opacity: .55;
+}
+.medal.got.bronze::before   { opacity: .25; animation-duration: 5s; }
+.medal.got.silver::before   { opacity: .4;  animation-duration: 4s; }
+.medal.got.gold::before     { opacity: .7;  animation-duration: 2.6s; }
+.medal.got.platinum::before { opacity: .9;  animation-duration: 2s; }
+.medal.got .medal-bg { animation: achGlow 3s ease-in-out infinite; }
+.medal.got.platinum .medal-bg { animation-duration: 2s; }
+@keyframes achGlow {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(var(--rr), 0.35)); }
+  50% { filter: drop-shadow(0 0 10px rgba(var(--rr), 0.6)); }
+}
 .medal:hover { transform: translateY(-3px) scale(1.12); z-index: 5; }
 .medal:hover .medal-icon { transform: rotate(-8deg) scale(1.1); }
 .medal.got:hover {
@@ -1171,6 +1191,7 @@ onMounted(async () => {
 .medal-bg {
   position: absolute; inset: 16%;
   width: auto; height: auto;
+  z-index: 0;
   pointer-events: none;
 }
 .medal-bg path {
@@ -1216,6 +1237,7 @@ onMounted(async () => {
 /* NEW 角标：3 天内解锁的金色角标（弹跳出现） */
 .medal-new {
   position: absolute; top: -5px; right: -6px;
+  z-index: 4;
   font-size: 8.5px; font-weight: 700; letter-spacing: .3px;
   color: #1a1205;
   background: linear-gradient(135deg, #ffd76a, #f5a623);
@@ -1248,7 +1270,9 @@ onMounted(async () => {
   transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
 }
 .area-medal .medal-icon { font-size: 16px; }
-.area-medal .medal-tip { bottom: calc(100% + 12px); width: 176px; }
+/* 用户卡在页面顶部，浮层向上会超出可视区 → 改为向下弹出（箭头反转朝上） */
+.area-medal .medal-tip { top: calc(100% + 10px); bottom: auto; width: 176px; }
+.area-medal .medal-tip::after { top: -5px; bottom: auto; transform: translateX(-50%) rotate(180deg); }
 /* hover 弹起 + 摆动（keyframes 内嵌重力项，避免动画覆盖位移） */
 .area-medal:hover {
   transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-8px) scale(1.2) rotate(calc(var(--tiltRx) * -0.7deg));
