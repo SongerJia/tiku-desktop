@@ -337,7 +337,7 @@ function fmtTime(ts) {
           <span v-for="(item, i) in graphLegend" :key="i" class="g-legend-item">
             <i :style="{ background: item.color }"></i>{{ item.name }}
           </span>
-          <span v-if="!graphLegend.length" class="g-legend-item muted">暂无归属信息</span>
+          <span v-if="!graphLegend.length" class="g-legend-item muted">文档未设置科目/章节/标签 → 节点为灰色 · 在文档卡「标签/改名/移动」里设置后可着色</span>
         </div>
       </div>
       <svg v-if="graphNodes.length" viewBox="0 0 320 240" class="graph-svg">
@@ -479,7 +479,8 @@ function fmtTime(ts) {
 
 .kb-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  /* 限宽不拉伸：minmax 上界固定 → 最后一行卡片不会 1fr 拉满整行（此前右侧大留白的根因） */
+  grid-template-columns: repeat(auto-fill, minmax(220px, 280px));
   gap: 12px;
 }
 .kb-groups { display: flex; flex-direction: column; gap: 20px; }
