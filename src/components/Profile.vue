@@ -326,15 +326,17 @@ async function showTip(e, payload) {
   medalTipEl.value.style.top = y + 'px'
 }
 function hideTip() { activeTip.value = null }
-// 3D 纵深堆叠位置：i=0 最低档（平躺）→ i=n-1 最高档（立起），下层暗上层亮
+// 3D 纵深堆叠位置：最高档恒立直（0°），向下每层 +22° 躺倒渐暗
 const RAR_LABEL = { bronze: '铜', silver: '银', gold: '金', platinum: '白金' }
 function tierStyle(i, n) {
   const STEP = 17 // 每层垂直间距
-  const tilt = Math.max(0, 58 - i * 20) // 最低档 58° 平躺，最高档 0° 立起
+  const dist = n - 1 - i // 距最高档的层数
+  const tilt = dist * 22 // 最高档立直 0°，向下每层 +22°
+  const bright = 1 - dist * 0.09 // 最高档 1.0，向下渐暗
   return {
-    top: ((n - 1 - i) * STEP) + 'px',
+    top: (dist * STEP) + 'px',
     transform: `rotateX(${tilt}deg)`,
-    filter: `brightness(${(0.72 + 0.28 * (i / Math.max(1, n - 1))).toFixed(2)})`,
+    filter: `brightness(${Math.max(0.6, bright).toFixed(2)})`,
     zIndex: i + 1
   }
 }
@@ -352,14 +354,16 @@ const seriesMedals = computed(() => {
     const medal = best
       ? { ...best }
       : { key: sr.key + '-lock', name: sr.name, icon: sr.icon, series: sr.key, rarity: 'bronze', got: false, desc: '解锁该系列任一成就即可点亮' }
-    // 档位堆叠（3D 纵深）：每档 1 枚（该档已解锁则参与），铜→白金从底到顶
-    const tiers = TIER_ORDER
-      .map(r => {
-        const inTier = unlocked.filter(a => a.rarity === r)
-        if (!inTier.length) return null
-        return { rarity: r, names: inTier.map(a => a.name).join('、') }
-      })
-      .filter(Boolean)
+    // 档位堆叠（3D 纵深）：从铜到最高解锁档全档位参与，未解锁档灰影占位（塔完整不跳档）
+    const maxRank = unlocked.length ? RARITY_RANK[unlocked[0].rarity] : 0
+    const tiers = maxRank ? TIER_ORDER.slice(0, maxRank).map(r => {
+      const inTier = unlocked.filter(a => a.rarity === r)
+      return {
+        rarity: r,
+        got: inTier.length > 0,
+        names: inTier.map(a => a.name).join('、')
+      }
+    }) : []
     return { key: sr.key, series: sr, total: list.length, got: unlocked.length, medal, tiers }
   })
 })
@@ -508,12 +512,12 @@ onMounted(async () => {
         <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal-cell" :class="sm.medal.got ? (sm.medal.rarity || 'bronze') : ''">
           <template v-if="sm.tiers.length">
             <div class="d3-scene" :style="{ height: (76 + (sm.tiers.length - 1) * 17) + 'px' }">
-              <div v-for="(t, ti) in sm.tiers" :key="t.rarity" class="d3-tier got" :class="t.rarity" :style="tierStyle(ti, sm.tiers.length)"
-                   @mouseenter="showTip($event, { title: sm.series.name + ' · ' + (RAR_LABEL[t.rarity] || t.rarity), sub: t.names, desc: '该档位已解锁成就', got: true })"
+              <div v-for="(t, ti) in sm.tiers" :key="t.rarity" class="d3-tier" :class="t.got ? ('got ' + t.rarity) : 'off'" :style="tierStyle(ti, sm.tiers.length)"
+                   @mouseenter="showTip($event, { title: sm.series.name + ' · ' + (RAR_LABEL[t.rarity] || t.rarity), sub: t.got ? t.names : '未点亮', desc: t.got ? '该档位已解锁成就' : '解锁该档任一成就即可点亮', got: t.got })"
                    @mouseleave="hideTip">
                 <svg class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(t.rarity)" /></svg>
-                <MedalIcon :series="sm.medal.series" :got="true" :size="24" class="medal-icon" />
-                <span v-if="ti === sm.tiers.length - 1 && isNewAch(sm.medal)" class="medal-new">NEW</span>
+                <MedalIcon :series="sm.medal.series" :got="t.got" :size="24" class="medal-icon" />
+                <span v-if="t.got && ti === sm.tiers.length - 1 && isNewAch(sm.medal)" class="medal-new">NEW</span>
               </div>
             </div>
           </template>
@@ -1253,10 +1257,21 @@ onMounted(async () => {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45), 0 0 14px rgba(var(--rr), 0.3);
   cursor: pointer;
 }
-.d3-tier.bronze   { --rr: 184, 115, 51; }
-.d3-tier.silver   { --rr: 159, 178, 192; }
-.d3-tier.gold     { --rr: 217, 165, 20; }
-.d3-tier.platinum { --rr: 125, 211, 252; outline: 1px solid rgba(125, 211, 252, 0.35); outline-offset: 2px; }
+.d3-tier.got.bronze   { --rr: 184, 115, 51; }
+.d3-tier.got.silver   { --rr: 159, 178, 192; }
+.d3-tier.got.gold     { --rr: 217, 165, 20; }
+.d3-tier.got.platinum { --rr: 125, 211, 252; outline: 1px solid rgba(125, 211, 252, 0.35); outline-offset: 2px; }
+/* 未解锁档位：灰影占位层（塔完整不跳档） */
+.d3-tier.off {
+  --rr: 148, 163, 184;
+  background: rgba(148, 163, 184, 0.07);
+  border: 1.5px dashed rgba(148, 163, 184, 0.4);
+  box-shadow: none;
+}
+.d3-tier.off .medal-bg path {
+  fill: rgba(148, 163, 184, 0.08);
+  stroke: rgba(148, 163, 184, 0.45);
+}
 .d3-tier .medal-bg { inset: 15%; }
 .d3-tier .medal-icon { color: rgba(var(--rr), 0.95); opacity: 1; filter: none; }
 /* 展柜底座：椭圆发光台座（3D 堆叠下方），已解锁带稀有度辉光、未解锁灰底，hover 增强 */
