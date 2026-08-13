@@ -4,6 +4,7 @@ import CountUp from './CountUp.vue'
 import { showConfirm } from '../utils/confirm.js'
 import { evaluate, achLevel, ACH_SERIES } from '../utils/achievements.js'
 import { vTilt } from '../utils/tilt.js'
+import { computePosition, offset, flip, shift } from '@floating-ui/dom'
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { applyAppearance } from '../utils/appearance.js'
@@ -293,26 +294,35 @@ const unlockedCount = computed(() => achievements.value.filter(a => a.got).lengt
 const achPoints = computed(() => achievements.value.filter(a => a.got).reduce((s, a) => s + (a.points || 0), 0))
 const achLv = computed(() => achLevel(achPoints.value))
 const achPct = computed(() => achievements.value.length ? Math.round((unlockedCount.value / achievements.value.length) * 100) : 0)
-// 全局勋章浮层（Teleport to body，fixed 定位，视口内 clamp，根治 absolute 浮层被父级 overflow/transform/层叠干扰）
-const activeTip = ref(null) // { x, y, anchor, title, sub, desc, got }
-function showTip(e, payload) {
-  const el = e.currentTarget
-  const r = el.getBoundingClientRect()
-  const TIP_W = payload.w || 200
-  const TIP_H = 70
-  const GAP = 10
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-  // 水平：优先居中，溢出右侧右对齐、溢出左侧左对齐
-  let x = r.left + r.width / 2 - TIP_W / 2
-  let hAlign = 'center'
-  if (x + TIP_W > vw - 8) { x = r.right - TIP_W; hAlign = 'right' }
-  if (x < 8) { x = r.left; hAlign = 'left' }
-  // 垂直：优先勋章下方（箭头朝上），下方不足则上方（箭头朝下）
-  let y, vAlign
-  if (vh - r.bottom > TIP_H + GAP) { y = r.bottom + GAP; vAlign = 'down' }
-  else { y = Math.max(r.top - GAP - TIP_H, 8); vAlign = 'up' }
-  activeTip.value = { x, y, anchor: vAlign + '-' + hAlign, ...payload }
+// 勋章全局浮层：floating-ui computePosition（flip/shift 自动视口翻转避让，与热力图统一技术栈）
+const activeTip = ref(null) // { title, sub, desc, got } 仅内容，位置由 computePosition 设置到浮层元素
+const medalTipEl = ref(null)
+const medalAnchor = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 }
+const medalTipAnchor = {
+  getBoundingClientRect: () => ({
+    width: medalAnchor.width, height: medalAnchor.height,
+    left: medalAnchor.left, top: medalAnchor.top,
+    right: medalAnchor.right, bottom: medalAnchor.bottom,
+    x: medalAnchor.left, y: medalAnchor.top
+  })
+}
+let medalTipSeq = 0
+async function showTip(e, payload) {
+  const r = e.currentTarget.getBoundingClientRect()
+  medalAnchor.left = r.left; medalAnchor.top = r.top
+  medalAnchor.right = r.right; medalAnchor.bottom = r.bottom
+  medalAnchor.width = r.width; medalAnchor.height = r.height
+  activeTip.value = payload
+  const seq = ++medalTipSeq
+  await nextTick() // 等浮层渲染后定位
+  if (seq !== medalTipSeq || !medalTipEl.value) return
+  const { x, y } = await computePosition(medalTipAnchor, medalTipEl.value, {
+    placement: 'top', // 默认上方，空间不足 flip 自动翻到下方
+    middleware: [offset(10), flip(), shift({ padding: 8 })]
+  })
+  if (seq !== medalTipSeq || !medalTipEl.value) return
+  medalTipEl.value.style.left = x + 'px'
+  medalTipEl.value.style.top = y + 'px'
 }
 function hideTip() { activeTip.value = null }
 // 勋章稀有度 class：已解锁 → 'got <rarity>'（驱动 --rr 配色），未解锁 → ''
@@ -412,7 +422,7 @@ onMounted(async () => {
       <div class="medal-area" title="查看全部勋章" @click="gotoAch">
         <template v-for="(a, i) in stackMedals" :key="a.key">
           <div class="medal area-medal got" :class="a.rarity || 'bronze'" :style="{ zIndex: 10 + i }" @click.stop="gotoAch"
-               @mouseenter="showTip($event, { w: 176, title: a.name, sub: (a.unlockAt || '已解锁') + ' 解锁', desc: a.desc, got: true })"
+               @mouseenter="showTip($event, { title: a.name, sub: (a.unlockAt || '已解锁') + ' 解锁', desc: a.desc, got: true })"
                @mouseleave="hideTip">
             <svg class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(a.rarity)" /></svg>
             <Icon :name="a.icon" :size="15" class="medal-icon" />
@@ -474,7 +484,7 @@ onMounted(async () => {
       <!-- 勋章墙：每系列 1 枚代表勋章（未解锁=最低档灰影，已解锁=该系列最高档点亮） -->
       <div class="medal-grid">
         <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal big-medal" :class="medalCls(sm.medal)" :style="{ animationDelay: (i * 0.05) + 's' }"
-             @mouseenter="showTip($event, { w: 200, title: sm.series.name, sub: sm.medal.got ? (sm.got + '/' + sm.total + ' · ' + sm.medal.name) : '未点亮', desc: sm.medal.desc, got: sm.medal.got })"
+             @mouseenter="showTip($event, { title: sm.series.name, sub: sm.medal.got ? (sm.got + '/' + sm.total + ' · ' + sm.medal.name) : '未点亮', desc: sm.medal.desc, got: sm.medal.got })"
              @mouseleave="hideTip">
           <svg v-if="sm.medal.got" class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(sm.medal.rarity)" /></svg>
           <Icon :name="sm.medal.icon" :size="26" class="medal-icon" />
@@ -749,9 +759,9 @@ onMounted(async () => {
       </div>
     </Teleport>
 
-    <!-- 勋章全局浮层（Teleport 到 body，fixed 定位，避开任何父级 overflow/transform/层叠干扰） -->
+    <!-- 勋章全局浮层（Teleport to body + floating-ui 定位，固定 z-index 顶层） -->
     <Teleport to="body">
-      <div v-if="activeTip" class="medal-float" :class="['anchor-' + activeTip.anchor]" :style="{ left: activeTip.x + 'px', top: activeTip.y + 'px', width: activeTip.w + 'px' }">
+      <div v-if="activeTip" ref="medalTipEl" class="medal-float">
         <div class="mf-title">{{ activeTip.title }}</div>
         <div class="mf-sub" :class="{ lock: !activeTip.got }">{{ activeTip.sub }}</div>
         <div class="mf-desc">{{ activeTip.desc }}</div>
@@ -995,35 +1005,21 @@ onMounted(async () => {
 .ach-sum-ring::after { content: ''; position: absolute; inset: 6px; background: var(--bg, #fff); border-radius: 50%; }
 .ach-empty { font-size: 12px; color: var(--muted); text-align: center; padding: 12px 0; }
 
-/* ===== 勋章全局浮层（Teleport to body，fixed 定位，视口内 clamp，根治父级 overflow/transform/层叠干扰） ===== */
+/* ===== 勋章全局浮层（Teleport to body + floating-ui 定位，与热力图统一；flip/shift 自动视口翻转） ===== */
 .medal-float {
   position: fixed; z-index: 9999; pointer-events: none;
+  width: max-content; max-width: 240px;
   background: #1c2434; border: 1px solid rgba(91, 124, 250, 0.4);
   border-radius: 10px; padding: 8px 10px;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
   text-align: left;
-  opacity: 0; animation: mfFadeIn .12s ease forwards;
 }
-@keyframes mfFadeIn { to { opacity: 1; } }
 .medal-float .mf-title { font-size: 12.5px; color: #dfe7fa; font-weight: 500; margin-bottom: 3px; }
 .medal-float .mf-sub { font-size: 10.5px; color: #4fd1a5; margin-bottom: 2px; }
 .medal-float .mf-sub.lock { color: var(--muted); }
 .medal-float .mf-desc { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
-/* 箭头：down-* 浮层在勋章下方→箭头在 tip 顶部朝上指勋章；up-* 浮层在勋章上方→箭头在 tip 底部朝下 */
-.medal-float::after { content: ''; position: absolute; border: 6px solid transparent; }
-.medal-float.anchor-down-center::after { top: -6px; left: 50%; transform: translateX(-50%); border-bottom-color: #1c2434; }
-.medal-float.anchor-down-left::after    { top: -6px; left: 14px;    border-bottom-color: #1c2434; }
-.medal-float.anchor-down-right::after   { top: -6px; right: 14px;   border-bottom-color: #1c2434; }
-.medal-float.anchor-up-center::after   { bottom: -6px; left: 50%; transform: translateX(-50%); border-top-color: #1c2434; }
-.medal-float.anchor-up-left::after      { bottom: -6px; left: 14px;    border-top-color: #1c2434; }
-.medal-float.anchor-up-right::after     { bottom: -6px; right: 14px;   border-top-color: #1c2434; }
 [data-theme="light"] .medal-float { background: #fff; border-color: rgba(61, 91, 217, 0.35); }
-[data-theme="light"] .medal-float.anchor-down-center::after,
-[data-theme="light"] .medal-float.anchor-down-left::after,
-[data-theme="light"] .medal-float.anchor-down-right::after { border-bottom-color: #fff; }
-[data-theme="light"] .medal-float.anchor-up-center::after,
-[data-theme="light"] .medal-float.anchor-up-left::after,
-[data-theme="light"] .medal-float.anchor-up-right::after { border-top-color: #fff; }
+[data-theme="light"] .medal-float .mf-title { color: #1f2937; }
 
 /* 同步冲突明细 */
 
@@ -1261,49 +1257,15 @@ onMounted(async () => {
   stroke-width: 2.5;
   stroke-linejoin: round;
 }
-/* 勋章墙代表勋章：加大到 56px，内层形状与浮层同步放大；tip 改向下弹出避免被概览条/流光圈遮挡 */
+/* 勋章墙代表勋章：加大到 56px，内层形状同步放大（浮层已迁移 Teleport+floating-ui） */
 .big-medal { width: 56px; height: 56px; }
 .big-medal .medal-bg { inset: 14%; }
-.big-medal .medal-tip { width: 200px; top: calc(100% + 10px); bottom: auto; }
-.big-medal .medal-tip::after { top: -5px; bottom: auto; transform: translateX(-50%) rotate(180deg); }
-/* 网格右侧勋章（第 8 枚起）：tip 向右展开会溢出容器被裁 → 改右对齐向左展开 */
-.big-medal .medal-tip.tip-right { left: auto; right: 0; transform: translateY(4px); }
-.big-medal .medal-tip.tip-right::after { left: auto; right: 14px; transform: rotate(180deg); }
-.big-medal:hover .medal-tip.tip-right { transform: translateY(0); }
-/* 视口自适应（orientTip 动态加）：下方空间不足 → 向上弹 */
-.big-medal .medal-tip.tip-up { top: auto; bottom: calc(100% + 10px); }
-.big-medal .medal-tip.tip-up::after { top: auto; bottom: -5px; transform: translateX(-50%) rotate(0deg); }
-.big-medal:hover .medal-tip.tip-up { transform: translateY(0); }
-.big-medal .medal-tip.tip-up.tip-right::after { right: 14px; transform: translateX(0) rotate(0deg); }
 @keyframes medalWiggle {
   0%, 100% { transform: translateY(-3px) scale(1.12) rotate(0); }
   30% { transform: translateY(-3px) scale(1.12) rotate(-8deg); }
   60% { transform: translateY(-3px) scale(1.12) rotate(6deg); }
 }
 @keyframes medalIn { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
-
-/* hover 浮层详情 */
-.medal-tip {
-  position: absolute; bottom: calc(100% + 10px); left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  width: 190px;
-  background: #1c2434; border: 1px solid rgba(91, 124, 250, 0.4);
-  border-radius: 10px; padding: 8px 10px;
-  opacity: 0; pointer-events: none; z-index: 20;
-  transition: opacity .15s ease, transform .15s ease;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
-  text-align: left;
-}
-.medal:hover .medal-tip { opacity: 1; transform: translateX(-50%) translateY(0); }
-.medal-tip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #1c2434; }
-.medal-tip b { display: block; font-size: 12.5px; color: #dfe7fa; margin-bottom: 3px; }
-.medal-tip .mt-date { font-size: 10.5px; color: #4fd1a5; }
-.medal-tip .mt-lock { font-size: 10.5px; color: var(--muted); }
-.medal-tip i { display: block; font-style: normal; font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
-[data-theme="light"] .medal-tip { background: #fff; border-color: rgba(61, 91, 217, 0.35); }
-[data-theme="light"] .medal-tip::after { border-top-color: #fff; }
-[data-theme="light"] .medal-tip b { color: #1f2937; }
-
 
 /* NEW 角标：3 天内解锁的金色角标（弹跳出现） */
 .medal-new {
@@ -1341,17 +1303,7 @@ onMounted(async () => {
   transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
 }
 .area-medal .medal-icon { font-size: 16px; }
-/* 用户卡在页面顶部，浮层向上会超出可视区 → 改为向下弹出（箭头反转朝上） */
-.area-medal .medal-tip { top: calc(100% + 10px); bottom: auto; width: 176px; }
-.area-medal .medal-tip::after { top: -5px; bottom: auto; transform: translateX(-50%) rotate(180deg); }
-/* 用户卡勋章区同样视口自适应 */
-.area-medal .medal-tip.tip-right { left: auto; right: 0; transform: translateY(4px); }
-.area-medal .medal-tip.tip-right::after { left: auto; right: 14px; transform: rotate(180deg); }
-.area-medal:hover .medal-tip.tip-right { transform: translateY(0); }
-.area-medal .medal-tip.tip-up { top: auto; bottom: calc(100% + 10px); }
-.area-medal .medal-tip.tip-up::after { top: auto; bottom: -5px; transform: translateX(-50%) rotate(0deg); }
-.area-medal:hover .medal-tip.tip-up { transform: translateY(0); }
-/* hover 弹起 + 摆动（keyframes 内嵌重力项，避免动画覆盖位移） */
+/* hover 弹起 + 摆动（keyframes 内嵌重力项，避免动画覆盖位移；浮层已迁移 Teleport+floating-ui） */
 .area-medal:hover {
   transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-8px) scale(1.2) rotate(calc(var(--tiltRx) * -0.7deg));
   z-index: 30 !important;
