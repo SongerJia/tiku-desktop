@@ -458,11 +458,8 @@ onMounted(async () => {
           <div class="card-title">知识库概览 <span class="kb-go">管理全部文档 ›</span></div>
           <div class="kb-stats">
             <div class="kb-stat"><b>{{ kbStats.docs }}</b><span>文档</span></div>
-            <div class="kb-stat"><b>{{ kbStats.blocks }}</b><span>文本块</span></div>
-            <div class="kb-stat"><b>{{ kbStats.links }}</b><span>题目联动</span></div>
             <div class="kb-stat"><b>{{ kbStats.readCount }}</b><span>阅读次数</span></div>
-            <div class="kb-stat"><b>{{ kbStats.tags }}</b><span>标签</span></div>
-            <div class="kb-stat"><b>{{ kbStats.folders }}</b><span>文件夹</span></div>
+            <div class="kb-stat"><b>{{ kbStats.links }}</b><span>题目联动</span></div>
           </div>
         </div>
       </div>
