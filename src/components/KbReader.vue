@@ -619,6 +619,8 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
 </script>
 
 <template>
+  <!-- Teleport 到 body：全屏阅读器脱离 .kb 内容树，fixed 定位不受任何视图模式/动画/容器干扰（图谱模式下曾嵌页面内） -->
+  <Teleport to="body">
   <div v-if="show" class="kb-page">
     <!-- C1 顶部阅读进度条：滚动即走 2px 细线（MD/PDF 通用） -->
     <div class="kb-progress"><div class="kb-progress-fill" :style="{ width: readPct + '%' }"></div></div>
@@ -756,6 +758,7 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
 
     <SimpleQuestion :show="sq.show" :q="sq.q" @close="sq.show = false" />
   </div>
+  </Teleport>
 </template>
 
 <style scoped>

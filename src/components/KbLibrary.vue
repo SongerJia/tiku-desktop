@@ -500,11 +500,12 @@ function fmtTime(ts) {
 }
 .kb-card:hover { box-shadow: var(--glow-soft); }
 
-/* 知识库加浓（2026-08-12）：stagger 交错入场 */
-.kb > * { animation: riseIn .4s cubic-bezier(.2, .7, .3, 1) both; }
-.kb > *:nth-child(2) { animation-delay: .06s; }
-.kb > *:nth-child(3) { animation-delay: .12s; }
-.kb > *:nth-child(4) { animation-delay: .18s; }
+/* 知识库加浓（2026-08-12）：stagger 交错入场
+   注：排除 .kb-page（全屏阅读器组件根）——入场动画的 transform 会干扰其 position:fixed 全屏定位 */
+.kb > *:not(.kb-page) { animation: riseIn .4s cubic-bezier(.2, .7, .3, 1) both; }
+.kb > *:not(.kb-page):nth-child(2) { animation-delay: .06s; }
+.kb > *:not(.kb-page):nth-child(3) { animation-delay: .12s; }
+.kb > *:not(.kb-page):nth-child(4) { animation-delay: .18s; }
 
 
 /* ===== 知识库列表页打磨（2026-08-13）：类型徽章渐变 / 分组标题 / 继续阅读浮层 / 已读徽章 ===== */
