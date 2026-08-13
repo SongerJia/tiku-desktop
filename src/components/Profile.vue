@@ -386,6 +386,8 @@ onMounted(async () => {
           </div>
         </template>
       </div>
+      <!-- 右侧呼吸圈（纯装饰，conic 旋转 + 中心呼吸光点） -->
+      <span class="user-aura" aria-hidden="true"></span>
     </div>
 
 
@@ -812,6 +814,29 @@ onMounted(async () => {
 }
 .user-card:hover .avatar { transform: scale(1.06); box-shadow: 0 0 0 4px rgba(91, 124, 250, 0.24), 0 6px 18px rgba(91, 124, 250, 0.5); }
 .user-info { flex: 0 1 auto; max-width: 200px; overflow: hidden; }
+
+/* 右侧呼吸圈（纯装饰，conic 渐变旋转 + 中心呼吸光点；flex 流内定位不遮挡勋章区） */
+.user-aura {
+  position: relative;
+  flex-shrink: 0;
+  width: 46px; height: 46px; border-radius: 50%;
+  margin-left: 12px;
+  pointer-events: none;
+  opacity: .8;
+  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.5) 90deg, transparent 180deg, rgba(122, 92, 255, 0.4) 270deg, transparent 360deg);
+  -webkit-mask: radial-gradient(circle, transparent 58%, #000 62%);
+  mask: radial-gradient(circle, transparent 58%, #000 62%);
+  animation: auraSpin 4s linear infinite;
+}
+.user-aura::after {
+  content: ''; position: absolute; inset: 32%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(91, 124, 250, 0.85), rgba(91, 124, 250, 0.1) 70%);
+  animation: auraBreathe 2.6s ease-in-out infinite;
+}
+@keyframes auraSpin { to { --ang: 360deg; } }
+@keyframes auraBreathe { 0%, 100% { opacity: .4; } 50% { opacity: 1; } }
+[data-theme="light"] .user-aura { opacity: .6; }
 .user-name { font-size: 16px; font-weight: 600; }
 .user-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
@@ -1177,7 +1202,7 @@ onMounted(async () => {
   flex: 1; min-width: 0;
   display: flex; flex-wrap: wrap; align-items: center;
   gap: 8px;
-  padding-left: 8px;
+  padding-left: 24px; padding-right: 16px;
   cursor: pointer;
   transform: translate(calc(var(--tiltRx) * -2.6px), calc(var(--tiltRy) * 2.6px));
   transition: transform .18s cubic-bezier(.2, .7, .3, 1);
