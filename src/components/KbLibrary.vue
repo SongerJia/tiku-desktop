@@ -14,7 +14,7 @@ const tagFilter = ref(null) // null=全部
 const keyword = ref('')
 const loading = ref(true)
 const reader = ref({ show: false, doc: null })
-const editor = ref({ show: false, doc: null, tags: [], title: '', folder: '', subjectId: null, categoryId: null, chapters: [] })
+const editor = ref({ show: false, doc: null, tags: [], title: '', subjectId: null, categoryId: null, chapters: [] })
 // 文档编辑弹窗「所属科目」下拉的数据源
 const subjects = ref([])
 // 知识库范围：'current' 跟随顶部科目（tab 默认）；'all' 全部科目管理（「我的→知识库概览」进入）
@@ -311,7 +311,7 @@ const groupedDocs = computed(() => {
     const subj = d.subject_id ? (subjects.value.find(s => s.id === d.subject_id)?.name || `科目#${d.subject_id}`) : ''
     const cat = d.category_id ? (catNameMap.value[d.category_id] || '') : ''
     let k, label
-    if (subj && cat) { k = `s${d.subject_id}|c${d.category_id}`; label = `${subj} · ${cat}` }
+    if (subj && cat) { k = `s${d.subject_id}|c${d.category_id}`; label = cat } // 组名只显示章节（顶部已定科目，不重复）
     else if (subj) { k = `s${d.subject_id}`; label = subj }
     else { k = ''; label = '未分类' }
     if (!groups.has(k)) groups.set(k, { label, docs: [] })
@@ -369,7 +369,7 @@ async function onDelete(doc) {
 }
 
 async function openEditor(doc) {
-  editor.value = { show: true, doc, tags: [...(doc.tags || [])], title: doc.title, folder: doc.folder || '', subjectId: doc.subject_id ?? null, categoryId: doc.category_id ?? null, chapters: [] }
+  editor.value = { show: true, doc, tags: [...(doc.tags || [])], title: doc.title, subjectId: doc.subject_id ?? null, categoryId: doc.category_id ?? null, chapters: [] }
   await loadChapters(editor.value.subjectId || null) // 加载该科目的章节下拉
 }
 
@@ -407,7 +407,6 @@ function removeEditorTag(t) {
 async function saveEditor() {
   const title = editor.value.title.trim()
   if (title && title !== editor.value.doc.title) await tiku.kbUpdate(editor.value.doc.id, { title })
-  if ((editor.value.folder || '') !== (editor.value.doc.folder || '')) await tiku.kbMove(editor.value.doc.id, editor.value.folder)
   const subChanged = (editor.value.subjectId ?? null) !== (editor.value.doc.subject_id ?? null)
   const catChanged = (editor.value.categoryId ?? null) !== (editor.value.doc.category_id ?? null)
   if (subChanged || catChanged) {
@@ -597,14 +596,12 @@ function fmtTime(ts) {
       </div>
     </div>
 
-    <!-- 标签/改名/移动弹层 -->
+    <!-- 标签/改名/科目弹层 -->
     <div v-if="editor.show" class="kb-mask" @click.self="editor.show = false">
       <div class="card kb-modal">
         <h3>文档信息</h3>
         <label class="kb-lab">标题</label>
         <input v-model="editor.title" class="input" />
-        <label class="kb-lab">文件夹</label>
-        <input v-model="editor.folder" class="input" placeholder="留空=未分类（输入新名字即创建文件夹）" />
         <label class="kb-lab">所属科目</label>
         <select v-model="editor.subjectId" class="input" @change="onSubjectChange">
           <option :value="null">未分类</option>
