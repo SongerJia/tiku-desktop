@@ -439,7 +439,6 @@ async function loadAnalysis() {
         </div>
         <div ref="heatWrapEl" class="heat-flex" :class="{ fading: heatFading }">
           <div class="heat-stats">
-            <div class="hs-item"><b>{{ heatStats.today ?? '—' }}</b><span>今日</span></div>
             <div class="hs-item"><b>{{ heatStats.week ?? '—' }}</b><span>本周</span></div>
             <div class="hs-item"><b>{{ heatStats.total }}</b><span>{{ heatYear === nowY() ? '近一年' : '全年' }}</span></div>
             <div class="hs-item"><b>{{ heatStats.activeDays }}</b><span>累计</span></div>
