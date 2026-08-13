@@ -314,6 +314,24 @@ const isNewAch = (a) => {
   const diff = now.getTime() - t
   return diff >= 0 && diff <= 3 * 86400000
 }
+// 用户卡右侧勋章堆：最近解锁 5 枚（按解锁日期倒序），顶部叠放展示
+const stackMedals = computed(() => {
+  if (!metrics.value) return []
+  return achievements.value
+    .filter(a => a.got)
+    .sort((a, b) => String(b.unlockAt || '').localeCompare(String(a.unlockAt || '')))
+    .slice(0, 5)
+})
+// 未展示的成就数（含未解锁 + 更早解锁），>0 才显示灰影基底与计数气泡
+const achRest = computed(() => Math.max(0, achievements.value.length - stackMedals.value.length))
+// 点击勋章堆/计数气泡 → 展开学习成长分组并平滑滚动到完整勋章墙
+function gotoAch() {
+  secOpen.value.learn = true
+  nextTick(() => {
+    const el = document.querySelector('.ach-card')
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
 
 // ---- 知识库概览（kbStats）----
 const kbStats = ref(null)
@@ -357,7 +375,32 @@ onMounted(async () => {
         </div>
         <div class="user-sub">数据只在本机 · 断网也能学</div>
       </div>
-      <span class="user-aura"></span>
+      <!-- 勋章堆：最近解锁叠在上面、灰影垫底，卡片倾斜时重力滑落；点击跳完整勋章墙 -->
+      <div class="medal-stack" title="查看全部勋章" @click="gotoAch">
+        <template v-for="(a, i) in stackMedals" :key="a.key">
+          <div class="medal stack-medal got" :style="{ zIndex: 10 + i }">
+            <span class="medal-icon">{{ a.icon }}</span>
+            <span v-if="isNewAch(a)" class="medal-new">NEW</span>
+            <div class="medal-tip">
+              <b>{{ a.name }}</b>
+              <span class="mt-date">{{ a.unlockAt || '已解锁' }} 解锁</span>
+              <i>{{ a.desc }}</i>
+            </div>
+          </div>
+        </template>
+        <div v-if="achRest > 0" class="medal stack-medal locked" :style="{ zIndex: 1 }">
+          <span class="medal-icon">?</span>
+          <div class="medal-tip">
+            <b>更多勋章</b>
+            <span class="mt-lock">未解锁</span>
+            <i>继续学习解锁更多勋章</i>
+          </div>
+        </div>
+        <div v-if="achRest > 0" class="m-count" :style="{ zIndex: 2 }" @click.stop="gotoAch">
+          <b>+{{ achRest }}</b>
+          <span>全部</span>
+        </div>
+      </div>
     </div>
 
 
@@ -969,12 +1012,12 @@ onMounted(async () => {
 .ach-sum-ring { animation: ringPop .5s cubic-bezier(.2, .7, .3, 1) .15s both; }
 @keyframes ringPop { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: scale(1); } }
 
-/* 头像区：装饰光斑 */
-.user-card { position: relative; overflow: hidden; }
+/* 头像区：装饰光斑（勋章堆已承担右侧点缀，光斑改为内部小范围，不溢出裁剪） */
+.user-card { position: relative; overflow: visible; }
 .user-card::before {
-  content: ''; position: absolute; top: -46px; right: -36px;
-  width: 150px; height: 150px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(91, 124, 250, 0.10), transparent 62%);
+  content: ''; position: absolute; top: -18px; right: -8px;
+  width: 110px; height: 110px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(91, 124, 250, 0.08), transparent 62%);
   pointer-events: none;
 }
 /* 用户卡瘦身（2026-08-13）：顶部渐变光带 + 本地徽章 + 今日XP胶囊 */
@@ -1020,28 +1063,6 @@ onMounted(async () => {
 /* 编辑入口：低调（✎ 低透明），hover 名字区才亮起 */
 .user-name { display: flex; align-items: center; gap: 6px; }
 .user-name-text { font-size: 16px; font-weight: 600; color: var(--text); }
-
-/* 右侧特效：数据能量环（conic 渐变旋转 + 中心呼吸光点，纯装饰不占数据） */
-.user-aura {
-  position: absolute; right: 20px; top: 50%;
-  transform: translateY(-50%);
-  width: 46px; height: 46px; border-radius: 50%;
-  pointer-events: none;
-  opacity: .8;
-  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.5) 90deg, transparent 180deg, rgba(122, 92, 255, 0.4) 270deg, transparent 360deg);
-  -webkit-mask: radial-gradient(circle, transparent 58%, #000 62%);
-  mask: radial-gradient(circle, transparent 58%, #000 62%);
-  animation: auraSpin 4s linear infinite;
-}
-.user-aura::after {
-  content: ''; position: absolute; inset: 32%;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(91, 124, 250, 0.85), rgba(91, 124, 250, 0.1) 70%);
-  animation: auraBreathe 2.6s ease-in-out infinite;
-}
-@keyframes auraSpin { to { --ang: 360deg; } }
-@keyframes auraBreathe { 0%, 100% { opacity: .4; } 50% { opacity: 1; } }
-[data-theme="light"] .user-aura { opacity: .6; }
 
 
 /* ===== 编辑资料弹窗（2026-08-13）===== */
@@ -1160,5 +1181,58 @@ onMounted(async () => {
   pointer-events: none;
 }
 @keyframes newPop { from { opacity: 0; transform: scale(.4); } 70% { transform: scale(1.2); } to { opacity: 1; transform: scale(1); } }
+
+/* ===== 用户卡右侧勋章堆（2026-08-13）：堆叠 + 倾斜重力 ===== */
+/* tilt.js 在卡片上暴露 --tiltRx/--tiltRy（rotateY/rotateX 角度数字），
+   整堆反向位移 = 重力滑落；单枚再叠一层位移 + 反向倾倒，形成层次物理感 */
+.medal-stack {
+  --tiltRx: 0; --tiltRy: 0;
+  position: relative;
+  display: flex; align-items: center;
+  flex-shrink: 0;
+  padding-left: 10px; padding-right: 4px;
+  cursor: pointer;
+  transform: translate(calc(var(--tiltRx) * -2.6px), calc(var(--tiltRy) * 2.6px));
+  transition: transform .18s cubic-bezier(.2, .7, .3, 1);
+}
+.stack-medal {
+  width: 36px; height: 36px;
+  background: rgba(255, 255, 255, 0.04);
+  transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) rotate(calc(var(--tiltRx) * -0.7deg));
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.stack-medal + .stack-medal { margin-left: -13px; }
+.stack-medal .medal-icon { font-size: 17px; }
+.stack-medal .medal-tip { bottom: calc(100% + 12px); width: 176px; }
+.stack-medal.locked .medal-icon { filter: grayscale(1) brightness(.4); opacity: .45; }
+/* hover 弹起 + 摆动（keyframes 内嵌重力项，避免动画覆盖位移） */
+.stack-medal:hover {
+  transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-9px) scale(1.22) rotate(calc(var(--tiltRx) * -0.7deg));
+  z-index: 30 !important;
+  animation: medalStackWiggle .5s ease;
+}
+@keyframes medalStackWiggle {
+  0%, 100% { transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-9px) scale(1.22) rotate(calc(var(--tiltRx) * -0.7deg)); }
+  30% { transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-9px) scale(1.22) rotate(calc(var(--tiltRx) * -0.7deg) - 8deg); }
+  60% { transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-9px) scale(1.22) rotate(calc(var(--tiltRx) * -0.7deg) + 6deg); }
+}
+/* 计数气泡：剩余勋章数，点击跳完整勋章墙 */
+.m-count {
+  position: relative;
+  margin-left: -10px;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(91, 124, 250, 0.16);
+  border: 1px solid rgba(91, 124, 250, 0.5);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  line-height: 1.2;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform .16s ease;
+}
+.m-count b { font-size: 12px; color: #8fa6ff; font-weight: 700; }
+.m-count span { font-size: 9px; color: var(--muted); }
+.m-count:hover { transform: scale(1.14); border-color: var(--brand); }
+.m-count:hover b { color: var(--brand); }
+
 
 </style>

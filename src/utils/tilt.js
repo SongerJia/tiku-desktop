@@ -14,9 +14,18 @@ export const vTilt = {
       if (!r.width || !r.height) return
       const px = (e.clientX - r.left) / r.width - 0.5
       const py = (e.clientY - r.top) / r.height - 0.5
-      el.style.transform = `perspective(700px) rotateY(${(px * max).toFixed(2)}deg) rotateX(${(-py * max).toFixed(2)}deg)`
+      const rx = (px * max).toFixed(2)
+      const ry = (-py * max).toFixed(2)
+      el.style.transform = `perspective(700px) rotateY(${rx}deg) rotateX(${ry}deg)`
+      // 重力输出：把倾斜角暴露为 CSS 变量，子元素（勋章堆等）可反向位移模拟重力
+      el.style.setProperty('--tiltRx', rx)
+      el.style.setProperty('--tiltRy', ry)
     })
-    el.addEventListener('mouseleave', () => { el.style.transform = '' })
+    el.addEventListener('mouseleave', () => {
+      el.style.transform = ''
+      el.style.setProperty('--tiltRx', '0')
+      el.style.setProperty('--tiltRy', '0')
+    })
     el.addEventListener('animationend', (e) => { if (e.animationName === 'riseIn') el.style.animation = 'none' })
   }
 }

@@ -88,12 +88,18 @@ module.exports = function statsModule(ctx) {
       const notesCount = sqlite.prepare("SELECT COUNT(*) AS n FROM notes WHERE user_id=? AND deleted=0 AND TRIM(IFNULL(content,''))<>''").get(LOCAL_USER).n
       const tagsUsed = sqlite.prepare('SELECT COUNT(DISTINCT tag) AS n FROM question_tags').get().n
       const favCount = sqlite.prepare('SELECT COUNT(*) AS n FROM favorites WHERE user_id=? AND deleted=0').get(LOCAL_USER).n
+      const favGroups = sqlite.prepare("SELECT COUNT(DISTINCT fav_group) AS n FROM favorites WHERE user_id=? AND deleted=0 AND TRIM(IFNULL(fav_group,''))<>''").get(LOCAL_USER).n
+      const cardsCount = sqlite.prepare('SELECT COUNT(*) AS n FROM cards WHERE deleted=0').get().n
+      const reviewCount = sqlite.prepare('SELECT COUNT(*) AS n FROM review_logs').get().n
+      const focusMin = sqlite.prepare('SELECT COALESCE(SUM(minutes),0) AS n FROM focus_sessions WHERE deleted=0').get().n
+      const habitChecks = sqlite.prepare('SELECT COUNT(*) AS n FROM habit_checks').get().n
       const kb = this.kbStats()
       return {
         streak: s.streak, today: s.today, activeDays: s.activeDays,
         totalAnswered, mastered: s.mastered, wrongCount: s.wrongCount,
         correctCount, essayCount,
         papersCount, notesCount, tagsUsed, favCount,
+        favGroups, cardsCount, reviewCount, focusMin, habitChecks,
         kbDocs: kb.docs, kbBlocks: kb.blocks, kbLinks: kb.links, kbReadCount: kb.readCount,
         dailyGoal: Number(this.getSetting('daily_goal') || 0)
       }
