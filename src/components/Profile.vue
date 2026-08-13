@@ -394,7 +394,7 @@ function gotoAch() {
 }
 
 // 页面分组折叠：勋章墙默认展开，其余收起（避免平铺过长）
-const secOpen = ref({ learn: false, goals: false, prefs: false, sync: false, misc: false })
+const secOpen = ref({ learn: false, goals: false, prefs: false, sync: false, data: false, misc: false })
 function toggleSec(k) {
   secOpen.value[k] = !secOpen.value[k]
 }
@@ -614,11 +614,11 @@ onMounted(async () => {
     </div>
 
 
-    <!-- 云同步与数据 -->
+    <!-- 云同步 -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('sync')">
         <span class="sec-icon sec-icon-sync"><Icon name="cloud" :size="16" /></span>
-        <span class="sec-title">云同步与数据</span>
+        <span class="sec-title">云同步</span>
         <span class="sec-arrow" :class="{ open: secOpen.sync }"><Icon name="chevron-down" :size="14" /></span>
       </div>
       <div v-show="secOpen.sync" class="sec-body">
@@ -651,6 +651,18 @@ onMounted(async () => {
         </div>
       </div>
     </div>
+
+      </div>
+    </div>
+
+    <!-- 数据 -->
+    <div class="sec">
+      <div class="sec-head" @click="toggleSec('data')">
+        <span class="sec-icon sec-icon-data"><Icon name="folder" :size="16" /></span>
+        <span class="sec-title">数据</span>
+        <span class="sec-arrow" :class="{ open: secOpen.data }"><Icon name="chevron-down" :size="14" /></span>
+      </div>
+      <div v-show="secOpen.data" class="sec-body">
 
 
     <!-- 题库管理 -->
@@ -850,6 +862,7 @@ onMounted(async () => {
 .sec-icon-goals   { background: rgba(91, 124, 250, 0.14);  color: var(--brand); }
 .sec-icon-prefs   { background: rgba(91, 124, 250, 0.14);  color: var(--brand); }
 .sec-icon-sync    { background: rgba(34, 211, 238, 0.14);  color: #22d3ee; }
+.sec-icon-data    { background: rgba(251, 191, 36, 0.14);  color: #fbbf24; }
 .sec-icon-misc    { background: rgba(251, 113, 133, 0.14); color: #fb7185; }
 .sec-icon-chapter { background: rgba(251, 191, 36, 0.14);  color: #fbbf24; }
 .sec-icon-about   { background: rgba(148, 163, 184, 0.16); color: var(--muted); }
