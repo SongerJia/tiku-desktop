@@ -102,6 +102,8 @@ const filteredDocs = computed(() => {
 // 笔记文档（标题以「笔记」结尾）不再单列，直接归入未分类
 const groupedDocs = computed(() => {
   const groups = new Map()
+  // 组内排序：读得多/最近更新的在前（B3 修正版：无阅读时间字段，用 read_count 排序零成本）
+  const byHot = (a, b) => (b.read_count || 0) - (a.read_count || 0) || (b.updated_at || 0) - (a.updated_at || 0)
   for (const d of filteredDocs.value) {
     const isNote = String(d.title || '').endsWith('笔记')
     const k = isNote ? '' : (d.folder || '')
@@ -109,9 +111,9 @@ const groupedDocs = computed(() => {
     groups.get(k).push(d)
   }
   const out = []
-  if (groups.has('')) { out.push({ folder: '', label: '未分类', docs: groups.get('') }) }
+  if (groups.has('')) { out.push({ folder: '', label: '未分类', docs: groups.get('').sort(byHot) }) }
   for (const [k, list] of groups) {
-    if (k !== '') out.push({ folder: k, label: k, docs: list })
+    if (k !== '') out.push({ folder: k, label: k, docs: [...list].sort(byHot) })
   }
   return out
 })
@@ -278,13 +280,24 @@ function fmtTime(ts) {
           <span class="kb-group-name">{{ g.label }}</span>
           <span class="kb-group-n">{{ g.docs.length }} 篇</span>
         </div>
-        <div class="kb-grid">
+            <div class="kb-grid">
           <div
             v-for="d in g.docs"
             :key="d.id"
             class="card kb-card"
             @click="openReader(d)"
           >
+            <!-- 继续阅读浮层（hover 显示）：PDF 用阅读位置记忆，MD 用已读次数 -->
+            <div class="kb-continue">
+              <template v-if="d.type === 'pdf'">
+                <span v-if="d.last_page">上次读到第 {{ d.last_page }} 页 · 继续 ›</span>
+                <span v-else>开始阅读 ›</span>
+              </template>
+              <template v-else>
+                <span v-if="d.read_count">已读 {{ d.read_count }} 次 · 打开 ›</span>
+                <span v-else>开始阅读 ›</span>
+              </template>
+            </div>
             <div class="kb-head">
               <span class="badge kb-type" :class="d.type">{{ d.type === 'pdf' ? 'PDF' : 'MD' }}</span>
               <span class="kb-title">{{ d.title }}</span>
@@ -293,6 +306,8 @@ function fmtTime(ts) {
               <span v-for="t in d.tags" :key="t" class="q-tag">{{ t }}</span>
             </div>
             <div class="kb-meta">
+              <span v-if="!d.read_count" class="kb-unread">未读</span>
+              <span v-else-if="d.type === 'pdf' && d.last_page" class="kb-read-pos">读到第 {{ d.last_page }} 页</span>
               <span>{{ fmtTime(d.updated_at) }}</span>
               <span v-if="d.read_count">· 读过 {{ d.read_count }} 次</span>
               <span v-if="d.linkCount">· {{ d.linkCount }} 题关联</span>
@@ -490,5 +505,64 @@ function fmtTime(ts) {
 .kb > *:nth-child(2) { animation-delay: .06s; }
 .kb > *:nth-child(3) { animation-delay: .12s; }
 .kb > *:nth-child(4) { animation-delay: .18s; }
+
+
+/* ===== 知识库列表页打磨（2026-08-13）：类型徽章渐变 / 分组标题 / 继续阅读浮层 / 已读徽章 ===== */
+/* A1 类型徽章：渐变底 + 微光 */
+.kb-type.pdf {
+  background: linear-gradient(135deg, rgba(232, 95, 61, 0.28), rgba(232, 95, 61, 0.10));
+  color: #ff9a7a;
+  border: 1px solid rgba(232, 95, 61, 0.45);
+  box-shadow: 0 0 8px rgba(232, 95, 61, 0.15);
+}
+.kb-type.md {
+  background: linear-gradient(135deg, rgba(91, 124, 250, 0.28), rgba(122, 92, 255, 0.12));
+  color: #93b1ff;
+  border: 1px solid rgba(91, 124, 250, 0.45);
+  box-shadow: 0 0 8px rgba(91, 124, 250, 0.15);
+}
+
+/* A3 分组标题：渐变竖线 + 计数徽章 */
+.kb-group-head { position: relative; padding-left: 12px; }
+.kb-group-head::before {
+  content: '';
+  position: absolute; left: 0; top: 3px; bottom: 3px;
+  width: 3px; border-radius: 2px;
+  background: linear-gradient(180deg, var(--brand), var(--brand2, #7a5cff));
+}
+.kb-group-n {
+  background: rgba(91, 124, 250, 0.12);
+  border: 1px solid rgba(91, 124, 250, 0.3);
+  border-radius: 10px; padding: 1px 8px;
+  font-weight: 600; color: #93b1ff;
+}
+
+/* B1 继续阅读浮层：hover 显示在卡片顶部 */
+.kb-card { position: relative; }
+.kb-continue {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%) translateY(-4px);
+  background: #1c2434; border: 1px solid rgba(91, 124, 250, 0.45);
+  border-radius: 14px; padding: 5px 14px;
+  font-size: 11.5px; color: #c8d3f5; white-space: nowrap;
+  opacity: 0; pointer-events: none; z-index: 5;
+  transition: opacity .15s ease, transform .15s ease;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+.kb-card:hover .kb-continue { opacity: 1; transform: translateX(-50%) translateY(0); }
+[data-theme="light"] .kb-continue { background: #fff; color: #3d5bd9; border-color: rgba(61, 91, 217, 0.4); }
+
+/* B2 已读/未读徽章 */
+.kb-unread {
+  color: var(--warn, #ffb84d);
+  border: 1px solid rgba(255, 184, 77, 0.5);
+  background: rgba(255, 184, 77, 0.08);
+  border-radius: 8px; padding: 0 6px; font-size: 10.5px;
+}
+.kb-read-pos {
+  color: #4fd1a5;
+  border: 1px solid rgba(47, 191, 143, 0.4);
+  background: rgba(47, 191, 143, 0.08);
+  border-radius: 8px; padding: 0 6px; font-size: 10.5px;
+}
 
 </style>

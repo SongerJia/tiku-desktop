@@ -351,6 +351,29 @@ function toggleToc() {
 // 右侧相关题目 + 批注抽屉（默认关闭，按需唤出）
 const panelOpen = ref(false)
 
+// C1 顶部阅读进度条 + C2 大纲 scrollspy（2026-08-13）
+const mainEl = ref(null) // 滚动宿主（kb-main，MD/PDF 通用）
+const readPct = ref(0)
+const activeTocId = ref('')
+function onMainScroll() {
+  const el = mainEl.value
+  if (el) {
+    const max = el.scrollHeight - el.clientHeight
+    readPct.value = max > 0 ? Math.min(100, Math.round((el.scrollTop / max) * 100)) : 0
+  }
+  if (pdfDoc) onPdfScroll() // PDF 当前页估算（懒渲染）
+  // C2 scrollspy：仅 MD，找视口内最靠上的标题（tocList 按文档顺序，第一个超出即停）
+  if (props.doc && props.doc.type === 'md' && tocList.value.length) {
+    let cur = ''
+    for (const t of tocList.value) {
+      const el = document.getElementById(t.id)
+      if (el && el.getBoundingClientRect().top <= 120) cur = t.id
+      else break
+    }
+    activeTocId.value = cur
+  }
+}
+
 // 关闭：MD 文档先立即保存（防抖中的改动落盘）；PDF 保存阅读位置
 async function onClose() {
   if (props.doc && props.doc.type === 'md') {
@@ -597,6 +620,8 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
 
 <template>
   <div v-if="show" class="kb-page">
+    <!-- C1 顶部阅读进度条：滚动即走 2px 细线（MD/PDF 通用） -->
+    <div class="kb-progress"><div class="kb-progress-fill" :style="{ width: readPct + '%' }"></div></div>
     <!-- 顶栏：返回 + 标题 + 操作按钮 -->
     <div class="kb-head">
       <button class="btn kb-back" @click="onClose">← 返回</button>
@@ -622,14 +647,14 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
             v-for="t in tocList"
             :key="t.id"
             class="kb-toc-item"
-            :class="'kb-toc-l' + t.level"
+            :class="['kb-toc-l' + t.level, { active: t.id === activeTocId }]"
             :title="t.text"
             @click="jumpToToc(t.id)"
           >{{ t.text || '（无标题）' }}</div>
         </div>
       </aside>
       <!-- 右：正文（md = Vditor IR / pdf = 懒渲染） -->
-      <div class="kb-main" @scroll.passive="onPdfScroll">
+      <div class="kb-main" ref="mainEl" @scroll.passive="onMainScroll">
         <template v-if="props.doc?.type === 'md'">
           <div ref="mdVditorEl" class="kb-md-vditor" :style="{ '--kb-md-fs': fontSize + 'px' }"></div>
         </template>
@@ -1103,4 +1128,26 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ===== 阅读页打磨（2026-08-13）：C1 顶部进度条 + C2 大纲 scrollspy ===== */
+.kb-page { position: relative; }
+.kb-progress {
+  position: absolute; top: 0; left: 0; right: 0; height: 2px; z-index: 20;
+  background: rgba(148, 163, 184, 0.12);
+  pointer-events: none;
+}
+.kb-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand), var(--brand2, #7a5cff));
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 8px rgba(91, 124, 250, 0.6);
+  transition: width .08s linear;
+}
+.kb-toc-item.active {
+  background: rgba(91, 124, 250, 0.16);
+  border-left: 2px solid var(--brand);
+  color: #93b1ff;
+  font-weight: 600;
+}
+
 </style>
