@@ -308,8 +308,9 @@ const medalTipAnchor = {
   })
 }
 let medalTipSeq = 0
-async function showTip(e, payload) {
-  const r = e.currentTarget.getBoundingClientRect()
+async function showTip(elOrE, payload) {
+  const el = elOrE.currentTarget || elOrE
+  const r = el.getBoundingClientRect()
   medalAnchor.left = r.left; medalAnchor.top = r.top
   medalAnchor.right = r.right; medalAnchor.bottom = r.bottom
   medalAnchor.width = r.width; medalAnchor.height = r.height
@@ -326,16 +327,51 @@ async function showTip(e, payload) {
   medalTipEl.value.style.top = y + 'px'
 }
 function hideTip() { activeTip.value = null }
-// 扇形奖牌位置：沿弧线扇形展开，各自微旋转朝向中心，最高档在弧顶最亮
+// 扇形场景 hover：mousemove 实时计算鼠标到每档勋章中心的距离，最近者高亮 + 显示浮层
+// （重叠勋章用 mouseenter 会互相遮挡，只有最上层能命中——距离法解决）
+let fanHotEl = null
+function fanMove(e, sm) {
+  const scene = e.currentTarget
+  const tiers = scene.querySelectorAll('.fan-tier')
+  let best = null, bestD = Infinity
+  tiers.forEach((el) => {
+    const r = el.getBoundingClientRect()
+    const cx = r.left + r.width / 2
+    const cy = r.top + r.height / 2
+    const d = (e.clientX - cx) ** 2 + (e.clientY - cy) ** 2
+    if (d < bestD) { bestD = d; best = el }
+  })
+  if (!best) return
+  if (fanHotEl !== best) {
+    fanHotEl = best
+    tiers.forEach(el => el.classList.remove('fan-hot'))
+    best.classList.add('fan-hot')
+    const ti = [...tiers].indexOf(best)
+    const t = sm.tiers[ti]
+    if (t) showTip(best, { title: sm.series.name + ' · ' + (RAR_LABEL[t.rarity] || t.rarity), sub: t.got ? t.names : '未点亮', desc: t.got ? '该档位已解锁成就' : '解锁该档任一成就即可点亮', got: t.got })
+  }
+}
+function fanLeave(e) {
+  hideTip()
+  fanHotEl = null
+  e.currentTarget.querySelectorAll('.fan-tier.fan-hot').forEach(el => el.classList.remove('fan-hot'))
+}
+// 扇形奖牌位置：最高档恒居中（弧顶 0°），其余档位按距最高档的层数交替向两侧展开（点亮任意数量时最高档都在中间）
 const RAR_LABEL = { bronze: '铜', silver: '银', gold: '金', platinum: '白金' }
 function fanStyle(i, n) {
-  const STEP = 20 // 相邻档位夹角
-  const R = 58 // 弧半径（勋章中心到弧心）
-  const theta = n > 1 ? (i - (n - 1) / 2) * STEP : 0
-  const bright = 0.72 + 0.28 * (n > 1 ? i / (n - 1) : 0) // 最低档暗 → 最高档亮
+  const STEP = 22 // 相邻展开角度
+  const R = 46 // 弧半径（勋章中心到弧心）
+  const m = n - 1 // 最高档索引
+  const d = m - i // 距最高档的层数
+  let theta = 0
+  if (d > 0) {
+    const side = d % 2 === 1 ? -1 : 1 // 交替左右：d=1 左、d=2 右、d=3 左…
+    theta = side * Math.ceil(d / 2) * STEP
+  }
+  const bright = 1 - d * 0.09 // 最高档 1.0，越远渐暗
   return {
     '--fan': `rotate(${theta}deg) translateY(-${R}px)`,
-    filter: `brightness(${bright.toFixed(2)})`,
+    filter: `brightness(${Math.max(0.6, bright).toFixed(2)})`,
     zIndex: i + 1
   }
 }
@@ -510,10 +546,8 @@ onMounted(async () => {
       <div class="medal-grid">
         <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal-cell" :class="sm.medal.got ? (sm.medal.rarity || 'bronze') : ''">
           <template v-if="sm.tiers.length">
-            <div class="fan-scene">
-              <div v-for="(t, ti) in sm.tiers" :key="t.rarity" class="fan-tier" :class="t.got ? ('got ' + t.rarity) : 'off'" :style="fanStyle(ti, sm.tiers.length)"
-                   @mouseenter="showTip($event, { title: sm.series.name + ' · ' + (RAR_LABEL[t.rarity] || t.rarity), sub: t.got ? t.names : '未点亮', desc: t.got ? '该档位已解锁成就' : '解锁该档任一成就即可点亮', got: t.got })"
-                   @mouseleave="hideTip">
+            <div class="fan-scene" @mousemove="fanMove($event, sm)" @mouseleave="fanLeave">
+              <div v-for="(t, ti) in sm.tiers" :key="t.rarity" class="fan-tier" :class="t.got ? ('got ' + t.rarity) : 'off'" :style="fanStyle(ti, sm.tiers.length)">
                 <svg class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(t.rarity)" /></svg>
                 <MedalIcon :series="sm.medal.series" :got="t.got" :size="24" class="medal-icon" />
                 <span v-if="t.got && ti === sm.tiers.length - 1 && isNewAch(sm.medal)" class="medal-new">NEW</span>
@@ -1238,11 +1272,11 @@ onMounted(async () => {
 .medal-cell.silver   { --rr: 159, 178, 192; }
 .medal-cell.gold     { --rr: 217, 165, 20; }
 .medal-cell.platinum { --rr: 125, 211, 252; }
-/* 扇形奖牌：每档勋章沿弧线展开，绕底部中心旋转（transform-origin 底中），最高档弧顶最亮 */
+/* 扇形奖牌：每档勋章绕底部中心旋转展开（transform-origin 底中），最高档恒居弧顶正中 */
 .fan-scene {
   position: relative;
-  width: 120px; height: 92px;
-  margin: 4px auto 0;
+  width: 120px; height: 78px;
+  margin: 2px auto 0;
 }
 .fan-tier {
   position: absolute; left: 50%; bottom: 2px;
@@ -1258,7 +1292,8 @@ onMounted(async () => {
   transform: var(--fan);
   transition: transform .18s ease, box-shadow .18s ease;
 }
-.fan-tier:hover { transform: var(--fan) translateY(-5px) scale(1.06); z-index: 20 !important; box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55), 0 0 18px rgba(var(--rr), 0.45); }
+/* 距离最近的高亮档：上浮 + 光晕 + 提层（fanMove 动态加） */
+.fan-tier.fan-hot { transform: var(--fan) translateY(-5px) scale(1.06); z-index: 20 !important; box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55), 0 0 18px rgba(var(--rr), 0.5); }
 .fan-tier.got.bronze   { --rr: 184, 115, 51; }
 .fan-tier.got.silver   { --rr: 159, 178, 192; }
 .fan-tier.got.gold     { --rr: 217, 165, 20; }
