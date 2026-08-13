@@ -334,12 +334,14 @@ const seriesMedals = computed(() => {
   if (!metrics.value) return []
   return ACH_SERIES.map(sr => {
     const list = achievements.value.filter(a => a.series === sr.key)
-    const unlocked = list.filter(a => a.got)
-    const best = unlocked.sort((a, b) => (RARITY_RANK[b.rarity] || 0) - (RARITY_RANK[a.rarity] || 0))[0]
+    const unlocked = list.filter(a => a.got).sort((a, b) => (RARITY_RANK[b.rarity] || 0) - (RARITY_RANK[a.rarity] || 0))
+    const best = unlocked[0]
     const medal = best
       ? { ...best }
       : { key: sr.key + '-lock', name: sr.name, icon: sr.icon, series: sr.key, rarity: 'bronze', got: false, desc: '解锁该系列任一成就即可点亮' }
-    return { key: sr.key, series: sr, total: list.length, got: unlocked.length, medal }
+    // others：代表勋章（最高档）之外的其他已解锁成就，稀有度降序，展示在底座上
+    const others = unlocked.slice(1)
+    return { key: sr.key, series: sr, total: list.length, got: unlocked.length, medal, others }
   })
 })
 // 勋章底形状（viewBox 100×100）：铜=圆、银=六边形、金=盾形、白金=八角星
@@ -482,7 +484,7 @@ onMounted(async () => {
       </div>
 
 
-      <!-- 勋章墙（成就展柜）：每系列 1 枚代表勋章坐落在发光底座上 -->
+      <!-- 勋章墙（成就展柜）：代表勋章 + 底座上已解锁成就链 + 系列名 -->
       <div class="medal-grid">
         <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal-cell" :class="sm.medal.got ? (sm.medal.rarity || 'bronze') : ''">
           <div class="medal big-medal" :class="medalCls(sm.medal)" :style="{ animationDelay: (i * 0.05) + 's' }"
@@ -492,8 +494,17 @@ onMounted(async () => {
             <MedalIcon :series="sm.medal.series" :got="sm.medal.got" :size="30" class="medal-icon" />
             <span v-if="sm.medal.got && isNewAch(sm.medal)" class="medal-new">NEW</span>
           </div>
+          <!-- 底座上：该系列其他已解锁成就（最高档代表在前，其他按稀有度降序排后） -->
+          <div v-if="sm.others.length" class="medal-extra">
+            <div v-for="o in sm.others" :key="o.key" class="medal mini-medal got" :class="o.rarity || 'bronze'"
+                 @mouseenter="showTip($event, { title: o.name, sub: (o.unlockAt || '已解锁') + ' 解锁', desc: o.desc, got: true })"
+                 @mouseleave="hideTip">
+              <svg class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(o.rarity)" /></svg>
+              <MedalIcon :series="o.series" :got="true" :size="16" class="medal-icon" />
+            </div>
+          </div>
           <div class="medal-base"></div>
-          <span v-if="!sm.medal.got" class="medal-sname">{{ sm.series.name }}</span>
+          <span class="medal-sname">{{ sm.series.name }}</span>
         </div>
       </div>
       <div v-if="!seriesMedals.length" class="ach-empty">还没有成就数据，先刷几道题吧</div>
@@ -1203,9 +1214,27 @@ onMounted(async () => {
 .medal-cell.silver   { --rr: 159, 178, 192; }
 .medal-cell.gold     { --rr: 217, 165, 20; }
 .medal-cell.platinum { --rr: 125, 211, 252; }
-/* 展柜底座：椭圆发光台座，已解锁带稀有度辉光、未解锁灰底，hover 增强 */
+/* 底座上已解锁成就链：小勋章横排，代表勋章（最高档）之外的已解锁 */
+.medal-extra {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: -2px;
+}
+.mini-medal {
+  width: 32px; height: 32px;
+  animation: none;
+}
+/* 小勋章关闭流光/呼吸（32px 太密且费性能），静态稀有度色；大勋章保持炫 */
+.mini-medal::before, .mini-medal::after { display: none; }
+.mini-medal .medal-bg { animation: none; }
+.mini-medal .medal-bg { inset: 16%; }
+.mini-medal .medal-icon { font-size: 0; }
+/* 展柜底座：椭圆发光台座（支撑代表勋章 + 成就链），已解锁带稀有度辉光、未解锁灰底，hover 增强 */
 .medal-base {
-  width: 58px; height: 12px; border-radius: 50%;
+  width: 100%; max-width: 220px;
+  height: 12px; border-radius: 50%;
   background: rgba(var(--rr, 148, 163, 184), 0.28);
   filter: blur(4px);
   transition: background .18s ease;
