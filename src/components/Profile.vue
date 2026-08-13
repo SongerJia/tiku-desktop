@@ -1217,7 +1217,7 @@ onMounted(async () => {
 .medal.got.silver   { --rr: 159, 178, 192; }
 .medal.got.gold     { --rr: 217, 165, 20; }
 .medal.got.platinum { --rr: 125, 211, 252; outline: 1px solid rgba(var(--rr), 0.35); outline-offset: 2px; }
-.medal.got .medal-icon { color: rgba(var(--rr), 0.95); opacity: 1; filter: none; }
+.medal.got .medal-icon { color: rgba(var(--rr), 0.95); opacity: 1; filter: drop-shadow(0 0 3px rgba(var(--rr), 0.9)); }
 /* 特效加码（2026-08-13）：流光描边（conic 光点绕圆旋转，--ang 全局注册）+ 呼吸光晕，稀有度差异化 */
 .medal.got::before {
   content: ''; position: absolute; inset: -2px; border-radius: 50%;
@@ -1232,6 +1232,25 @@ onMounted(async () => {
 .medal.got.silver::before   { opacity: .4;  animation-duration: 4s; }
 .medal.got.gold::before     { opacity: .7;  animation-duration: 2.6s; }
 .medal.got.platinum::before { opacity: .9;  animation-duration: 2s; }
+/* 内圈反向流光（::after 环形，rotate 旋转不依赖 --ang，与外圈对向转；稀有度差异化） */
+.medal.got::after {
+  content: ''; position: absolute; inset: 13%;
+  border-radius: 50%;
+  padding: 1.5px; z-index: 2; pointer-events: none;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 0.85) 70deg, transparent 140deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: achSpinRev 4s linear infinite;
+  opacity: .55;
+}
+.medal.got.bronze::after   { opacity: .22; animation-duration: 6s; }
+.medal.got.silver::after   { opacity: .4;  animation-duration: 5s; }
+.medal.got.gold::after     { opacity: .65; animation-duration: 3.2s; }
+.medal.got.platinum::after { opacity: .85; animation-duration: 2.6s; }
+@keyframes achSpinRev { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+/* hover 流光加速：内外圈都转快，光效更热烈 */
+.medal.got:hover::before { animation-duration: 1.6s; }
+.medal.got:hover::after { animation-duration: 1.8s; }
 .medal.got .medal-bg { animation: achGlow 3s ease-in-out infinite; }
 .medal.got.platinum .medal-bg { animation-duration: 2s; }
 @keyframes achGlow {
