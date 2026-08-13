@@ -126,7 +126,7 @@ async function toggleSimilar(qid) {
   <div>
     <!-- 薄弱章节识别：正确率升序，最弱的高亮 -->
     <div v-if="weakChapters.length" class="weak-chapters">
-      <div class="wc-title">⚠️ 薄弱章节（正确率最低）</div>
+      <div class="wc-title">薄弱章节（正确率最低）</div>
       <div class="wc-list">
         <div
           v-for="c in weakChapters"
@@ -156,7 +156,7 @@ async function toggleSimilar(qid) {
 
     <!-- 复习节奏（记忆曲线） -->
     <div v-if="dueTotal" class="curve-card">
-      <div class="curve-title">📈 复习节奏 · 未来 30 天到期 {{ dueTotal }} 题</div>
+      <div class="curve-title">复习节奏 · 未来 30 天到期 {{ dueTotal }} 题</div>
       <div class="curve-bars">
         <div v-for="(b, i) in curveBars" :key="i" class="curve-bar-wrap" :title="b.date + ' 到期 ' + b.count + ' 题'">
           <div class="curve-bar" :class="{ today: i === curveBars.length - 1 }" :style="{ height: b.h + 'px' }"></div>

@@ -75,6 +75,7 @@ function shiftHeatYear(delta) {
   const y = heatYear.value + delta
   if (y < 2020 || y > new Date().getFullYear()) return
   heatYear.value = y
+  heatFading.value = true // B2 年份切换：淡出 → 新数据回来淡入
   loadContent()
 }
 
@@ -216,6 +217,7 @@ const reasonTip = computed(() => {
   return `你的错因集中在「${top.reason}」（${top.pct}%）：针对这个习惯调整答题节奏`
 })
 let contentSeq = 0 // 防竞态：快速切范围/年份时旧请求晚返回，seq 不匹配则丢弃
+const heatFading = ref(false) // B2 年份切换淡入淡出过渡态
 async function loadContent() {
   const seq = ++contentSeq
   const sid = filterSubjectId.value
@@ -229,6 +231,7 @@ async function loadContent() {
   if (sumR.status === 'fulfilled') summary.value = sumR.value
   if (heatR.status === 'fulfilled') heatmap.value = heatR.value; else heatmap.value = []
   if (catR.status === 'fulfilled') catAccuracy.value = catR.value; else catAccuracy.value = []
+  heatFading.value = false // 数据落地 → 淡入（年份切换动画）
 }
 async function loadGlobal() {
   const seq = contentSeq
@@ -264,7 +267,7 @@ const radarPoints = computed(() => {
   return radarCats.value.map((c, i) => {
     const ang = -Math.PI / 2 + (2 * Math.PI * i) / n
     const r = 56 - (c.rate / 100) * 46
-    return { x: radarCenter.x + r * Math.cos(ang), y: radarCenter.y + r * Math.sin(ang), cat: c.cat }
+    return { x: radarCenter.x + r * Math.cos(ang), y: radarCenter.y + r * Math.sin(ang), cat: c.cat, rate: c.rate }
   })
 })
 const radarPoly = computed(() => radarPoints.value.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' '))
@@ -351,7 +354,7 @@ async function loadAnalysis() {
       <!-- 学习热力图（GitHub 贡献图：7 行 × N 列 + 月份标签 + 年份切换 + 统计列） -->
       <div class="card heat-card" v-tilt="{ deg: 3 }">
         <div class="heat-head">
-          <span class="card-title">🔥 学习热力图 <span class="heat-scope">（{{ subjectScope === 'all' ? '全部科目' : (props.subject.name || '全部') }}）</span></span>
+          <span class="card-title">学习热力图 <span class="heat-scope">（{{ subjectScope === 'all' ? '全部科目' : (props.subject.name || '全部') }}）</span></span>
           <div class="heat-legend">
             <span class="lg-text">少</span>
             <i class="heat-cell lvl-0"></i><i class="heat-cell lvl-1"></i><i class="heat-cell lvl-2"></i><i class="heat-cell lvl-3"></i><i class="heat-cell lvl-4"></i>
@@ -363,7 +366,7 @@ async function loadAnalysis() {
             <button class="hy-btn" @click="shiftHeatYear(1)" :disabled="heatYear >= nowY()">›</button>
           </span>
         </div>
-        <div ref="heatWrapEl" class="heat-flex">
+        <div ref="heatWrapEl" class="heat-flex" :class="{ fading: heatFading }">
           <div class="heat-stats">
             <div class="hs-item"><b>{{ heatStats.today ?? '—' }}</b><span>今日</span></div>
             <div class="hs-item"><b>{{ heatStats.week ?? '—' }}</b><span>本周</span></div>
@@ -400,15 +403,19 @@ async function loadAnalysis() {
           <polygon :points="gridHex(56)" fill="none" stroke="var(--line)" stroke-width="1"/>
           <polygon :points="gridHex(28)" fill="none" stroke="var(--line)" stroke-width="1"/>
           <polygon :points="radarPoly" fill="rgba(91,124,250,0.25)" stroke="var(--brand)" stroke-width="2"/>
-          <circle v-for="p in radarPoints" :key="p.cat" :cx="p.x" :cy="p.y" r="3" fill="var(--brand)"/>
-          <text v-for="(c, i) in radarCats" :key="'l' + i" :x="labelPos(i).x" :y="labelPos(i).y" class="radar-label" text-anchor="middle">{{ c.cat.length > 4 ? c.cat.slice(0, 4) + '…' : c.cat }}</text>
+          <circle v-for="p in radarPoints" :key="p.cat" :cx="p.x" :cy="p.y" r="3" fill="var(--brand)">
+            <title>{{ p.cat }} · 正确率 {{ p.rate }}%</title>
+          </circle>
+          <text v-for="(c, i) in radarCats" :key="'l' + i" :x="labelPos(i).x" :y="labelPos(i).y" class="radar-label" text-anchor="middle">
+            <title>{{ c.cat }} · 正确率 {{ c.rate }}%</title>{{ c.cat.length > 4 ? c.cat.slice(0, 4) + '…' : c.cat }}
+          </text>
         </svg>
         <div v-if="!radarCats.length" class="empty-sm">暂无答题数据</div>
         <div class="card-title hist-title">近 {{ examHistory.length }} 次练习正确率</div>
         <svg v-if="histPath" viewBox="0 0 300 70" class="hist">
           <line x1="10" y1="62" x2="290" y2="62" stroke="var(--line)" stroke-width="1"/>
           <path :d="histPath" class="hist-path" pathLength="1" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round"/>
-          <circle v-for="(e, i) in examHistory" :key="i" :cx="histX(i)" :cy="histY(e)" r="2.5" fill="var(--brand)">
+          <circle v-for="(e, i) in examHistory" :key="i" :cx="histX(i)" :cy="histY(e)" r="2.5" fill="var(--brand)" :class="{ latest: i === examHistory.length - 1 }">
             <title>{{ e.date }} · {{ e.label }} · {{ e.pct }}%</title>
           </circle>
         </svg>
@@ -470,7 +477,7 @@ async function loadAnalysis() {
       <!-- 每日任务 Quest（未设置显示友好提示） -->
       <div class="card quest-card" v-tilt="{ deg: 3 }">
         <div class="card-title">每日任务 <span class="quest-xp">每个 +20 XP</span></div>
-        <div v-if="quest.claimed" class="quest-claimed">🎉 {{ quest.claimed }} 已完成，XP 已到账</div>
+        <div v-if="quest.claimed" class="quest-claimed">{{ quest.claimed }} 已完成，XP 已到账</div>
         <div v-if="!quest.tasks.length" class="quest-empty">
           未设置任务，去「我的 → 学习目标」设置每日刷题 / 复习 / 阅读目标吧
         </div>
@@ -694,5 +701,63 @@ async function loadAnalysis() {
 /* KPI 数字弹入（同首页） */
 .kpi-num { animation: numPop .45s cubic-bezier(.2, .7, .3, 1) both; }
 @keyframes numPop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
+
+
+/* ===== 统计页打磨（2026-08-13）：A2 4 卡流光 / A4 最新点发光 ===== */
+/* A2 雷达/错因/习惯/任务 卡补流光描边（与热力图卡同款，全站语言统一） */
+.analysis-card::after, .reason-card::after, .habit-card::after, .quest-card::after {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.55) 80deg, transparent 170deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  opacity: 0; transition: opacity .2s ease; pointer-events: none; z-index: 1;
+}
+.analysis-card:hover::after, .reason-card:hover::after, .habit-card:hover::after, .quest-card:hover::after {
+  opacity: 1; animation: angSpin 2.2s linear infinite;
+}
+/* 卡片容器需 relative（流光 absolute 定位） */
+.analysis-card, .reason-card, .habit-card, .quest-card { position: relative; }
+
+/* A4 曲线最新点：放大 + 品牌光晕（一眼看到现在的水平） */
+.hist circle.latest {
+  r: 4;
+  fill: var(--brand);
+  stroke: var(--bg, #0b1020);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 5px rgba(91, 124, 250, 0.9));
+  transition: r .2s ease, filter .2s ease;
+}
+
+
+/* ===== 统计页打磨 B/C 组（2026-08-13）：今日呼吸 / 年份过渡 / 错因行 hover / 习惯数字 ===== */
+/* B1 今日格子：呼吸光晕（品牌光 2.4s 一圈，叠加现有 today outline） */
+.heat-cell.today { animation: heatToday 2.4s ease-in-out infinite; }
+@keyframes heatToday {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(91, 124, 250, 0.35); }
+  50% { box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.55); }
+}
+
+/* B2 年份切换：淡出 → 数据回来淡入 */
+.heat-flex { transition: opacity .25s ease; }
+.heat-flex.fading { opacity: 0; }
+
+/* C1 错因行 hover：亮底 + 条微亮 */
+.rc-row {
+  transition: background .15s ease;
+  border-radius: 8px; padding: 6px 8px; margin: 0 -8px;
+}
+.rc-row:hover { background: rgba(91, 124, 250, 0.07); }
+.rc-row:hover .rc-fill { filter: brightness(1.3); }
+
+/* C2 学习习惯数字：渐变 + 弹入（KPI 同语言） */
+.habit-value {
+  background: linear-gradient(180deg, #f4f7ff, #a9b6da);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  animation: numPop .45s cubic-bezier(.2, .7, .3, 1) both;
+}
+[data-theme="light"] .habit-value { background: linear-gradient(180deg, #1f2937, #64748b); -webkit-background-clip: text; background-clip: text; }
+.habit-value .unit { -webkit-text-fill-color: var(--muted); }
 
 </style>
