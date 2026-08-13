@@ -294,7 +294,7 @@ const achPoints = computed(() => achievements.value.filter(a => a.got).reduce((s
 const achLv = computed(() => achLevel(achPoints.value))
 const achPct = computed(() => achievements.value.length ? Math.round((unlockedCount.value / achievements.value.length) * 100) : 0)
 // 系列折叠状态（默认全部展开）
-const achOpen = ref(new Set()) // 勋章墙：系列默认折叠，点开只看已解锁的
+const achOpen = ref(new Set(ACH_SERIES.map(x => x.key))) // 勋章墙：系列默认展开（图标墙低密度）
 function toggleAchSeries(key) {
   const s = new Set(achOpen.value)
   if (s.has(key)) s.delete(key); else s.add(key)
@@ -409,22 +409,14 @@ onMounted(async () => {
           <span class="ach-series-prog">{{ sr.got }}/{{ sr.total }}</span>
           <span class="ach-series-arrow" :class="{ open: achOpen.has(sr.key) }">▾</span>
         </div>
-        <div v-show="achOpen.has(sr.key)" class="ach-grid">
-          <div v-if="!sr.list.filter(a => a.got).length" class="ach-series-empty">该系列还没有解锁的成就</div>
-          <div
-            v-for="a in sr.list.filter(a => a.got)"
-            :key="a.key"
-            class="ach"
-            :class="{ got: a.got }"
-          >
-            <div class="ach-head">
-              <span class="ach-icon">{{ a.icon }}</span>
-              <span class="ach-name">{{ a.name }}</span>
-              <span class="ach-pct done">{{ a.unlockAt || '已解锁' }}</span>
-            </div>
-            <span class="ach-desc">{{ a.desc }}</span>
-            <div class="ach-bar">
-              <div class="ach-fill done" style="width:100%"></div>
+        <div v-show="achOpen.has(sr.key)" class="medal-grid">
+          <div v-for="(a, i) in sr.list" :key="a.key" class="medal" :class="{ got: a.got }" :style="{ animationDelay: (i * 0.04) + 's' }">
+            <span class="medal-icon">{{ a.icon }}</span>
+            <div class="medal-tip">
+              <b>{{ a.name }}</b>
+              <span v-if="a.got" class="mt-date">{{ a.unlockAt || '已解锁' }} 解锁</span>
+              <span v-else class="mt-lock">未解锁</span>
+              <i>{{ a.desc }}</i>
             </div>
           </div>
         </div>
@@ -1141,5 +1133,60 @@ onMounted(async () => {
 
 /* 勋章墙瘦身（2026-08-13）：系列空态小字 */
 .ach-series-empty { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); text-align: center; padding: 8px 0; opacity: .7; }
+
+
+/* ===== 勋章墙（2026-08-13）：图标 + hover 浮层 + 滑过动效 ===== */
+.medal-grid { display: flex; flex-wrap: wrap; gap: 10px; padding: 6px 2px 4px; }
+.medal {
+  position: relative;
+  width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  animation: medalIn .4s cubic-bezier(.2, .7, .3, 1) both;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.medal-icon { font-size: 20px; line-height: 1; filter: grayscale(1) brightness(.55); opacity: .5; transition: filter .18s ease, opacity .18s ease, transform .18s ease; }
+.medal.got {
+  background: radial-gradient(circle at 32% 28%, rgba(91, 124, 250, 0.28), rgba(122, 92, 255, 0.12) 65%);
+  border-color: rgba(91, 124, 250, 0.45);
+  box-shadow: 0 0 10px rgba(91, 124, 250, 0.25), inset 0 0 8px rgba(91, 124, 250, 0.15);
+}
+.medal.got .medal-icon { filter: none; opacity: 1; }
+.medal:hover { transform: translateY(-3px) scale(1.12); z-index: 5; }
+.medal:hover .medal-icon { transform: rotate(-8deg) scale(1.1); }
+.medal.got:hover {
+  box-shadow: 0 0 18px rgba(91, 124, 250, 0.5), 0 0 0 1px rgba(91, 124, 250, 0.6);
+  animation: medalWiggle .5s ease; /* 滑过摆一下（re-hover 重播） */
+}
+@keyframes medalWiggle {
+  0%, 100% { transform: translateY(-3px) scale(1.12) rotate(0); }
+  30% { transform: translateY(-3px) scale(1.12) rotate(-8deg); }
+  60% { transform: translateY(-3px) scale(1.12) rotate(6deg); }
+}
+@keyframes medalIn { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
+
+/* hover 浮层详情 */
+.medal-tip {
+  position: absolute; bottom: calc(100% + 10px); left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  width: 190px;
+  background: #1c2434; border: 1px solid rgba(91, 124, 250, 0.4);
+  border-radius: 10px; padding: 8px 10px;
+  opacity: 0; pointer-events: none; z-index: 20;
+  transition: opacity .15s ease, transform .15s ease;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
+  text-align: left;
+}
+.medal:hover .medal-tip { opacity: 1; transform: translateX(-50%) translateY(0); }
+.medal-tip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #1c2434; }
+.medal-tip b { display: block; font-size: 12.5px; color: #dfe7fa; margin-bottom: 3px; }
+.medal-tip .mt-date { font-size: 10.5px; color: #4fd1a5; }
+.medal-tip .mt-lock { font-size: 10.5px; color: var(--muted); }
+.medal-tip i { display: block; font-style: normal; font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+[data-theme="light"] .medal-tip { background: #fff; border-color: rgba(61, 91, 217, 0.35); }
+[data-theme="light"] .medal-tip::after { border-top-color: #fff; }
+[data-theme="light"] .medal-tip b { color: #1f2937; }
 
 </style>
