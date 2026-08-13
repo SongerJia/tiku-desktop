@@ -78,12 +78,7 @@ const graphNodeIds = computed(() => new Set(graphNodes.value.map(n => n.id)))
 const graphLinks = computed(() => graph.value.links.filter(l => graphNodeIds.value.has(l.from_doc_id) && graphNodeIds.value.has(l.to_doc_id)))
 
 // 图谱节点着色（2026-08-13）：按科目/章节维度切换 + 色板 hash 分配 + 图例。
-// 标签不参与着色（砍掉）：标签价值由顶部标签筛选承担（筛标签 → 图谱联动过滤，比着色更准）
-const GRAPH_DIMS = [
-  { key: 'subject', label: '按科目' },
-  { key: 'category', label: '按章节' }
-]
-const graphColorDim = ref('subject')
+// 图谱节点着色（2026-08-13 简化）：固定按章节着色，无章节节点灰色；不提供维度切换（顶部科目上下文已定范围）
 const GRAPH_COLORS = ['#5b7cfa', '#2fbf8f', '#ffb84d', '#e5535f', '#c084fc', '#38bdf8', '#f472b6', '#a3e635']
 function colorKey(v) {
   let h = 0
@@ -91,15 +86,10 @@ function colorKey(v) {
   return GRAPH_COLORS[h % GRAPH_COLORS.length]
 }
 function nodeDimKey(node) {
-  if (graphColorDim.value === 'subject') return node.subjectId ? 's' + node.subjectId : ''
   return node.categoryId ? 'c' + node.categoryId : ''
 }
 function nodeDimName(key) {
   if (!key) return '未分类'
-  if (graphColorDim.value === 'subject') {
-    const s = subjects.value.find(x => String(x.id) === key.slice(1))
-    return s ? s.name : key.slice(1)
-  }
   return catNameMap.value[key.slice(1)] || ('章节 #' + key.slice(1))
 }
 function nodeColor(node) {
@@ -464,22 +454,13 @@ function fmtTime(ts) {
         <span class="graph-hint">滚轮缩放 · 拖拽平移 · 点击节点打开文档</span>
         <button class="g-full" @click="graphFull = true">⛶ 全屏</button>
       </div>
-      <!-- 着色维度切换 + 图例（2026-08-13） -->
+      <!-- 图例：按章节着色，无章节节点灰色 -->
       <div class="graph-legend">
-        <div class="graph-seg">
-          <button
-            v-for="dim in GRAPH_DIMS"
-            :key="dim.key"
-            class="g-dim"
-            :class="{ on: graphColorDim === dim.key }"
-            @click="graphColorDim = dim.key"
-          >{{ dim.label }}</button>
-        </div>
         <div class="g-legend-items">
           <span v-for="(item, i) in graphLegend" :key="i" class="g-legend-item">
             <i :style="{ background: item.color }"></i>{{ item.name }}
           </span>
-          <span v-if="!graphLegend.length" class="g-legend-item muted">文档未设置科目/章节/标签 → 节点为灰色 · 在文档卡「标签/改名/移动」里设置后可着色</span>
+          <span v-if="!graphLegend.length" class="g-legend-item muted">文档未设置章节 → 节点为灰色 · 在文档卡「标签/改名/科目」里设置后可着色</span>
         </div>
       </div>
       <!-- 画布：滚轮缩放 + 拖拽平移 -->
@@ -488,6 +469,7 @@ function fmtTime(ts) {
           :style="{ transform: `scale(${graphZoom}) translate(${graphPan.x}px, ${graphPan.y}px)`, transformOrigin: '0 0' }">
           <line v-for="(e, i) in gEdges" :key="'e' + i" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2" class="g-edge"/>
           <g v-for="n in graphNodes" :key="n.id" class="g-node" @click="openGraphDoc(n)">
+            <title>{{ n.title }}</title>
             <circle :cx="gPos[n.id].x" :cy="gPos[n.id].y" :r="nodeRadius(n)" :fill="nodeColor(n)"/>
             <text :x="gPos[n.id].x" :y="gPos[n.id].y + 16" class="g-label">{{ shortTitle(n.title) }}</text>
           </g>
@@ -517,6 +499,7 @@ function fmtTime(ts) {
               :style="{ transform: `scale(${graphZoom}) translate(${graphPan.x}px, ${graphPan.y}px)`, transformOrigin: '0 0' }">
               <line v-for="(e, i) in gEdges" :key="'e' + i" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2" class="g-edge"/>
               <g v-for="n in graphNodes" :key="n.id" class="g-node" @click="openGraphDoc(n)">
+                <title>{{ n.title }}</title>
                 <circle :cx="gPos[n.id].x" :cy="gPos[n.id].y" :r="nodeRadius(n)" :fill="nodeColor(n)"/>
                 <text :x="gPos[n.id].x" :y="gPos[n.id].y + 16" class="g-label gf-label">{{ shortTitle(n.title) }}</text>
               </g>
@@ -853,10 +836,6 @@ function fmtTime(ts) {
 
 /* 图谱：维度 seg + 图例 */
 .graph-legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
-.graph-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.g-dim { padding: 3px 10px; font-size: 11px; background: transparent; border: none; color: var(--muted); cursor: pointer; }
-.g-dim + .g-dim { border-left: 1px solid var(--line); }
-.g-dim.on { background: rgba(91, 124, 250, 0.15); color: #93b1ff; font-weight: 600; }
 .g-legend-items { display: flex; gap: 10px; flex-wrap: wrap; }
 .g-legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
 .g-legend-item i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
