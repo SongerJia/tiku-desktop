@@ -397,7 +397,7 @@ function gotoAch() {
 }
 
 // 页面分组折叠：勋章墙默认展开，其余收起（避免平铺过长）
-const secOpen = ref({ learn: false, goals: false, prefs: false, sync: false, data: false, misc: false })
+const secOpen = ref({ learn: false, goals: false, prefs: false, sync: false, data: false, bank: false, misc: false })
 function toggleSec(k) {
   secOpen.value[k] = !secOpen.value[k]
 }
@@ -687,6 +687,33 @@ onMounted(async () => {
       </div>
     </div>
 
+    <!-- 题库 -->
+    <div class="sec">
+      <div class="sec-head" @click="toggleSec('bank')">
+        <span class="sec-icon sec-icon-bank"><Icon name="doc" :size="16" /></span>
+        <span class="sec-title">题库</span>
+        <span class="sec-arrow" :class="{ open: secOpen.bank }"><Icon name="chevron-down" :size="14" /></span>
+      </div>
+      <div v-show="secOpen.bank" class="sec-body">
+
+    <!-- 题库管理（内容资产：导入/录题/科目组织） -->
+    <div class="card">
+      <div class="card-title">题库</div>
+      <div class="list-item highlight" @click="emit('open-bank')">
+        <span class="title">题库管理</span>
+        <span class="sub">导入 Excel/CSV · 录题 · 编辑删除</span>
+        <span class="arrow">›</span>
+      </div>
+      <div class="list-item" @click="showCats = true">
+        <span class="title">科目管理</span>
+        <span class="sub">新建 / 改名 / 删除科目与章节</span>
+        <span class="arrow">›</span>
+      </div>
+    </div>
+
+      </div>
+    </div>
+
     <!-- 数据 -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('data')">
@@ -695,17 +722,6 @@ onMounted(async () => {
         <span class="sec-arrow" :class="{ open: secOpen.data }"><Icon name="chevron-down" :size="14" /></span>
       </div>
       <div v-show="secOpen.data" class="sec-body">
-
-
-    <!-- 题库管理 -->
-    <div class="card">
-      <div class="card-title">题库</div>
-      <div class="list-item highlight" @click="emit('open-bank')">
-        <span class="title">题库管理</span>
-        <span class="sub">导入 Excel/CSV · 录题 · 编辑删除</span>
-        <span class="arrow">›</span>
-      </div>
-    </div>
 
 
     <!-- 数据导入导出 -->
@@ -723,11 +739,6 @@ onMounted(async () => {
       <div class="list-item" @click="showBackup = true">
         <span class="title">备份管理</span>
         <span class="sub">自动备份列表 · 一键恢复</span>
-        <span class="arrow">›</span>
-      </div>
-      <div class="list-item" @click="showCats = true">
-        <span class="title">科目管理</span>
-        <span class="sub">新建 / 改名 / 删除科目与章节</span>
         <span class="arrow">›</span>
       </div>
       <div class="list-item" @click="cleanupImages">
@@ -895,6 +906,7 @@ onMounted(async () => {
 .sec-icon-prefs   { background: rgba(91, 124, 250, 0.14);  color: var(--brand); }
 .sec-icon-sync    { background: rgba(34, 211, 238, 0.14);  color: #22d3ee; }
 .sec-icon-data    { background: rgba(251, 191, 36, 0.14);  color: #fbbf24; }
+.sec-icon-bank    { background: rgba(139, 92, 246, 0.14);  color: #8b5cf6; }
 .sec-icon-misc    { background: rgba(251, 113, 133, 0.14); color: #fb7185; }
 .sec-icon-chapter { background: rgba(251, 191, 36, 0.14);  color: #fbbf24; }
 .sec-icon-about   { background: rgba(148, 163, 184, 0.16); color: var(--muted); }
