@@ -158,6 +158,8 @@ function typeLabel(t) {
   color: var(--text);
   cursor: pointer;
   transition: all .2s;
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
+  line-height: 1.5;
 }
 .filter-chip:hover { border-color: var(--brand); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); }
 .filter-chip.active {

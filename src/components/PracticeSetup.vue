@@ -329,6 +329,7 @@ function confirm() {
   background: rgba(255, 255, 255, 0.03);
   border-radius: 10px;
   padding: 9px 10px;
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
   cursor: pointer;
   color: var(--text, #d6e2f5);
   transition: all .18s;

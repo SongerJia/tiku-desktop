@@ -294,7 +294,7 @@ watch(scope, () => { if (props.show) load() })
 .mem-badge.mid { background: rgba(91, 124, 250, 0.15); border: 1px solid rgba(91, 124, 250, 0.5); color: #85b7eb; }
 .mem-badge.warn { background: rgba(217, 154, 61, 0.12); border: 1px solid rgba(217, 154, 61, 0.45); color: #ef9f27; }
 .mem-badge.new { background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.35); color: #b4b2a9; }
-.cat-badge { font-size: 10px; color: var(--brand); border: 1px solid rgba(91, 124, 250, 0.35); border-radius: 5px; padding: 0 6px; }
+.cat-badge { font-size: 10px; color: var(--brand); border: 1px solid rgba(91, 124, 250, 0.35); border-radius: 5px; padding: 0 6px; font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif; }
 .cat-badge.uncat { color: var(--muted); border-color: var(--line); }
 /* 记忆卡范围角标（点击切换全部/当前科目） */
 .card-scope {

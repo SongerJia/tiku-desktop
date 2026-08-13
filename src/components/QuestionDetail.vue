@@ -237,6 +237,8 @@ function showToast(msg, type) {
   font-size: 12px; padding: 4px 12px; border-radius: 11px;
   background: rgba(91, 124, 250, 0.12); border: 1px solid rgba(91, 124, 250, 0.35);
   color: #93b1ff;
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
+  line-height: 1.5;
 }
 
 .qd-status { display: flex; gap: 8px; flex-wrap: wrap; }

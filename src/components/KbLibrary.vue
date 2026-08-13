@@ -642,6 +642,8 @@ function fmtTime(ts) {
   border: 1px solid var(--line); border-radius: 12px;
   background: rgba(91, 124, 250, 0.08);
   padding: 4px 12px; display: inline-flex; align-items: center; gap: 4px;
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
+  line-height: 1.5;
 }
 .kb-tag-row .filter-chip:hover, .kb-scope-line .filter-chip:hover {
   border-color: var(--brand); background: rgba(91, 124, 250, 0.16);
@@ -708,8 +710,12 @@ function fmtTime(ts) {
   padding: 1px 8px;
   background: rgba(91, 124, 250, 0.08);
   cursor: pointer;
+  /* 中英混排基线对齐：中文字体优先，英文/数字不再回退到 Segoe UI（基线不同会错位） */
+  font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
+  line-height: 1.5;
 }
 .q-tag:hover { border-color: var(--brand); }
+.q-tag svg { vertical-align: -2px; }
 .kb-meta { font-size: 12px; color: var(--muted); }
 .kb-actions { display: flex; gap: 10px; margin-top: auto; }
 .kb-act {
