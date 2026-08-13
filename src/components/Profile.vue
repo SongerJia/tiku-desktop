@@ -305,11 +305,15 @@ const achSeries = computed(() => ACH_SERIES.map(sr => {
   const list = achievements.value.filter(a => a.series === sr.key)
   return { ...sr, list, got: list.filter(a => a.got).length, total: list.length }
 }).filter(s => s.list.length))
-// 最近解锁（成就墙高亮：按解锁日期最新 4 个，替代 toast 一闪而过）
-const recentUnlocked = computed(() => achievements.value
-  .filter(a => a.got && a.unlockAt)
-  .sort((a, b) => String(b.unlockAt).localeCompare(String(a.unlockAt)))
-  .slice(0, 4))
+// NEW 角标：3 天内解锁的成就标记（替代'最近解锁'横条，信息融进勋章墙零占地）
+const isNewAch = (a) => {
+  if (!a.got || !a.unlockAt) return false
+  const t = new Date(String(a.unlockAt).slice(0, 10) + 'T00:00:00').getTime()
+  if (!t) return false
+  const now = new Date(); now.setHours(0, 0, 0, 0)
+  const diff = now.getTime() - t
+  return diff >= 0 && diff <= 3 * 86400000
+}
 
 // ---- 知识库概览（kbStats）----
 const kbStats = ref(null)
@@ -392,14 +396,6 @@ onMounted(async () => {
         <span class="ach-sum-ring" :style="{ background: `conic-gradient(var(--brand) ${achPct * 3.6}deg, var(--line) 0deg)` }"></span>
       </div>
 
-      <!-- 最近解锁（高亮条） -->
-      <div v-if="recentUnlocked.length" class="ach-recent">
-        <div v-for="a in recentUnlocked" :key="'recent' + a.key" class="ach-recent-item">
-          <span class="ari-icon">{{ a.icon }}</span>
-          <span class="ari-name">{{ a.name }}</span>
-          <span class="ari-date">{{ (a.unlockAt || '').slice(5).replace('-', '/') }} 解锁</span>
-        </div>
-      </div>
 
       <!-- 系列分组 -->
       <div v-for="sr in achSeries" :key="sr.key" class="ach-series">
@@ -412,6 +408,7 @@ onMounted(async () => {
         <div v-show="achOpen.has(sr.key)" class="medal-grid">
           <div v-for="(a, i) in sr.list" :key="a.key" class="medal" :class="{ got: a.got }" :style="{ animationDelay: (i * 0.04) + 's' }">
             <span class="medal-icon">{{ a.icon }}</span>
+            <span v-if="isNewAch(a)" class="medal-new">NEW</span>
             <div class="medal-tip">
               <b>{{ a.name }}</b>
               <span v-if="a.got" class="mt-date">{{ a.unlockAt || '已解锁' }} 解锁</span>
@@ -1158,5 +1155,19 @@ onMounted(async () => {
 [data-theme="light"] .medal-tip { background: #fff; border-color: rgba(61, 91, 217, 0.35); }
 [data-theme="light"] .medal-tip::after { border-top-color: #fff; }
 [data-theme="light"] .medal-tip b { color: #1f2937; }
+
+
+/* NEW 角标：3 天内解锁的金色角标（弹跳出现） */
+.medal-new {
+  position: absolute; top: -5px; right: -6px;
+  font-size: 8.5px; font-weight: 700; letter-spacing: .3px;
+  color: #1a1205;
+  background: linear-gradient(135deg, #ffd76a, #f5a623);
+  border-radius: 7px; padding: 1px 5px;
+  box-shadow: 0 2px 6px rgba(245, 166, 35, 0.5);
+  animation: newPop .5s cubic-bezier(.2, .7, .3, 1) both;
+  pointer-events: none;
+}
+@keyframes newPop { from { opacity: 0; transform: scale(.4); } 70% { transform: scale(1.2); } to { opacity: 1; transform: scale(1); } }
 
 </style>
