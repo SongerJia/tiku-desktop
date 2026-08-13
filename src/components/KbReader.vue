@@ -1154,4 +1154,12 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
   font-weight: 600;
 }
 
+
+/* ===== 阅读页特效（2026-08-13）：正文聚焦光（极淡，不干扰阅读） ===== */
+.kb-main {
+  background:
+    radial-gradient(900px 480px at 50% -4%, rgba(91, 124, 250, 0.05), transparent 62%),
+    transparent;
+}
+
 </style>

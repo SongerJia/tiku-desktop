@@ -190,12 +190,15 @@ const gPos = computed(() => {
   }
   return cachedPos
 })
-// 节点大小按连接数（枢纽一眼可见）：r = 基础 + 度映射
+// 节点度数（连接数）→ 大小（枢纽一眼可见）+ hub 呼吸光晕判定
+const nodeDeg = (node) => graphLinks.value.filter(l => l.from_doc_id === node.id || l.to_doc_id === node.id).length
 const nodeRadius = (node) => {
-  const deg = graphLinks.value.filter(l => l.from_doc_id === node.id || l.to_doc_id === node.id).length
+  const deg = nodeDeg(node)
   const base = node.type === 'pdf' ? 7 : 5.5
   return Math.min(13, base + deg * 1.6)
 }
+// hover 节点 → 其相连边高亮（2026-08-13 特效⑦）
+const hoverNodeId = ref(null)
 const gEdges = computed(() => graphLinks.value.map(l => {
   const a = gPos.value[l.from_doc_id]
   const b = gPos.value[l.to_doc_id]
@@ -467,10 +470,14 @@ function fmtTime(ts) {
       <div class="graph-stage" @wheel.prevent="onGraphWheel" @mousedown.prevent="onGraphPanStart">
         <svg v-if="graphNodes.length" viewBox="0 0 320 240" class="graph-svg"
           :style="{ transform: `scale(${graphZoom}) translate(${graphPan.x}px, ${graphPan.y}px)`, transformOrigin: '0 0' }">
-          <line v-for="(e, i) in gEdges" :key="'e' + i" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2" class="g-edge"/>
-          <g v-for="n in graphNodes" :key="n.id" class="g-node" @click="openGraphDoc(n)">
+          <line v-for="(e, i) in gEdges" :key="'e' + i" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2" class="g-edge" pathLength="1"
+            :class="{ active: hoverNodeId && (e.from_doc_id === hoverNodeId || e.to_doc_id === hoverNodeId) }"
+            :style="{ animationDelay: (i * 0.03) + 's' }"/>
+          <g v-for="(n, i) in graphNodes" :key="n.id" class="g-node" @click="openGraphDoc(n)"
+            @mouseenter="hoverNodeId = n.id" @mouseleave="hoverNodeId = null"
+            :style="{ animationDelay: (i * 0.05) + 's' }">
             <title>{{ n.title }}</title>
-            <circle :cx="gPos[n.id].x" :cy="gPos[n.id].y" :r="nodeRadius(n)" :fill="nodeColor(n)"/>
+            <circle :cx="gPos[n.id].x" :cy="gPos[n.id].y" :r="nodeRadius(n)" :fill="nodeColor(n)" :class="{ hub: nodeDeg(n) >= 3 }"/>
             <text :x="gPos[n.id].x" :y="gPos[n.id].y + 16" class="g-label">{{ shortTitle(n.title) }}</text>
           </g>
         </svg>
@@ -497,10 +504,14 @@ function fmtTime(ts) {
           <div class="gf-stage" @wheel.prevent="onGraphWheel" @mousedown.prevent="onGraphPanStart">
             <svg v-if="graphNodes.length" viewBox="0 0 320 240" class="graph-svg gf-svg"
               :style="{ transform: `scale(${graphZoom}) translate(${graphPan.x}px, ${graphPan.y}px)`, transformOrigin: '0 0' }">
-              <line v-for="(e, i) in gEdges" :key="'e' + i" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2" class="g-edge"/>
-              <g v-for="n in graphNodes" :key="n.id" class="g-node" @click="openGraphDoc(n)">
+              <line v-for="(e, i) in gEdges" :key="'e' + i" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2" class="g-edge" pathLength="1"
+                :class="{ active: hoverNodeId && (e.from_doc_id === hoverNodeId || e.to_doc_id === hoverNodeId) }"
+                :style="{ animationDelay: (i * 0.03) + 's' }"/>
+              <g v-for="(n, i) in graphNodes" :key="n.id" class="g-node" @click="openGraphDoc(n)"
+                @mouseenter="hoverNodeId = n.id" @mouseleave="hoverNodeId = null"
+                :style="{ animationDelay: (i * 0.05) + 's' }">
                 <title>{{ n.title }}</title>
-                <circle :cx="gPos[n.id].x" :cy="gPos[n.id].y" :r="nodeRadius(n)" :fill="nodeColor(n)"/>
+                <circle :cx="gPos[n.id].x" :cy="gPos[n.id].y" :r="nodeRadius(n)" :fill="nodeColor(n)" :class="{ hub: nodeDeg(n) >= 3 }"/>
                 <text :x="gPos[n.id].x" :y="gPos[n.id].y + 16" class="g-label gf-label">{{ shortTitle(n.title) }}</text>
               </g>
             </svg>
@@ -907,5 +918,42 @@ function fmtTime(ts) {
 .gf-ctl { padding: 10px 16px; border-top: 1px solid var(--line); margin-top: 0; }
 @keyframes maskIn { from { opacity: 0 } to { opacity: 1 } }
 @keyframes riseIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
+
+
+/* ===== 知识库特效（2026-08-13）：流光描边/徽章弹/连线生长/节点渐显/hub 呼吸/边高亮 ===== */
+/* ① 文档卡 hover 流光描边（conic 光点沿边框旋转，首页同款；--ang 全局注册） */
+.kb-card::after {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit;
+  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.55) 60deg, transparent 130deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  padding: 1px;
+  opacity: 0; transition: opacity .2s ease; pointer-events: none; z-index: 1;
+}
+.kb-card:hover::after { opacity: 1; animation: angSpin 2.2s linear infinite; }
+/* ④ 类型徽章 hover 微弹 */
+.kb-type { transition: transform .15s ease; }
+.kb-card:hover .kb-type { transform: scale(1.08); }
+
+/* ② 图谱连线生长动画（pathLength=1 + dashoffset） */
+.g-edge {
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: drawEdge .9s cubic-bezier(.4, 0, .2, 1) forwards;
+  transition: stroke .2s ease, stroke-width .2s ease;
+}
+@keyframes drawEdge { to { stroke-dashoffset: 0; } }
+/* ⑦ hover 节点 → 相连边高亮 */
+.g-edge.active { stroke: var(--brand, #5b7cfa); stroke-width: 1.6; }
+
+/* ③ 节点入场渐显（依次点亮；不用 scale 避免 SVG 原点问题） */
+.g-node { animation: nodeFade .45s cubic-bezier(.2, .7, .3, 1) both; }
+@keyframes nodeFade { from { opacity: 0 } to { opacity: 1 } }
+/* ⑥ 枢纽节点（连接≥3）呼吸光晕 */
+.g-node circle { transition: r .12s ease, filter .15s ease; }
+.g-node circle.hub { animation: hubPulse 2.4s ease-in-out infinite; }
+@keyframes hubPulse {
+  0%, 100% { filter: drop-shadow(0 0 2px rgba(91, 124, 250, 0.4)); }
+  50% { filter: drop-shadow(0 0 8px rgba(91, 124, 250, 0.8)); }
+}
 
 </style>
