@@ -2,7 +2,7 @@
 import Icon from './Icon.vue'
 import CountUp from './CountUp.vue'
 import { showConfirm } from '../utils/confirm.js'
-import { evaluate, achLevel } from '../utils/achievements.js'
+import { evaluate, achLevel, ACH_SERIES } from '../utils/achievements.js'
 import { vTilt } from '../utils/tilt.js'
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { tiku } from '../api/tiku.js'
@@ -295,6 +295,20 @@ const achLv = computed(() => achLevel(achPoints.value))
 const achPct = computed(() => achievements.value.length ? Math.round((unlockedCount.value / achievements.value.length) * 100) : 0)
 // 勋章稀有度 class：已解锁 → 'got <rarity>'（驱动 --rr 配色），未解锁 → ''
 const medalCls = (a) => a.got ? 'got ' + (a.rarity || 'bronze') : ''
+// 每系列一枚代表勋章：已解锁 → 该系列最高稀有度（点亮版）；全未解锁 → 最低档铜（灰影圆）
+const RARITY_RANK = { bronze: 1, silver: 2, gold: 3, platinum: 4 }
+const seriesMedals = computed(() => {
+  if (!metrics.value) return []
+  return ACH_SERIES.map(sr => {
+    const list = achievements.value.filter(a => a.series === sr.key)
+    const unlocked = list.filter(a => a.got)
+    const best = unlocked.sort((a, b) => (RARITY_RANK[b.rarity] || 0) - (RARITY_RANK[a.rarity] || 0))[0]
+    const medal = best
+      ? { ...best }
+      : { key: sr.key + '-lock', name: sr.name, icon: sr.icon, series: sr.key, rarity: 'bronze', got: false, desc: '解锁该系列任一成就即可点亮' }
+    return { key: sr.key, series: sr, total: list.length, got: unlocked.length, medal }
+  })
+})
 // 勋章底形状（viewBox 100×100）：铜=圆、银=六边形、金=盾形、白金=八角星
 const BADGE_SHAPES = {
   bronze: 'M3 50 A47 47 0 1 0 97 50 A47 47 0 1 0 3 50 Z',
@@ -436,21 +450,20 @@ onMounted(async () => {
       </div>
 
 
-      <!-- 勋章墙：全部成就统一平铺，稀有度靠形状+配色，悬停看详情 -->
+      <!-- 勋章墙：每系列 1 枚代表勋章（未解锁=最低档灰影，已解锁=该系列最高档点亮） -->
       <div class="medal-grid">
-        <div v-for="(a, i) in achievements" :key="a.key" class="medal" :class="medalCls(a)" :style="{ animationDelay: (i * 0.03) + 's' }">
-          <svg v-if="a.got" class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(a.rarity)" /></svg>
-          <Icon :name="a.icon" :size="a.got ? 19 : 20" class="medal-icon" />
-          <span v-if="isNewAch(a)" class="medal-new">NEW</span>
+        <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal big-medal" :class="medalCls(sm.medal)" :style="{ animationDelay: (i * 0.05) + 's' }">
+          <svg v-if="sm.medal.got" class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(sm.medal.rarity)" /></svg>
+          <Icon :name="sm.medal.icon" :size="26" class="medal-icon" />
+          <span v-if="sm.medal.got && isNewAch(sm.medal)" class="medal-new">NEW</span>
           <div class="medal-tip">
-            <b>{{ a.name }}</b>
-            <span v-if="a.got" class="mt-date">{{ a.unlockAt || '已解锁' }} 解锁</span>
-            <span v-else class="mt-lock">未解锁</span>
-            <i>{{ a.desc }}</i>
+            <b>{{ sm.series.name }}</b>
+            <span class="mt-date">{{ sm.medal.got ? (sm.got + '/' + sm.total + ' · ' + sm.medal.name) : '未点亮' }}</span>
+            <i>{{ sm.medal.desc }}</i>
           </div>
         </div>
       </div>
-      <div v-if="!achievements.length" class="ach-empty">还没有成就数据，先刷几道题吧</div>
+      <div v-if="!seriesMedals.length" class="ach-empty">还没有成就数据，先刷几道题吧</div>
     </div>
       </div>
     </div>
@@ -1134,10 +1147,12 @@ onMounted(async () => {
 /* 稀有度配色（2026-08-13）：外层统一圆形徽章，--rr 驱动圆底/边框/光晕与图标色；内层形状作稀有度徽记 */
 .medal.got {
   --rr: 91, 124, 250;
-  background: radial-gradient(circle at 32% 28%, rgba(var(--rr), 0.20), rgba(var(--rr), 0.07) 70%);
-  border: 1.5px solid rgba(var(--rr), 0.5);
+  background:
+    radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.18), transparent 42%),
+    radial-gradient(circle at 35% 30%, rgba(var(--rr), 0.32), rgba(var(--rr), 0.10) 68%);
+  border: 2px solid rgba(var(--rr), 0.55);
   border-radius: 50%;
-  box-shadow: 0 0 8px rgba(var(--rr), 0.2);
+  box-shadow: 0 0 12px rgba(var(--rr), 0.28), inset 0 1px 4px rgba(255, 255, 255, 0.10);
 }
 .medal.got.bronze   { --rr: 184, 115, 51; }
 .medal.got.silver   { --rr: 159, 178, 192; }
@@ -1162,6 +1177,10 @@ onMounted(async () => {
   stroke-width: 2.5;
   stroke-linejoin: round;
 }
+/* 勋章墙代表勋章：加大到 56px，内层形状与浮层同步放大 */
+.big-medal { width: 56px; height: 56px; }
+.big-medal .medal-bg { inset: 14%; }
+.big-medal .medal-tip { width: 200px; }
 @keyframes medalWiggle {
   0%, 100% { transform: translateY(-3px) scale(1.12) rotate(0); }
   30% { transform: translateY(-3px) scale(1.12) rotate(-8deg); }
