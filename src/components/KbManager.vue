@@ -9,25 +9,42 @@
         </div>
 
         <div class="km-body">
-          <!-- 工具条 -->
+          <!-- 操作条 -->
           <div class="km-toolbar">
-            <input v-model="keyword" class="input km-search" placeholder="搜索文档标题（中英文均可）" />
-            <select v-model="subjectFilter" class="input km-folder">
+            <button class="btn btn-primary sm" @click="onImport">导入文档</button>
+            <span class="km-count">{{ filteredDocs.length }} / {{ docs.length }} 篇</span>
+          </div>
+
+          <!-- 筛选：科目 → 章节（联动）→ 搜索 -->
+          <div class="km-filters">
+            <select v-model="subjectFilter" class="input" @change="categoryFilter = ''">
               <option value="">全部科目</option>
               <option v-for="s in subjectOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
             </select>
-            <button class="btn btn-primary sm" @click="onImport">导入文档</button>
+            <select v-model="categoryFilter" class="input" :disabled="!filterChapters.length">
+              <option value="">全部章节</option>
+              <option v-for="c in filterChapters" :key="c.id" :value="c.id">{{ c.name }}</option>
+            </select>
+            <input v-model="keyword" class="input km-search" placeholder="搜索文档标题…" />
           </div>
 
           <!-- 列表 -->
           <div class="km-list">
             <div v-for="d in filteredDocs" :key="d.id" class="km-item">
-              <div class="km-main" @click="openDoc(d)">
+              <div class="km-top" @click="openDoc(d)">
                 <span class="km-ico"><Icon :name="d.type === 'pdf' ? 'doc' : 'note'" :size="15" /></span>
-                <div class="km-info">
-                  <span class="km-title">{{ d.title }}</span>
-                  <span class="km-sub">{{ posLabel(d) }}</span>
+                <span class="km-title">{{ d.title }}</span>
+                <span class="km-cat">{{ posLabel(d) }}</span>
+                <span class="km-spacer"></span>
+                <div class="km-ops" @click.stop>
+                  <button class="km-op" @click="openDoc(d)">打开</button>
+                  <button class="km-op" @click="startRename(d)">重命名</button>
+                  <button class="km-op" @click="startMove(d)">移动</button>
+                  <button class="km-op danger" @click="onDelete(d)">删除</button>
                 </div>
+              </div>
+
+              <div class="km-bottom">
                 <span class="km-meta">
                   <span :class="{ 'km-unread': !d.read_count }">{{ d.read_count ? '已读 ' + d.read_count + ' 次' : '未读' }}</span>
                   <i>·</i>
@@ -35,13 +52,6 @@
                   <i>·</i>
                   <span>{{ fmtTime(d.updated_at) }}</span>
                 </span>
-              </div>
-
-              <div class="km-ops">
-                <button class="km-op" @click="openDoc(d)">打开</button>
-                <button class="km-op" @click="startRename(d)">重命名</button>
-                <button class="km-op" @click="startMove(d)">移动</button>
-                <button class="km-op danger" @click="onDelete(d)">删除</button>
               </div>
 
               <!-- 行内重命名 -->
@@ -66,7 +76,7 @@
             </div>
 
             <div v-if="!filteredDocs.length" class="km-empty">
-              {{ keyword ? '没有匹配的文档，换个关键词试试' : (docs.length ? '当前文件夹没有文档' : '还没有文档，点击「导入文档」添加（md / pdf）') }}
+              {{ keyword ? '没有匹配的文档，换个关键词试试' : (docs.length ? '当前筛选没有文档' : '还没有文档，点击「导入文档」添加（md / pdf）') }}
             </div>
           </div>
         </div>
@@ -93,6 +103,7 @@ const docs = ref([])
 const subjects = ref({})
 const keyword = ref('')
 const subjectFilter = ref('')
+const categoryFilter = ref('')
 const renaming = ref(null)
 const renameVal = ref('')
 const moving = ref(null)
@@ -105,6 +116,7 @@ watch(() => props.show, async (v) => {
   if (!v) return
   keyword.value = ''
   subjectFilter.value = ''
+  categoryFilter.value = ''
   await load()
 })
 
@@ -127,6 +139,11 @@ function close() {
 
 // 科目列表（parent 为空的根节点）
 const subjectOptions = computed(() => Object.values(subjects.value).filter(n => !n.parent_id))
+// 筛选时选定科目的章节（联动下拉）
+const filterChapters = computed(() => {
+  const s = subjects.value[Number(subjectFilter.value)]
+  return (s && s.children) || []
+})
 // 移动时当前科目的章节
 const moveChapters = computed(() => {
   const s = subjects.value[Number(moveSubjectId.value)]
@@ -144,9 +161,11 @@ function posLabel(d) {
 const filteredDocs = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
   const sid = Number(subjectFilter.value)
+  const cid = Number(categoryFilter.value)
   return docs.value.filter(d => {
     if (kw && !String(d.title).toLowerCase().includes(kw)) return false
     if (sid && Number(d.subject_id) !== sid) return false
+    if (cid && Number(d.category_id) !== cid) return false
     return true
   })
 })
@@ -261,50 +280,57 @@ function fmtTime(ts) {
 .km-header .count { margin-left: auto; font-size: 12px; color: var(--muted); }
 
 .km-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* 操作条：导入 + 计数 */
 .km-toolbar {
-  display: flex; gap: 10px; padding: 12px 18px;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 18px 0;
+  flex-shrink: 0;
+}
+.km-count { font-size: 12px; color: var(--muted); }
+/* 筛选行：科目 → 章节（联动）→ 搜索 */
+.km-filters {
+  display: flex; gap: 10px; padding: 10px 18px 12px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
+.km-filters select { width: 150px; flex-shrink: 0; }
 .km-search { flex: 1; min-width: 0; }
-.km-folder { width: 150px; flex-shrink: 0; }
 
 .km-list { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 12px 16px; }
 .km-item {
   position: relative;
   border-bottom: 0.5px solid var(--line);
 }
-.km-main {
+/* 顶部行：图标 + 标题 + 位置 + 右侧操作（hover 显示） */
+.km-top {
   display: flex; align-items: center; gap: 10px;
-  padding: 11px 6px;
+  padding: 11px 6px 4px;
   cursor: pointer;
   border-radius: 8px;
 }
-.km-main:hover { background: var(--hover-bg); }
+.km-top:hover { background: var(--hover-bg); }
 .km-ico {
-  width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   background: rgba(91, 124, 250, 0.12); color: var(--brand);
 }
-.km-info { flex: 1; min-width: 0; }
 .km-title {
-  display: block; font-size: 13px; font-weight: 500; color: var(--text);
+  font-size: 13px; font-weight: 500; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex-shrink: 1;
 }
-.km-sub { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
-.km-meta {
-  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
-  font-size: 11.5px; color: var(--muted);
+.km-cat {
+  font-size: 11px; color: var(--muted);
+  background: var(--bg-soft); border: 1px solid var(--line);
+  border-radius: 999px; padding: 1px 8px;
+  flex-shrink: 0;
 }
-.km-meta i { font-style: normal; opacity: .5; }
-.km-unread { color: var(--brand); font-weight: 500; }
-
+.km-spacer { flex: 1; }
 .km-ops {
-  position: absolute; right: 6px; top: 8px;
-  display: flex; gap: 4px;
+  display: flex; gap: 4px; flex-shrink: 0;
   opacity: 0; transition: opacity .15s ease;
 }
-.km-item:hover .km-ops { opacity: 1; }
+.km-top:hover .km-ops { opacity: 1; }
 .km-op {
   border: 1px solid var(--line); background: var(--card-solid);
   border-radius: 6px; padding: 3px 9px;
@@ -312,6 +338,17 @@ function fmtTime(ts) {
 }
 .km-op:hover { color: var(--brand); border-color: var(--brand); }
 .km-op.danger:hover { color: #ff6b6b; border-color: #ff6b6b; }
+/* 底部行：统计信息右下角 */
+.km-bottom {
+  display: flex; justify-content: flex-end;
+  padding: 2px 6px 9px;
+}
+.km-meta {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--muted);
+}
+.km-meta i { font-style: normal; opacity: .5; }
+.km-unread { color: var(--brand); font-weight: 500; }
 
 .km-inline {
   display: flex; align-items: center; gap: 8px;
