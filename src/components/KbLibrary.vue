@@ -59,11 +59,11 @@ const graphNodes = computed(() => graph.value.nodes.slice(0, 40))
 const graphNodeIds = computed(() => new Set(graphNodes.value.map(n => n.id)))
 const graphLinks = computed(() => graph.value.links.filter(l => graphNodeIds.value.has(l.from_doc_id) && graphNodeIds.value.has(l.to_doc_id)))
 
-// 图谱节点着色（2026-08-13）：按科目/章节/标签维度切换 + 色板 hash 分配 + 图例
+// 图谱节点着色（2026-08-13）：按科目/章节维度切换 + 色板 hash 分配 + 图例。
+// 标签不参与着色（砍掉）：标签价值由顶部标签筛选承担（筛标签 → 图谱联动过滤，比着色更准）
 const GRAPH_DIMS = [
   { key: 'subject', label: '按科目' },
-  { key: 'category', label: '按章节' },
-  { key: 'tag', label: '按标签' }
+  { key: 'category', label: '按章节' }
 ]
 const graphColorDim = ref('subject')
 const GRAPH_COLORS = ['#5b7cfa', '#2fbf8f', '#ffb84d', '#e5535f', '#c084fc', '#38bdf8', '#f472b6', '#a3e635']
@@ -75,8 +75,7 @@ function colorKey(v) {
 }
 function nodeDimKey(node) {
   if (graphColorDim.value === 'subject') return node.subjectId ? 's' + node.subjectId : ''
-  if (graphColorDim.value === 'category') return node.categoryId ? 'c' + node.categoryId : ''
-  return node.tags && node.tags.length ? 't' + node.tags[0] : ''
+  return node.categoryId ? 'c' + node.categoryId : ''
 }
 function nodeDimName(key) {
   if (!key) return '未分类'
@@ -84,8 +83,7 @@ function nodeDimName(key) {
     const s = subjects.value.find(x => String(x.id) === key.slice(1))
     return s ? s.name : key.slice(1)
   }
-  if (graphColorDim.value === 'category') return catNameMap.value[key.slice(1)] || ('章节 #' + key.slice(1))
-  return key.slice(1)
+  return catNameMap.value[key.slice(1)] || ('章节 #' + key.slice(1))
 }
 function nodeColor(node) {
   const k = nodeDimKey(node)
