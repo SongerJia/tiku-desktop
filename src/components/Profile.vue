@@ -23,25 +23,22 @@ function forwardStart(payload) {
 
 const userName = ref('本地用户')
 const avatar = ref('') // 本地头像（base64，localStorage 存储，不进同步）
-const editingName = ref(false)
-const nameInput = ref('')
+const editOpen = ref(false) // 编辑资料弹窗
+const editName = ref('')
 const fileInput = ref(null)
 
-// 编辑名字：点击名字/✎ 进入内联输入，Enter/失焦保存，Esc 取消（本地设置存 user_name，随同步带走）
-async function startEdit() {
-  nameInput.value = userName.value
-  editingName.value = true
-  await nextTick()
-  const el = document.querySelector('.name-input')
-  if (el) el.focus()
+// 打开编辑资料弹窗（名字 + 头像统一在弹窗里编辑，避免内联输入/误触）
+function openEdit() {
+  editName.value = userName.value
+  editOpen.value = true
 }
-async function saveName() {
-  const v = nameInput.value.trim().slice(0, 20)
+async function saveEdit() {
+  const v = editName.value.trim().slice(0, 20)
   if (v && v !== userName.value) {
     userName.value = v
     try { await tiku.setSetting('user_name', v) } catch (e) { /* 保存失败不阻塞 */ }
   }
-  editingName.value = false
+  editOpen.value = false
 }
 // 换头像：本地图片 → canvas 居中裁切压缩 112px → localStorage（纯本地，不同步）
 function onPickAvatar(e) {
@@ -344,25 +341,19 @@ onMounted(async () => {
   <div class="profile">
     <!-- 用户信息 + XP 等级（紧凑右侧） -->
     <div class="card user-card" v-tilt="{ deg: 3 }">
-      <div class="avatar-wrap" @click="fileInput.click()" :title="avatar ? '更换头像' : '设置头像'">
+      <div class="avatar-wrap" @click="openEdit" title="编辑资料">
         <img v-if="avatar" :src="avatar" class="avatar-img" alt="头像" />
         <div v-else class="avatar">{{ userName.slice(0, 1) }}</div>
-        <div class="avatar-mask">
-          <span>更换</span>
-          <i v-if="avatar" class="avatar-clear" title="清除头像" @click.stop="clearAvatar">×</i>
-        </div>
+        <div class="avatar-mask"><span>编辑资料</span></div>
       </div>
-      <input ref="fileInput" type="file" accept="image/*" hidden @change="onPickAvatar" />
       <div class="user-info">
-        <div class="user-name" :class="{ editing: editingName }">
-          <input v-if="editingName" v-model="nameInput" class="name-input" maxlength="20" @keyup.enter="saveName" @keyup.esc="editingName = false" @blur="saveName" />
-          <template v-else>
-            <span class="user-name-text">{{ userName }}</span><span class="local-badge">本地</span><span class="edit-hint" @click="startEdit">✎</span>
-          </template>
+        <div class="user-name">
+          <span class="user-name-text">{{ userName }}</span><span class="local-badge">本地</span>
         </div>
         <div class="user-sub">数据只在本机 · 断网也能学</div>
       </div>
       <span class="user-aura"></span>
+      <span class="user-edit-btn" @click="openEdit" title="编辑资料">编辑 ✎</span>
     </div>
 
 
@@ -685,6 +676,35 @@ onMounted(async () => {
     <BackupModal :show="showBackup" @close="showBackup = false" />
     <CategoryManager :show="showCats" @close="showCats = false" />
   </div>
+
+    <!-- 编辑资料弹窗：名字 + 头像（Teleport，避免嵌父树干扰） -->
+    <Teleport to="body">
+      <div v-if="editOpen" class="ep-mask" @click.self="editOpen = false">
+        <div class="ep-panel">
+          <div class="ep-title">编辑资料</div>
+          <div class="ep-avatar-row">
+            <div class="ep-avatar" @click="fileInput.click()" title="点击更换头像">
+              <img v-if="avatar" :src="avatar" alt="头像" />
+              <span v-else>{{ userName.slice(0, 1) }}</span>
+              <div class="ep-avatar-hint">更换</div>
+            </div>
+            <div class="ep-avatar-acts">
+              <button class="btn btn-sm" @click="fileInput.click()">选择图片</button>
+              <button v-if="avatar" class="btn btn-sm ghost" @click="clearAvatar">清除头像</button>
+            </div>
+          </div>
+          <input ref="fileInput" type="file" accept="image/*" hidden @change="onPickAvatar" />
+          <div class="ep-field">
+            <label class="ep-label">名字</label>
+            <input v-model="editName" class="input" maxlength="20" placeholder="输入你的名字" @keyup.enter="saveEdit" />
+          </div>
+          <div class="ep-foot">
+            <button class="btn" @click="editOpen = false">取消</button>
+            <button class="btn btn-primary" @click="saveEdit">保存</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 </template>
 
 <style scoped>
@@ -1054,32 +1074,9 @@ onMounted(async () => {
   backdrop-filter: blur(2px);
 }
 .avatar-wrap:hover .avatar-mask { opacity: 1; }
-.avatar-clear {
-  position: absolute; top: -3px; right: -3px;
-  width: 16px; height: 16px; border-radius: 50%;
-  background: rgba(229, 83, 95, 0.9); color: #fff;
-  font-style: normal; font-size: 11px; line-height: 16px; text-align: center;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
-}
-.avatar-clear:hover { background: var(--bad); }
-
 /* 编辑入口：低调（✎ 低透明），hover 名字区才亮起 */
 .user-name { display: flex; align-items: center; gap: 6px; }
 .user-name-text { font-size: 16px; font-weight: 600; color: var(--text); }
-.edit-hint {
-  font-size: 13px; color: var(--muted);
-  opacity: .25; cursor: pointer;
-  transition: opacity .15s ease, transform .15s ease, color .15s ease;
-  user-select: none;
-}
-.user-name:hover .edit-hint { opacity: 1; color: var(--brand); transform: scale(1.15); }
-.name-input {
-  font-size: 15px; font-weight: 600; color: var(--text);
-  background: transparent; border: none;
-  border-bottom: 1px solid var(--brand);
-  outline: none; width: 120px; padding: 0 2px;
-}
-.user-name.editing .local-badge { display: none; }
 
 /* 右侧特效：数据能量环（conic 渐变旋转 + 中心呼吸光点，纯装饰不占数据） */
 .user-aura {
@@ -1102,5 +1099,53 @@ onMounted(async () => {
 @keyframes auraSpin { to { --ang: 360deg; } }
 @keyframes auraBreathe { 0%, 100% { opacity: .4; } 50% { opacity: 1; } }
 [data-theme="light"] .user-aura { opacity: .6; }
+
+
+/* ===== 编辑资料弹窗（2026-08-13）===== */
+.ep-mask {
+  position: fixed; inset: 0; z-index: 400;
+  background: rgba(2, 6, 16, 0.65);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  animation: maskIn .18s ease;
+}
+.ep-panel {
+  width: 360px; max-width: 92vw;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 18px 20px;
+  animation: riseIn .28s cubic-bezier(.2, .7, .3, 1) both;
+}
+.ep-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+.ep-avatar-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+.ep-avatar {
+  width: 64px; height: 64px; border-radius: 50%; position: relative;
+  cursor: pointer; overflow: hidden; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--brand), var(--brand2, #7a5cff));
+  color: #fff; font-size: 24px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.15);
+}
+.ep-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ep-avatar-hint {
+  position: absolute; inset: 0;
+  background: rgba(2, 6, 16, 0.5); color: #dfe7fa;
+  font-size: 11px; display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .15s ease;
+}
+.ep-avatar:hover .ep-avatar-hint { opacity: 1; }
+.ep-avatar-acts { display: flex; flex-direction: column; gap: 8px; }
+.ep-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.ep-label { font-size: 12px; color: var(--muted); }
+.ep-foot { display: flex; justify-content: flex-end; gap: 10px; }
+
+/* 用户卡编辑入口：低调小按钮（hover 卡片亮起） */
+.user-edit-btn {
+  position: absolute; right: 14px; bottom: 10px;
+  font-size: 10.5px; color: var(--muted);
+  opacity: .3; cursor: pointer; user-select: none;
+  transition: opacity .15s ease, color .15s ease;
+  padding: 2px 6px; border-radius: 6px;
+}
+.user-card:hover .user-edit-btn { opacity: .9; color: var(--brand); }
+[data-theme="light"] .ep-mask { background: rgba(20, 30, 50, 0.45); }
 
 </style>
