@@ -79,6 +79,7 @@ const ghLast = ref(0)
 const ghSyncing = ref(false)
 const ghResult = ref(null)
 const ghHasToken = ref(false)
+const showCfg = ref(false) // 已连接时表单收起，点「编辑配置」展开
 async function ghLoad() {
   try {
     const c = await tiku.ghGetConfig()
@@ -86,6 +87,7 @@ async function ghLoad() {
     ghOwner.value = c.owner
     ghRepo.value = c.repo
     ghLast.value = c.lastSync
+    showCfg.value = !c.hasToken // 未连接默认展开引导，已连接默认收起
   } catch (e) {}
 }
 async function ghTest() {
@@ -102,6 +104,7 @@ async function ghSave() {
   await tiku.ghSaveConfig({ token: ghToken.value, owner: ghOwner.value, repo: ghRepo.value })
   ghHasToken.value = ghHasToken.value || !!ghToken.value.trim()
   ghToken.value = '' // 不回显明文
+  showCfg.value = false // 保存成功收起表单
   showToast('仓库配置已保存', 'ok')
 }
 async function ghDoSync() {
@@ -111,9 +114,9 @@ async function ghDoSync() {
   ghSyncing.value = true
   try {
     const r = await tiku.ghSync()
-    ghResult.value = r
-    ghLast.value = Date.now()
     const failed = (r.failedKbUp || []).length + (r.failedKbDown || []).length + (r.failedImgUp || []).length + (r.failedImgDown || []).length
+    ghResult.value = { ...r, failedCount: failed }
+    ghLast.value = Date.now()
     let msg = `同步完成（数据 ${(r.dataBytes / 1024).toFixed(0)}KB · 图片 +${r.imgUp}/-${r.imgDown} · 文档 +${r.kbUp}/-${r.kbDown}）`
     if (r.merged && r.merged.conflicts) msg += ` · 冲突 ${r.merged.conflicts} 条已按时间戳覆盖`
     if (failed) msg += ` · ${failed} 个文件失败，下次同步重试`
@@ -624,30 +627,54 @@ onMounted(async () => {
       <div v-show="secOpen.sync" class="sec-body">
 
     <!-- GitHub 仓库同步（唯一后端：学习数据+题库+知识库文档+题目图片） -->
-    <div class="card">
-      <div class="card-title">云盘同步（GitHub 仓库）</div>
-      <p class="sync-tip">
-        用 GitHub 私有仓库同步<b>全部数据</b>（学习数据 + 题库 + 知识库文档 + 题目图片），跨 Windows / macOS / 安卓。
-        <br />Token 需有 <code>repo</code> 权限（GitHub → Settings → Developer settings → Personal access tokens）。<b>建议仓库设为 Private</b>（学习数据含个人隐私）。
-      </p>
-      <div v-if="ghHasToken && !ghToken" class="sync-row sub" style="margin:6px 0 8px">
-        <span class="sync-dot" style="background:var(--ok)"></span>
-        <span><b>Token 已配置</b>（留空保持不变，无需重新填写）</span>
+    <div class="card sync-card">
+      <!-- 状态头 -->
+      <div class="sync-status">
+        <span class="sync-status-dot" :class="{ on: ghHasToken }"></span>
+        <b>{{ ghHasToken ? '已连接' : '未连接' }}</b>
+        <span v-if="ghHasToken" class="sync-repo">{{ ghOwner }}/{{ ghRepo }}</span>
+        <span v-else class="sync-loc">数据只在本机</span>
+        <span class="sync-last">{{ fmtTime(ghLast) }}</span>
       </div>
-      <div class="wd-form">
-        <input v-model="ghToken" class="sync-input" type="password" :placeholder="ghHasToken ? 'Token 已配置（留空保持不变）' : 'GitHub Token（ghp_...，需 repo 权限）'" @keyup.enter="ghSave" />
-        <input v-model="ghOwner" class="sync-input" placeholder="仓库拥有者（GitHub 用户名）" @keyup.enter="ghSave" />
-        <input v-model="ghRepo" class="sync-input" placeholder="仓库名（如 tiku-assets）" @keyup.enter="ghSave" />
-        <div class="sync-actions">
-          <button class="btn" :disabled="ghSyncing" @click="ghTest">测试连接</button>
-          <button class="btn" :disabled="ghSyncing" @click="ghSave">保存配置</button>
-          <button class="btn btn-primary" :disabled="ghSyncing" @click="ghDoSync">
+
+      <!-- 已连接态：立即同步 + 结果三格 + 上次结果 -->
+      <template v-if="ghHasToken && !showCfg">
+        <div class="sync-actions-main">
+          <button class="btn btn-primary sync-btn-big" :disabled="ghSyncing" @click="ghDoSync">
             {{ ghSyncing ? '同步中…' : '立即同步' }}
           </button>
+          <span class="sync-edit" @click="showCfg = true">编辑配置</span>
         </div>
-        <div v-if="ghLast" class="sync-row sub">上次同步：{{ fmtTime(ghLast) }}</div>
-        <div v-if="ghResult" class="wd-result">
-          同步完成：数据 {{ (ghResult.dataBytes / 1024).toFixed(0) }}KB · 图片 +{{ ghResult.imgUp }}/-{{ ghResult.imgDown }} · 文档 +{{ ghResult.kbUp }}/-{{ ghResult.kbDown }}
+        <div v-if="ghResult" class="sync-metrics">
+          <div class="sync-metric"><b>{{ (ghResult.dataBytes / 1024).toFixed(0) }} KB</b><span>学习数据</span></div>
+          <div class="sync-metric"><b>+{{ ghResult.imgUp }}/-{{ ghResult.imgDown }}</b><span>题目图片</span></div>
+          <div class="sync-metric"><b>+{{ ghResult.kbUp }}/-{{ ghResult.kbDown }}</b><span>知识库文档</span></div>
+        </div>
+        <div v-if="ghResult && (ghResult.merged?.conflicts || ghResult.failedCount)" class="sync-note">
+          <template v-if="ghResult.merged?.conflicts">冲突 {{ ghResult.merged.conflicts }} 条已按时间戳覆盖</template>
+          <template v-if="ghResult.failedCount"> · {{ ghResult.failedCount }} 个文件失败，下次同步重试</template>
+        </div>
+      </template>
+
+      <!-- 配置表单（未连接引导 或 编辑配置展开） -->
+      <div v-show="!ghHasToken || showCfg" class="wd-form">
+        <p v-if="!ghHasToken" class="sync-tip">
+          用 GitHub 私有仓库同步<b>全部数据</b>（学习数据 + 题库 + 知识库文档 + 题目图片），跨 Windows / macOS / 安卓。
+          <br />Token 需有 <code>repo</code> 权限（GitHub → Settings → Developer settings → Personal access tokens）。<b>建议仓库设为 Private</b>（学习数据含个人隐私）。
+        </p>
+        <div v-if="ghHasToken && !ghToken" class="sync-row sub" style="margin:6px 0 8px">
+          <span class="sync-dot" style="background:var(--ok)"></span>
+          <span><b>Token 已配置</b>（留空保持不变，无需重新填写）</span>
+        </div>
+        <input v-model="ghToken" class="sync-input" type="password" :placeholder="ghHasToken ? 'Token 已配置（留空保持不变）' : 'GitHub Token（ghp_...，需 repo 权限）'" @keyup.enter="ghSave" />
+        <div class="sync-form-row">
+          <input v-model="ghOwner" class="sync-input" placeholder="仓库拥有者（GitHub 用户名）" @keyup.enter="ghSave" />
+          <input v-model="ghRepo" class="sync-input" placeholder="仓库名（如 tiku-assets）" @keyup.enter="ghSave" />
+        </div>
+        <div class="sync-actions">
+          <button class="btn btn-primary" :disabled="ghSyncing" @click="ghSave">{{ ghHasToken ? '保存配置' : '保存并连接' }}</button>
+          <button class="btn" :disabled="ghSyncing" @click="ghTest">测试连接</button>
+          <span v-if="ghHasToken" class="sync-cancel" @click="showCfg = false">取消</span>
         </div>
       </div>
     </div>
@@ -956,8 +983,48 @@ onMounted(async () => {
 }
 .list-item.danger .title { color: #ff6b6b; }
 
-/* 云同步卡片 */
-.wd-form { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+/* 云同步卡片（2026-08-13：连接状态卡） */
+.sync-card { border-color: rgba(34, 211, 238, 0.35); }
+.sync-status {
+  display: flex; align-items: center; gap: 8px;
+  padding-bottom: 12px; border-bottom: 1px solid var(--line);
+}
+.sync-status b { font-size: 14px; font-weight: 600; color: var(--text); }
+.sync-status-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+  background: var(--muted); opacity: .6;
+}
+.sync-status-dot.on { background: var(--ok); opacity: 1; box-shadow: 0 0 7px var(--ok); }
+.sync-repo { font-size: 12px; color: var(--muted); }
+.sync-loc { font-size: 12px; color: var(--muted); }
+.sync-last { margin-left: auto; font-size: 12px; color: var(--muted); }
+/* 已连接态：立即同步主按钮 + 编辑配置 */
+.sync-actions-main { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
+.sync-btn-big { flex: 1; padding: 11px 0; font-size: 14px; }
+.sync-edit { font-size: 12px; color: var(--brand); cursor: pointer; flex-shrink: 0; }
+.sync-edit:hover { text-decoration: underline; }
+/* 结果三格 */
+.sync-metrics {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line);
+}
+.sync-metric {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: var(--bg-soft); border: 1px solid var(--line); border-radius: 10px; padding: 10px 6px;
+}
+.sync-metric b {
+  font-size: 17px; font-weight: 700; color: var(--text);
+  background: var(--num-grad);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+}
+.sync-metric span { font-size: 11px; color: var(--muted); }
+/* 上次结果提示（冲突/失败） */
+.sync-note { font-size: 11.5px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+/* 表单行：拥有者/仓库名 并排 */
+.sync-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sync-cancel { font-size: 12px; color: var(--muted); cursor: pointer; align-self: center; }
+.sync-cancel:hover { color: var(--text); }
+.wd-form { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .wd-result { font-size: 12px; color: var(--ok); }
 .gh-title { margin-top: 14px; }
 .sync-connect { display: flex; flex-direction: column; gap: 10px; }
