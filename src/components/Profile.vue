@@ -334,7 +334,7 @@ function gotoAch() {
 const kbStats = ref(null)
 
 // 页面分组折叠：学习成长默认展开，其余收起（避免平铺过长）
-const secOpen = ref({ learn: true, goals: true, prefs: false, sync: false, misc: false })
+const secOpen = ref({ kb: true, learn: true, goals: true, prefs: false, sync: false, misc: false })
 function toggleSec(k) {
   secOpen.value[k] = !secOpen.value[k]
 }
@@ -392,28 +392,38 @@ onMounted(async () => {
 
 
 
-    <!-- 学习成长（知识库概览 + 成就） -->
+    <!-- 知识库（概览，点击进入全部科目管理） -->
+    <div class="sec">
+      <div class="sec-head" @click="toggleSec('kb')">
+        <span class="sec-icon sec-icon-kb"><Icon name="book" :size="16" /></span>
+        <span class="sec-title">知识库</span>
+        <span v-if="kbStats" class="sec-badge">{{ kbStats.docs }} 文档</span>
+        <span class="sec-arrow" :class="{ open: secOpen.kb }"><Icon name="chevron-down" :size="14" /></span>
+      </div>
+      <div v-show="secOpen.kb" class="sec-body">
+        <div v-if="kbStats" class="card kb-overview-card" v-tilt="{ deg: 3 }" @click="emit('goto-kb-all')">
+          <div class="card-title">知识库概览 <span class="kb-go">管理全部文档 ›</span></div>
+          <div class="kb-stats">
+            <div class="kb-stat"><b>{{ kbStats.docs }}</b><span>文档</span></div>
+            <div class="kb-stat"><b>{{ kbStats.blocks }}</b><span>文本块</span></div>
+            <div class="kb-stat"><b>{{ kbStats.links }}</b><span>题目联动</span></div>
+            <div class="kb-stat"><b>{{ kbStats.readCount }}</b><span>阅读次数</span></div>
+            <div class="kb-stat"><b>{{ kbStats.tags }}</b><span>标签</span></div>
+            <div class="kb-stat"><b>{{ kbStats.folders }}</b><span>文件夹</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 勋章墙（游戏化成就） -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('learn')">
         <span class="sec-icon sec-icon-learn"><Icon name="chart" :size="16" /></span>
-        <span class="sec-title">学习成长</span>
+        <span class="sec-title">勋章墙</span>
         <span class="sec-badge">{{ unlockedCount }} 成就</span>
         <span class="sec-arrow" :class="{ open: secOpen.learn }"><Icon name="chevron-down" :size="14" /></span>
       </div>
       <div v-show="secOpen.learn" class="sec-body">
-
-    <!-- 知识库概览（点击进入全部科目管理） -->
-    <div v-if="kbStats" class="card kb-overview-card" v-tilt="{ deg: 3 }" @click="emit('goto-kb-all')">
-      <div class="card-title">知识库概览 <span class="kb-go">管理全部文档 ›</span></div>
-      <div class="kb-stats">
-        <div class="kb-stat"><b>{{ kbStats.docs }}</b><span>文档</span></div>
-        <div class="kb-stat"><b>{{ kbStats.blocks }}</b><span>文本块</span></div>
-        <div class="kb-stat"><b>{{ kbStats.links }}</b><span>题目联动</span></div>
-        <div class="kb-stat"><b>{{ kbStats.readCount }}</b><span>阅读次数</span></div>
-        <div class="kb-stat"><b>{{ kbStats.tags }}</b><span>标签</span></div>
-        <div class="kb-stat"><b>{{ kbStats.folders }}</b><span>文件夹</span></div>
-      </div>
-    </div>
 
     <!-- 游戏化成就：概览条 + 系列分组 + 三态成就卡 -->
     <div class="card ach-card" v-tilt="{ deg: 3 }">
@@ -757,6 +767,7 @@ onMounted(async () => {
 }
 .sec-head:hover .sec-icon { transform: scale(1.06); }
 .sec-icon-learn   { background: rgba(47, 191, 143, 0.14);  color: var(--ok); }
+.sec-icon-kb      { background: rgba(34, 211, 238, 0.14);  color: #22d3ee; }
 .sec-icon-goals   { background: rgba(91, 124, 250, 0.14);  color: var(--brand); }
 .sec-icon-prefs   { background: rgba(91, 124, 250, 0.14);  color: var(--brand); }
 .sec-icon-sync    { background: rgba(34, 211, 238, 0.14);  color: #22d3ee; }
