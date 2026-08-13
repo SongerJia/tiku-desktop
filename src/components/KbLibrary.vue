@@ -102,17 +102,95 @@ const graphLegend = computed(() => {
   return [...seen.values()].slice(0, 8)
 })
 
-const gPos = computed(() => {
-  const n = graphNodes.value.length
-  const map = {}
-  graphNodes.value.forEach((node, i) => {
-    const cx = 160, cy = 110
-    const R = n > 12 ? 92 : 72
-    const ang = -Math.PI / 2 + (2 * Math.PI * i) / Math.max(1, n)
-    map[node.id] = { x: cx + R * Math.cos(ang), y: cy + R * Math.sin(ang) }
+// 力导向布局（2026-08-13）：Fruchterman-Reingold 冷却版（确定性，无随机）
+// - 斥力 k²/dist + 引力 dist²/k + 温度冷却位移限幅（防过冲）
+// - 硬分离（dist<14 直接推开）防重叠 + 墙斥力（靠边往里推）防挤死角落
+// - 固定环形初始 + 全确定性 → 每次打开布局一致不跳变
+function layoutForce(nodes, links, iterations = 100) {
+  if (!nodes.length) return {}
+  const pos = {}
+  const k = Math.sqrt((296 * 216) / Math.max(1, nodes.length))
+  nodes.forEach((node, i) => {
+    const ang = -Math.PI / 2 + (2 * Math.PI * i) / nodes.length
+    pos[node.id] = { x: 160 + 88 * Math.cos(ang), y: 110 + 70 * Math.sin(ang) }
   })
-  return map
+  const adj = new Map()
+  for (const l of links) {
+    if (!adj.has(l.from_doc_id)) adj.set(l.from_doc_id, new Set())
+    adj.get(l.from_doc_id).add(l.to_doc_id)
+  }
+  for (let it = 0; it < iterations; it++) {
+    const ids = Object.keys(pos)
+    const disp = {}
+    for (const id of ids) disp[id] = { x: 0, y: 0 }
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = pos[ids[i]], b = pos[ids[j]]
+        let dx = a.x - b.x, dy = a.y - b.y
+        let dist = Math.sqrt(dx * dx + dy * dy)
+        if (dist < 0.5) { dx = ((i * 37) % 9) - 4; dy = ((j * 53) % 9) - 4; dist = Math.hypot(dx, dy) || 1 }
+        // 硬分离：过近直接推开（防重叠）
+        if (dist < 14) {
+          const sep = (14 - dist) / 2 * 0.3
+          a.x += (dx / dist) * sep; a.y += (dy / dist) * sep
+          b.x -= (dx / dist) * sep; b.y -= (dy / dist) * sep
+          dist = 14
+        }
+        const f = (k * k) / dist
+        const fx = (dx / dist) * f, fy = (dy / dist) * f
+        disp[ids[i]].x += fx; disp[ids[i]].y += fy
+        disp[ids[j]].x -= fx; disp[ids[j]].y -= fy
+      }
+    }
+    // 引力：有链接的互相靠近
+    for (const [from, set] of adj) {
+      const a = pos[from], da = disp[from]
+      if (!a || !da) continue
+      for (const to of set) {
+        const b = pos[to], db = disp[to]
+        if (!b || !db) continue
+        const dx = b.x - a.x, dy = b.y - a.y
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1
+        const f = (dist * dist) / k
+        da.x -= (dx / dist) * f; da.y -= (dy / dist) * f
+        db.x += (dx / dist) * f; db.y += (dy / dist) * f
+      }
+    }
+    // 温度冷却 + 墙斥力（防挤死角落）
+    const temp = Math.max(1.2, 8 * (1 - it / iterations))
+    for (const id of ids) {
+      const d = disp[id]
+      const len = Math.hypot(d.x, d.y) || 1
+      let px = pos[id].x + (d.x / len) * Math.min(len, temp)
+      let py = pos[id].y + (d.y / len) * Math.min(len, temp)
+      const m = 16
+      if (px < 20 + m) px += (20 + m - px) * 0.18
+      if (px > 300 - m) px -= (px - (300 - m)) * 0.18
+      if (py < 20 + m) py += (20 + m - py) * 0.18
+      if (py > 220 - m) py -= (py - (220 - m)) * 0.18
+      pos[id].x = Math.max(20, Math.min(300, px))
+      pos[id].y = Math.max(20, Math.min(220, py))
+    }
+  }
+  return pos
+}
+// 节点位置缓存：节点集变化时重算一次（避免 computed 每帧重跑 80 轮迭代）
+let cachedNodes = null
+let cachedPos = null
+const gPos = computed(() => {
+  const key = graphNodes.value.map(n => n.id).join(',')
+  if (cachedNodes !== key) {
+    cachedNodes = key
+    cachedPos = layoutForce(graphNodes.value, graphLinks.value)
+  }
+  return cachedPos
 })
+// 节点大小按连接数（枢纽一眼可见）：r = 基础 + 度映射
+const nodeRadius = (node) => {
+  const deg = graphLinks.value.filter(l => l.from_doc_id === node.id || l.to_doc_id === node.id).length
+  const base = node.type === 'pdf' ? 7 : 5.5
+  return Math.min(13, base + deg * 1.6)
+}
 const gEdges = computed(() => graphLinks.value.map(l => {
   const a = gPos.value[l.from_doc_id]
   const b = gPos.value[l.to_doc_id]
@@ -129,7 +207,15 @@ function toggleGraph() {
   if (viewMode.value === 'graph') loadGraph()
 }
 async function loadGraph() {
-  try { graph.value = await tiku.getKbGraph() } catch (e) { graph.value = { nodes: [], links: [] } }
+  // 跟随顶部范围（科目/章节）+ 列表标签筛选（联动）
+  try {
+    graph.value = await tiku.getKbGraph({
+      subjectId: filterSubjectId.value,
+      tag: tagFilter.value || null
+    })
+  } catch (e) { graph.value = { nodes: [], links: [] } }
+  cachedNodes = null // 节点集变化 → 布局重算（力导向）
+  resetGraphView()
   // 章节名映射（图例用）：展平分类树 id → name（二级章节直接取，一级科目名拼接）
   try {
     const tree = await tiku.getCategories()
@@ -144,6 +230,46 @@ async function loadGraph() {
     catNameMap.value = flat
   } catch (e) { catNameMap.value = {} }
 }
+
+// 图谱缩放平移 + 全屏（2026-08-13，P0/P1）
+const graphZoom = ref(1)
+const graphPan = ref({ x: 0, y: 0 })
+const graphFull = ref(false)
+const ZOOM_MIN = 0.5, ZOOM_MAX = 2.5
+function resetGraphView() {
+  graphZoom.value = 1
+  graphPan.value = { x: 0, y: 0 }
+}
+function graphZoomBy(factor) {
+  graphZoom.value = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, +(graphZoom.value * factor).toFixed(2)))
+}
+function onGraphWheel(e) {
+  e.preventDefault()
+  graphZoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12)
+}
+let dragStart = null
+function onGraphPanStart(e) {
+  dragStart = { x: e.clientX - graphPan.value.x, y: e.clientY - graphPan.value.y }
+  window.addEventListener('mousemove', onGraphPanMove)
+  window.addEventListener('mouseup', onGraphPanEnd)
+}
+function onGraphPanMove(e) {
+  if (!dragStart) return
+  graphPan.value = { x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }
+}
+function onGraphPanEnd() {
+  dragStart = null
+  window.removeEventListener('mousemove', onGraphPanMove)
+  window.removeEventListener('mouseup', onGraphPanEnd)
+}
+
+// 图谱跟随：顶部切科目/章节 + 列表标签筛选 → 图谱刷新（联动）
+watch(() => props.subject.id, () => {
+  if (props.scope !== 'all' && viewMode.value === 'graph') loadGraph()
+})
+watch(tagFilter, () => {
+  if (viewMode.value === 'graph') loadGraph()
+})
 
 // 分组可折叠（2026-08-13）：点击分组头收起/展开
 const collapsedGroups = ref([])
@@ -328,7 +454,8 @@ function fmtTime(ts) {
     <!-- 知识互链图谱 -->
     <div v-if="viewMode === 'graph'" class="card graph-card">
       <div class="graph-title">知识互链图谱 · {{ graph.nodes.length }} 篇文档 / {{ graph.links.length }} 条互链
-        <span class="graph-hint">点击节点打开文档 · 在阅读页可建立文档互链</span>
+        <span class="graph-hint">滚轮缩放 · 拖拽平移 · 点击节点打开文档</span>
+        <button class="g-full" @click="graphFull = true">⛶ 全屏</button>
       </div>
       <!-- 着色维度切换 + 图例（2026-08-13） -->
       <div class="graph-legend">
@@ -348,15 +475,56 @@ function fmtTime(ts) {
           <span v-if="!graphLegend.length" class="g-legend-item muted">文档未设置科目/章节/标签 → 节点为灰色 · 在文档卡「标签/改名/移动」里设置后可着色</span>
         </div>
       </div>
-      <svg v-if="graphNodes.length" viewBox="0 0 320 240" class="graph-svg">
-        <line v-for="(e, i) in gEdges" :key="'e' + i" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2" class="g-edge"/>
-        <g v-for="n in graphNodes" :key="n.id" class="g-node" @click="openGraphDoc(n)">
-          <circle :cx="gPos[n.id].x" :cy="gPos[n.id].y" :r="n.type === 'pdf' ? 7 : 5.5" :fill="nodeColor(n)"/>
-          <text :x="gPos[n.id].x" :y="gPos[n.id].y + 16" class="g-label">{{ shortTitle(n.title) }}</text>
-        </g>
-      </svg>
-      <div v-else class="empty-sm">文档还不多，先导入几篇并在阅读页建立互链，图谱会自动生成</div>
+      <!-- 画布：滚轮缩放 + 拖拽平移 -->
+      <div class="graph-stage" @wheel.prevent="onGraphWheel" @mousedown.prevent="onGraphPanStart">
+        <svg v-if="graphNodes.length" viewBox="0 0 320 240" class="graph-svg"
+          :style="{ transform: `scale(${graphZoom}) translate(${graphPan.x}px, ${graphPan.y}px)`, transformOrigin: '0 0' }">
+          <line v-for="(e, i) in gEdges" :key="'e' + i" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2" class="g-edge"/>
+          <g v-for="n in graphNodes" :key="n.id" class="g-node" @click="openGraphDoc(n)">
+            <circle :cx="gPos[n.id].x" :cy="gPos[n.id].y" :r="nodeRadius(n)" :fill="nodeColor(n)"/>
+            <text :x="gPos[n.id].x" :y="gPos[n.id].y + 16" class="g-label">{{ shortTitle(n.title) }}</text>
+          </g>
+        </svg>
+        <div v-else class="empty-sm">文档还不多，先导入几篇并在阅读页建立互链，图谱会自动生成</div>
+      </div>
+      <!-- 缩放控制条 -->
+      <div class="graph-ctl">
+        <button class="g-ctl-btn" @click="graphZoomBy(1 / 1.2)" title="缩小">−</button>
+        <span class="g-zoom-pct">{{ Math.round(graphZoom * 100) }}%</span>
+        <button class="g-ctl-btn" @click="graphZoomBy(1.2)" title="放大">+</button>
+        <button v-if="graphZoom !== 1 || graphPan.x || graphPan.y" class="g-ctl-btn reset" @click="resetGraphView">复位</button>
+      </div>
     </div>
+
+    <!-- 全屏图谱（Teleport 弹层，复用缩放平移状态） -->
+    <Teleport to="body">
+      <div v-if="graphFull" class="gf-mask" @click.self="graphFull = false">
+        <div class="gf-panel">
+          <div class="gf-head">
+            <span class="gf-title">知识图谱 · 全屏</span>
+            <span class="gf-hint">滚轮缩放 · 拖拽平移</span>
+            <button class="gf-close" @click="graphFull = false">✕</button>
+          </div>
+          <div class="gf-stage" @wheel.prevent="onGraphWheel" @mousedown.prevent="onGraphPanStart">
+            <svg v-if="graphNodes.length" viewBox="0 0 320 240" class="graph-svg gf-svg"
+              :style="{ transform: `scale(${graphZoom}) translate(${graphPan.x}px, ${graphPan.y}px)`, transformOrigin: '0 0' }">
+              <line v-for="(e, i) in gEdges" :key="'e' + i" :x1="e.x1" :y1="e.y1" :x2="e.x2" :y2="e.y2" class="g-edge"/>
+              <g v-for="n in graphNodes" :key="n.id" class="g-node" @click="openGraphDoc(n)">
+                <circle :cx="gPos[n.id].x" :cy="gPos[n.id].y" :r="nodeRadius(n)" :fill="nodeColor(n)"/>
+                <text :x="gPos[n.id].x" :y="gPos[n.id].y + 16" class="g-label gf-label">{{ shortTitle(n.title) }}</text>
+              </g>
+            </svg>
+            <div v-else class="empty-sm">文档还不多，先导入几篇并在阅读页建立互链，图谱会自动生成</div>
+          </div>
+          <div class="graph-ctl gf-ctl">
+            <button class="g-ctl-btn" @click="graphZoomBy(1 / 1.2)">−</button>
+            <span class="g-zoom-pct">{{ Math.round(graphZoom * 100) }}%</span>
+            <button class="g-ctl-btn" @click="graphZoomBy(1.2)">+</button>
+            <button v-if="graphZoom !== 1 || graphPan.x || graphPan.y" class="g-ctl-btn reset" @click="resetGraphView">复位</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <SkeletonCards v-if="loading" :count="4" />
     <div v-else-if="!docs.length" class="empty card">
@@ -700,5 +868,60 @@ function fmtTime(ts) {
   border-radius: 8px; font-size: 12px; cursor: pointer; transition: border-color .15s;
 }
 .kb-more:hover { border-color: var(--warn, #ffb84d); }
+
+
+/* ===== 图谱优化（2026-08-13）：画布缩放平移 / 控制条 / 全屏 ===== */
+.graph-title { display: flex; align-items: center; gap: 8px; }
+.g-full {
+  margin-left: auto;
+  font-size: 11px; padding: 2px 10px; border-radius: 7px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03);
+  color: var(--muted); cursor: pointer; transition: all .15s;
+}
+.g-full:hover { border-color: var(--brand); color: var(--brand); }
+.graph-stage {
+  position: relative; overflow: hidden; border-radius: 10px;
+  cursor: grab; touch-action: none;
+  border: 1px solid var(--line);
+  background: radial-gradient(circle, rgba(91, 124, 250, 0.05), transparent 72%);
+}
+.graph-stage:active { cursor: grabbing; }
+.graph-svg { width: 100%; height: auto; display: block; }
+.graph-ctl { display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+.g-ctl-btn {
+  width: 26px; height: 26px; border-radius: 7px;
+  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04);
+  color: var(--text); font-size: 14px; cursor: pointer; line-height: 1;
+}
+.g-ctl-btn:hover { border-color: var(--brand); color: var(--brand); }
+.g-ctl-btn.reset { width: auto; padding: 0 10px; font-size: 12px; color: var(--warn); }
+.g-zoom-pct { font-size: 12px; color: var(--muted); min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* 全屏弹层 */
+.gf-mask {
+  position: fixed; inset: 0; z-index: 400;
+  background: rgba(2, 6, 16, 0.88);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  animation: maskIn .18s ease;
+}
+.gf-panel {
+  width: 94vw; height: 92vh;
+  background: var(--card-solid, #0b1020);
+  border: 1px solid var(--line); border-radius: 14px;
+  display: flex; flex-direction: column; overflow: hidden;
+  animation: riseIn .28s cubic-bezier(.2, .7, .3, 1) both;
+}
+.gf-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.gf-title { font-size: 14px; font-weight: 600; }
+.gf-hint { font-size: 11.5px; color: var(--muted); }
+.gf-close { margin-left: auto; font-size: 15px; color: var(--muted); cursor: pointer; background: none; border: none; }
+.gf-close:hover { color: var(--text); }
+.gf-stage { flex: 1; min-height: 0; position: relative; overflow: hidden; cursor: grab; touch-action: none; }
+.gf-stage:active { cursor: grabbing; }
+.gf-svg { width: 100%; height: 100%; }
+.gf-label { font-size: 12px; }
+.gf-ctl { padding: 10px 16px; border-top: 1px solid var(--line); margin-top: 0; }
+@keyframes maskIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes riseIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
 
 </style>

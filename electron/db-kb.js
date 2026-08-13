@@ -53,9 +53,18 @@ module.exports = function kbModule(ctx) {
     },
 
     // 知识库互链图谱：节点=文档，边=有效互链（两端文档都存在）
-    // 节点带归属字段（subject/category/tags）供前端按维度着色（2026-08-13）
-    getKbGraph() {
-      const nodes = sqlite.prepare('SELECT id, title, type, folder, subject_id, category_id FROM kb_docs WHERE deleted=0').all()
+    // 节点带归属字段（subject/category/tags）供前端按维度着色；支持范围过滤（跟随顶部选择器 + 标签）
+    getKbGraph({ subjectId, tag } = {}) {
+      let where = 'd.deleted=0'
+      const params = []
+      if (subjectId) {
+        // 同 getKbDocs 口径：科目 → subject_id 过滤；章节 → category_id 过滤
+        const kind = this.categoryKind(subjectId)
+        if (kind === 'subject') { where += ' AND d.subject_id=?'; params.push(subjectId) }
+        else if (kind === 'chapter') { where += ' AND d.category_id=?'; params.push(subjectId) }
+      }
+      if (tag) { where += ' AND d.id IN (SELECT doc_id FROM kb_tags WHERE tag=?)'; params.push(tag) }
+      const nodes = sqlite.prepare(`SELECT d.id, d.title, d.type, d.folder, d.subject_id, d.category_id FROM kb_docs d WHERE ${where}`).all(...params)
         .map(d => ({
           id: d.id, title: d.title, type: d.type, folder: d.folder || '',
           subjectId: d.subject_id, categoryId: d.category_id,
