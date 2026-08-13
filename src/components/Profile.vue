@@ -269,8 +269,6 @@ const recentUnlocked = computed(() => achievements.value
 
 // ---- 知识库概览（kbStats）----
 const kbStats = ref(null)
-// ---- XP 等级 ----
-const xp = ref(null)
 
 // 页面分组折叠：学习成长默认展开，其余收起（避免平铺过长）
 const secOpen = ref({ learn: true, goals: true, prefs: false, sync: false, misc: false })
@@ -279,16 +277,15 @@ function toggleSec(k) {
 }
 
 onMounted(async () => {
-  const [tR, fR, achR, kbR, xR, msR] = await Promise.allSettled([
+  const [tR, fR, achR, kbR, msR] = await Promise.allSettled([
     tiku.getSetting('theme'), tiku.getSetting('font_scale'),
     tiku.getAchievements(),
-    tiku.kbStats(), tiku.xpStats(),
+    tiku.kbStats(),
     tiku.getMonthStats()
   ])
   if (tR.status === 'fulfilled') theme.value = tR.value || 'dark'
   if (fR.status === 'fulfilled') fontScale.value = fR.value || '1'
   if (kbR.status === 'fulfilled') kbStats.value = kbR.value
-  if (xR.status === 'fulfilled') xp.value = xR.value
   if (achR.status === 'fulfilled' && msR.status === 'fulfilled') metrics.value = { ...achR.value, ...msR.value }
   try { await loadGoals() } catch (e) { /* 目标读取失败不阻塞 */ }
 })
@@ -303,7 +300,6 @@ onMounted(async () => {
         <div class="user-name">{{ userName }}<span class="local-badge">本地</span></div>
         <div class="user-sub">数据只在本机 · 断网也能学</div>
       </div>
-      <span v-if="xp" class="xp-today">今日 +{{ xp.today }} XP</span>
     </div>
 
 
@@ -971,13 +967,5 @@ onMounted(async () => {
 }
 .local-badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
 [data-theme="light"] .local-badge { color: #0f9d6b; }
-.xp-today {
-  margin-left: auto; flex-shrink: 0;
-  font-size: 11px; color: #4fd1a5;
-  border: 1px solid rgba(47, 191, 143, 0.4);
-  background: rgba(47, 191, 143, 0.1);
-  border-radius: 12px; padding: 3px 10px; white-space: nowrap;
-}
-[data-theme="light"] .xp-today { color: #0f9d6b; }
 
 </style>

@@ -199,6 +199,7 @@ async function load() {
       level: x.level || 1,
       curLevelXp: x.curLevelXp || 0,
       nextLevelXp: x.nextLevelXp || 100,
+      today: x.today || 0,
       week: x.week || 0,
       pct: x.levelPct || 0
     }
@@ -468,7 +469,7 @@ onBeforeUnmount(() => {
         <div class="kpi-item">
           <span class="kpi-num"><CountUp :value="xpTotal" /></span>
           <span class="kpi-label">累计 XP</span>
-          <span class="tip">本周已获得 +{{ lvInfo.week }} XP</span>
+          <span class="tip">今日 +{{ lvInfo.today }} XP · 本周 +{{ lvInfo.week }} XP</span>
         </div>
         <div class="kpi-sep"></div>
         <div class="kpi-item link" @click="emit('goto', 'stats')">
