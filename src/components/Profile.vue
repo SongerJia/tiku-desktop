@@ -2,7 +2,7 @@
 import Icon from './Icon.vue'
 import CountUp from './CountUp.vue'
 import { showConfirm } from '../utils/confirm.js'
-import { evaluate, achLevel, ACH_SERIES } from '../utils/achievements.js'
+import { evaluate, achLevel } from '../utils/achievements.js'
 import { vTilt } from '../utils/tilt.js'
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { tiku } from '../api/tiku.js'
@@ -293,18 +293,6 @@ const unlockedCount = computed(() => achievements.value.filter(a => a.got).lengt
 const achPoints = computed(() => achievements.value.filter(a => a.got).reduce((s, a) => s + (a.points || 0), 0))
 const achLv = computed(() => achLevel(achPoints.value))
 const achPct = computed(() => achievements.value.length ? Math.round((unlockedCount.value / achievements.value.length) * 100) : 0)
-// 系列折叠状态（默认全部展开）
-const achOpen = ref(new Set()) // 勋章墙：系列默认全部折叠，从用户卡勋章区进入时只展开对应系列
-function toggleAchSeries(key) {
-  const s = new Set(achOpen.value)
-  if (s.has(key)) s.delete(key); else s.add(key)
-  achOpen.value = s
-}
-// 按系列分组，每组带系列内进度
-const achSeries = computed(() => ACH_SERIES.map(sr => {
-  const list = achievements.value.filter(a => a.series === sr.key)
-  return { ...sr, list, got: list.filter(a => a.got).length, total: list.length }
-}).filter(s => s.list.length))
 // 勋章稀有度 class：已解锁 → 'got <rarity>'（驱动 --rr 配色），未解锁 → ''
 const medalCls = (a) => a.got ? 'got ' + (a.rarity || 'bronze') : ''
 // 勋章底形状（viewBox 100×100）：铜=圆、银=六边形、金=盾形、白金=八角星
@@ -331,18 +319,13 @@ const stackMedals = computed(() => {
     .filter(a => a.got)
     .sort((a, b) => String(b.unlockAt || '').localeCompare(String(a.unlockAt || '')))
 })
-// 点击勋章区 → 展开学习成长分组并平滑滚动到完整勋章墙
+// 点击勋章区 → 展开勋章墙分组并平滑滚动到完整勋章墙
 function gotoAch() {
   secOpen.value.learn = true
   nextTick(() => {
     const el = document.querySelector('.ach-card')
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   })
-}
-// 点击具体勋章 → 只展开该勋章所属系列（其余全折叠），再滚动到勋章墙
-function gotoAchFrom(a) {
-  achOpen.value = new Set(a.series ? [a.series] : [])
-  gotoAch()
 }
 
 // ---- 知识库概览（kbStats）----
@@ -390,7 +373,7 @@ onMounted(async () => {
       <!-- 勋章区：已解锁勋章全部松散平铺（自动换行填满右侧空白），点击滚动到完整勋章墙 -->
       <div class="medal-area" title="查看全部勋章" @click="gotoAch">
         <template v-for="(a, i) in stackMedals" :key="a.key">
-          <div class="medal area-medal got" :class="a.rarity || 'bronze'" :style="{ zIndex: 10 + i }" @click.stop="gotoAchFrom(a)">
+          <div class="medal area-medal got" :class="a.rarity || 'bronze'" :style="{ zIndex: 10 + i }" @click.stop="gotoAch">
             <svg class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(a.rarity)" /></svg>
             <Icon :name="a.icon" :size="15" class="medal-icon" />
             <span v-if="isNewAch(a)" class="medal-new">NEW</span>
@@ -453,29 +436,21 @@ onMounted(async () => {
       </div>
 
 
-      <!-- 系列分组 -->
-      <div v-for="sr in achSeries" :key="sr.key" class="ach-series">
-        <div class="ach-series-head" @click="toggleAchSeries(sr.key)">
-          <span class="ach-series-icon"><Icon :name="sr.icon" :size="14" /></span>
-          <span class="ach-series-name">{{ sr.name }}</span>
-          <span class="ach-series-prog">{{ sr.got }}/{{ sr.total }}</span>
-          <span class="ach-series-arrow" :class="{ open: achOpen.has(sr.key) }">▾</span>
-        </div>
-        <div v-show="achOpen.has(sr.key)" class="medal-grid">
-          <div v-for="(a, i) in sr.list" :key="a.key" class="medal" :class="medalCls(a)" :style="{ animationDelay: (i * 0.04) + 's' }">
-            <svg v-if="a.got" class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(a.rarity)" /></svg>
-            <Icon :name="a.icon" :size="a.got ? 19 : 20" class="medal-icon" />
-            <span v-if="isNewAch(a)" class="medal-new">NEW</span>
-            <div class="medal-tip">
-              <b>{{ a.name }}</b>
-              <span v-if="a.got" class="mt-date">{{ a.unlockAt || '已解锁' }} 解锁</span>
-              <span v-else class="mt-lock">未解锁</span>
-              <i>{{ a.desc }}</i>
-            </div>
+      <!-- 勋章墙：全部成就统一平铺，稀有度靠形状+配色，悬停看详情 -->
+      <div class="medal-grid">
+        <div v-for="(a, i) in achievements" :key="a.key" class="medal" :class="medalCls(a)" :style="{ animationDelay: (i * 0.03) + 's' }">
+          <svg v-if="a.got" class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(a.rarity)" /></svg>
+          <Icon :name="a.icon" :size="a.got ? 19 : 20" class="medal-icon" />
+          <span v-if="isNewAch(a)" class="medal-new">NEW</span>
+          <div class="medal-tip">
+            <b>{{ a.name }}</b>
+            <span v-if="a.got" class="mt-date">{{ a.unlockAt || '已解锁' }} 解锁</span>
+            <span v-else class="mt-lock">未解锁</span>
+            <i>{{ a.desc }}</i>
           </div>
         </div>
       </div>
-      <div v-if="!achSeries.length" class="ach-empty">还没有成就数据，先刷几道题吧</div>
+      <div v-if="!achievements.length" class="ach-empty">还没有成就数据，先刷几道题吧</div>
     </div>
       </div>
     </div>
@@ -978,15 +953,6 @@ onMounted(async () => {
 .ach-sum-item b { font-size: 16px; color: var(--brand); font-weight: 700; }
 .ach-sum-ring { width: 30px; height: 30px; border-radius: 50%; margin-left: auto; position: relative; }
 .ach-sum-ring::after { content: ''; position: absolute; inset: 6px; background: var(--bg, #fff); border-radius: 50%; }
-/* 最近解锁高亮条 */
-.ach-series { margin-bottom: 14px; }
-.ach-series-head { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 4px; border-radius: 8px; }
-.ach-series-head:hover { background: rgba(91,124,250,.06); }
-.ach-series-icon { display: inline-flex; color: rgba(91, 124, 250, 0.9); }
-.ach-series-name { font-size: 13px; font-weight: 600; color: var(--text); }
-.ach-series-prog { font-size: 11px; color: var(--muted); background: rgba(91,124,250,.1); border-radius: 999px; padding: 1px 8px; }
-.ach-series-arrow { margin-left: auto; font-size: 12px; color: var(--muted); transition: transform .2s; }
-.ach-series-arrow.open { transform: rotate(180deg); }
 .ach-empty { font-size: 12px; color: var(--muted); text-align: center; padding: 12px 0; }
 
 /* 同步冲突明细 */
@@ -1165,36 +1131,37 @@ onMounted(async () => {
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
 .medal-icon { line-height: 1; color: var(--muted); opacity: .65; transition: color .18s ease, opacity .18s ease, transform .18s ease; }
-/* 稀有度配色（2026-08-13）：--rr 驱动徽章底 fill/stroke 与图标色——铜棕/银灰蓝/金/钻石蓝白 */
+/* 稀有度配色（2026-08-13）：外层统一圆形徽章，--rr 驱动圆底/边框/光晕与图标色；内层形状作稀有度徽记 */
 .medal.got {
   --rr: 91, 124, 250;
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
+  background: radial-gradient(circle at 32% 28%, rgba(var(--rr), 0.20), rgba(var(--rr), 0.07) 70%);
+  border: 1.5px solid rgba(var(--rr), 0.5);
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(var(--rr), 0.2);
 }
 .medal.got.bronze   { --rr: 184, 115, 51; }
 .medal.got.silver   { --rr: 159, 178, 192; }
 .medal.got.gold     { --rr: 217, 165, 20; }
-.medal.got.platinum { --rr: 125, 211, 252; }
+.medal.got.platinum { --rr: 125, 211, 252; outline: 1px solid rgba(var(--rr), 0.35); outline-offset: 2px; }
 .medal.got .medal-icon { color: rgba(var(--rr), 0.95); opacity: 1; filter: none; }
 .medal:hover { transform: translateY(-3px) scale(1.12); z-index: 5; }
 .medal:hover .medal-icon { transform: rotate(-8deg) scale(1.1); }
-.medal.got:hover { animation: medalWiggle .5s ease; }
-.medal.got:hover .medal-bg { filter: drop-shadow(0 0 10px rgba(var(--rr), 0.65)); }
-/* 勋章底形状（铜=圆/银=六边/金=盾/白金=八角星），fill/stroke 跟随 --rr；drop-shadow 沿轮廓发光 */
+.medal.got:hover {
+  animation: medalWiggle .5s ease;
+  box-shadow: 0 0 14px rgba(var(--rr), 0.5);
+}
+/* 内层稀有度形状徽记（铜=圆/银=六边/金=盾/白金=八角星），缩小嵌在圆形徽章内 */
 .medal-bg {
-  position: absolute; inset: 0; width: 100%; height: 100%;
+  position: absolute; inset: 16%;
+  width: auto; height: auto;
   pointer-events: none;
-  filter: drop-shadow(0 0 5px rgba(var(--rr), 0.35));
-  transition: filter .18s ease;
 }
 .medal-bg path {
-  fill: rgba(var(--rr), 0.14);
-  stroke: rgba(var(--rr), 0.55);
+  fill: rgba(var(--rr), 0.10);
+  stroke: rgba(var(--rr), 0.6);
   stroke-width: 2.5;
   stroke-linejoin: round;
 }
-.medal.got.platinum .medal-bg { filter: drop-shadow(0 0 7px rgba(var(--rr), 0.5)); }
 @keyframes medalWiggle {
   0%, 100% { transform: translateY(-3px) scale(1.12) rotate(0); }
   30% { transform: translateY(-3px) scale(1.12) rotate(-8deg); }
