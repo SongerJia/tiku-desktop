@@ -4,7 +4,7 @@ import CountUp from './CountUp.vue'
 import { showConfirm } from '../utils/confirm.js'
 import { evaluate, achLevel, ACH_SERIES } from '../utils/achievements.js'
 import { vTilt } from '../utils/tilt.js'
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { applyAppearance } from '../utils/appearance.js'
 import WrongBook from './WrongBook.vue'
@@ -22,6 +22,53 @@ function forwardStart(payload) {
 }
 
 const userName = ref('本地用户')
+const avatar = ref('') // 本地头像（base64，localStorage 存储，不进同步）
+const editingName = ref(false)
+const nameInput = ref('')
+const fileInput = ref(null)
+
+// 编辑名字：点击名字/✎ 进入内联输入，Enter/失焦保存，Esc 取消（本地设置存 user_name，随同步带走）
+async function startEdit() {
+  nameInput.value = userName.value
+  editingName.value = true
+  await nextTick()
+  const el = document.querySelector('.name-input')
+  if (el) el.focus()
+}
+async function saveName() {
+  const v = nameInput.value.trim().slice(0, 20)
+  if (v && v !== userName.value) {
+    userName.value = v
+    try { await tiku.setSetting('user_name', v) } catch (e) { /* 保存失败不阻塞 */ }
+  }
+  editingName.value = false
+}
+// 换头像：本地图片 → canvas 居中裁切压缩 112px → localStorage（纯本地，不同步）
+function onPickAvatar(e) {
+  const f = e.target.files && e.target.files[0]
+  if (!f) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const img = new Image()
+    img.onload = () => {
+      const c = document.createElement('canvas')
+      c.width = c.height = 112
+      const ctx = c.getContext('2d')
+      const side = Math.min(img.width, img.height)
+      const sx = (img.width - side) / 2, sy = (img.height - side) / 2
+      ctx.drawImage(img, sx, sy, side, side, 0, 0, 112, 112)
+      avatar.value = c.toDataURL('image/jpeg', 0.85)
+      try { localStorage.setItem('tiku_avatar', avatar.value) } catch (err) { /* 存储失败忽略 */ }
+    }
+    img.src = reader.result
+  }
+  reader.readAsDataURL(f)
+  e.target.value = ''
+}
+function clearAvatar() {
+  avatar.value = ''
+  try { localStorage.removeItem('tiku_avatar') } catch (e) {}
+}
 const toast = ref('')
 const showNotes = ref(false)
 
@@ -285,6 +332,8 @@ onMounted(async () => {
   ])
   if (tR.status === 'fulfilled') theme.value = tR.value || 'dark'
   if (fR.status === 'fulfilled') fontScale.value = fR.value || '1'
+  try { const n = await tiku.getSetting('user_name'); if (n) userName.value = n } catch (e) {}
+  try { avatar.value = localStorage.getItem('tiku_avatar') || '' } catch (e) {}
   if (kbR.status === 'fulfilled') kbStats.value = kbR.value
   if (achR.status === 'fulfilled' && msR.status === 'fulfilled') metrics.value = { ...achR.value, ...msR.value }
   try { await loadGoals() } catch (e) { /* 目标读取失败不阻塞 */ }
@@ -295,11 +344,25 @@ onMounted(async () => {
   <div class="profile">
     <!-- 用户信息 + XP 等级（紧凑右侧） -->
     <div class="card user-card" v-tilt="{ deg: 3 }">
-      <div class="avatar">{{ userName.slice(0, 1) }}</div>
+      <div class="avatar-wrap" @click="fileInput.click()" :title="avatar ? '更换头像' : '设置头像'">
+        <img v-if="avatar" :src="avatar" class="avatar-img" alt="头像" />
+        <div v-else class="avatar">{{ userName.slice(0, 1) }}</div>
+        <div class="avatar-mask">
+          <span>更换</span>
+          <i v-if="avatar" class="avatar-clear" title="清除头像" @click.stop="clearAvatar">×</i>
+        </div>
+      </div>
+      <input ref="fileInput" type="file" accept="image/*" hidden @change="onPickAvatar" />
       <div class="user-info">
-        <div class="user-name">{{ userName }}<span class="local-badge">本地</span></div>
+        <div class="user-name" :class="{ editing: editingName }">
+          <input v-if="editingName" v-model="nameInput" class="name-input" maxlength="20" @keyup.enter="saveName" @keyup.esc="editingName = false" @blur="saveName" />
+          <template v-else>
+            <span class="user-name-text">{{ userName }}</span><span class="local-badge">本地</span><span class="edit-hint" @click="startEdit">✎</span>
+          </template>
+        </div>
         <div class="user-sub">数据只在本机 · 断网也能学</div>
       </div>
+      <span class="user-aura"></span>
     </div>
 
 
@@ -967,5 +1030,77 @@ onMounted(async () => {
 }
 .local-badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
 [data-theme="light"] .local-badge { color: #0f9d6b; }
+
+
+/* ===== 用户卡可编辑 + 右侧特效（2026-08-13）===== */
+/* 头像容器：可点击换图 */
+.avatar-wrap {
+  position: relative; flex-shrink: 0;
+  width: 56px; height: 56px;
+  cursor: pointer;
+}
+.avatar-img {
+  width: 56px; height: 56px; border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.15), 0 4px 14px rgba(91, 124, 250, 0.35);
+}
+/* 头像 hover 遮罩：底部半透明「更换」+ 右上清除 × */
+.avatar-mask {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: rgba(2, 6, 16, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10.5px; color: #dfe7fa;
+  opacity: 0; transition: opacity .18s ease;
+  backdrop-filter: blur(2px);
+}
+.avatar-wrap:hover .avatar-mask { opacity: 1; }
+.avatar-clear {
+  position: absolute; top: -3px; right: -3px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: rgba(229, 83, 95, 0.9); color: #fff;
+  font-style: normal; font-size: 11px; line-height: 16px; text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.avatar-clear:hover { background: var(--bad); }
+
+/* 编辑入口：低调（✎ 低透明），hover 名字区才亮起 */
+.user-name { display: flex; align-items: center; gap: 6px; }
+.user-name-text { font-size: 16px; font-weight: 600; color: var(--text); }
+.edit-hint {
+  font-size: 13px; color: var(--muted);
+  opacity: .25; cursor: pointer;
+  transition: opacity .15s ease, transform .15s ease, color .15s ease;
+  user-select: none;
+}
+.user-name:hover .edit-hint { opacity: 1; color: var(--brand); transform: scale(1.15); }
+.name-input {
+  font-size: 15px; font-weight: 600; color: var(--text);
+  background: transparent; border: none;
+  border-bottom: 1px solid var(--brand);
+  outline: none; width: 120px; padding: 0 2px;
+}
+.user-name.editing .local-badge { display: none; }
+
+/* 右侧特效：数据能量环（conic 渐变旋转 + 中心呼吸光点，纯装饰不占数据） */
+.user-aura {
+  position: absolute; right: 20px; top: 50%;
+  transform: translateY(-50%);
+  width: 46px; height: 46px; border-radius: 50%;
+  pointer-events: none;
+  opacity: .8;
+  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.5) 90deg, transparent 180deg, rgba(122, 92, 255, 0.4) 270deg, transparent 360deg);
+  -webkit-mask: radial-gradient(circle, transparent 58%, #000 62%);
+  mask: radial-gradient(circle, transparent 58%, #000 62%);
+  animation: auraSpin 4s linear infinite;
+}
+.user-aura::after {
+  content: ''; position: absolute; inset: 32%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(91, 124, 250, 0.85), rgba(91, 124, 250, 0.1) 70%);
+  animation: auraBreathe 2.6s ease-in-out infinite;
+}
+@keyframes auraSpin { to { --ang: 360deg; } }
+@keyframes auraBreathe { 0%, 100% { opacity: .4; } 50% { opacity: 1; } }
+[data-theme="light"] .user-aura { opacity: .6; }
 
 </style>
