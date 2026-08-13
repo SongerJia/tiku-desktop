@@ -120,6 +120,15 @@ const heatGrid = computed(() => {
   return { cols: col, cells, months, total }
 })
 // 左统计列：今日/本周/本窗口/连续天数
+// ⑧ 月份 → 当月总题数（月份标签 hover 用；近一年窗口月份不重复，label 可直接作 key）
+const monthTotals = computed(() => {
+  const m = {}
+  for (const d of heatmap.value) {
+    const label = MONTHS[new Date(d.date + 'T00:00:00').getMonth()]
+    m[label] = (m[label] || 0) + (d.count || 0)
+  }
+  return m
+})
 const heatStats = computed(() => {
   const list = heatmap.value
   const isCur = heatYear.value === new Date().getFullYear()
@@ -296,6 +305,12 @@ const histPath = computed(() => {
 })
 const histX = (i) => examHistory.value.length === 1 ? 150 : 10 + (i * 280) / (examHistory.value.length - 1)
 const histY = (e) => 62 - (e.pct / 100) * 50
+// ⑦ 曲线面积：histPath 闭合到基线 → 渐变填充（升级面积趋势图）
+const areaPath = computed(() => {
+  const p = histPath.value
+  if (!p) return ''
+  return p + ' L290,62 L10,62 Z'
+})
 async function loadAnalysis() {
   try { examHistory.value = JSON.parse(localStorage.getItem('exam_history') || '[]').slice(-30) } catch (e) { examHistory.value = [] }
 }
@@ -375,15 +390,15 @@ async function loadAnalysis() {
           </div>
           <div class="heat-main">
             <div class="heat-months">
-              <span v-for="m in heatGrid.months" :key="m.col" class="hm-label" :style="{ left: m.col * (heatCellSize + HEAT_GAP) + 'px' }">{{ m.label }}</span>
+              <span v-for="m in heatGrid.months" :key="m.col" class="hm-label" :title="`${m.label} · ${monthTotals[m.label] || 0} 题`" :style="{ left: m.col * (heatCellSize + HEAT_GAP) + 'px' }">{{ m.label }}</span>
             </div>
-            <div class="heat-grid" :style="{ gridTemplateColumns: `repeat(${heatGrid.cols}, ${heatCellSize}px)`, gridTemplateRows: `repeat(7, ${heatCellSize}px)` }" @mouseleave="onHeatLeave">
+            <div class="heat-grid" :key="'h' + heatYear + '-' + filterSubjectId" :style="{ gridTemplateColumns: `repeat(${heatGrid.cols}, ${heatCellSize}px)`, gridTemplateRows: `repeat(7, ${heatCellSize}px)` }" @mouseleave="onHeatLeave">
               <div
                 v-for="(c, i) in heatGrid.cells"
                 :key="i"
                 class="heat-cell"
                 :class="[c.count < 0 ? 'ghost' : 'lvl-' + heatLevel(c.count), c.isToday ? 'today' : '']"
-                :style="{ width: heatCellSize + 'px', height: heatCellSize + 'px' }"
+                :style="{ width: heatCellSize + 'px', height: heatCellSize + 'px', animationDelay: (Math.floor(i / 7) * 0.008) + 's' }"
                 @mouseenter="onHeatEnter($event, c)"
               ></div>
             </div>
@@ -402,8 +417,8 @@ async function loadAnalysis() {
         <svg v-if="radarCats.length" viewBox="0 0 180 176" class="radar">
           <polygon :points="gridHex(56)" fill="none" stroke="var(--line)" stroke-width="1"/>
           <polygon :points="gridHex(28)" fill="none" stroke="var(--line)" stroke-width="1"/>
-          <polygon :points="radarPoly" fill="rgba(91,124,250,0.25)" stroke="var(--brand)" stroke-width="2"/>
-          <circle v-for="p in radarPoints" :key="p.cat" :cx="p.x" :cy="p.y" r="3" fill="var(--brand)">
+          <polygon :points="radarPoly" fill="rgba(91,124,250,0.25)" stroke="var(--brand)" stroke-width="2" pathLength="1" class="radar-poly"/>
+          <circle v-for="(p, i) in radarPoints" :key="p.cat" :cx="p.x" :cy="p.y" r="3" fill="var(--brand)" class="radar-dot" :style="{ animationDelay: (0.55 + i * 0.06) + 's' }">
             <title>{{ p.cat }} · 正确率 {{ p.rate }}%</title>
           </circle>
           <text v-for="(c, i) in radarCats" :key="'l' + i" :x="labelPos(i).x" :y="labelPos(i).y" class="radar-label" text-anchor="middle">
@@ -413,6 +428,13 @@ async function loadAnalysis() {
         <div v-if="!radarCats.length" class="empty-sm">暂无答题数据</div>
         <div class="card-title hist-title">近 {{ examHistory.length }} 次练习正确率</div>
         <svg v-if="histPath" viewBox="0 0 300 70" class="hist">
+          <defs>
+            <linearGradient id="histArea" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="var(--brand)" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="var(--brand)" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path :d="areaPath" fill="url(#histArea)" class="hist-area"/>
           <line x1="10" y1="62" x2="290" y2="62" stroke="var(--line)" stroke-width="1"/>
           <path :d="histPath" class="hist-path" pathLength="1" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round"/>
           <circle v-for="(e, i) in examHistory" :key="i" :cx="histX(i)" :cy="histY(e)" r="2.5" fill="var(--brand)" :class="{ latest: i === examHistory.length - 1 }">
@@ -434,8 +456,8 @@ async function loadAnalysis() {
 
         <div v-if="reasonData && reasonData.total > 0" class="rc-body">
           <div class="rc-stack">
-            <div v-for="r in reasonData.list" :key="r.reason" class="rc-seg"
-              :style="{ width: r.pct + '%', background: (REASON_COLOR[r.reason] || '#888780') }"
+            <div v-for="(r, i) in reasonData.list" :key="r.reason" class="rc-seg"
+              :style="{ width: r.pct + '%', background: (REASON_COLOR[r.reason] || '#888780'), animationDelay: (i * 0.1) + 's' }"
               :title="`${r.reason} ${r.pct}%`"></div>
           </div>
           <div class="rc-rows">
@@ -759,5 +781,40 @@ async function loadAnalysis() {
 }
 [data-theme="light"] .habit-value { background: linear-gradient(180deg, #1f2937, #64748b); -webkit-background-clip: text; background-clip: text; }
 .habit-value .unit { -webkit-text-fill-color: var(--muted); }
+
+
+/* ===== 统计页特效批一（2026-08-13）：扫描点亮/雷达展开/点反馈/面积/周报按钮 ===== */
+/* ① 热力图格子扫描点亮（从左到右，0.008s×列；ghost 占位不参与） */
+.heat-cell { animation: cellIn .45s ease both; }
+.heat-cell.ghost { animation: none; }
+@keyframes cellIn { from { opacity: 0 } to { opacity: 1 } }
+
+/* ③ 雷达：描边画出来（复用 drawPath）+ 填充渐显 + 顶点依次弹入 */
+.radar-poly {
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  fill-opacity: 0;
+  animation: drawPath .8s cubic-bezier(.4, 0, .2, 1) .2s forwards,
+             radarFade .5s ease .9s forwards;
+}
+@keyframes radarFade { to { fill-opacity: 1 } }
+.radar-dot { animation: dotPop .4s cubic-bezier(.2, .7, .3, 1) both; }
+@keyframes dotPop { from { opacity: 0; r: 0 } to { opacity: 1; r: 3 } }
+
+/* ④ 曲线点 hover 放大发光（最新点已有专属发光，历史点补反馈） */
+.hist circle { transition: r .15s ease, filter .15s ease; cursor: pointer; }
+.hist circle:hover { r: 4.5; filter: drop-shadow(0 0 5px rgba(91, 124, 250, 0.85)); }
+
+/* ⑦ 曲线面积：淡入（等描边画完后 0.3s 渐显） */
+.hist-area { opacity: 0; animation: areaFade .6s ease 1.1s forwards; }
+@keyframes areaFade { to { opacity: 1 } }
+
+/* ⑨ 雷达顶点 hover 放大发光 */
+.radar-dot { transition: r .15s ease, filter .15s ease; cursor: pointer; }
+.radar-dot:hover { r: 4.5; filter: drop-shadow(0 0 5px rgba(91, 124, 250, 0.85)); }
+
+/* ⑩ 导出周报按钮：hover 品牌光晕 + 微弹 */
+.report-btn { transition: all .18s ease; }
+.report-btn:hover { box-shadow: 0 4px 18px rgba(91, 124, 250, 0.45), 0 0 0 1px rgba(91, 124, 250, 0.5); transform: translateY(-1px); }
+.report-btn:active { transform: translateY(0) scale(.97); }
 
 </style>
