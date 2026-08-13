@@ -294,7 +294,7 @@ const achPoints = computed(() => achievements.value.filter(a => a.got).reduce((s
 const achLv = computed(() => achLevel(achPoints.value))
 const achPct = computed(() => achievements.value.length ? Math.round((unlockedCount.value / achievements.value.length) * 100) : 0)
 // 系列折叠状态（默认全部展开）
-const achOpen = ref(new Set(ACH_SERIES.map(s => s.key)))
+const achOpen = ref(new Set()) // 勋章墙：系列默认折叠，点开只看已解锁的
 function toggleAchSeries(key) {
   const s = new Set(achOpen.value)
   if (s.has(key)) s.delete(key); else s.add(key)
@@ -410,31 +410,22 @@ onMounted(async () => {
           <span class="ach-series-arrow" :class="{ open: achOpen.has(sr.key) }">▾</span>
         </div>
         <div v-show="achOpen.has(sr.key)" class="ach-grid">
+          <div v-if="!sr.list.filter(a => a.got).length" class="ach-series-empty">该系列还没有解锁的成就</div>
           <div
-            v-for="a in sr.list"
+            v-for="a in sr.list.filter(a => a.got)"
             :key="a.key"
             class="ach"
-            :class="{ got: a.got, hidden: a.hidden && !a.got }"
+            :class="{ got: a.got }"
           >
             <div class="ach-head">
-              <span class="ach-icon" :style="a.got ? { filter: 'none' } : {}">
-                {{ a.got ? a.icon : (a.hidden ? '❓' : '🔒') }}
-              </span>
-              <span class="ach-name">
-                {{ a.got || !a.hidden ? a.name : '？？？' }}
-              </span>
-              <span class="ach-pct" :class="{ done: a.got }">
-                <template v-if="a.got">{{ a.unlockAt || '已解锁' }}</template>
-                <template v-else-if="a.hidden">？？？</template>
-                <template v-else>{{ a.fmtText }}</template>
-              </span>
+              <span class="ach-icon">{{ a.icon }}</span>
+              <span class="ach-name">{{ a.name }}</span>
+              <span class="ach-pct done">{{ a.unlockAt || '已解锁' }}</span>
             </div>
-            <span class="ach-desc" v-if="a.got || !a.hidden">{{ a.desc }}<template v-if="!a.got"> · +{{ a.points }} 点</template></span>
-            <span class="ach-desc" v-else>解锁后揭晓</span>
-            <div class="ach-bar" v-if="!a.hidden || a.got">
-              <div class="ach-fill" :class="{ done: a.got }" :style="{ width: a.pct + '%' }"></div>
+            <span class="ach-desc">{{ a.desc }}</span>
+            <div class="ach-bar">
+              <div class="ach-fill done" style="width:100%"></div>
             </div>
-            <div class="ach-bar" v-else></div>
           </div>
         </div>
       </div>
@@ -1146,5 +1137,9 @@ onMounted(async () => {
 }
 .user-name:hover .user-edit-btn { opacity: 1; color: var(--brand); transform: scale(1.12); }
 [data-theme="light"] .ep-mask { background: rgba(20, 30, 50, 0.45); }
+
+
+/* 勋章墙瘦身（2026-08-13）：系列空态小字 */
+.ach-series-empty { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); text-align: center; padding: 8px 0; opacity: .7; }
 
 </style>
