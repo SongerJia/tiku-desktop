@@ -628,6 +628,7 @@ onMounted(async () => {
 
     <!-- GitHub 仓库同步（唯一后端：学习数据+题库+知识库文档+题目图片） -->
     <div class="card sync-card">
+      <div class="card-title">云同步 <span class="sync-scope">GitHub 私有仓库</span></div>
       <!-- 状态头 -->
       <div class="sync-status">
         <span class="sync-ico" :class="{ on: ghHasToken }"><Icon name="cloud" :size="18" /></span>
@@ -989,21 +990,22 @@ onMounted(async () => {
 
 /* 云同步卡片（2026-08-13：连接状态卡 V2） */
 .sync-card { border-color: rgba(34, 211, 238, 0.35); }
+.sync-scope { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
 /* 状态头：图标胶囊 + 分层信息 + 时间胶囊 */
 .sync-status {
   display: flex; align-items: center; gap: 12px;
-  padding-bottom: 14px; border-bottom: 1px solid var(--line);
+  padding: 14px 0; margin-top: 10px; border-top: 1px solid var(--line);
 }
 .sync-ico {
   width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(34, 211, 238, 0.10); color: #22d3ee;
-  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.3);
-  transition: background .2s ease, box-shadow .2s ease;
+  background: rgba(148, 163, 184, 0.12); color: var(--muted);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25);
+  transition: background .2s ease, color .2s ease, box-shadow .2s ease;
 }
 .sync-ico.on {
   background: rgba(34, 211, 238, 0.15); color: #22d3ee;
-  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.4), 0 0 12px rgba(34, 211, 238, 0.15);
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.4), 0 0 12px rgba(34, 211, 238, 0.2);
 }
 .sync-status-main { flex: 1; min-width: 0; }
 .sync-status-line { display: flex; align-items: center; gap: 7px; }
