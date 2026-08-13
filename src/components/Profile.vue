@@ -349,11 +349,11 @@ onMounted(async () => {
       <div class="user-info">
         <div class="user-name">
           <span class="user-name-text">{{ userName }}</span><span class="local-badge">本地</span>
+          <span class="user-edit-btn" @click="openEdit" title="编辑资料">✎</span>
         </div>
         <div class="user-sub">数据只在本机 · 断网也能学</div>
       </div>
       <span class="user-aura"></span>
-      <span class="user-edit-btn" @click="openEdit" title="编辑资料">编辑 ✎</span>
     </div>
 
 
@@ -1137,15 +1137,14 @@ onMounted(async () => {
 .ep-label { font-size: 12px; color: var(--muted); }
 .ep-foot { display: flex; justify-content: flex-end; gap: 10px; }
 
-/* 用户卡编辑入口：低调小按钮（hover 卡片亮起） */
+/* 用户卡编辑入口：名字旁低调 ✎（默认 25%，hover 名字区亮起微转） */
 .user-edit-btn {
-  position: absolute; right: 14px; bottom: 10px;
-  font-size: 10.5px; color: var(--muted);
-  opacity: .3; cursor: pointer; user-select: none;
-  transition: opacity .15s ease, color .15s ease;
-  padding: 2px 6px; border-radius: 6px;
+  font-size: 12px; color: var(--muted);
+  opacity: .25; cursor: pointer; user-select: none;
+  transition: opacity .15s ease, color .15s ease, transform .15s ease;
+  margin-left: 2px;
 }
-.user-card:hover .user-edit-btn { opacity: .9; color: var(--brand); }
+.user-name:hover .user-edit-btn { opacity: 1; color: var(--brand); transform: scale(1.12); }
 [data-theme="light"] .ep-mask { background: rgba(20, 30, 50, 0.45); }
 
 </style>
