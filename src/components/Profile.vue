@@ -300,17 +300,10 @@ onMounted(async () => {
     <div class="card user-card" v-tilt="{ deg: 3 }">
       <div class="avatar">{{ userName.slice(0, 1) }}</div>
       <div class="user-info">
-        <div class="user-name">{{ userName }}</div>
-        <div class="user-sub">本地账号 · 数据离线存储</div>
+        <div class="user-name">{{ userName }}<span class="local-badge">本地</span></div>
+        <div class="user-sub">数据只在本机 · 断网也能学</div>
       </div>
-      <div v-if="xp" class="user-xp">
-        <div class="user-xp-top">
-          <span class="user-xp-level">Lv.{{ xp.level }}</span>
-          <span class="user-xp-num"><CountUp :value="xp.total" /> XP</span>
-        </div>
-        <div class="user-xp-bar"><div class="user-xp-fill" :style="{ width: xp.levelPct + '%' }"></div></div>
-        <div class="user-xp-sub">今日 +{{ xp.today }}</div>
-      </div>
+      <span v-if="xp" class="xp-today">今日 +{{ xp.today }} XP</span>
     </div>
 
 
@@ -641,37 +634,6 @@ onMounted(async () => {
   align-items: center;
   gap: 14px;
 }
-/* XP 等级：用户卡右侧紧凑精致版 */
-.user-xp {
-  margin-left: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-  flex-shrink: 0;
-}
-.user-xp-top { display: flex; align-items: baseline; gap: 6px; }
-.user-xp-level {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--brand);
-  letter-spacing: .3px;
-}
-.user-xp-num { font-size: 11px; color: var(--muted); }
-.user-xp-bar {
-  width: 84px;
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(127, 127, 127, 0.22);
-  overflow: hidden;
-}
-.user-xp-fill {
-  height: 100%;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--brand), var(--brand2, #7a5cff));
-  transition: width .4s;
-}
-.user-xp-sub { font-size: 10px; color: var(--muted); }
 /* ===== 分组列表（精细化） ===== */
 .sec { display: flex; flex-direction: column; }
 
@@ -750,15 +712,18 @@ onMounted(async () => {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: var(--brand-light);
-  color: var(--brand);
+  background: linear-gradient(135deg, var(--brand), var(--brand2, #7a5cff));
+  color: #fff;
   font-size: 22px;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.15), 0 4px 14px rgba(91, 124, 250, 0.35);
+  transition: transform .2s ease, box-shadow .2s ease;
 }
+.user-card:hover .avatar { transform: scale(1.06); box-shadow: 0 0 0 4px rgba(91, 124, 250, 0.24), 0 6px 18px rgba(91, 124, 250, 0.5); }
 .user-info { flex: 1; overflow: hidden; }
 .user-name { font-size: 16px; font-weight: 600; }
 .user-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
@@ -1001,5 +966,29 @@ onMounted(async () => {
   background: radial-gradient(circle, rgba(91, 124, 250, 0.10), transparent 62%);
   pointer-events: none;
 }
+/* 用户卡瘦身（2026-08-13）：顶部渐变光带 + 本地徽章 + 今日XP胶囊 */
+.user-card::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 44px;
+  background: linear-gradient(180deg, rgba(91, 124, 250, 0.10), transparent 65%);
+  pointer-events: none;
+}
+.local-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; color: #4fd1a5;
+  border: 1px solid rgba(47, 191, 143, 0.4);
+  background: rgba(47, 191, 143, 0.1);
+  border-radius: 8px; padding: 1px 7px;
+  margin-left: 6px; vertical-align: 2px; white-space: nowrap;
+}
+.local-badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
+[data-theme="light"] .local-badge { color: #0f9d6b; }
+.xp-today {
+  margin-left: auto; flex-shrink: 0;
+  font-size: 11px; color: #4fd1a5;
+  border: 1px solid rgba(47, 191, 143, 0.4);
+  background: rgba(47, 191, 143, 0.1);
+  border-radius: 12px; padding: 3px 10px; white-space: nowrap;
+}
+[data-theme="light"] .xp-today { color: #0f9d6b; }
 
 </style>
