@@ -696,17 +696,12 @@ onMounted(async () => {
       </div>
       <div v-show="secOpen.bank" class="sec-body">
 
-    <!-- 题库管理（内容资产：导入/录题/科目组织） -->
+    <!-- 题库管理（内容资产：导入/录题） -->
     <div class="card">
       <div class="card-title">题库</div>
       <div class="list-item highlight" @click="emit('open-bank')">
         <span class="title">题库管理</span>
         <span class="sub">导入 Excel/CSV · 录题 · 编辑删除</span>
-        <span class="arrow">›</span>
-      </div>
-      <div class="list-item" @click="showCats = true">
-        <span class="title">科目管理</span>
-        <span class="sub">新建 / 改名 / 删除科目与章节</span>
         <span class="arrow">›</span>
       </div>
     </div>
@@ -739,6 +734,11 @@ onMounted(async () => {
       <div class="list-item" @click="showBackup = true">
         <span class="title">备份管理</span>
         <span class="sub">自动备份列表 · 一键恢复</span>
+        <span class="arrow">›</span>
+      </div>
+      <div class="list-item" @click="showCats = true">
+        <span class="title">科目管理</span>
+        <span class="sub">新建 / 改名 / 删除科目与章节</span>
         <span class="arrow">›</span>
       </div>
       <div class="list-item" @click="cleanupImages">
