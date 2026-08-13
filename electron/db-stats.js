@@ -281,15 +281,16 @@ module.exports = function statsModule(ctx) {
     // 数据源：答题结果页错因 3 选 1 / 错题本下拉标记；未标记（NULL/空）不计入，避免干扰占比。
     // 时间口径：wrong_books 无 created_at 列，用 updated_at（答错/复习/标记错因都会更新）≈「最近活动过的错题」
     getReasonAnalysis(scope = 'week') {
-      const since = scope === 'week'
-        ? (() => { const d = new Date(); const dow = (d.getDay() + 6) % 7; d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - dow); return d.getTime() })()
-        : 0
-      const where = scope === 'week' ? 'AND wb.updated_at>=?' : ''
+      // week = 本周一 0 点起；prevWeek = 上周一 0 点 ~ 本周一 0 点（错因趋势对比用）；all = 全部
+      const thisMonday = (() => { const d = new Date(); const dow = (d.getDay() + 6) % 7; d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - dow); return d.getTime() })()
+      let where = '', params = []
+      if (scope === 'week') { where = 'AND wb.updated_at>=?'; params.push(thisMonday) }
+      else if (scope === 'prevWeek') { where = 'AND wb.updated_at>=? AND wb.updated_at<?'; params.push(thisMonday - 7 * 86400000, thisMonday) }
       const rows = sqlite.prepare(
         `SELECT TRIM(wb.reason) AS reason, COUNT(*) AS n FROM wrong_books wb
          WHERE wb.user_id=? AND wb.deleted=0 AND wb.reason IS NOT NULL AND TRIM(wb.reason)<>'' ${where}
          GROUP BY reason ORDER BY n DESC`
-      ).all(...(scope === 'week' ? [LOCAL_USER, since] : [LOCAL_USER]))
+      ).all(LOCAL_USER, ...params)
       const total = rows.reduce((s, r) => s + r.n, 0)
       return { total, list: rows.map(r => ({ reason: r.reason, count: r.n, pct: total ? Math.round((r.n / total) * 100) : 0 })) }
     },

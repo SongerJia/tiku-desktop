@@ -136,7 +136,21 @@ const heatStats = computed(() => {
   // 往年是自然年数据，无"今日/本周"概念 → 显示 —（避免误导）
   const today = isCur ? ((list.find(d => d.date === todayStr) || {}).count || 0) : null
   const week = isCur ? list.slice(-7).reduce((a, d) => a + (d.count || 0), 0) : null
-  return { today, week, total: heatGrid.value.total, streak: summary.value.streak || 0 }
+  // A1 峰值：窗口内单日最多；最勤：按星期聚合总量最大
+  let peak = null
+  for (const d of list) if (!peak || d.count > peak.count) peak = d
+  const byWeek = {}
+  for (const d of list) {
+    if (!d.count) continue
+    const w = new Date(d.date + 'T00:00:00').getDay()
+    byWeek[w] = (byWeek[w] || 0) + d.count
+  }
+  let bestDay = null
+  for (const [w, n] of Object.entries(byWeek)) {
+    if (!bestDay || n > bestDay.n) bestDay = { w: Number(w), n }
+  }
+  if (bestDay) bestDay.name = WEEKS[bestDay.w]
+  return { today, week, total: heatGrid.value.total, streak: summary.value.streak || 0, peak, bestDay }
 })
 
 // 热力图自适应格子尺寸：顶满卡片宽度不留空白（clamp 8~20）
@@ -209,12 +223,34 @@ async function login() {
 // ---- 错因分析（行业空白）：结果页/错题本标记的错因分布 + 归因建议 ----
 const reasonScope = ref('week') // 'week' 本周 | 'all' 全部
 const reasonData = ref(null) // { total, list: [{reason,count,pct}] }
+const reasonPrev = ref(null) // A4 上周错因数据（本周口径时并行取，供趋势对比）
 async function loadReasonAnalysis() {
-  try {
-    const r = await tiku.getReasonAnalysis(reasonScope.value)
-    reasonData.value = r && r.list ? r : null
-  } catch (e) { reasonData.value = null }
+  if (reasonScope.value === 'week') {
+    const [cur, prev] = await Promise.allSettled([
+      tiku.getReasonAnalysis('week'),
+      tiku.getReasonAnalysis('prevWeek')
+    ])
+    reasonData.value = cur.status === 'fulfilled' && cur.value && cur.value.list ? cur.value : null
+    reasonPrev.value = prev.status === 'fulfilled' && prev.value ? prev.value : null
+  } else {
+    try {
+      const r = await tiku.getReasonAnalysis('all')
+      reasonData.value = r && r.list ? r : null
+      reasonPrev.value = null
+    } catch (e) { reasonData.value = null; reasonPrev.value = null }
+  }
 }
+// A4 带 delta 的错因列表：本周占比 - 上周占比（null=上周无此项）
+const reasonList = computed(() => {
+  if (!reasonData.value) return []
+  const pmap = {}
+  if (reasonPrev.value) for (const r of reasonPrev.value.list) pmap[r.reason] = r.pct
+  return reasonData.value.list.map(r => {
+    let delta = null
+    if (pmap[r.reason] !== undefined) delta = r.pct - pmap[r.reason]
+    return { ...r, delta }
+  })
+})
 const REASON_COLOR = { '粗心': '#e5535f', '知识点不懂': '#5b7cfa', '时间不够': '#d99a3d' }
 const reasonTip = computed(() => {
   const list = reasonData.value && reasonData.value.list ? reasonData.value.list : []
@@ -270,6 +306,18 @@ onBeforeUnmount(() => {
 const catAccuracy = ref([])
 const examHistory = ref([])
 const radarCenter = { x: 90, y: 84 }
+// B1 强弱章节：catAccuracy 升序 → 最弱在前、最强在后
+const bestWeak = computed(() => {
+  const l = catAccuracy.value
+  if (l.length < 2 || l[l.length - 1].rate <= l[0].rate) return null
+  return { best: l[l.length - 1], weak: l[0] }
+})
+// A2 雷达中心平均正确率（catAccuracy 平均）
+const avgRate = computed(() => {
+  const l = catAccuracy.value
+  if (!l.length) return 0
+  return Math.round(l.reduce((a, c) => a + c.rate, 0) / l.length)
+})
 const radarCats = computed(() => catAccuracy.value.slice(0, 6)) // 正确率最低 6 章
 const radarPoints = computed(() => {
   const n = Math.max(3, radarCats.value.length)
@@ -305,6 +353,14 @@ const histPath = computed(() => {
 })
 const histX = (i) => examHistory.value.length === 1 ? 150 : 10 + (i * 280) / (examHistory.value.length - 1)
 const histY = (e) => 62 - (e.pct / 100) * 50
+// A3 曲线近 5 次均值参考线（虚线 + 标签）
+const avgRecent = computed(() => {
+  const h = examHistory.value
+  if (h.length < 2) return null
+  const recent = h.slice(-5)
+  return Math.round(recent.reduce((a, e) => a + e.pct, 0) / recent.length)
+})
+const avgLineY = computed(() => avgRecent.value === null ? 0 : 62 - (avgRecent.value / 100) * 50)
 // ⑦ 曲线面积：histPath 闭合到基线 → 渐变填充（升级面积趋势图）
 const areaPath = computed(() => {
   const p = histPath.value
@@ -386,7 +442,9 @@ async function loadAnalysis() {
             <div class="hs-item"><b>{{ heatStats.today ?? '—' }}</b><span>今日</span></div>
             <div class="hs-item"><b>{{ heatStats.week ?? '—' }}</b><span>本周</span></div>
             <div class="hs-item"><b>{{ heatStats.total }}</b><span>{{ heatYear === nowY() ? '近一年' : '全年' }}</span></div>
-            <div class="hs-item"><b class="hot">{{ heatStats.streak }}</b><span>连续</span></div>
+            <div class="hs-item"><b class="hot">{{ heatStats.streak }}</b><span>连续</span>
+            <div class="hs-item"><b>{{ heatStats.peak ? heatStats.peak.count : '—' }}</b><span :title="heatStats.peak ? heatStats.peak.date : ''">峰值{{ heatStats.peak ? ' · ' + heatStats.peak.date.slice(5) : '' }}</span></div>
+            <div class="hs-item"><b>{{ heatStats.bestDay ? heatStats.bestDay.n : '—' }}</b><span>最勤{{ heatStats.bestDay ? heatStats.bestDay.name : '' }}</span></div></div>
           </div>
           <div class="heat-main">
             <div class="heat-months">
@@ -418,6 +476,8 @@ async function loadAnalysis() {
           <polygon :points="gridHex(56)" fill="none" stroke="var(--line)" stroke-width="1"/>
           <polygon :points="gridHex(28)" fill="none" stroke="var(--line)" stroke-width="1"/>
           <polygon :points="radarPoly" fill="rgba(91,124,250,0.25)" stroke="var(--brand)" stroke-width="2" pathLength="1" class="radar-poly"/>
+          <text x="90" y="80" text-anchor="middle" class="radar-avg">{{ avgRate }}%</text>
+          <text x="90" y="94" text-anchor="middle" class="radar-avg-sub">平均正确率</text>
           <circle v-for="(p, i) in radarPoints" :key="p.cat" :cx="p.x" :cy="p.y" r="3" fill="var(--brand)" class="radar-dot" :style="{ animationDelay: (0.55 + i * 0.06) + 's' }">
             <title>{{ p.cat }} · 正确率 {{ p.rate }}%</title>
           </circle>
@@ -436,12 +496,34 @@ async function loadAnalysis() {
           </defs>
           <path :d="areaPath" fill="url(#histArea)" class="hist-area"/>
           <line x1="10" y1="62" x2="290" y2="62" stroke="var(--line)" stroke-width="1"/>
+          <line v-if="avgRecent !== null" x1="10" :y1="avgLineY" x2="290" :y2="avgLineY" class="hist-avg-line"/>
+          <text v-if="avgRecent !== null" x="288" :y="avgLineY - 4" text-anchor="end" class="hist-avg-label">近5均 {{ avgRecent }}%</text>
           <path :d="histPath" class="hist-path" pathLength="1" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round"/>
           <circle v-for="(e, i) in examHistory" :key="i" :cx="histX(i)" :cy="histY(e)" r="2.5" fill="var(--brand)" :class="{ latest: i === examHistory.length - 1 }">
             <title>{{ e.date }} · {{ e.label }} · {{ e.pct }}%</title>
           </circle>
         </svg>
         <div v-if="!examHistory.length" class="empty-sm">完成练习 / 模考后，这里会记录你的正确率曲线</div>
+      </div>
+
+      <!-- B1 强弱章节对比 -->
+      <div v-if="bestWeak" class="card bw-card" v-tilt="{ deg: 3 }">
+        <div class="card-title">强弱章节对比 <span class="card-sub">（正确率最高 vs 最低）</span></div>
+        <div class="bw-row">
+          <div class="bw-item strong">
+            <div class="bw-label">最强</div>
+            <div class="bw-name" :title="bestWeak.best.cat">{{ bestWeak.best.cat }}</div>
+            <div class="bw-rate"><CountUp :value="bestWeak.best.rate" /><small>%</small></div>
+            <div class="bw-desc">保持当前复习节奏</div>
+          </div>
+          <div class="bw-vs">VS</div>
+          <div class="bw-item weak">
+            <div class="bw-label">最弱</div>
+            <div class="bw-name" :title="bestWeak.weak.cat">{{ bestWeak.weak.cat }}</div>
+            <div class="bw-rate"><CountUp :value="bestWeak.weak.rate" /><small>%</small></div>
+            <div class="bw-desc">错题转卡 · 优先攻克</div>
+          </div>
+        </div>
       </div>
 
       <!-- 错因分析：本周/全部错因分布 + 归因建议（数据来自结果页/错题本标记） -->
@@ -456,15 +538,17 @@ async function loadAnalysis() {
 
         <div v-if="reasonData && reasonData.total > 0" class="rc-body">
           <div class="rc-stack">
-            <div v-for="(r, i) in reasonData.list" :key="r.reason" class="rc-seg"
+            <div v-for="(r, i) in reasonList" :key="r.reason" class="rc-seg"
               :style="{ width: r.pct + '%', background: (REASON_COLOR[r.reason] || '#888780'), animationDelay: (i * 0.1) + 's' }"
               :title="`${r.reason} ${r.pct}%`"></div>
           </div>
           <div class="rc-rows">
-            <div v-for="r in reasonData.list" :key="'r' + r.reason" class="rc-row">
+            <div v-for="r in reasonList" :key="'r' + r.reason" class="rc-row">
               <div class="rc-row-top">
                 <span class="rc-name" :style="{ color: REASON_COLOR[r.reason] || 'var(--text)' }">{{ r.reason }} <span class="rc-count">· {{ r.count }} 次</span></span>
-                <span class="rc-pct" :style="{ color: REASON_COLOR[r.reason] || 'var(--text)' }">{{ r.pct }}%</span>
+                <span class="rc-pct" :style="{ color: REASON_COLOR[r.reason] || 'var(--text)' }">{{ r.pct }}%
+                  <span v-if="r.delta !== null" class="rc-delta" :class="r.delta > 0 ? 'up' : (r.delta < 0 ? 'down' : 'flat')" :title="`较上周 ${r.delta > 0 ? '+' : ''}${r.delta}%`">{{ r.delta > 0 ? '▲' : (r.delta < 0 ? '▼' : '—') }}</span>
+                </span>
               </div>
               <div class="rc-track">
                 <div class="rc-fill" :style="{ width: r.pct + '%', background: REASON_COLOR[r.reason] || '#888780' }"></div>
@@ -816,5 +900,49 @@ async function loadAnalysis() {
 .report-btn { transition: all .18s ease; }
 .report-btn:hover { box-shadow: 0 4px 18px rgba(91, 124, 250, 0.45), 0 0 0 1px rgba(91, 124, 250, 0.5); transform: translateY(-1px); }
 .report-btn:active { transform: translateY(0) scale(.97); }
+
+
+/* ===== 统计页洞察批二 A1/A2/A3/B1（2026-08-13）===== */
+/* A2 雷达中心均值：渐变 + 弹入（KPI 同语言） */
+.radar-avg {
+  font-size: 17px; font-weight: 700;
+  fill: url(#none); fill: var(--brand);
+  animation: numPop .5s cubic-bezier(.2, .7, .3, 1) .55s both;
+}
+.radar-avg-sub { font-size: 8.5px; fill: var(--muted); animation: numPop .5s cubic-bezier(.2, .7, .3, 1) .65s both; }
+
+/* A3 曲线均值参考线：橙色虚线 + 标签（描边后淡入） */
+.hist-avg-line { stroke: var(--warn); stroke-width: 1; stroke-dasharray: 4 3; opacity: 0; animation: areaFade .6s ease 1.3s forwards; }
+.hist-avg-label { font-size: 9px; fill: var(--warn); opacity: 0; animation: areaFade .6s ease 1.3s forwards; }
+
+/* B1 强弱章节对比卡 */
+.bw-row { display: flex; align-items: stretch; gap: 10px; }
+.bw-item {
+  flex: 1; min-width: 0; border-radius: 10px; padding: 12px 14px;
+  border: 1px solid var(--line); text-align: center;
+}
+.bw-item.strong { background: rgba(47, 191, 143, 0.08); border-color: rgba(47, 191, 143, 0.4); }
+.bw-item.weak { background: rgba(229, 83, 95, 0.07); border-color: rgba(229, 83, 95, 0.4); }
+.bw-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.bw-item.strong .bw-label { color: #4fd1a5; }
+.bw-item.weak .bw-label { color: #f08a92; }
+.bw-name { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bw-rate { font-size: 24px; font-weight: 700; margin: 4px 0 2px; }
+.bw-item.strong .bw-rate { color: var(--ok); }
+.bw-item.weak .bw-rate { color: var(--bad); }
+.bw-rate small { font-size: 13px; color: var(--muted); }
+.bw-desc { font-size: 11px; color: var(--muted); }
+.bw-vs { align-self: center; font-size: 11px; font-weight: 700; color: var(--muted); opacity: .7; flex-shrink: 0; }
+
+
+/* A4 错因趋势箭头：恶化红▲ / 改善绿▼ / 持平灰—（弹跳出现） */
+.rc-delta {
+  font-size: 10px; margin-left: 4px;
+  animation: deltaPop .3s cubic-bezier(.2, .7, .3, 1) both;
+}
+@keyframes deltaPop { from { opacity: 0; transform: scale(.4) } 70% { transform: scale(1.25) } to { opacity: 1; transform: scale(1) } }
+.rc-delta.up { color: var(--bad); }
+.rc-delta.down { color: var(--ok); }
+.rc-delta.flat { color: var(--muted); }
 
 </style>
