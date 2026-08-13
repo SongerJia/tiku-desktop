@@ -482,9 +482,9 @@ onMounted(async () => {
       </div>
 
 
-      <!-- 勋章墙（成就展柜）：每系列 1 枚代表勋章，未解锁灰影+系列名 -->
+      <!-- 勋章墙（成就展柜）：每系列 1 枚代表勋章坐落在发光底座上 -->
       <div class="medal-grid">
-        <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal-cell">
+        <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal-cell" :class="sm.medal.got ? (sm.medal.rarity || 'bronze') : ''">
           <div class="medal big-medal" :class="medalCls(sm.medal)" :style="{ animationDelay: (i * 0.05) + 's' }"
                @mouseenter="showTip($event, { title: sm.series.name, sub: sm.medal.got ? (sm.got + '/' + sm.total + ' · ' + sm.medal.name) : '未点亮', desc: sm.medal.desc, got: sm.medal.got })"
                @mouseleave="hideTip">
@@ -492,6 +492,7 @@ onMounted(async () => {
             <MedalIcon :series="sm.medal.series" :got="sm.medal.got" :size="30" class="medal-icon" />
             <span v-if="sm.medal.got && isNewAch(sm.medal)" class="medal-new">NEW</span>
           </div>
+          <div class="medal-base"></div>
           <span v-if="!sm.medal.got" class="medal-sname">{{ sm.series.name }}</span>
         </div>
       </div>
@@ -1196,7 +1197,21 @@ onMounted(async () => {
   justify-items: center;
   padding: 10px 4px 6px;
 }
-.medal-cell { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.medal-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+/* cell 级稀有度色：供底座发光（勋章自身 --rr 仍在 medal 上） */
+.medal-cell.bronze   { --rr: 184, 115, 51; }
+.medal-cell.silver   { --rr: 159, 178, 192; }
+.medal-cell.gold     { --rr: 217, 165, 20; }
+.medal-cell.platinum { --rr: 125, 211, 252; }
+/* 展柜底座：椭圆发光台座，已解锁带稀有度辉光、未解锁灰底，hover 增强 */
+.medal-base {
+  width: 58px; height: 12px; border-radius: 50%;
+  background: rgba(var(--rr, 148, 163, 184), 0.28);
+  filter: blur(4px);
+  transition: background .18s ease;
+  pointer-events: none;
+}
+.medal-cell:hover .medal-base { background: rgba(var(--rr, 148, 163, 184), 0.48); }
 .medal-sname { font-size: 10.5px; color: var(--muted); opacity: .75; letter-spacing: .3px; }
 .medal {
   position: relative;
@@ -1217,7 +1232,7 @@ onMounted(async () => {
     radial-gradient(circle at 35% 30%, rgba(var(--rr), 0.32), rgba(var(--rr), 0.10) 68%);
   border: 2px solid rgba(var(--rr), 0.55);
   border-radius: 50%;
-  box-shadow: 0 0 12px rgba(var(--rr), 0.28), 0 6px 16px rgba(0, 0, 0, 0.35), inset 0 1px 4px rgba(255, 255, 255, 0.10);
+  box-shadow: 0 0 12px rgba(var(--rr), 0.28), inset 0 1px 4px rgba(255, 255, 255, 0.10);
 }
 .medal.got.bronze   { --rr: 184, 115, 51; }
 .medal.got.silver   { --rr: 159, 178, 192; }
