@@ -497,32 +497,58 @@ onMounted(async () => {
 
     <div class="card goal-card">
       <div class="card-title">学习目标 <span class="goal-scope">设置后每日任务自动生成，达标 +20 XP</span></div>
-      <div class="goal-row">
-        <span class="goal-label">科目</span>
+      <!-- 科目范围：跟随科目选择器 -->
+      <div class="goal-scope-row">
+        <span class="goal-scope-icon"><Icon name="grid" :size="14" /></span>
+        <span class="goal-scope-label">目标科目</span>
         <select class="goal-select" :value="goalSubjectId ?? ''" @change="goalSubjectId = $event.target.value || null; loadGoals()">
           <option value="">全部科目（全局）</option>
           <option v-for="s in goalSubjects" :key="s.id" :value="s.id">{{ s.name }}</option>
         </select>
+        <span class="goal-scope-tip">按科目独立设目标</span>
       </div>
+      <!-- 每日刷题 -->
       <div class="goal-row">
-        <span class="goal-label">每日刷题</span>
-        <input class="pref-input" type="number" min="0" :value="dailyGoal" @change="setDailyGoal($event.target.value)" placeholder="0=不设置" />
-        <span class="pref-unit">题/天 · 展示在首页 KPI</span>
+        <span class="goal-ico" style="--gc: #5b7cfa; --gc-a: 91, 124, 250"><Icon name="target" :size="15" /></span>
+        <div class="goal-main">
+          <span class="goal-name">每日刷题</span>
+          <span class="goal-desc">首页 KPI · 今日刷题数</span>
+        </div>
+        <input class="goal-input" type="number" min="0" :value="dailyGoal" @change="setDailyGoal($event.target.value)" placeholder="0" />
+        <span class="goal-unit">题/天</span>
+        <span v-if="dailyGoal > 0" class="goal-on">已设</span>
       </div>
+      <!-- 每日复习 -->
       <div class="goal-row">
-        <span class="goal-label">每日复习</span>
-        <input class="pref-input" type="number" min="0" :value="reviewGoal" @change="setReviewGoal($event.target.value)" placeholder="0=不设置" />
-        <span class="pref-unit">条/天</span>
+        <span class="goal-ico" style="--gc: #4fd1a5; --gc-a: 79, 209, 165"><Icon name="refresh" :size="15" /></span>
+        <div class="goal-main">
+          <span class="goal-name">每日复习</span>
+          <span class="goal-desc">记忆卡复习次数</span>
+        </div>
+        <input class="goal-input" type="number" min="0" :value="reviewGoal" @change="setReviewGoal($event.target.value)" placeholder="0" />
+        <span class="goal-unit">条/天</span>
+        <span v-if="reviewGoal > 0" class="goal-on">已设</span>
       </div>
+      <!-- 每日阅读 -->
       <div class="goal-row">
-        <span class="goal-label">每日阅读</span>
-        <input class="pref-input" type="number" min="0" :value="readGoal" @change="setReadGoal($event.target.value)" placeholder="0=不设置" />
-        <span class="pref-unit">篇/天</span>
+        <span class="goal-ico" style="--gc: #fbbf24; --gc-a: 251, 191, 36"><Icon name="doc" :size="15" /></span>
+        <div class="goal-main">
+          <span class="goal-name">每日阅读</span>
+          <span class="goal-desc">知识库文档阅读</span>
+        </div>
+        <input class="goal-input" type="number" min="0" :value="readGoal" @change="setReadGoal($event.target.value)" placeholder="0" />
+        <span class="goal-unit">篇/天</span>
+        <span v-if="readGoal > 0" class="goal-on">已设</span>
       </div>
+      <!-- 目标考试日 -->
       <div class="goal-row">
-        <span class="goal-label">目标考试日</span>
-        <input class="pref-input goal-date" type="date" :value="examDate" @change="setExamDate($event.target.value)" />
-        <span class="pref-unit">首页倒计时</span>
+        <span class="goal-ico" style="--gc: #fb7185; --gc-a: 251, 113, 133"><Icon name="calendar" :size="15" /></span>
+        <div class="goal-main">
+          <span class="goal-name">目标考试日</span>
+          <span class="goal-desc">首页倒计时</span>
+        </div>
+        <input class="goal-input goal-date" type="date" :value="examDate" @change="setExamDate($event.target.value)" />
+        <span v-if="examDate" class="goal-on">已设</span>
       </div>
       <div class="goal-tip">未设置的目标不在「每日任务」显示；设 0 即取消该目标</div>
     </div>
@@ -960,14 +986,60 @@ onMounted(async () => {
 .pref-sub { flex: 1; color: var(--muted); font-size: 11px; }
 .goal-date { flex: 1; width: auto; min-width: 0; }
 
-/* 学习目标 */
+/* 学习目标（卡片式：图标 + 名称 + 输入 + 状态徽标） */
 .goal-card { border-color: rgba(91, 124, 250, 0.4); }
 .goal-scope { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
-.goal-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid rgba(148, 163, 184, 0.12); }
+/* 科目范围行 */
+.goal-scope-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; margin-bottom: 4px;
+  background: rgba(91, 124, 250, 0.06);
+  border: 1px solid rgba(91, 124, 250, 0.16);
+  border-radius: 10px;
+}
+.goal-scope-icon { display: inline-flex; color: var(--brand); }
+.goal-scope-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.goal-scope-tip { margin-left: auto; font-size: 11px; color: var(--muted); }
+.goal-select { background: var(--input-solid-bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 5px 10px; font-size: 13px; outline: none; font-family: inherit; }
+/* 目标行 */
+.goal-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 4px;
+  border-bottom: 0.5px solid rgba(148, 163, 184, 0.12);
+  transition: background .15s;
+}
 .goal-row:last-of-type { border-bottom: none; }
-.goal-label { width: 64px; font-size: 13px; color: var(--text); flex-shrink: 0; }
-.goal-select { flex: 0 0 auto; background: var(--input-solid-bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 6px 10px; font-size: 13px; outline: none; font-family: inherit; }
-.goal-tip { font-size: 11px; color: var(--muted); margin-top: 8px; }
+.goal-row:hover { background: rgba(255, 255, 255, 0.02); border-radius: 8px; }
+/* 图标胶囊：每项目标一个主题色（--gc 实色 + --gc-a 透明版） */
+.goal-ico {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(var(--gc-a), 0.13);
+  color: var(--gc);
+  box-shadow: inset 0 0 0 1px rgba(var(--gc-a), 0.26);
+}
+.goal-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.goal-name { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.goal-desc { font-size: 11px; color: var(--muted); }
+/* 数值输入：紧凑右对齐 */
+.goal-input {
+  margin-left: auto;
+  width: 72px;
+  background: var(--input-solid-bg); border: 1px solid var(--line);
+  border-radius: 8px; color: var(--text); padding: 6px 8px;
+  font-size: 13px; outline: none; font-family: inherit; text-align: center;
+  transition: border-color .15s;
+}
+.goal-input:focus { border-color: var(--brand); }
+.goal-unit { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+/* 已设徽标 */
+.goal-on {
+  font-size: 10px; font-weight: 700; color: #0e1512;
+  background: var(--ok); border-radius: 999px; padding: 2px 8px;
+  flex-shrink: 0; letter-spacing: .3px;
+}
+.goal-date { width: auto; min-width: 0; }
+.goal-tip { font-size: 11px; color: var(--muted); margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); }
 
 /* 成就墙 */
 /* 成就中心（游戏化）：概览条 + 系列分组 + 三态卡 */
