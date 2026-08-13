@@ -17,9 +17,9 @@ export const ACH_SERIES = [
 
 export const ACH_RARITY = {
   bronze:   { label: '铜',   color: '#b87333', points: 10 },
-  silver:   { label: '银',   color: '#8a97a5', points: 25 },
+  silver:   { label: '银',   color: '#9fb2c0', points: 25 },
   gold:     { label: '金',   color: '#d9a514', points: 50 },
-  platinum: { label: '白金', color: '#7b46c4', points: 100 }
+  platinum: { label: '白金', color: '#7dd3fc', points: 100 }
 }
 
 export const ACH_DEFS = [
