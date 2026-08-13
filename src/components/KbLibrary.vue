@@ -152,6 +152,14 @@ function toggleGroup(k) {
   if (i >= 0) collapsedGroups.value.splice(i, 1)
   else collapsedGroups.value.push(k)
 }
+// 组内「更多」：超过 8 张显示前 8 + 更多(N)▾，点击展开该组全部（与整组折叠共存）
+const GROUP_PAGE = 8
+const groupMoreOpen = ref([])
+function toggleGroupMore(k) {
+  const i = groupMoreOpen.value.indexOf(k)
+  if (i >= 0) groupMoreOpen.value.splice(i, 1)
+  else groupMoreOpen.value.push(k)
+}
 
 function onSearchInput() {
   clearTimeout(debounceTimer)
@@ -367,7 +375,7 @@ function fmtTime(ts) {
         <template v-if="!collapsedGroups.includes(g.folder)">
             <div class="kb-grid">
           <div
-            v-for="d in g.docs"
+            v-for="d in (groupMoreOpen.includes(g.folder) ? g.docs : g.docs.slice(0, GROUP_PAGE))"
             :key="d.id"
             class="card kb-card"
             @click="openReader(d)"
@@ -403,6 +411,12 @@ function fmtTime(ts) {
             </div>
           </div>
         </div>
+        <!-- 组内更多：超过 8 张折叠（与整组折叠共存） -->
+        <button
+          v-if="g.docs.length > GROUP_PAGE"
+          class="kb-more"
+          @click.stop="toggleGroupMore(g.folder)"
+        >{{ groupMoreOpen.includes(g.folder) ? '收起 ▴' : `更多 (${g.docs.length - GROUP_PAGE}) ▾` }}</button>
         </template>
       </div>
     </div>
@@ -676,5 +690,15 @@ function fmtTime(ts) {
 .g-legend-item.muted { color: var(--muted); opacity: .7; }
 .g-node circle { transition: r .12s ease, filter .15s ease; }
 .g-node:hover circle { filter: brightness(1.35) drop-shadow(0 0 4px rgba(91, 124, 250, 0.8)); }
+
+
+/* 组内更多按钮：橙色虚线（与章节筛选「更多」同语言） */
+.kb-more {
+  margin-top: 10px; width: 100%;
+  padding: 6px; border: 1px dashed rgba(255, 184, 77, 0.5);
+  background: rgba(255, 184, 77, 0.06); color: var(--warn, #ffb84d);
+  border-radius: 8px; font-size: 12px; cursor: pointer; transition: border-color .15s;
+}
+.kb-more:hover { border-color: var(--warn, #ffb84d); }
 
 </style>
