@@ -326,12 +326,14 @@ const isNewAch = (a) => {
   const diff = now.getTime() - t
   return diff >= 0 && diff <= 3 * 86400000
 }
-// 用户卡右侧勋章区：已解锁勋章全部松散平铺（按解锁日期倒序，NEW 排前）
+// 用户卡右侧勋章区：每系列 1 枚代表（该系列最高已点亮档位），仅已解锁系列，按系列顺序排列
 const stackMedals = computed(() => {
   if (!metrics.value) return []
-  return achievements.value
-    .filter(a => a.got)
-    .sort((a, b) => String(b.unlockAt || '').localeCompare(String(a.unlockAt || '')))
+  return ACH_SERIES.map(sr => {
+    const list = achievements.value.filter(a => a.series === sr.key && a.got)
+    if (!list.length) return null
+    return list.sort((a, b) => (RARITY_RANK[b.rarity] || 0) - (RARITY_RANK[a.rarity] || 0))[0]
+  }).filter(Boolean)
 })
 // 点击勋章区 → 展开勋章墙分组并平滑滚动到完整勋章墙
 function gotoAch() {
