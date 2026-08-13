@@ -327,58 +327,23 @@ async function showTip(elOrE, payload) {
   medalTipEl.value.style.top = y + 'px'
 }
 function hideTip() { activeTip.value = null }
-// 扇形场景 hover：mousemove 实时计算鼠标到每档勋章中心的距离，最近者高亮 + 显示浮层
-// （重叠勋章用 mouseenter 会互相遮挡，只有最上层能命中——距离法解决；每次 mousemove 都更新，showTip 内部 seq 防抖）
-let fanHotEl = null
-function fanMove(e, sm) {
-  const scene = e.currentTarget
-  const tiers = scene.querySelectorAll('.fan-tier')
-  let best = null, bestD = Infinity
-  tiers.forEach((el) => {
-    const r = el.getBoundingClientRect()
-    const cx = r.left + r.width / 2
-    const cy = r.top + r.height / 2
-    const d = (e.clientX - cx) ** 2 + (e.clientY - cy) ** 2
-    if (d < bestD) { bestD = d; best = el }
-  })
-  if (!best) return
-  if (fanHotEl !== best) tiers.forEach(el => el.classList.remove('fan-hot'))
-  fanHotEl = best
-  best.classList.add('fan-hot')
-  const ti = [...tiers].indexOf(best)
-  const t = sm.tiers[ti]
-  if (t) showTip(best, { title: sm.series.name + ' · ' + (RAR_LABEL[t.rarity] || t.rarity), sub: t.got ? t.names : '未点亮', desc: t.got ? '该档位已解锁成就' : '解锁该档任一成就即可点亮', got: t.got })
-}
-function fanLeave(e) {
-  hideTip()
-  fanHotEl = null
-  e.currentTarget.querySelectorAll('.fan-tier.fan-hot').forEach(el => el.classList.remove('fan-hot'))
-}
-// 扇形奖牌位置：最高档恒居中（弧顶 0°），其余档位按距最高档的层数交替向两侧展开（点亮任意数量时最高档都在中间）
+// 浮层数据：系列名 + 该系列全部已解锁档位（稀有度降序，含成就名/解锁日期）+ 未点亮提示
 const RAR_LABEL = { bronze: '铜', silver: '银', gold: '金', platinum: '白金' }
-function fanStyle(i, n) {
-  const STEP = 22 // 相邻展开角度
-  const R = 46 // 弧半径（勋章中心到弧心）
-  const m = n - 1 // 最高档索引
-  const d = m - i // 距最高档的层数
-  let theta = 0
-  if (d > 0) {
-    const side = d % 2 === 1 ? -1 : 1 // 交替左右：d=1 左、d=2 右、d=3 左…
-    theta = side * Math.ceil(d / 2) * STEP
-  }
-  const bright = 1 - d * 0.09 // 最高档 1.0，越远渐暗
+function achTipPayload(sm) {
+  const unlocked = sm.list.filter(a => a.got).sort((a, b) => (RARITY_RANK[b.rarity] || 0) - (RARITY_RANK[a.rarity] || 0))
+  const lines = unlocked.map(a => `${RAR_LABEL[a.rarity] || a.rarity} · ${a.name}`)
+  const sub = unlocked.length ? `${sm.got}/${sm.total} 解锁 · ` + lines.join(' / ') : '未点亮'
   return {
-    '--fan': `rotate(${theta}deg) translateY(-${R}px)`,
-    '--fan-b': `-${R}px`, // 底部初始下沉 R，translateY(-R) 后弧心正好回到 scene 底部 → 勋章贴底座
-    filter: `brightness(${Math.max(0.6, bright).toFixed(2)})`,
-    zIndex: i + 1
+    title: sm.series.name,
+    sub,
+    desc: unlocked.length ? '悬停看各档详情' : (sm.medal.desc || '解锁该系列任一成就即可点亮'),
+    got: unlocked.length > 0
   }
 }
 // 勋章稀有度 class：已解锁 → 'got <rarity>'（驱动 --rr 配色），未解锁 → ''
 const medalCls = (a) => a.got ? 'got ' + (a.rarity || 'bronze') : ''
 // 每系列一枚代表勋章：已解锁 → 该系列最高稀有度（点亮版）；全未解锁 → 最低档铜（灰影圆）
 const RARITY_RANK = { bronze: 1, silver: 2, gold: 3, platinum: 4 }
-const TIER_ORDER = ['bronze', 'silver', 'gold', 'platinum']
 const seriesMedals = computed(() => {
   if (!metrics.value) return []
   return ACH_SERIES.map(sr => {
@@ -388,17 +353,7 @@ const seriesMedals = computed(() => {
     const medal = best
       ? { ...best }
       : { key: sr.key + '-lock', name: sr.name, icon: sr.icon, series: sr.key, rarity: 'bronze', got: false, desc: '解锁该系列任一成就即可点亮' }
-    // 档位扇形（奖牌扇）：从铜到最高解锁档全档位参与，未解锁档灰影占位（扇面完整不跳档）
-    const maxRank = unlocked.length ? RARITY_RANK[unlocked[0].rarity] : 0
-    const tiers = maxRank ? TIER_ORDER.slice(0, maxRank).map(r => {
-      const inTier = unlocked.filter(a => a.rarity === r)
-      return {
-        rarity: r,
-        got: inTier.length > 0,
-        names: inTier.map(a => a.name).join('、')
-      }
-    }) : []
-    return { key: sr.key, series: sr, total: list.length, got: unlocked.length, medal, tiers }
+    return { key: sr.key, series: sr, total: list.length, got: unlocked.length, medal, list }
   })
 })
 // 勋章底形状（viewBox 100×100）：铜=菱形、银=六边形、金=盾形、白金=八角星（铜原为圆，与外层圆勋章重复故改菱形）
@@ -541,25 +496,17 @@ onMounted(async () => {
       </div>
 
 
-      <!-- 勋章墙（扇形奖牌）：每系列档位勋章沿弧线扇形展开，最高档在弧顶最亮 -->
+      <!-- 勋章墙（大勋章阵列）：每系列 1 枚代表勋章（最高已点亮档位），未解锁灰影；hover 浮层看该系列全部已解锁档位 -->
       <div class="medal-grid">
         <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal-cell" :class="sm.medal.got ? (sm.medal.rarity || 'bronze') : ''">
-          <template v-if="sm.tiers.length">
-            <div class="fan-scene" @mousemove="fanMove($event, sm)" @mouseenter="fanMove($event, sm)" @mouseleave="fanLeave">
-              <div v-for="(t, ti) in sm.tiers" :key="t.rarity" class="fan-tier" :class="t.got ? ('got ' + t.rarity) : 'off'" :style="fanStyle(ti, sm.tiers.length)">
-                <svg class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(t.rarity)" /></svg>
-                <MedalIcon :series="sm.medal.series" :got="t.got" :size="24" class="medal-icon" />
-                <span v-if="t.got && ti === sm.tiers.length - 1 && isNewAch(sm.medal)" class="medal-new">NEW</span>
-              </div>
-            </div>
-          </template>
-          <template v-else>
-            <div class="medal big-medal" :class="medalCls(sm.medal)" :style="{ animationDelay: (i * 0.05) + 's' }"
-                 @mouseenter="showTip($event, { title: sm.series.name, sub: '未点亮', desc: sm.medal.desc, got: false })"
-                 @mouseleave="hideTip">
-              <MedalIcon :series="sm.medal.series" :got="false" :size="30" class="medal-icon" />
-            </div>
-          </template>
+          <div class="medal big-medal" :class="medalCls(sm.medal)" :style="{ animationDelay: (i * 0.05) + 's' }"
+               @mouseenter="showTip($event, achTipPayload(sm))"
+               @mouseleave="hideTip">
+            <svg v-if="sm.medal.got" class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(sm.medal.rarity)" /></svg>
+            <MedalIcon :series="sm.medal.series" :got="sm.medal.got" :size="30" class="medal-icon" />
+            <span v-if="sm.medal.got && isNewAch(sm.medal)" class="medal-new">NEW</span>
+            <div v-if="sm.medal.got" class="medal-orb"></div>
+          </div>
           <div class="medal-base"></div>
           <span class="medal-sname">{{ sm.series.name }}</span>
         </div>
@@ -1271,58 +1218,34 @@ onMounted(async () => {
 .medal-cell.silver   { --rr: 159, 178, 192; }
 .medal-cell.gold     { --rr: 217, 165, 20; }
 .medal-cell.platinum { --rr: 125, 211, 252; }
-/* 扇形奖牌：每档勋章绕弧心（transform-origin 底中）旋转展开，最高档恒居弧顶正中 */
-/* 弧心=scene 底部中心：bottom: -R + translateY(-R) 抵消，勋章底部紧贴底座；scene 高=勋章直径 56px */
-.fan-scene {
-  position: relative;
-  width: 136px; height: 58px;
-  margin: 0 auto 0;
-}
-.fan-tier {
-  position: absolute; left: 50%; bottom: var(--fan-b, 0);
-  width: 56px; height: 56px; margin-left: -28px;
-  border-radius: 50%;
-  transform-origin: 50% 100%;
-  display: flex; align-items: center; justify-content: center;
-  --rr: 148, 163, 184;
-  background: radial-gradient(circle at 32% 26%, rgba(var(--rr), 0.5), rgba(var(--rr), 0.14) 70%);
-  border: 2px solid rgba(var(--rr), 0.6);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45), 0 0 14px rgba(var(--rr), 0.3);
-  cursor: pointer; /* 事件统一由 scene 接收（fan-tier pointer-events none 穿透），距离法 100% 触发 */
-  transform: var(--fan);
-  transition: transform .18s ease, box-shadow .18s ease;
-}
-.fan-tier { pointer-events: none; }
-/* 距离最近的高亮档：上浮 + 光晕 + 提层（fanMove 动态加） */
-.fan-tier.fan-hot { transform: var(--fan) translateY(-5px) scale(1.06); z-index: 20 !important; box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55), 0 0 18px rgba(var(--rr), 0.5); }
-.fan-tier.got.bronze   { --rr: 184, 115, 51; }
-.fan-tier.got.silver   { --rr: 159, 178, 192; }
-.fan-tier.got.gold     { --rr: 217, 165, 20; }
-.fan-tier.got.platinum { --rr: 125, 211, 252; outline: 1px solid rgba(125, 211, 252, 0.35); outline-offset: 2px; }
-/* 未解锁档位：灰影占位层（塔完整不跳档） */
-.fan-tier.off {
-  --rr: 148, 163, 184;
-  background: rgba(148, 163, 184, 0.07);
-  border: 1.5px dashed rgba(148, 163, 184, 0.4);
-  box-shadow: none;
-}
-.fan-tier.off .medal-bg path {
-  fill: rgba(148, 163, 184, 0.08);
-  stroke: rgba(148, 163, 184, 0.45);
-}
-.fan-tier .medal-bg { inset: 15%; }
-.fan-tier .medal-icon { color: rgba(var(--rr), 0.95); opacity: 1; filter: none; }
-/* 展柜底座：椭圆发光台座（扇形奖牌下方），已解锁带稀有度辉光、未解锁灰底，hover 增强 */
+/* 展柜底座：椭圆发光台座（大勋章下方），已解锁带稀有度辉光 + 光波扩散 + 悬浮投影，未解锁灰底，hover 增强 */
 .medal-base {
-  width: 100%; max-width: 96px;
-  height: 12px; border-radius: 50%;
-  background: rgba(var(--rr, 148, 163, 184), 0.28);
-  filter: blur(4px);
+  position: relative;
+  width: 100%; max-width: 92px;
+  height: 14px; border-radius: 50%;
+  background: rgba(var(--rr, 148, 163, 184), 0.30);
+  filter: blur(5px);
   transition: background .18s ease;
   pointer-events: none;
-  margin-top: -6px; /* 上移贴近扇形勋章底部 */
+  margin-top: -4px;
 }
-.medal-cell:hover .medal-base { background: rgba(var(--rr, 148, 163, 184), 0.48); }
+/* 底座光波：内圈亮环脉冲扩散（稀有度色跟随） */
+.medal-base::after {
+  content: ''; position: absolute; left: 50%; top: 50%;
+  width: 60%; height: 60%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid rgba(var(--rr, 148, 163, 184), 0.5);
+  opacity: 0;
+  animation: basePulse 3.2s ease-out infinite;
+}
+.medal-cell:hover .medal-base { background: rgba(var(--rr, 148, 163, 184), 0.55); }
+.medal-cell:hover .medal-base::after { border-color: rgba(var(--rr, 148, 163, 184), 0.8); }
+@keyframes basePulse {
+  0% { opacity: .7; transform: translate(-50%, -50%) scale(.6); }
+  70% { opacity: 0; transform: translate(-50%, -50%) scale(1.6); }
+  100% { opacity: 0; }
+}
 .medal-sname { font-size: 10.5px; color: var(--muted); opacity: .75; letter-spacing: .3px; }
 .medal {
   position: relative;
@@ -1412,6 +1335,30 @@ onMounted(async () => {
 .big-medal { width: 64px; height: 64px; }
 .big-medal .medal-bg { inset: 16%; }
 .big-medal:hover { transform: translateY(-4px) scale(1.08); }
+/* 能量光球：勋章上方稀有度色光球悬浮旋转（光环 + 中心光点），hover 增强 */
+.medal-orb {
+  position: absolute; top: -14px; left: 50%;
+  transform: translateX(-50%);
+  width: 20px; height: 20px; border-radius: 50%;
+  z-index: 6; pointer-events: none;
+  background: radial-gradient(circle at 38% 32%, rgba(var(--rr, 148, 163, 184), 0.9), rgba(var(--rr, 148, 163, 184), 0.15) 68%);
+  box-shadow: 0 0 12px rgba(var(--rr, 148, 163, 184), 0.6);
+  animation: orbFloat 2.8s ease-in-out infinite;
+}
+.medal-orb::after {
+  content: ''; position: absolute; inset: -6px;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--rr, 148, 163, 184), 0.5);
+  animation: orbRing 2.8s linear infinite;
+}
+@keyframes orbFloat {
+  0%, 100% { margin-top: 0; }
+  50% { margin-top: -5px; }
+}
+@keyframes orbRing {
+  from { transform: rotate(0deg) scale(1); opacity: .8; }
+  to { transform: rotate(360deg) scale(1.25); opacity: 0; }
+}
 @keyframes medalWiggle {
   0%, 100% { transform: translateY(-3px) scale(1.12) rotate(0); }
   30% { transform: translateY(-3px) scale(1.12) rotate(-8deg); }
