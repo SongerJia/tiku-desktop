@@ -150,7 +150,7 @@ const heatStats = computed(() => {
     if (!bestDay || n > bestDay.n) bestDay = { w: Number(w), n }
   }
   if (bestDay) bestDay.name = WEEKS[bestDay.w]
-  return { today, week, total: heatGrid.value.total, streak: summary.value.streak || 0, peak, bestDay }
+  return { today, week, total: heatGrid.value.total, streak: summary.value.streak || 0, activeDays: summary.value.activeDays || 0, peak, bestDay }
 })
 
 // 热力图自适应格子尺寸：顶满卡片宽度不留空白（clamp 8~20）
@@ -442,9 +442,10 @@ async function loadAnalysis() {
             <div class="hs-item"><b>{{ heatStats.today ?? '—' }}</b><span>今日</span></div>
             <div class="hs-item"><b>{{ heatStats.week ?? '—' }}</b><span>本周</span></div>
             <div class="hs-item"><b>{{ heatStats.total }}</b><span>{{ heatYear === nowY() ? '近一年' : '全年' }}</span></div>
-            <div class="hs-item"><b class="hot">{{ heatStats.streak }}</b><span>连续</span>
+            <div class="hs-item"><b>{{ heatStats.activeDays }}</b><span>累计</span></div>
+            <div class="hs-item"><b class="hot">{{ heatStats.streak }}</b><span>连续</span></div>
             <div class="hs-item"><b>{{ heatStats.peak ? heatStats.peak.count : '—' }}</b><span :title="heatStats.peak ? heatStats.peak.date : ''">峰值{{ heatStats.peak ? ' · ' + heatStats.peak.date.slice(5) : '' }}</span></div>
-            <div class="hs-item"><b>{{ heatStats.bestDay ? heatStats.bestDay.n : '—' }}</b><span>最勤{{ heatStats.bestDay ? heatStats.bestDay.name : '' }}</span></div></div>
+            <div class="hs-item"><b>{{ heatStats.bestDay ? heatStats.bestDay.n : '—' }}</b><span>最勤{{ heatStats.bestDay ? heatStats.bestDay.name : '' }}</span></div>
           </div>
           <div class="heat-main">
             <div class="heat-months">
@@ -579,23 +580,6 @@ async function loadAnalysis() {
         </div>
       </div>
 
-      <!-- 学习习惯（连续/累计） -->
-      <div class="card habit-card" v-tilt="{ deg: 3 }">
-        <div class="card-title">学习习惯</div>
-        <div class="habit-row">
-          <div class="habit-item">
-            <div class="habit-label">连续学习</div>
-            <div class="habit-value">{{ summary.streak }}<span class="unit">天</span></div>
-            <div class="habit-desc">坚持每天学习，养成好习惯</div>
-          </div>
-          <div class="habit-item">
-            <div class="habit-label">累计学习</div>
-            <div class="habit-value">{{ summary.activeDays }}<span class="unit">天</span></div>
-            <div class="habit-desc">走过的每一步都算数</div>
-          </div>
-        </div>
-      </div>
-
     </template>
   </div>
 </template>
@@ -680,12 +664,6 @@ async function loadAnalysis() {
 .empty { font-size: 12px; color: var(--muted); padding: 10px 0; }
 
 /* 学习习惯 */
-.habit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.habit-item { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 4px; }
-.habit-label { font-size: 12px; color: var(--muted); }
-.habit-value { font-size: 22px; font-weight: 700; color: var(--text); }
-.habit-value .unit { font-size: 12px; color: var(--muted); font-weight: 400; }
-.habit-desc { font-size: 11px; color: var(--muted); }
 
 /* 每日任务 */
 .quest-xp { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
@@ -812,7 +790,7 @@ async function loadAnalysis() {
 
 /* ===== 统计页打磨（2026-08-13）：A2 4 卡流光 / A4 最新点发光 ===== */
 /* A2 雷达/错因/习惯/任务 卡补流光描边（与热力图卡同款，全站语言统一） */
-.analysis-card::after, .reason-card::after, .habit-card::after, .quest-card::after {
+.analysis-card::after, .reason-card::after, .quest-card::after {
   content: ''; position: absolute; inset: -1px; border-radius: inherit;
   padding: 1px;
   background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.55) 80deg, transparent 170deg);
@@ -820,11 +798,11 @@ async function loadAnalysis() {
   -webkit-mask-composite: xor; mask-composite: exclude;
   opacity: 0; transition: opacity .2s ease; pointer-events: none; z-index: 1;
 }
-.analysis-card:hover::after, .reason-card:hover::after, .habit-card:hover::after, .quest-card:hover::after {
+.analysis-card:hover::after, .reason-card:hover::after, .quest-card:hover::after {
   opacity: 1; animation: angSpin 2.2s linear infinite;
 }
 /* 卡片容器需 relative（流光 absolute 定位） */
-.analysis-card, .reason-card, .habit-card, .quest-card { position: relative; }
+.analysis-card, .reason-card, .quest-card { position: relative; }
 
 /* A4 曲线最新点：放大 + 品牌光晕（一眼看到现在的水平） */
 .hist circle.latest {
@@ -858,14 +836,6 @@ async function loadAnalysis() {
 .rc-row:hover .rc-fill { filter: brightness(1.3); }
 
 /* C2 学习习惯数字：渐变 + 弹入（KPI 同语言） */
-.habit-value {
-  background: linear-gradient(180deg, #f4f7ff, #a9b6da);
-  -webkit-background-clip: text; background-clip: text;
-  -webkit-text-fill-color: transparent; color: transparent;
-  animation: numPop .45s cubic-bezier(.2, .7, .3, 1) both;
-}
-[data-theme="light"] .habit-value { background: linear-gradient(180deg, #1f2937, #64748b); -webkit-background-clip: text; background-clip: text; }
-.habit-value .unit { -webkit-text-fill-color: var(--muted); }
 
 
 /* ===== 统计页特效批一（2026-08-13）：扫描点亮/雷达展开/点反馈/面积/周报按钮 ===== */
