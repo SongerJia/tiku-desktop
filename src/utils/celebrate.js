@@ -13,8 +13,8 @@ export async function celebrate() {
       try { await tiku.logXp(fresh.length * 20, 'achievement', '成就解锁奖励') } catch (e) {}
     }
     // 赛季系统已移除（2026-08-12）：不再弹「赛季挑战达成」toast（此前 UI 已删，弹了无入口可看）
-    fresh.slice(0, 3).forEach(a => showToast(`${a.icon} 解锁成就「${a.name}」！${a.desc} +20 XP`, 'ok'))
+    fresh.slice(0, 3).forEach(a => showToast(`解锁成就「${a.name}」！${a.desc} +20 XP`, 'ok'))
     const lv = notifyLevelUp(xp)
-    if (lv) showToast(`🎉 升级！达到 Lv.${lv}`, 'ok')
+    if (lv) showToast(`升级！达到 Lv.${lv}`, 'ok')
   } catch (e) { /* 庆祝失败不影响主流程 */ }
 }

@@ -307,6 +307,14 @@ const achSeries = computed(() => ACH_SERIES.map(sr => {
 }).filter(s => s.list.length))
 // 勋章稀有度 class：已解锁 → 'got <rarity>'（驱动 --rr 配色），未解锁 → ''
 const medalCls = (a) => a.got ? 'got ' + (a.rarity || 'bronze') : ''
+// 勋章底形状（viewBox 100×100）：铜=圆、银=六边形、金=盾形、白金=八角星
+const BADGE_SHAPES = {
+  bronze: 'M3 50 A47 47 0 1 0 97 50 A47 47 0 1 0 3 50 Z',
+  silver: 'M50 3 L90 26 L90 74 L50 97 L10 74 L10 26 Z',
+  gold: 'M50 3 L88 18 V52 C88 74 72 88 50 97 C28 88 12 74 12 52 V18 Z',
+  platinum: 'M50 3 L59 24 L80 20 L76 41 L97 50 L76 59 L80 80 L59 76 L50 97 L41 76 L20 80 L24 59 L3 50 L24 41 L20 20 L41 24 Z'
+}
+const shapeD = (r) => BADGE_SHAPES[r] || BADGE_SHAPES.bronze
 // NEW 角标：3 天内解锁的成就标记（替代'最近解锁'横条，信息融进勋章墙零占地）
 const isNewAch = (a) => {
   if (!a.got || !a.unlockAt) return false
@@ -383,7 +391,8 @@ onMounted(async () => {
       <div class="medal-area" title="查看全部勋章" @click="gotoAch">
         <template v-for="(a, i) in stackMedals" :key="a.key">
           <div class="medal area-medal got" :class="a.rarity || 'bronze'" :style="{ zIndex: 10 + i }" @click.stop="gotoAchFrom(a)">
-            <span class="medal-icon">{{ a.icon }}</span>
+            <svg class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(a.rarity)" /></svg>
+            <Icon :name="a.icon" :size="15" class="medal-icon" />
             <span v-if="isNewAch(a)" class="medal-new">NEW</span>
             <div class="medal-tip">
               <b>{{ a.name }}</b>
@@ -436,7 +445,7 @@ onMounted(async () => {
     <div class="card ach-card" v-tilt="{ deg: 3 }">
       <!-- 概览条 -->
       <div class="ach-summary">
-        <span class="ach-lv" :style="{ borderColor: achLv.min >= 600 ? '#7b46c4' : achLv.min >= 300 ? '#d9a514' : achLv.min >= 100 ? '#8a97a5' : '#b87333' }">{{ achLv.icon }} {{ achLv.name }}</span>
+        <span class="ach-lv" :style="{ borderColor: achLv.min >= 600 ? '#7dd3fc' : achLv.min >= 300 ? '#d9a514' : achLv.min >= 100 ? '#9fb2c0' : '#b87333', color: achLv.min >= 600 ? '#7dd3fc' : achLv.min >= 300 ? '#d9a514' : achLv.min >= 100 ? '#9fb2c0' : '#b87333' }"><Icon :name="achLv.icon" :size="13" /> {{ achLv.name }}</span>
         <span class="ach-sum-item"><b>{{ achPoints }}</b>成就点数</span>
         <span class="ach-sum-item"><b>{{ unlockedCount }}/{{ achievements.length }}</b>已解锁</span>
         <span class="ach-sum-item"><b>{{ achPct }}%</b>完成率</span>
@@ -447,14 +456,15 @@ onMounted(async () => {
       <!-- 系列分组 -->
       <div v-for="sr in achSeries" :key="sr.key" class="ach-series">
         <div class="ach-series-head" @click="toggleAchSeries(sr.key)">
-          <span class="ach-series-icon">{{ sr.icon }}</span>
+          <span class="ach-series-icon"><Icon :name="sr.icon" :size="14" /></span>
           <span class="ach-series-name">{{ sr.name }}</span>
           <span class="ach-series-prog">{{ sr.got }}/{{ sr.total }}</span>
           <span class="ach-series-arrow" :class="{ open: achOpen.has(sr.key) }">▾</span>
         </div>
         <div v-show="achOpen.has(sr.key)" class="medal-grid">
           <div v-for="(a, i) in sr.list" :key="a.key" class="medal" :class="medalCls(a)" :style="{ animationDelay: (i * 0.04) + 's' }">
-            <span class="medal-icon">{{ a.icon }}</span>
+            <svg v-if="a.got" class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(a.rarity)" /></svg>
+            <Icon :name="a.icon" :size="a.got ? 19 : 20" class="medal-icon" />
             <span v-if="isNewAch(a)" class="medal-new">NEW</span>
             <div class="medal-tip">
               <b>{{ a.name }}</b>
@@ -963,7 +973,7 @@ onMounted(async () => {
 /* 成就墙 */
 /* 成就中心（游戏化）：概览条 + 系列分组 + 三态卡 */
 .ach-summary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding-bottom: 12px; margin-bottom: 10px; border-bottom: 1px dashed var(--line); }
-.ach-lv { font-size: 13px; font-weight: 600; color: var(--text); border: 1.5px solid var(--line); border-radius: 999px; padding: 3px 12px; }
+.ach-lv { font-size: 13px; font-weight: 600; color: var(--text); border: 1.5px solid var(--line); border-radius: 999px; padding: 3px 12px; display: inline-flex; align-items: center; gap: 5px; }
 .ach-sum-item { font-size: 12px; color: var(--muted); display: inline-flex; align-items: baseline; gap: 4px; }
 .ach-sum-item b { font-size: 16px; color: var(--brand); font-weight: 700; }
 .ach-sum-ring { width: 30px; height: 30px; border-radius: 50%; margin-left: auto; position: relative; }
@@ -972,7 +982,7 @@ onMounted(async () => {
 .ach-series { margin-bottom: 14px; }
 .ach-series-head { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 4px; border-radius: 8px; }
 .ach-series-head:hover { background: rgba(91,124,250,.06); }
-.ach-series-icon { font-size: 15px; }
+.ach-series-icon { display: inline-flex; color: rgba(91, 124, 250, 0.9); }
 .ach-series-name { font-size: 13px; font-weight: 600; color: var(--text); }
 .ach-series-prog { font-size: 11px; color: var(--muted); background: rgba(91,124,250,.1); border-radius: 999px; padding: 1px 8px; }
 .ach-series-arrow { margin-left: auto; font-size: 12px; color: var(--muted); transition: transform .2s; }
@@ -1154,25 +1164,37 @@ onMounted(async () => {
   animation: medalIn .4s cubic-bezier(.2, .7, .3, 1) both;
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
-.medal-icon { font-size: 20px; line-height: 1; filter: grayscale(1) brightness(.55); opacity: .5; transition: filter .18s ease, opacity .18s ease, transform .18s ease; }
-/* 稀有度配色（2026-08-13）：--rr 变量驱动背景/边框/光晕——铜棕/银灰蓝/金/钻石蓝白，hover 光晕跟随稀有度 */
+.medal-icon { line-height: 1; color: var(--muted); opacity: .65; transition: color .18s ease, opacity .18s ease, transform .18s ease; }
+/* 稀有度配色（2026-08-13）：--rr 驱动徽章底 fill/stroke 与图标色——铜棕/银灰蓝/金/钻石蓝白 */
 .medal.got {
   --rr: 91, 124, 250;
-  background: radial-gradient(circle at 32% 28%, rgba(var(--rr), 0.30), rgba(var(--rr), 0.12) 65%);
-  border-color: rgba(var(--rr), 0.5);
-  box-shadow: 0 0 10px rgba(var(--rr), 0.25), inset 0 0 8px rgba(var(--rr), 0.15);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 .medal.got.bronze   { --rr: 184, 115, 51; }
 .medal.got.silver   { --rr: 159, 178, 192; }
-.medal.got.gold     { --rr: 217, 165, 20;  box-shadow: 0 0 12px rgba(var(--rr), 0.3), inset 0 0 8px rgba(var(--rr), 0.15); }
-.medal.got.platinum { --rr: 125, 211, 252; box-shadow: 0 0 14px rgba(var(--rr), 0.35), inset 0 0 8px rgba(var(--rr), 0.16); outline: 1px solid rgba(var(--rr), 0.3); outline-offset: 2px; }
-.medal.got .medal-icon { filter: none; opacity: 1; }
+.medal.got.gold     { --rr: 217, 165, 20; }
+.medal.got.platinum { --rr: 125, 211, 252; }
+.medal.got .medal-icon { color: rgba(var(--rr), 0.95); opacity: 1; filter: none; }
 .medal:hover { transform: translateY(-3px) scale(1.12); z-index: 5; }
 .medal:hover .medal-icon { transform: rotate(-8deg) scale(1.1); }
-.medal.got:hover {
-  box-shadow: 0 0 18px rgba(var(--rr), 0.5), 0 0 0 1px rgba(var(--rr), 0.6);
-  animation: medalWiggle .5s ease; /* 滑过摆一下（re-hover 重播） */
+.medal.got:hover { animation: medalWiggle .5s ease; }
+.medal.got:hover .medal-bg { filter: drop-shadow(0 0 10px rgba(var(--rr), 0.65)); }
+/* 勋章底形状（铜=圆/银=六边/金=盾/白金=八角星），fill/stroke 跟随 --rr；drop-shadow 沿轮廓发光 */
+.medal-bg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  filter: drop-shadow(0 0 5px rgba(var(--rr), 0.35));
+  transition: filter .18s ease;
 }
+.medal-bg path {
+  fill: rgba(var(--rr), 0.14);
+  stroke: rgba(var(--rr), 0.55);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+.medal.got.platinum .medal-bg { filter: drop-shadow(0 0 7px rgba(var(--rr), 0.5)); }
 @keyframes medalWiggle {
   0%, 100% { transform: translateY(-3px) scale(1.12) rotate(0); }
   30% { transform: translateY(-3px) scale(1.12) rotate(-8deg); }
