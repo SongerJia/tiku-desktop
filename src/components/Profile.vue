@@ -326,17 +326,16 @@ async function showTip(e, payload) {
   medalTipEl.value.style.top = y + 'px'
 }
 function hideTip() { activeTip.value = null }
-// 3D 纵深堆叠位置：最高档恒立直（0°），向下每层 +22° 躺倒渐暗
+// 扇形奖牌位置：沿弧线扇形展开，各自微旋转朝向中心，最高档在弧顶最亮
 const RAR_LABEL = { bronze: '铜', silver: '银', gold: '金', platinum: '白金' }
-function tierStyle(i, n) {
-  const STEP = 17 // 每层垂直间距
-  const dist = n - 1 - i // 距最高档的层数
-  const tilt = dist * 22 // 最高档立直 0°，向下每层 +22°
-  const bright = 1 - dist * 0.09 // 最高档 1.0，向下渐暗
+function fanStyle(i, n) {
+  const STEP = 20 // 相邻档位夹角
+  const R = 58 // 弧半径（勋章中心到弧心）
+  const theta = n > 1 ? (i - (n - 1) / 2) * STEP : 0
+  const bright = 0.72 + 0.28 * (n > 1 ? i / (n - 1) : 0) // 最低档暗 → 最高档亮
   return {
-    top: (dist * STEP) + 'px',
-    transform: `rotateX(${tilt}deg)`,
-    filter: `brightness(${Math.max(0.6, bright).toFixed(2)})`,
+    '--fan': `rotate(${theta}deg) translateY(-${R}px)`,
+    filter: `brightness(${bright.toFixed(2)})`,
     zIndex: i + 1
   }
 }
@@ -354,7 +353,7 @@ const seriesMedals = computed(() => {
     const medal = best
       ? { ...best }
       : { key: sr.key + '-lock', name: sr.name, icon: sr.icon, series: sr.key, rarity: 'bronze', got: false, desc: '解锁该系列任一成就即可点亮' }
-    // 档位堆叠（3D 纵深）：从铜到最高解锁档全档位参与，未解锁档灰影占位（塔完整不跳档）
+    // 档位扇形（奖牌扇）：从铜到最高解锁档全档位参与，未解锁档灰影占位（扇面完整不跳档）
     const maxRank = unlocked.length ? RARITY_RANK[unlocked[0].rarity] : 0
     const tiers = maxRank ? TIER_ORDER.slice(0, maxRank).map(r => {
       const inTier = unlocked.filter(a => a.rarity === r)
@@ -507,12 +506,12 @@ onMounted(async () => {
       </div>
 
 
-      <!-- 勋章墙（3D 纵深陈列柜）：每系列已解锁档位勋章立体堆叠，最高档立最上 -->
+      <!-- 勋章墙（扇形奖牌）：每系列档位勋章沿弧线扇形展开，最高档在弧顶最亮 -->
       <div class="medal-grid">
         <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal-cell" :class="sm.medal.got ? (sm.medal.rarity || 'bronze') : ''">
           <template v-if="sm.tiers.length">
-            <div class="d3-scene" :style="{ height: (76 + (sm.tiers.length - 1) * 17) + 'px' }">
-              <div v-for="(t, ti) in sm.tiers" :key="t.rarity" class="d3-tier" :class="t.got ? ('got ' + t.rarity) : 'off'" :style="tierStyle(ti, sm.tiers.length)"
+            <div class="fan-scene">
+              <div v-for="(t, ti) in sm.tiers" :key="t.rarity" class="fan-tier" :class="t.got ? ('got ' + t.rarity) : 'off'" :style="fanStyle(ti, sm.tiers.length)"
                    @mouseenter="showTip($event, { title: sm.series.name + ' · ' + (RAR_LABEL[t.rarity] || t.rarity), sub: t.got ? t.names : '未点亮', desc: t.got ? '该档位已解锁成就' : '解锁该档任一成就即可点亮', got: t.got })"
                    @mouseleave="hideTip">
                 <svg class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(t.rarity)" /></svg>
@@ -1239,42 +1238,45 @@ onMounted(async () => {
 .medal-cell.silver   { --rr: 159, 178, 192; }
 .medal-cell.gold     { --rr: 217, 165, 20; }
 .medal-cell.platinum { --rr: 125, 211, 252; }
-/* 3D 纵深陈列：每档勋章立姿堆叠（rotateX 透视，下层躺上层立，下层暗上层亮） */
-.d3-scene {
+/* 扇形奖牌：每档勋章沿弧线展开，绕底部中心旋转（transform-origin 底中），最高档弧顶最亮 */
+.fan-scene {
   position: relative;
-  width: 80px;
-  perspective: 340px;
+  width: 120px; height: 92px;
   margin: 4px auto 0;
 }
-.d3-tier {
-  position: absolute; left: 50%; margin-left: -30px;
-  width: 60px; height: 60px; border-radius: 50%;
-  transform-origin: center bottom;
+.fan-tier {
+  position: absolute; left: 50%; bottom: 2px;
+  width: 56px; height: 56px; margin-left: -28px;
+  border-radius: 50%;
+  transform-origin: 50% 100%;
   display: flex; align-items: center; justify-content: center;
   --rr: 148, 163, 184;
   background: radial-gradient(circle at 32% 26%, rgba(var(--rr), 0.5), rgba(var(--rr), 0.14) 70%);
   border: 2px solid rgba(var(--rr), 0.6);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45), 0 0 14px rgba(var(--rr), 0.3);
   cursor: pointer;
+  transform: var(--fan);
+  transition: transform .18s ease, box-shadow .18s ease;
 }
-.d3-tier.got.bronze   { --rr: 184, 115, 51; }
-.d3-tier.got.silver   { --rr: 159, 178, 192; }
-.d3-tier.got.gold     { --rr: 217, 165, 20; }
-.d3-tier.got.platinum { --rr: 125, 211, 252; outline: 1px solid rgba(125, 211, 252, 0.35); outline-offset: 2px; }
+.fan-tier:hover { transform: var(--fan) translateY(-5px) scale(1.06); z-index: 20 !important; box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55), 0 0 18px rgba(var(--rr), 0.45); }
+.fan-tier.got.bronze   { --rr: 184, 115, 51; }
+.fan-tier.got.silver   { --rr: 159, 178, 192; }
+.fan-tier.got.gold     { --rr: 217, 165, 20; }
+.fan-tier.got.platinum { --rr: 125, 211, 252; outline: 1px solid rgba(125, 211, 252, 0.35); outline-offset: 2px; }
 /* 未解锁档位：灰影占位层（塔完整不跳档） */
-.d3-tier.off {
+.fan-tier.off {
   --rr: 148, 163, 184;
   background: rgba(148, 163, 184, 0.07);
   border: 1.5px dashed rgba(148, 163, 184, 0.4);
   box-shadow: none;
 }
-.d3-tier.off .medal-bg path {
+.fan-tier.off .medal-bg path {
   fill: rgba(148, 163, 184, 0.08);
   stroke: rgba(148, 163, 184, 0.45);
 }
-.d3-tier .medal-bg { inset: 15%; }
-.d3-tier .medal-icon { color: rgba(var(--rr), 0.95); opacity: 1; filter: none; }
-/* 展柜底座：椭圆发光台座（3D 堆叠下方），已解锁带稀有度辉光、未解锁灰底，hover 增强 */
+.fan-tier .medal-bg { inset: 15%; }
+.fan-tier .medal-icon { color: rgba(var(--rr), 0.95); opacity: 1; filter: none; }
+/* 展柜底座：椭圆发光台座（扇形奖牌下方），已解锁带稀有度辉光、未解锁灰底，hover 增强 */
 .medal-base {
   width: 100%; max-width: 96px;
   height: 12px; border-radius: 50%;

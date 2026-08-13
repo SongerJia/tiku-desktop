@@ -34,6 +34,7 @@ export const ACH_DEFS = [
   { key: 'fiveK', name: '万题斩', icon: 'target', series: 'quiz', rarity: 'platinum', desc: '累计刷题 5000 题', progress: m => m.totalAnswered / 5000, fmt: m => `${m.totalAnswered}/5000` },
   { key: 'correct500', name: '百步穿杨', icon: 'target', series: 'quiz', rarity: 'platinum', desc: '累计答对 500 次', progress: m => m.correctCount / 500, fmt: m => `${m.correctCount}/500` },
   // ===== 连续打卡（streak）=====
+  { key: 'streak3', name: '连击初启', icon: 'fire', series: 'streak', rarity: 'bronze', desc: '连续学习 3 天', progress: m => m.streak / 3, fmt: m => `${Math.min(m.streak, 3)}/3` },
   { key: 'streak7', name: '七日打卡', icon: 'fire', series: 'streak', rarity: 'silver', desc: '连续学习 7 天', progress: m => m.streak / 7, fmt: m => `${Math.min(m.streak, 7)}/7` },
   { key: 'streak30', name: '月度连击', icon: 'fire', series: 'streak', rarity: 'gold', desc: '连续学习 30 天', progress: m => m.streak / 30, fmt: m => `${Math.min(m.streak, 30)}/30` },
   { key: 'active30', name: '月度学霸', icon: 'fire', series: 'streak', rarity: 'silver', desc: '累计学习 30 天', progress: m => m.activeDays / 30, fmt: m => `${m.activeDays}/30` },
@@ -56,6 +57,7 @@ export const ACH_DEFS = [
   { key: 'card10', name: '卡片新手', icon: 'card', series: 'cards', rarity: 'silver', desc: '制作 10 张记忆卡', progress: m => m.cardsCount / 10, fmt: m => `${m.cardsCount}/10` },
   { key: 'card50', name: '记忆宫殿', icon: 'card', series: 'cards', rarity: 'gold', desc: '制作 50 张记忆卡', progress: m => m.cardsCount / 50, fmt: m => `${m.cardsCount}/50` },
   { key: 'card100', name: '记忆大师', icon: 'card', series: 'cards', rarity: 'platinum', desc: '制作 100 张记忆卡', progress: m => m.cardsCount / 100, fmt: m => `${m.cardsCount}/100` },
+  { key: 'cardReview20', name: '反复温习', icon: 'card', series: 'cards', rarity: 'silver', desc: '累计复习 20 次', progress: m => m.reviewCount / 20, fmt: m => `${m.reviewCount}/20` },
   { key: 'cardReview200', name: '温故知新', icon: 'card', series: 'cards', rarity: 'gold', desc: '累计复习 200 次', progress: m => m.reviewCount / 200, fmt: m => `${m.reviewCount}/200` },
   // ===== 专注达人（focus）：专注总分钟（focusMin）=====
   { key: 'focus30', name: '专注一刻', icon: 'hourglass', series: 'focus', rarity: 'bronze', desc: '累计专注 30 分钟', progress: m => m.focusMin / 30, fmt: m => `${m.focusMin}/30` },
@@ -66,15 +68,18 @@ export const ACH_DEFS = [
   { key: 'habit5', name: '自律开端', icon: 'flag', series: 'quest', rarity: 'bronze', desc: '习惯打卡 5 次', progress: m => m.habitChecks / 5, fmt: m => `${m.habitChecks}/5` },
   { key: 'habit30', name: '习惯成自然', icon: 'flag', series: 'quest', rarity: 'silver', desc: '习惯打卡 30 次', progress: m => m.habitChecks / 30, fmt: m => `${m.habitChecks}/30` },
   { key: 'habit100', name: '铁律达人', icon: 'flag', series: 'quest', rarity: 'gold', desc: '习惯打卡 100 次', progress: m => m.habitChecks / 100, fmt: m => `${m.habitChecks}/100` },
+  { key: 'habit300', name: '习惯成神', icon: 'flag', series: 'quest', rarity: 'platinum', desc: '习惯打卡 300 次', progress: m => m.habitChecks / 300, fmt: m => `${m.habitChecks}/300` },
   // ===== 知识库（kb）=====
   { key: 'kbFirst', name: '建库人', icon: 'book', series: 'kb', rarity: 'bronze', desc: '导入第 1 篇文档', progress: m => m.kbDocs / 1, fmt: m => `${Math.min(m.kbDocs, 1)}/1` },
   { key: 'kbTen', name: '藏书家', icon: 'book', series: 'kb', rarity: 'silver', desc: '导入 10 篇文档', progress: m => m.kbDocs / 10, fmt: m => `${m.kbDocs}/10` },
   { key: 'kbLink10', name: '知识织网', icon: 'book', series: 'kb', rarity: 'silver', desc: '建立 10 条文档↔题目联动', progress: m => m.kbLinks / 10, fmt: m => `${m.kbLinks}/10` },
+  { key: 'kbRead10', name: '手不释卷', icon: 'book', series: 'kb', rarity: 'silver', desc: '阅读文档 10 次', progress: m => m.kbReadCount / 10, fmt: m => `${m.kbReadCount}/10` },
   { key: 'kbRead50', name: '求知若渴', icon: 'book', series: 'kb', rarity: 'gold', desc: '阅读文档 50 次', progress: m => m.kbReadCount / 50, fmt: m => `${m.kbReadCount}/50` },
   { key: 'kbFifty', name: '图书馆长', icon: 'book', series: 'kb', rarity: 'gold', desc: '导入 50 篇文档', progress: m => m.kbDocs / 50, fmt: m => `${m.kbDocs}/50` },
   { key: 'kbLink50', name: '知识网络', icon: 'book', series: 'kb', rarity: 'gold', desc: '建立 50 条文档↔题目联动', progress: m => m.kbLinks / 50, fmt: m => `${m.kbLinks}/50` },
   { key: 'kbRead200', name: '学富五车', icon: 'book', series: 'kb', rarity: 'platinum', desc: '阅读文档 200 次', progress: m => m.kbReadCount / 200, fmt: m => `${m.kbReadCount}/200` },
   // ===== 笔记整理（notes）=====
+  { key: 'notes1', name: '动笔之初', icon: 'note', series: 'notes', rarity: 'bronze', desc: '写满 1 条笔记', progress: m => m.notesCount / 1, fmt: m => `${Math.min(m.notesCount, 1)}/1` },
   { key: 'notes10', name: '好学笔记', icon: 'note', series: 'notes', rarity: 'silver', desc: '写满 10 条笔记', progress: m => m.notesCount / 10, fmt: m => `${m.notesCount}/10` },
   { key: 'notes50', name: '笔记狂魔', icon: 'note', series: 'notes', rarity: 'gold', desc: '写满 50 条笔记', progress: m => m.notesCount / 50, fmt: m => `${m.notesCount}/50` },
   { key: 'tags5', name: '井井有条', icon: 'note', series: 'notes', rarity: 'bronze', desc: '使用 5 个标签', progress: m => m.tagsUsed / 5, fmt: m => `${m.tagsUsed}/5` },
@@ -90,7 +95,7 @@ export const ACH_DEFS = [
   // ===== 隐藏成就（达成才揭晓）=====
   { key: 'day50', name: '一日千里', icon: 'target', series: 'quiz', rarity: 'platinum', hidden: true, desc: '单日答题 50 题', progress: m => m.today / 50, fmt: m => `${Math.min(m.today, 50)}/50` },
   { key: 'active90', name: '百日攀登', icon: 'fire', series: 'streak', rarity: 'gold', hidden: true, desc: '累计学习 90 天', progress: m => m.activeDays / 90, fmt: m => `${m.activeDays}/90` },
-  { key: 'tenInRow', name: '势如破竹', icon: 'fire', series: 'streak', rarity: 'platinum', hidden: true, desc: '连续学习 10 天', progress: m => m.streak / 10, fmt: m => `${m.streak}/10` }
+  { key: 'tenInRow', name: '势如破竹', icon: 'fire', series: 'streak', rarity: 'gold', hidden: true, desc: '连续学习 10 天', progress: m => m.streak / 10, fmt: m => `${m.streak}/10` }
 ]
 
 // 计算每项成就的状态（与 Profile 原逻辑一致）
