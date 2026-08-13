@@ -1188,8 +1188,14 @@ onMounted(async () => {
 
 
 
-/* ===== 勋章墙（2026-08-13）：图标 + hover 浮层 + 滑过动效 ===== */
-.medal-grid { display: flex; flex-wrap: wrap; gap: 10px; padding: 6px 2px 4px; }
+/* ===== 勋章墙（2026-08-13）：每系列 1 枚代表勋章，5 列 × 2 行 grid 居中排布 ===== */
+.medal-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 56px);
+  gap: 14px 16px;
+  justify-content: center;
+  padding: 8px 2px 6px;
+}
 .medal {
   position: relative;
   width: 44px; height: 44px; border-radius: 50%;
