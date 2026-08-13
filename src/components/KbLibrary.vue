@@ -42,12 +42,30 @@ async function loadSubjects() {
   try { subjects.value = await tiku.getSubjects() } catch (e) { subjects.value = [] }
 }
 
+// 章节名映射（列表分组/图谱图例共用）：展平分类树 id → name（二级章节直接取，一级科目名拼接）
+const catNameMap = ref({})
+async function loadCatNames() {
+  try {
+    const tree = await tiku.getCategories()
+    const flat = {}
+    const walk = (nodes, parentName) => {
+      for (const n of nodes || []) {
+        flat[n.id] = parentName ? `${parentName} · ${n.name}` : n.name
+        walk(n.children, flat[n.id])
+      }
+    }
+    walk(tree)
+    catNameMap.value = flat
+  } catch (e) { catNameMap.value = {} }
+}
+
 watch(() => props.subject.id, () => { if (props.scope !== 'all') loadList() }) // 顶部切科目（跟随态）→ 刷新
 watch(() => props.scope, loadList) // 范围切换（current↔all）→ 刷新
 
 onMounted(() => {
   loadTags()
   loadSubjects()
+  loadCatNames()
   loadList()
   loadGraph()
 })
@@ -67,7 +85,6 @@ const GRAPH_DIMS = [
 ]
 const graphColorDim = ref('subject')
 const GRAPH_COLORS = ['#5b7cfa', '#2fbf8f', '#ffb84d', '#e5535f', '#c084fc', '#38bdf8', '#f472b6', '#a3e635']
-const catNameMap = ref({}) // category_id → 章节名（含父级路径）
 function colorKey(v) {
   let h = 0
   for (let i = 0; i < String(v).length; i++) h = (h * 31 + String(v).charCodeAt(i)) >>> 0
@@ -214,19 +231,6 @@ async function loadGraph() {
   } catch (e) { graph.value = { nodes: [], links: [] } }
   cachedNodes = null // 节点集变化 → 布局重算（力导向）
   resetGraphView()
-  // 章节名映射（图例用）：展平分类树 id → name（二级章节直接取，一级科目名拼接）
-  try {
-    const tree = await tiku.getCategories()
-    const flat = {}
-    const walk = (nodes, parentName) => {
-      for (const n of nodes || []) {
-        flat[n.id] = parentName ? `${parentName} · ${n.name}` : n.name
-        walk(n.children, flat[n.id])
-      }
-    }
-    walk(tree)
-    catNameMap.value = flat
-  } catch (e) { catNameMap.value = {} }
 }
 
 // 图谱缩放平移 + 全屏（2026-08-13，P0/P1）
@@ -297,20 +301,26 @@ const filteredDocs = computed(() => {
 
 // 文件夹分组：未分类在前，其余按名称
 // 笔记文档（标题以「笔记」结尾）不再单列，直接归入未分类
+// 分组：按「科目 · 章节」（B 方案，2026-08-13）——与练习/知识点/图谱/记忆卡同维度。
+// 有科目有章节 → '科目 · 章节'；有科目无章节 → 科目名；都无 → 未分类（= 没设归属，提示去设置）
 const groupedDocs = computed(() => {
   const groups = new Map()
-  // 组内排序：读得多/最近更新的在前（B3 修正版：无阅读时间字段，用 read_count 排序零成本）
+  // 组内排序：读得多/最近更新的在前
   const byHot = (a, b) => (b.read_count || 0) - (a.read_count || 0) || (b.updated_at || 0) - (a.updated_at || 0)
   for (const d of filteredDocs.value) {
-    const isNote = String(d.title || '').endsWith('笔记')
-    const k = isNote ? '' : (d.folder || '')
-    if (!groups.has(k)) groups.set(k, [])
-    groups.get(k).push(d)
+    const subj = d.subject_id ? (subjects.value.find(s => s.id === d.subject_id)?.name || `科目#${d.subject_id}`) : ''
+    const cat = d.category_id ? (catNameMap.value[d.category_id] || '') : ''
+    let k, label
+    if (subj && cat) { k = `s${d.subject_id}|c${d.category_id}`; label = `${subj} · ${cat}` }
+    else if (subj) { k = `s${d.subject_id}`; label = subj }
+    else { k = ''; label = '未分类' }
+    if (!groups.has(k)) groups.set(k, { label, docs: [] })
+    groups.get(k).docs.push(d)
   }
   const out = []
-  if (groups.has('')) { out.push({ folder: '', label: '未分类', docs: groups.get('').sort(byHot) }) }
-  for (const [k, list] of groups) {
-    if (k !== '') out.push({ folder: k, label: k, docs: [...list].sort(byHot) })
+  if (groups.has('')) out.push({ folder: '', label: groups.get('').label, docs: groups.get('').docs })
+  for (const [k, g] of groups) {
+    if (k !== '') out.push({ folder: k, label: g.label, docs: [...g.docs].sort(byHot) })
   }
   return out
 })
