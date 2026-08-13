@@ -17,7 +17,7 @@ import AboutModal from './AboutModal.vue'
 import BackupModal from './BackupModal.vue'
 import CategoryManager from './CategoryManager.vue'
 
-const emit = defineEmits(['reset', 'start', 'open-bank', 'goto-kb-all'])
+const emit = defineEmits(['reset', 'start', 'open-bank'])
 
 function forwardStart(payload) {
   emit('start', payload)
@@ -385,27 +385,22 @@ function gotoAch() {
   })
 }
 
-// ---- 知识库概览（kbStats）----
-const kbStats = ref(null)
-
-// 页面分组折叠：学习成长默认展开，其余收起（避免平铺过长）
-const secOpen = ref({ kb: false, learn: false, goals: false, prefs: false, sync: false, misc: false })
+// 页面分组折叠：勋章墙默认展开，其余收起（避免平铺过长）
+const secOpen = ref({ learn: false, goals: false, prefs: false, sync: false, misc: false })
 function toggleSec(k) {
   secOpen.value[k] = !secOpen.value[k]
 }
 
 onMounted(async () => {
-  const [tR, fR, achR, kbR, msR] = await Promise.allSettled([
+  const [tR, fR, achR, msR] = await Promise.allSettled([
     tiku.getSetting('theme'), tiku.getSetting('font_scale'),
     tiku.getAchievements(),
-    tiku.kbStats(),
     tiku.getMonthStats()
   ])
   if (tR.status === 'fulfilled') theme.value = tR.value || 'dark'
   if (fR.status === 'fulfilled') fontScale.value = fR.value || '1'
   try { const n = await tiku.getSetting('user_name'); if (n) userName.value = n } catch (e) {}
   try { avatar.value = localStorage.getItem('tiku_avatar') || '' } catch (e) {}
-  if (kbR.status === 'fulfilled') kbStats.value = kbR.value
   if (achR.status === 'fulfilled' && msR.status === 'fulfilled') metrics.value = { ...achR.value, ...msR.value }
   try { await loadGoals() } catch (e) { /* 目标读取失败不阻塞 */ }
 })
@@ -444,26 +439,6 @@ onMounted(async () => {
     </div>
 
 
-
-    <!-- 知识库（概览，点击进入全部科目管理） -->
-    <div class="sec">
-      <div class="sec-head" @click="toggleSec('kb')">
-        <span class="sec-icon sec-icon-kb"><Icon name="book" :size="16" /></span>
-        <span class="sec-title">知识库</span>
-        <span v-if="kbStats" class="sec-badge">{{ kbStats.docs }} 文档</span>
-        <span class="sec-arrow" :class="{ open: secOpen.kb }"><Icon name="chevron-down" :size="14" /></span>
-      </div>
-      <div v-show="secOpen.kb" class="sec-body">
-        <div v-if="kbStats" class="card kb-overview-card" v-tilt="{ deg: 3 }" @click="emit('goto-kb-all')">
-          <div class="card-title">知识库概览 <span class="kb-go">管理全部文档 ›</span></div>
-          <div class="kb-stats">
-            <div class="kb-stat"><b>{{ kbStats.docs }}</b><span>文档</span></div>
-            <div class="kb-stat"><b>{{ kbStats.readCount }}</b><span>阅读次数</span></div>
-            <div class="kb-stat"><b>{{ kbStats.links }}</b><span>题目联动</span></div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- 勋章墙（游戏化成就） -->
     <div class="sec">
@@ -823,7 +798,6 @@ onMounted(async () => {
 }
 .sec-head:hover .sec-icon { transform: scale(1.06); }
 .sec-icon-learn   { background: rgba(47, 191, 143, 0.14);  color: var(--ok); }
-.sec-icon-kb      { background: rgba(34, 211, 238, 0.14);  color: #22d3ee; }
 .sec-icon-goals   { background: rgba(91, 124, 250, 0.14);  color: var(--brand); }
 .sec-icon-prefs   { background: rgba(91, 124, 250, 0.14);  color: var(--brand); }
 .sec-icon-sync    { background: rgba(34, 211, 238, 0.14);  color: #22d3ee; }
@@ -982,20 +956,6 @@ onMounted(async () => {
 .pref-range { flex: 1; accent-color: var(--brand); }
 .pref-input { width: 80px; background: var(--input-solid-bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 6px 10px; font-size: 13px; outline: none; font-family: inherit; }
 .pref-input:focus { border-color: var(--brand); }
-.kb-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }.kb-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 10px 6px;
-  background: rgba(255, 255, 255, 0.03);
-}
-.kb-stat b { font-size: 18px; color: var(--brand); }
-.kb-stat span { font-size: 11px; color: var(--muted); }
-
-
 .pref-unit { color: var(--muted); font-size: 12px; }
 .pref-sub { flex: 1; color: var(--muted); font-size: 11px; }
 .goal-date { flex: 1; width: auto; min-width: 0; }
@@ -1046,9 +1006,6 @@ onMounted(async () => {
 }
 .theme-swatch.on { border-color: var(--brand); color: var(--text); box-shadow: var(--glow-soft); }
 .sw-dot { width: 30px; height: 22px; border-radius: 6px; border: 1px solid var(--line); }
-.kb-overview-card { cursor: pointer; transition: border-color .15s; }
-.kb-overview-card:hover { border-color: var(--brand); }
-.kb-go { font-size: 11px; color: var(--brand); font-weight: 600; margin-left: 6px; }
 
 /* ===== 我的页铺开（2026-08-12）：渐变语言 / 流光 ===== */
 /* 用户卡/成就墙卡：渐变边框（门面） */
@@ -1073,13 +1030,13 @@ onMounted(async () => {
 }
 .ach-card:hover::after { opacity: 1; animation: angSpin 2.2s linear infinite; }
 
-/* 成就数字/知识库数字：渐变 */
-.ach-sum-item b, .kb-stat b {
+/* 成就数字：渐变 */
+.ach-sum-item b {
   background: linear-gradient(180deg, #f4f7ff, #a9b6da);
   -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent; color: transparent;
 }
-[data-theme="light"] .ach-sum-item b, [data-theme="light"] .kb-stat b { background: linear-gradient(180deg, #1f2937, #64748b); -webkit-background-clip: text; background-clip: text; }
+[data-theme="light"] .ach-sum-item b { background: linear-gradient(180deg, #1f2937, #64748b); -webkit-background-clip: text; background-clip: text; }
 
 /* ===== 我的页加浓（2026-08-12）：首页同款浓度 ===== */
 /* stagger 交错入场：用户卡 → 学习成长 → 学习目标 */
@@ -1090,7 +1047,7 @@ onMounted(async () => {
 @keyframes numPop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
 
 /* 成就数字弹入 */
-.ach-sum-item b, .kb-stat b { animation: numPop .45s cubic-bezier(.2, .7, .3, 1) both; }
+.ach-sum-item b { animation: numPop .45s cubic-bezier(.2, .7, .3, 1) both; }
 
 /* 成就完成率环：入场弹入 */
 .ach-sum-ring { animation: ringPop .5s cubic-bezier(.2, .7, .3, 1) .15s both; }
