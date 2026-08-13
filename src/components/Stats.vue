@@ -385,14 +385,14 @@ async function loadAnalysis() {
       <span class="scope-label">统计范围</span>
       <button
         class="filter-chip"
-        :class="{ active: subjectScope === 'current' }"
-        @click="subjectScope = 'current'"
-      >跟随顶部：{{ props.subject.name || '全部' }}</button>
-      <button
-        class="filter-chip"
         :class="{ active: subjectScope === 'all' }"
         @click="subjectScope = 'all'"
-      >总览（全部科目）</button>
+      >全部科目</button>
+      <button
+        class="filter-chip"
+        :class="{ active: subjectScope === 'current' }"
+        @click="subjectScope = 'current'"
+      >{{ props.subject.name || '全部' }}</button>
       <span class="scope-hint">切顶部科目 → 此处自动跟随</span>
     </div>
 
@@ -467,6 +467,22 @@ async function loadAnalysis() {
             <i v-if="hoverCell && hoverCell.isToday" class="ht-today">今天</i>{{ hoverCell && hoverCell.date.slice(5) }} · {{ hoverCell ? weekLabel(hoverCell.date) : '' }} · <span class="ht-count" :class="{ none: hoverCell && !hoverCell.count }">{{ hoverCell && hoverCell.count > 0 ? hoverCell.count + '题' : '无记录' }}</span>
           </div>
         </Teleport>
+      </div>
+
+      <!-- 每日任务 Quest（未设置显示友好提示） -->
+      <div class="card quest-card" v-tilt="{ deg: 3 }">
+        <div class="card-title">每日任务 <span class="quest-xp">每个 +20 XP</span></div>
+        <div v-if="quest.claimed" class="quest-claimed">{{ quest.claimed }} 已完成，XP 已到账</div>
+        <div v-if="!quest.tasks.length" class="quest-empty">
+          未设置任务，去「我的 → 学习目标」设置每日刷题 / 复习 / 阅读目标吧
+        </div>
+        <div v-else class="quest-list">
+          <div v-for="t in quest.tasks" :key="t.key" class="quest-item" :class="{ done: t.done }">
+            <span class="quest-check"><Icon v-if="t.done" name="check" :size="14"/><i v-else class="hollow"></i></span>
+            <span class="quest-name">{{ t.name }}</span>
+            <span class="quest-state">{{ t.done ? '已完成' : '待完成' }}</span>
+          </div>
+        </div>
       </div>
 
       <!-- 分析：章节正确率雷达 + 成绩历史 -->
@@ -580,21 +596,6 @@ async function loadAnalysis() {
         </div>
       </div>
 
-      <!-- 每日任务 Quest（未设置显示友好提示） -->
-      <div class="card quest-card" v-tilt="{ deg: 3 }">
-        <div class="card-title">每日任务 <span class="quest-xp">每个 +20 XP</span></div>
-        <div v-if="quest.claimed" class="quest-claimed">{{ quest.claimed }} 已完成，XP 已到账</div>
-        <div v-if="!quest.tasks.length" class="quest-empty">
-          未设置任务，去「我的 → 学习目标」设置每日刷题 / 复习 / 阅读目标吧
-        </div>
-        <div v-else class="quest-list">
-          <div v-for="t in quest.tasks" :key="t.key" class="quest-item" :class="{ done: t.done }">
-            <span class="quest-check"><Icon v-if="t.done" name="check" :size="14"/><i v-else class="hollow"></i></span>
-            <span class="quest-name">{{ t.name }}</span>
-            <span class="quest-state">{{ t.done ? '已完成' : '待完成' }}</span>
-          </div>
-        </div>
-      </div>
     </template>
   </div>
 </template>
