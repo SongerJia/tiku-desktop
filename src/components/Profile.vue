@@ -293,15 +293,28 @@ const unlockedCount = computed(() => achievements.value.filter(a => a.got).lengt
 const achPoints = computed(() => achievements.value.filter(a => a.got).reduce((s, a) => s + (a.points || 0), 0))
 const achLv = computed(() => achLevel(achPoints.value))
 const achPct = computed(() => achievements.value.length ? Math.round((unlockedCount.value / achievements.value.length) * 100) : 0)
-// 勋章浮层自适应：hover 时按视口空间翻转——下方不足向上弹、右侧不足左对齐（根治浮层被裁/越界）
-function orientTip(e) {
-  const m = e.currentTarget
-  const tip = m.querySelector('.medal-tip')
-  if (!tip) return
-  const r = m.getBoundingClientRect()
-  tip.classList.toggle('tip-up', (window.innerHeight - r.bottom) < 130)
-  tip.classList.toggle('tip-right', (window.innerWidth - r.right) < 170)
+// 全局勋章浮层（Teleport to body，fixed 定位，视口内 clamp，根治 absolute 浮层被父级 overflow/transform/层叠干扰）
+const activeTip = ref(null) // { x, y, anchor, title, sub, desc, got }
+function showTip(e, payload) {
+  const el = e.currentTarget
+  const r = el.getBoundingClientRect()
+  const TIP_W = payload.w || 200
+  const TIP_H = 70
+  const GAP = 10
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  // 水平：优先居中，溢出右侧右对齐、溢出左侧左对齐
+  let x = r.left + r.width / 2 - TIP_W / 2
+  let hAlign = 'center'
+  if (x + TIP_W > vw - 8) { x = r.right - TIP_W; hAlign = 'right' }
+  if (x < 8) { x = r.left; hAlign = 'left' }
+  // 垂直：优先勋章下方（箭头朝上），下方不足则上方（箭头朝下）
+  let y, vAlign
+  if (vh - r.bottom > TIP_H + GAP) { y = r.bottom + GAP; vAlign = 'down' }
+  else { y = Math.max(r.top - GAP - TIP_H, 8); vAlign = 'up' }
+  activeTip.value = { x, y, anchor: vAlign + '-' + hAlign, ...payload }
 }
+function hideTip() { activeTip.value = null }
 // 勋章稀有度 class：已解锁 → 'got <rarity>'（驱动 --rr 配色），未解锁 → ''
 const medalCls = (a) => a.got ? 'got ' + (a.rarity || 'bronze') : ''
 // 每系列一枚代表勋章：已解锁 → 该系列最高稀有度（点亮版）；全未解锁 → 最低档铜（灰影圆）
@@ -398,15 +411,12 @@ onMounted(async () => {
       <!-- 勋章区：已解锁勋章全部松散平铺（自动换行填满右侧空白），点击滚动到完整勋章墙 -->
       <div class="medal-area" title="查看全部勋章" @click="gotoAch">
         <template v-for="(a, i) in stackMedals" :key="a.key">
-          <div class="medal area-medal got" :class="a.rarity || 'bronze'" :style="{ zIndex: 10 + i }" @click.stop="gotoAch" @mouseenter="orientTip">
+          <div class="medal area-medal got" :class="a.rarity || 'bronze'" :style="{ zIndex: 10 + i }" @click.stop="gotoAch"
+               @mouseenter="showTip($event, { w: 176, title: a.name, sub: (a.unlockAt || '已解锁') + ' 解锁', desc: a.desc, got: true })"
+               @mouseleave="hideTip">
             <svg class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(a.rarity)" /></svg>
             <Icon :name="a.icon" :size="15" class="medal-icon" />
             <span v-if="isNewAch(a)" class="medal-new">NEW</span>
-            <div class="medal-tip">
-              <b>{{ a.name }}</b>
-              <span class="mt-date">{{ a.unlockAt || '已解锁' }} 解锁</span>
-              <i>{{ a.desc }}</i>
-            </div>
           </div>
         </template>
       </div>
@@ -463,15 +473,12 @@ onMounted(async () => {
 
       <!-- 勋章墙：每系列 1 枚代表勋章（未解锁=最低档灰影，已解锁=该系列最高档点亮） -->
       <div class="medal-grid">
-        <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal big-medal" :class="medalCls(sm.medal)" :style="{ animationDelay: (i * 0.05) + 's' }" @mouseenter="orientTip">
+        <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal big-medal" :class="medalCls(sm.medal)" :style="{ animationDelay: (i * 0.05) + 's' }"
+             @mouseenter="showTip($event, { w: 200, title: sm.series.name, sub: sm.medal.got ? (sm.got + '/' + sm.total + ' · ' + sm.medal.name) : '未点亮', desc: sm.medal.desc, got: sm.medal.got })"
+             @mouseleave="hideTip">
           <svg v-if="sm.medal.got" class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(sm.medal.rarity)" /></svg>
           <Icon :name="sm.medal.icon" :size="26" class="medal-icon" />
           <span v-if="sm.medal.got && isNewAch(sm.medal)" class="medal-new">NEW</span>
-          <div class="medal-tip" :class="{ 'tip-right': i >= 7 }">
-            <b>{{ sm.series.name }}</b>
-            <span class="mt-date">{{ sm.medal.got ? (sm.got + '/' + sm.total + ' · ' + sm.medal.name) : '未点亮' }}</span>
-            <i>{{ sm.medal.desc }}</i>
-          </div>
         </div>
       </div>
       <div v-if="!seriesMedals.length" class="ach-empty">还没有成就数据，先刷几道题吧</div>
@@ -741,6 +748,15 @@ onMounted(async () => {
         </div>
       </div>
     </Teleport>
+
+    <!-- 勋章全局浮层（Teleport 到 body，fixed 定位，避开任何父级 overflow/transform/层叠干扰） -->
+    <Teleport to="body">
+      <div v-if="activeTip" class="medal-float" :class="['anchor-' + activeTip.anchor]" :style="{ left: activeTip.x + 'px', top: activeTip.y + 'px', width: activeTip.w + 'px' }">
+        <div class="mf-title">{{ activeTip.title }}</div>
+        <div class="mf-sub" :class="{ lock: !activeTip.got }">{{ activeTip.sub }}</div>
+        <div class="mf-desc">{{ activeTip.desc }}</div>
+      </div>
+    </Teleport>
 </template>
 
 <style scoped>
@@ -978,6 +994,36 @@ onMounted(async () => {
 .ach-sum-ring { width: 30px; height: 30px; border-radius: 50%; margin-left: auto; position: relative; }
 .ach-sum-ring::after { content: ''; position: absolute; inset: 6px; background: var(--bg, #fff); border-radius: 50%; }
 .ach-empty { font-size: 12px; color: var(--muted); text-align: center; padding: 12px 0; }
+
+/* ===== 勋章全局浮层（Teleport to body，fixed 定位，视口内 clamp，根治父级 overflow/transform/层叠干扰） ===== */
+.medal-float {
+  position: fixed; z-index: 9999; pointer-events: none;
+  background: #1c2434; border: 1px solid rgba(91, 124, 250, 0.4);
+  border-radius: 10px; padding: 8px 10px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
+  text-align: left;
+  opacity: 0; animation: mfFadeIn .12s ease forwards;
+}
+@keyframes mfFadeIn { to { opacity: 1; } }
+.medal-float .mf-title { font-size: 12.5px; color: #dfe7fa; font-weight: 500; margin-bottom: 3px; }
+.medal-float .mf-sub { font-size: 10.5px; color: #4fd1a5; margin-bottom: 2px; }
+.medal-float .mf-sub.lock { color: var(--muted); }
+.medal-float .mf-desc { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+/* 箭头：down-* 浮层在勋章下方→箭头在 tip 顶部朝上指勋章；up-* 浮层在勋章上方→箭头在 tip 底部朝下 */
+.medal-float::after { content: ''; position: absolute; border: 6px solid transparent; }
+.medal-float.anchor-down-center::after { top: -6px; left: 50%; transform: translateX(-50%); border-bottom-color: #1c2434; }
+.medal-float.anchor-down-left::after    { top: -6px; left: 14px;    border-bottom-color: #1c2434; }
+.medal-float.anchor-down-right::after   { top: -6px; right: 14px;   border-bottom-color: #1c2434; }
+.medal-float.anchor-up-center::after   { bottom: -6px; left: 50%; transform: translateX(-50%); border-top-color: #1c2434; }
+.medal-float.anchor-up-left::after      { bottom: -6px; left: 14px;    border-top-color: #1c2434; }
+.medal-float.anchor-up-right::after     { bottom: -6px; right: 14px;   border-top-color: #1c2434; }
+[data-theme="light"] .medal-float { background: #fff; border-color: rgba(61, 91, 217, 0.35); }
+[data-theme="light"] .medal-float.anchor-down-center::after,
+[data-theme="light"] .medal-float.anchor-down-left::after,
+[data-theme="light"] .medal-float.anchor-down-right::after { border-bottom-color: #fff; }
+[data-theme="light"] .medal-float.anchor-up-center::after,
+[data-theme="light"] .medal-float.anchor-up-left::after,
+[data-theme="light"] .medal-float.anchor-up-right::after { border-top-color: #fff; }
 
 /* 同步冲突明细 */
 
