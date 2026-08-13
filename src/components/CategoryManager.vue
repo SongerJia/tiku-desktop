@@ -147,6 +147,7 @@ async function remove(node) {
   display: flex; flex-direction: column; gap: 12px; overflow: hidden;
 }
 [data-theme="light"] .cat-panel { background: #fff; }
+[data-theme="eye"] .cat-panel { background: #f2f7ef; }
 .cat-head { display: flex; align-items: center; justify-content: space-between; }
 .cat-title { font-size: 15px; font-weight: 600; color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
 .cat-close { font-size: 20px; color: var(--muted); cursor: pointer; line-height: 1; }

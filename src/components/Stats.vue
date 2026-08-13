@@ -703,7 +703,7 @@ async function loadAnalysis() {
 .rc-track { height: 6px; border-radius: 3px; background: rgba(148, 163, 184, 0.12); overflow: hidden; }
 .rc-fill { height: 100%; border-radius: 3px; }
 .rc-tip {
-  padding: 10px 12px; font-size: 12.5px; line-height: 1.6; color: #c8d3f5;
+  padding: 10px 12px; font-size: 12.5px; line-height: 1.6; color: var(--tip-text);
   background: rgba(91, 124, 250, 0.08); border: 1px solid rgba(91, 124, 250, 0.3); border-radius: 10px;
 }
 .rc-tip b { color: var(--brand); }
@@ -714,15 +714,14 @@ async function loadAnalysis() {
 .rc-empty-sub { font-size: 11.5px; color: var(--muted); opacity: .8; margin-top: 6px; }
 
 /* ===== 统计页铺开（2026-08-12）：渐变语言 / 热力图渐变边框+流光 ===== */
-/* KPI 数字渐变光泽 + 分隔线渐变（与首页同语言） */
+/* KPI 数字渐变光泽 + 分隔线渐变（与首页同语言；三主题由 --num-grad 统一） */
 .kpi-num {
-  background: linear-gradient(180deg, #f4f7ff, #a9b6da);
+  background: var(--num-grad);
   -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent; color: transparent;
 }
 .kpi-num small { -webkit-text-fill-color: var(--muted); }
 .kpi-sep { background: linear-gradient(180deg, transparent, rgba(148, 163, 184, 0.35), transparent); }
-[data-theme="light"] .kpi-num { background: linear-gradient(180deg, #1f2937, #64748b); -webkit-background-clip: text; background-clip: text; }
 
 /* 热力图卡：渐变边框（主角）+ hover 流光描边 */
 .heat-card {
@@ -762,6 +761,7 @@ async function loadAnalysis() {
   -webkit-text-fill-color: transparent; color: transparent;
 }
 [data-theme="light"] .stats-title { background: linear-gradient(90deg, #3d5bd9, #7c3aed); -webkit-background-clip: text; background-clip: text; }
+[data-theme="eye"] .stats-title { background: linear-gradient(90deg, #2e6649, #4d8f6e); -webkit-background-clip: text; background-clip: text; }
 
 /* 成绩曲线：入场后 1s「画出来」（pathLength=1 + dashoffset） */
 .hist-path {

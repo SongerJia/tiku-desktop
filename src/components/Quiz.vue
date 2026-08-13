@@ -928,9 +928,9 @@ function optionClass(key) {
 .quiz-mask {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 16, 0.72);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: var(--modal-mask);
+  backdrop-filter: blur(var(--modal-blur, 4px));
+  -webkit-backdrop-filter: blur(var(--modal-blur, 4px));
   z-index: 300;
   display: flex;
   align-items: center;
@@ -1325,7 +1325,7 @@ function optionClass(key) {
 @keyframes popNo { 0% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } 100% { transform: translateX(0); } }
 
 /* 答题卡导航 */
-.ac-mask { position: fixed; inset: 0; background: rgba(2, 6, 16, 0.55); display: flex; align-items: center; justify-content: center; z-index: 400; padding: 16px; }
+.ac-mask { position: fixed; inset: 0; background: var(--modal-mask); display: flex; align-items: center; justify-content: center; z-index: 400; padding: 16px; }
 .ac-panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; width: min(420px, 92vw); box-shadow: var(--glow-soft); }
 .ac-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; margin-bottom: 10px; }
 .ac-x { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; }
@@ -1390,6 +1390,7 @@ function optionClass(key) {
 }
 .rh-score { background: linear-gradient(180deg, #93b1ff, #5b7cfa); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
 [data-theme="light"] .rh-pct, [data-theme="light"] .rh-score { background: linear-gradient(180deg, #3d5bd9, #7c3aed); -webkit-background-clip: text; background-clip: text; }
+[data-theme="eye"] .rh-pct, [data-theme="eye"] .rh-score { background: linear-gradient(180deg, #2e6649, #4d8f6e); -webkit-background-clip: text; background-clip: text; }
 
 /* ===== 答题页加浓（2026-08-12）：结果反馈层（不干扰答题操作）===== */
 /* 结果页大数字：弹入（配合渐变） */

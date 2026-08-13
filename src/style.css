@@ -30,6 +30,13 @@
   /* 设置类小输入框背景（与 .input 半透明叠卡片区分） */
   --input-solid-bg: rgba(10, 13, 20, 0.85);
   --toast-bg: rgba(10, 18, 34, 0.92);
+  /* 跨主题语义变量（2026-08-13）：组件不再硬编码深色专用色，三主题在此统一 */
+  --tip-bg: #1c2434;                 /* 浮层/提示背景（浅色/护眼由 [data-theme] 覆盖） */
+  --tip-text: #c8d3f5;               /* 浮层/提示文字（浅色主题深字） */
+  --tip-muted: #8b95a8;              /* 浮层次要文字 */
+  --num-grad: linear-gradient(180deg, #f4f7ff, #a9b6da);   /* KPI 大数字渐变（深色亮字） */
+  --hover-bg: rgba(148, 163, 184, 0.08);  /* 列表/行 hover 底色 */
+  --hover-bg-strong: rgba(148, 163, 184, 0.14);
 }
 
 * { box-sizing: border-box; }
@@ -323,6 +330,10 @@ button:focus:not(:focus-visible) { outline: none; }
   background: linear-gradient(90deg, rgba(0, 0, 0, 0.05) 25%, rgba(0, 0, 0, 0.12) 50%, rgba(0, 0, 0, 0.05) 75%);
   background-size: 200% 100%;
 }
+[data-theme="eye"] .skeleton {
+  background: linear-gradient(90deg, rgba(30, 60, 45, 0.05) 25%, rgba(30, 60, 45, 0.12) 50%, rgba(30, 60, 45, 0.05) 75%);
+  background-size: 200% 100%;
+}
 
 /* 按钮按压反馈（C 档） */
 .btn:active { transform: scale(0.96); }
@@ -339,6 +350,10 @@ button:focus:not(:focus-visible) { outline: none; }
 [data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(127, 127, 127, 0.15); }
 [data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: rgba(127, 127, 127, 0.3); }
 [data-theme="light"] ::-webkit-scrollbar-thumb:active { background: rgba(127, 127, 127, 0.4); }
+/* 护眼主题：同浅色（米白底） */
+[data-theme="eye"] ::-webkit-scrollbar-thumb { background: rgba(60, 90, 70, 0.15); }
+[data-theme="eye"] ::-webkit-scrollbar-thumb:hover { background: rgba(60, 90, 70, 0.3); }
+[data-theme="eye"] ::-webkit-scrollbar-thumb:active { background: rgba(60, 90, 70, 0.4); }
 
 /* ===== PC 端布局增强：宽屏时内容铺开成网格 ===== */
 .app.is-wide .question-list {
@@ -379,6 +394,13 @@ button:focus:not(:focus-visible) { outline: none; }
   --modal-blur: 14px;
   --input-solid-bg: rgba(255, 255, 255, 0.92);
   --toast-bg: rgba(255, 255, 255, 0.95);
+  /* 浅色语义变量：浮层白底深字、KPI 深色渐变 */
+  --tip-bg: #ffffff;
+  --tip-text: #15212e;
+  --tip-muted: #5b7187;
+  --num-grad: linear-gradient(180deg, #1f2937, #64748b);
+  --hover-bg: rgba(61, 91, 217, 0.06);
+  --hover-bg-strong: rgba(61, 91, 217, 0.1);
 }
 [data-theme="light"] .app {
   background-image:
@@ -413,6 +435,13 @@ button:focus:not(:focus-visible) { outline: none; }
   --modal-blur: 14px;
   --input-solid-bg: rgba(255, 255, 255, 0.92);
   --toast-bg: rgba(255, 255, 255, 0.95);
+  /* 护眼语义变量：米白底深字、KPI 深绿渐变（与浅色近似但更柔和） */
+  --tip-bg: #f2f7ef;
+  --tip-text: #25352c;
+  --tip-muted: #5f7366;
+  --num-grad: linear-gradient(180deg, #2e4a38, #5f7366);
+  --hover-bg: rgba(58, 125, 90, 0.06);
+  --hover-bg-strong: rgba(58, 125, 90, 0.1);
 }
 [data-theme="eye"] .app {
   background-image:
@@ -531,6 +560,7 @@ body::after {
 @keyframes starDrift { from { background-position: 0% 0%; } to { background-position: 8% 6%; } }
 @keyframes starTwinkle { from { opacity: .45; } to { opacity: .9; } }
 [data-theme="light"] .app::before { opacity: .3; }
+[data-theme="eye"] .app::before { opacity: .3; }
 
 /* ===== 加码 3（2026-08-12）：极光 / 顶栏扫光 / 网格漂移 ===== */
 /* @property 全局注册（Home 流光复用） */
@@ -557,6 +587,7 @@ body::after {
 .app { animation: gridDrift 60s linear infinite; }
 @keyframes gridDrift { to { background-position: 30px 30px, 30px 30px, 0 0, 0 0; } }
 [data-theme="light"] body::after { opacity: .55; }
+[data-theme="eye"] body::after { opacity: .55; }
 
 /* ===== 门面 10 件套：全局项（⑦ 标题竖线 / ⑩ logo 呼吸）===== */
 /* ⑦ 区块标题：左侧品牌渐变竖线（全站统一语言） */

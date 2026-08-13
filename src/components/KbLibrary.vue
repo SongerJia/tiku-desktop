@@ -812,19 +812,18 @@ function fmtTime(ts) {
   font-weight: 600; color: #93b1ff;
 }
 
-/* B1 继续阅读浮层：hover 显示在卡片顶部 */
+/* B1 继续阅读浮层：hover 显示在卡片顶部（三主题由语义变量统一） */
 .kb-card { position: relative; }
 .kb-continue {
   position: absolute; top: 8px; left: 50%; transform: translateX(-50%) translateY(-4px);
-  background: #1c2434; border: 1px solid rgba(91, 124, 250, 0.45);
+  background: var(--tip-bg); border: 1px solid rgba(91, 124, 250, 0.45);
   border-radius: 14px; padding: 5px 14px;
-  font-size: 11.5px; color: #c8d3f5; white-space: nowrap;
+  font-size: 11.5px; color: var(--tip-text); white-space: nowrap;
   opacity: 0; pointer-events: none; z-index: 5;
   transition: opacity .15s ease, transform .15s ease;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
 }
 .kb-card:hover .kb-continue { opacity: 1; transform: translateX(-50%) translateY(0); }
-[data-theme="light"] .kb-continue { background: #fff; color: #3d5bd9; border-color: rgba(61, 91, 217, 0.4); }
 
 /* B2 已读/未读徽章 */
 .kb-unread {
@@ -898,10 +897,11 @@ function fmtTime(ts) {
 .g-ctl-btn.reset { width: auto; padding: 0 10px; font-size: 12px; color: var(--warn); }
 .g-zoom-pct { font-size: 12px; color: var(--muted); min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
 
-/* 全屏弹层 */
+/* 全屏弹层（遮罩跟随主题 --modal-mask） */
 .gf-mask {
   position: fixed; inset: 0; z-index: 400;
-  background: rgba(2, 6, 16, 0.88);
+  background: var(--modal-mask);
+  backdrop-filter: blur(var(--modal-blur, 6px));
   display: flex; align-items: center; justify-content: center; padding: 20px;
   animation: maskIn .18s ease;
 }

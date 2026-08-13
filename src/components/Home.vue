@@ -891,7 +891,7 @@ onBeforeUnmount(() => {
 .lv-badge {
   flex-shrink: 0; font-size: 11px; font-weight: 600;
   background: linear-gradient(135deg, rgba(91, 124, 250, 0.25), rgba(122, 92, 255, 0.2));
-  border: 1px solid rgba(91, 124, 250, 0.45); color: #c8d3f5;
+  border: 1px solid rgba(91, 124, 250, 0.45); color: var(--tip-text);
   border-radius: 999px; padding: 2px 9px;
 }
 .lv-track { flex: 1; height: 6px; border-radius: 3px; background: rgba(148, 163, 184, 0.14); overflow: hidden; position: relative; }
@@ -899,9 +899,9 @@ onBeforeUnmount(() => {
 .lv-glow { position: absolute; top: 0; bottom: 0; width: 12px; border-radius: 3px; background: rgba(255, 255, 255, 0.55); filter: blur(3px); pointer-events: none; }
 .lv-xp { font-size: 11px; color: var(--muted); flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
-/* ④ KPI 大数字渐变光泽（small 保持 muted，看足迹保持品牌渐变） */
+/* ④ KPI 大数字渐变光泽（small 保持 muted，看足迹保持品牌渐变；三主题由 --num-grad 统一） */
 .kpi-num {
-  background: linear-gradient(180deg, #f4f7ff, #a9b6da);
+  background: var(--num-grad);
   -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent; color: transparent;
 }
@@ -943,19 +943,21 @@ onBeforeUnmount(() => {
 /* ⑨ KPI 分隔线渐变（中间亮两端透明） */
 .kpi-sep { background: linear-gradient(180deg, transparent, rgba(148, 163, 184, 0.35), transparent); }
 
-/* 浅色主题：渐变文字换深色系 */
+/* 浅色主题：渐变文字换深色系（KPI 渐变由 --num-grad 语义变量统一） */
 [data-theme="light"] .greet-title { background: linear-gradient(90deg, #3d5bd9, #7c3aed); -webkit-background-clip: text; background-clip: text; }
-[data-theme="light"] .kpi-num { background: linear-gradient(180deg, #1f2937, #64748b); -webkit-background-clip: text; background-clip: text; }
 [data-theme="light"] .lv-badge { color: #3d5bd9; }
+/* 护眼绿主题：与浅色同源（绿色调） */
+[data-theme="eye"] .greet-title { background: linear-gradient(90deg, #2e6649, #4d8f6e); -webkit-background-clip: text; background-clip: text; }
+[data-theme="eye"] .lv-badge { color: #3a7d5a; }
 
 /* ===== 首页交互加码（2026-08-12）：统一 hover 浮层 + 按压反馈 ===== */
 /* 浮层基座：暗卡 + 三角箭头，hover 显示（各触发容器须 position:relative） */
 .tip {
   position: absolute; bottom: calc(100% + 10px); left: 50%;
   transform: translateX(-50%) translateY(3px);
-  background: #1c2434; border: 1px solid rgba(91, 124, 250, 0.35);
+  background: var(--tip-bg); border: 1px solid rgba(91, 124, 250, 0.35);
   border-radius: 8px; padding: 6px 11px;
-  font-size: 11.5px; color: #c8d3f5; white-space: nowrap; line-height: 1.5;
+  font-size: 11.5px; color: var(--tip-text); white-space: nowrap; line-height: 1.5;
   opacity: 0; pointer-events: none; z-index: 40;
   transition: opacity .16s ease, transform .16s ease;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
@@ -963,11 +965,9 @@ onBeforeUnmount(() => {
 .tip::after {
   content: ''; position: absolute; top: 100%; left: 50%;
   transform: translateX(-50%);
-  border: 5px solid transparent; border-top-color: #1c2434;
+  border: 5px solid transparent; border-top-color: var(--tip-bg);
 }
 .tip-wide { white-space: normal; max-width: 220px; text-align: left; }
-[data-theme="light"] .tip { background: #ffffff; color: #3d5bd9; border-color: rgba(61, 91, 217, 0.35); box-shadow: 0 8px 24px rgba(20, 40, 70, 0.15); }
-[data-theme="light"] .tip::after { border-top-color: #ffffff; }
 
 /* 触发容器：relative + hover 显示浮层 */
 .review-banner, .lv-bar, .kpi-item, .dock-btn.daily, .dock-btn.quick, .more-item { position: relative; }
@@ -1024,5 +1024,9 @@ onBeforeUnmount(() => {
 [data-theme="light"] .dock-btn.daily b { color: #0f9d6b; }
 [data-theme="light"] .brief-text, [data-theme="light"] .brief-text b { color: #0f9d6b; }
 [data-theme="light"] .dock-btn.daily em { color: #0f9d6b; }
+/* 护眼绿主题：绿色文字用护眼绿加深 */
+[data-theme="eye"] .dock-btn.daily b { color: #1f8a5b; }
+[data-theme="eye"] .brief-text, [data-theme="eye"] .brief-text b { color: #1f8a5b; }
+[data-theme="eye"] .dock-btn.daily em { color: #1f8a5b; }
 
 </style>

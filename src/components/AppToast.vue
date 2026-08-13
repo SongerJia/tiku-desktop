@@ -32,6 +32,8 @@ import { toastMsg, toastType } from '../utils/toast.js'
 .app-toast.err { border-color: var(--bad); color: var(--bad); }
 [data-theme="light"] .app-toast.ok { color: #1a7f5c; }
 [data-theme="light"] .app-toast.err { color: #c0392b; }
+[data-theme="eye"] .app-toast.ok { color: #1f8a5b; }
+[data-theme="eye"] .app-toast.err { color: #b8453f; }
 .toast-enter-active, .toast-leave-active { transition: opacity .25s, transform .25s; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(8px); }
 </style>

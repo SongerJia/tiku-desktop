@@ -276,9 +276,9 @@ function confirm() {
 .setup-mask {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 16, 0.72);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: var(--modal-mask);
+  backdrop-filter: blur(var(--modal-blur, 4px));
+  -webkit-backdrop-filter: blur(var(--modal-blur, 4px));
   z-index: 320;
   display: flex;
   align-items: flex-end;

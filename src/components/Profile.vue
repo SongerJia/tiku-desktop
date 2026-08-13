@@ -927,6 +927,7 @@ onMounted(async () => {
 @keyframes auraSpin { to { --ang: 360deg; } }
 @keyframes auraBreathe { 0%, 100% { opacity: .4; } 50% { opacity: 1; } }
 [data-theme="light"] .user-aura { opacity: .6; }
+[data-theme="eye"] .user-aura { opacity: .6; }
 .user-name { font-size: 16px; font-weight: 600; }
 .user-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
@@ -1107,17 +1108,15 @@ onMounted(async () => {
 .medal-float {
   position: fixed; z-index: 9999; pointer-events: none;
   width: max-content; max-width: 240px;
-  background: #1c2434; border: 1px solid rgba(91, 124, 250, 0.4);
+  background: var(--tip-bg); border: 1px solid rgba(91, 124, 250, 0.4);
   border-radius: 10px; padding: 8px 10px;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
   text-align: left;
 }
-.medal-float .mf-title { font-size: 12.5px; color: #dfe7fa; font-weight: 500; margin-bottom: 3px; }
+.medal-float .mf-title { font-size: 12.5px; color: var(--tip-text); font-weight: 500; margin-bottom: 3px; }
 .medal-float .mf-sub { font-size: 10.5px; color: #4fd1a5; margin-bottom: 2px; }
-.medal-float .mf-sub.lock { color: var(--muted); }
-.medal-float .mf-desc { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
-[data-theme="light"] .medal-float { background: #fff; border-color: rgba(61, 91, 217, 0.35); }
-[data-theme="light"] .medal-float .mf-title { color: #1f2937; }
+.medal-float .mf-sub.lock { color: var(--tip-muted); }
+.medal-float .mf-desc { font-size: 11px; color: var(--tip-muted); margin-top: 4px; line-height: 1.5; }
 
 /* 同步冲突明细 */
 
@@ -1154,13 +1153,12 @@ onMounted(async () => {
 }
 .ach-card:hover::after { opacity: 1; animation: angSpin 2.2s linear infinite; }
 
-/* 成就数字：渐变 */
+/* 成就数字：渐变（三主题由 --num-grad 统一） */
 .ach-sum-item b {
-  background: linear-gradient(180deg, #f4f7ff, #a9b6da);
+  background: var(--num-grad);
   -webkit-background-clip: text; background-clip: text;
   -webkit-text-fill-color: transparent; color: transparent;
 }
-[data-theme="light"] .ach-sum-item b { background: linear-gradient(180deg, #1f2937, #64748b); -webkit-background-clip: text; background-clip: text; }
 
 /* ===== 我的页加浓（2026-08-12）：首页同款浓度 ===== */
 /* stagger 交错入场：用户卡 → 学习成长 → 学习目标 */
@@ -1201,6 +1199,7 @@ onMounted(async () => {
 }
 .local-badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
 [data-theme="light"] .local-badge { color: #0f9d6b; }
+[data-theme="eye"] .local-badge { color: #1f8a5b; }
 
 
 /* ===== 用户卡可编辑 + 右侧特效（2026-08-13）===== */
@@ -1233,7 +1232,8 @@ onMounted(async () => {
 /* ===== 编辑资料弹窗（2026-08-13）===== */
 .ep-mask {
   position: fixed; inset: 0; z-index: 400;
-  background: rgba(2, 6, 16, 0.65);
+  background: var(--modal-mask);
+  backdrop-filter: blur(var(--modal-blur, 6px));
   display: flex; align-items: center; justify-content: center; padding: 24px;
   animation: maskIn .18s ease;
 }
@@ -1274,7 +1274,6 @@ onMounted(async () => {
   margin-left: 2px;
 }
 .user-name:hover .user-edit-btn { opacity: 1; color: var(--brand); transform: scale(1.12); }
-[data-theme="light"] .ep-mask { background: rgba(20, 30, 50, 0.45); }
 
 
 

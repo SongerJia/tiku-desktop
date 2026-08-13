@@ -267,7 +267,7 @@ async function exportPaperPdf(p) {
 <style scoped>
 .me-mask {
   position: fixed; inset: 0; z-index: 330;
-  background: rgba(2, 6, 16, 0.74); backdrop-filter: blur(4px);
+  background: var(--modal-mask); backdrop-filter: blur(var(--modal-blur, 4px));
   display: flex; align-items: flex-end; justify-content: center;
 }
 .me-mask.is-wide { align-items: center; padding: 24px; }
