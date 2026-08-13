@@ -3,7 +3,7 @@ import Icon from './Icon.vue'
 import MedalIcon from './MedalIcon.vue'
 import CountUp from './CountUp.vue'
 import { showConfirm } from '../utils/confirm.js'
-import { evaluate, achLevel, ACH_SERIES } from '../utils/achievements.js'
+import { evaluate, achLevel, ACH_SERIES, RARITY_ORDER } from '../utils/achievements.js'
 import { vTilt } from '../utils/tilt.js'
 import { computePosition, offset, flip, shift } from '@floating-ui/dom'
 import { ref, onMounted, computed, nextTick } from 'vue'
@@ -327,34 +327,28 @@ async function showTip(elOrE, payload) {
   medalTipEl.value.style.top = y + 'px'
 }
 function hideTip() { activeTip.value = null }
-// 浮层数据：系列名 + 该系列全部已解锁档位（稀有度降序，含成就名/解锁日期）+ 未点亮提示
+// 浮层数据：归类成就的 4 档进度（当前档/下一档阈值 + 全档位预览）
 const RAR_LABEL = { bronze: '铜', silver: '银', gold: '金', platinum: '白金' }
-function achTipPayload(sm) {
-  const unlocked = sm.list.filter(a => a.got).sort((a, b) => (RARITY_RANK[b.rarity] || 0) - (RARITY_RANK[a.rarity] || 0))
-  const lines = unlocked.map(a => `${RAR_LABEL[a.rarity] || a.rarity} · ${a.name}`)
-  const sub = unlocked.length ? `${sm.got}/${sm.total} 解锁 · ` + lines.join(' / ') : '未点亮'
+function achTipPayload(a) {
+  const tierLine = a.tiers.map((t, i) => `${RAR_LABEL[RARITY_ORDER[i]]}${t}`).join(' · ')
+  const sub = a.got
+    ? `当前 ${RAR_LABEL[a.rarity]}档 · ${a.fmtText}${a.next ? ` / 下一档 ${a.next}` : ' · 已满级'}`
+    : `未解锁 · 目标 ${a.tiers[0]}`
   return {
-    title: sm.series.name,
+    title: a.name,
     sub,
-    desc: unlocked.length ? '悬停看各档详情' : (sm.medal.desc || '解锁该系列任一成就即可点亮'),
-    got: unlocked.length > 0
+    desc: `${a.seriesName || ''}${tierLine}`,
+    got: a.got
   }
 }
 // 勋章稀有度 class：已解锁 → 'got <rarity>'（驱动 --rr 配色），未解锁 → ''
 const medalCls = (a) => a.got ? 'got ' + (a.rarity || 'bronze') : ''
-// 每系列一枚代表勋章：已解锁 → 该系列最高稀有度（点亮版）；全未解锁 → 最低档铜（灰影圆）
+// 归类成就平铺：20 个成就直接陈列（3 行 × 9 列，不足补占位）
 const RARITY_RANK = { bronze: 1, silver: 2, gold: 3, platinum: 4 }
+const SERIES_NAME = Object.fromEntries(ACH_SERIES.map(s => [s.key, s.name]))
 const seriesMedals = computed(() => {
   if (!metrics.value) return []
-  return ACH_SERIES.map(sr => {
-    const list = achievements.value.filter(a => a.series === sr.key)
-    const unlocked = list.filter(a => a.got).sort((a, b) => (RARITY_RANK[b.rarity] || 0) - (RARITY_RANK[a.rarity] || 0))
-    const best = unlocked[0]
-    const medal = best
-      ? { ...best }
-      : { key: sr.key + '-lock', name: sr.name, icon: sr.icon, series: sr.key, rarity: 'bronze', got: false, desc: '解锁该系列任一成就即可点亮' }
-    return { key: sr.key, series: sr, total: list.length, got: unlocked.length, medal, list }
-  })
+  return achievements.value.map(a => ({ ...a, seriesName: SERIES_NAME[a.series] || '' }))
 })
 // 勋章底形状（viewBox 100×100）：铜=菱形、银=六边形、金=盾形、白金=八角星（铜原为圆，与外层圆勋章重复故改菱形）
 const BADGE_SHAPES = {
@@ -496,19 +490,22 @@ onMounted(async () => {
       </div>
 
 
-      <!-- 勋章墙（大勋章阵列）：每系列 1 枚代表勋章（最高已点亮档位），未解锁灰影；hover 浮层看该系列全部已解锁档位 -->
+      <!-- 勋章墙（归类成就平铺）：20 个归类成就 × 4 档，3 行 × 9 列，不足补占位 -->
       <div class="medal-grid">
-        <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal-cell" :class="sm.medal.got ? (sm.medal.rarity || 'bronze') : ''">
-          <div class="medal big-medal" :class="medalCls(sm.medal)" :style="{ animationDelay: (i * 0.05) + 's' }"
-               @mouseenter="showTip($event, achTipPayload(sm))"
+        <div v-for="(a, i) in seriesMedals" :key="a.key" class="medal-cell">
+          <div class="medal big-medal" :class="medalCls(a)" :style="{ animationDelay: (i * 0.04) + 's' }"
+               @mouseenter="showTip($event, achTipPayload(a))"
                @mouseleave="hideTip">
-            <svg v-if="sm.medal.got" class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(sm.medal.rarity)" /></svg>
-            <MedalIcon :series="sm.medal.series" :got="sm.medal.got" :size="30" class="medal-icon" />
-            <span v-if="sm.medal.got && isNewAch(sm.medal)" class="medal-new">NEW</span>
-            <div v-if="sm.medal.got" class="medal-orb"></div>
+            <svg v-if="a.got" class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(a.rarity)" /></svg>
+            <MedalIcon :series="a.series" :got="a.got" :size="26" class="medal-icon" />
+            <span v-if="a.got && isNewAch(a)" class="medal-new">NEW</span>
+            <div v-if="a.got" class="medal-orb"></div>
           </div>
-          <div class="medal-base"></div>
-          <span class="medal-sname">{{ sm.series.name }}</span>
+          <div class="medal-base" :class="{ off: !a.got }"></div>
+          <span class="medal-sname">{{ a.name }}</span>
+        </div>
+        <div v-for="k in (27 - seriesMedals.length)" :key="'ph-' + k" class="medal-cell medal-ph">
+          <div class="medal-ph-box"></div>
         </div>
       </div>
       <div v-if="!seriesMedals.length" class="ach-empty">还没有成就数据，先刷几道题吧</div>
@@ -1204,15 +1201,23 @@ onMounted(async () => {
 
 
 
-/* ===== 勋章墙（成就展柜）：5 列占满卡片宽，cell 含勋章+系列名，聚拢排布 ===== */
+/* ===== 勋章墙（归类成就平铺）：3 行 × 9 列，cell 含勋章+底座+成就名 ===== */
 .medal-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 20px 12px;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 18px 8px;
   justify-items: center;
-  padding: 10px 4px 6px;
+  padding: 10px 2px 6px;
 }
-.medal-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.medal-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+/* 预留占位：虚线圆点，暗示还有成就可解锁 */
+.medal-ph-box {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 1.5px dashed rgba(148, 163, 184, 0.28);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; color: rgba(148, 163, 184, 0.35);
+}
+.medal-ph-box::after { content: '?'; }
 /* cell 级稀有度色：供底座发光（勋章自身 --rr 仍在 medal 上） */
 .medal-cell.bronze   { --rr: 184, 115, 51; }
 .medal-cell.silver   { --rr: 159, 178, 192; }
@@ -1331,10 +1336,14 @@ onMounted(async () => {
   stroke-width: 2.5;
   stroke-linejoin: round;
 }
-/* 勋章墙代表勋章（成就展柜）：加大到 64px，向下投影悬浮，hover 上浮（浮层已迁移 Teleport+floating-ui） */
-.big-medal { width: 64px; height: 64px; }
+/* 勋章墙代表勋章：56px（9 列网格适配），向下投影悬浮，hover 上浮（浮层已迁移 Teleport+floating-ui） */
+.big-medal { width: 56px; height: 56px; }
 .big-medal .medal-bg { inset: 16%; }
+.big-medal .medal-icon { transform: scale(1); }
 .big-medal:hover { transform: translateY(-4px) scale(1.08); }
+/* 未解锁底座：灰影（无稀有度辉光） */
+.medal-base.off { background: rgba(148, 163, 184, 0.16); }
+.medal-base.off::after { display: none; }
 /* 能量光球：勋章上方稀有度色光球悬浮旋转（光环 + 中心光点），hover 增强 */
 .medal-orb {
   position: absolute; top: -14px; left: 50%;
