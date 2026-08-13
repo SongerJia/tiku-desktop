@@ -339,7 +339,7 @@ function gotoAchFrom(a) {
 const kbStats = ref(null)
 
 // 页面分组折叠：学习成长默认展开，其余收起（避免平铺过长）
-const secOpen = ref({ kb: true, learn: true, goals: true, prefs: false, sync: false, misc: false })
+const secOpen = ref({ kb: false, learn: false, goals: false, prefs: false, sync: false, misc: false })
 function toggleSec(k) {
   secOpen.value[k] = !secOpen.value[k]
 }
