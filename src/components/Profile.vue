@@ -293,6 +293,15 @@ const unlockedCount = computed(() => achievements.value.filter(a => a.got).lengt
 const achPoints = computed(() => achievements.value.filter(a => a.got).reduce((s, a) => s + (a.points || 0), 0))
 const achLv = computed(() => achLevel(achPoints.value))
 const achPct = computed(() => achievements.value.length ? Math.round((unlockedCount.value / achievements.value.length) * 100) : 0)
+// 勋章浮层自适应：hover 时按视口空间翻转——下方不足向上弹、右侧不足左对齐（根治浮层被裁/越界）
+function orientTip(e) {
+  const m = e.currentTarget
+  const tip = m.querySelector('.medal-tip')
+  if (!tip) return
+  const r = m.getBoundingClientRect()
+  tip.classList.toggle('tip-up', (window.innerHeight - r.bottom) < 130)
+  tip.classList.toggle('tip-right', (window.innerWidth - r.right) < 170)
+}
 // 勋章稀有度 class：已解锁 → 'got <rarity>'（驱动 --rr 配色），未解锁 → ''
 const medalCls = (a) => a.got ? 'got ' + (a.rarity || 'bronze') : ''
 // 每系列一枚代表勋章：已解锁 → 该系列最高稀有度（点亮版）；全未解锁 → 最低档铜（灰影圆）
@@ -389,7 +398,7 @@ onMounted(async () => {
       <!-- 勋章区：已解锁勋章全部松散平铺（自动换行填满右侧空白），点击滚动到完整勋章墙 -->
       <div class="medal-area" title="查看全部勋章" @click="gotoAch">
         <template v-for="(a, i) in stackMedals" :key="a.key">
-          <div class="medal area-medal got" :class="a.rarity || 'bronze'" :style="{ zIndex: 10 + i }" @click.stop="gotoAch">
+          <div class="medal area-medal got" :class="a.rarity || 'bronze'" :style="{ zIndex: 10 + i }" @click.stop="gotoAch" @mouseenter="orientTip">
             <svg class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(a.rarity)" /></svg>
             <Icon :name="a.icon" :size="15" class="medal-icon" />
             <span v-if="isNewAch(a)" class="medal-new">NEW</span>
@@ -454,11 +463,11 @@ onMounted(async () => {
 
       <!-- 勋章墙：每系列 1 枚代表勋章（未解锁=最低档灰影，已解锁=该系列最高档点亮） -->
       <div class="medal-grid">
-        <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal big-medal" :class="medalCls(sm.medal)" :style="{ animationDelay: (i * 0.05) + 's' }">
+        <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal big-medal" :class="medalCls(sm.medal)" :style="{ animationDelay: (i * 0.05) + 's' }" @mouseenter="orientTip">
           <svg v-if="sm.medal.got" class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(sm.medal.rarity)" /></svg>
           <Icon :name="sm.medal.icon" :size="26" class="medal-icon" />
           <span v-if="sm.medal.got && isNewAch(sm.medal)" class="medal-new">NEW</span>
-          <div class="medal-tip">
+          <div class="medal-tip" :class="{ 'tip-right': i >= 7 }">
             <b>{{ sm.series.name }}</b>
             <span class="mt-date">{{ sm.medal.got ? (sm.got + '/' + sm.total + ' · ' + sm.medal.name) : '未点亮' }}</span>
             <i>{{ sm.medal.desc }}</i>
@@ -1205,6 +1214,15 @@ onMounted(async () => {
 .big-medal .medal-bg { inset: 14%; }
 .big-medal .medal-tip { width: 200px; top: calc(100% + 10px); bottom: auto; }
 .big-medal .medal-tip::after { top: -5px; bottom: auto; transform: translateX(-50%) rotate(180deg); }
+/* 网格右侧勋章（第 8 枚起）：tip 向右展开会溢出容器被裁 → 改右对齐向左展开 */
+.big-medal .medal-tip.tip-right { left: auto; right: 0; transform: translateY(4px); }
+.big-medal .medal-tip.tip-right::after { left: auto; right: 14px; transform: rotate(180deg); }
+.big-medal:hover .medal-tip.tip-right { transform: translateY(0); }
+/* 视口自适应（orientTip 动态加）：下方空间不足 → 向上弹 */
+.big-medal .medal-tip.tip-up { top: auto; bottom: calc(100% + 10px); }
+.big-medal .medal-tip.tip-up::after { top: auto; bottom: -5px; transform: translateX(-50%) rotate(0deg); }
+.big-medal:hover .medal-tip.tip-up { transform: translateY(0); }
+.big-medal .medal-tip.tip-up.tip-right::after { right: 14px; transform: translateX(0) rotate(0deg); }
 @keyframes medalWiggle {
   0%, 100% { transform: translateY(-3px) scale(1.12) rotate(0); }
   30% { transform: translateY(-3px) scale(1.12) rotate(-8deg); }
@@ -1274,6 +1292,13 @@ onMounted(async () => {
 /* 用户卡在页面顶部，浮层向上会超出可视区 → 改为向下弹出（箭头反转朝上） */
 .area-medal .medal-tip { top: calc(100% + 10px); bottom: auto; width: 176px; }
 .area-medal .medal-tip::after { top: -5px; bottom: auto; transform: translateX(-50%) rotate(180deg); }
+/* 用户卡勋章区同样视口自适应 */
+.area-medal .medal-tip.tip-right { left: auto; right: 0; transform: translateY(4px); }
+.area-medal .medal-tip.tip-right::after { left: auto; right: 14px; transform: rotate(180deg); }
+.area-medal:hover .medal-tip.tip-right { transform: translateY(0); }
+.area-medal .medal-tip.tip-up { top: auto; bottom: calc(100% + 10px); }
+.area-medal .medal-tip.tip-up::after { top: auto; bottom: -5px; transform: translateX(-50%) rotate(0deg); }
+.area-medal:hover .medal-tip.tip-up { transform: translateY(0); }
 /* hover 弹起 + 摆动（keyframes 内嵌重力项，避免动画覆盖位移） */
 .area-medal:hover {
   transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-8px) scale(1.2) rotate(calc(var(--tiltRx) * -0.7deg));
