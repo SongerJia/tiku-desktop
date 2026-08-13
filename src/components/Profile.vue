@@ -482,14 +482,17 @@ onMounted(async () => {
       </div>
 
 
-      <!-- 勋章墙：每系列 1 枚代表勋章（未解锁=最低档灰影，已解锁=该系列最高档点亮） -->
+      <!-- 勋章墙（成就展柜）：每系列 1 枚代表勋章，未解锁灰影+系列名 -->
       <div class="medal-grid">
-        <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal big-medal" :class="medalCls(sm.medal)" :style="{ animationDelay: (i * 0.05) + 's' }"
-             @mouseenter="showTip($event, { title: sm.series.name, sub: sm.medal.got ? (sm.got + '/' + sm.total + ' · ' + sm.medal.name) : '未点亮', desc: sm.medal.desc, got: sm.medal.got })"
-             @mouseleave="hideTip">
-          <svg v-if="sm.medal.got" class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(sm.medal.rarity)" /></svg>
-          <MedalIcon :series="sm.medal.series" :got="sm.medal.got" :size="26" class="medal-icon" />
-          <span v-if="sm.medal.got && isNewAch(sm.medal)" class="medal-new">NEW</span>
+        <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal-cell">
+          <div class="medal big-medal" :class="medalCls(sm.medal)" :style="{ animationDelay: (i * 0.05) + 's' }"
+               @mouseenter="showTip($event, { title: sm.series.name, sub: sm.medal.got ? (sm.got + '/' + sm.total + ' · ' + sm.medal.name) : '未点亮', desc: sm.medal.desc, got: sm.medal.got })"
+               @mouseleave="hideTip">
+            <svg v-if="sm.medal.got" class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(sm.medal.rarity)" /></svg>
+            <MedalIcon :series="sm.medal.series" :got="sm.medal.got" :size="30" class="medal-icon" />
+            <span v-if="sm.medal.got && isNewAch(sm.medal)" class="medal-new">NEW</span>
+          </div>
+          <span v-if="!sm.medal.got" class="medal-sname">{{ sm.series.name }}</span>
         </div>
       </div>
       <div v-if="!seriesMedals.length" class="ach-empty">还没有成就数据，先刷几道题吧</div>
@@ -1185,14 +1188,16 @@ onMounted(async () => {
 
 
 
-/* ===== 勋章墙（2026-08-13）：每系列 1 枚代表勋章，5 列 1fr 占满卡片宽均匀铺开 ===== */
+/* ===== 勋章墙（成就展柜）：5 列占满卡片宽，cell 含勋章+系列名，聚拢排布 ===== */
 .medal-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 14px 8px;
+  gap: 20px 12px;
   justify-items: center;
-  padding: 8px 2px 6px;
+  padding: 10px 4px 6px;
 }
+.medal-cell { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.medal-sname { font-size: 10.5px; color: var(--muted); opacity: .75; letter-spacing: .3px; }
 .medal {
   position: relative;
   width: 44px; height: 44px; border-radius: 50%;
@@ -1212,7 +1217,7 @@ onMounted(async () => {
     radial-gradient(circle at 35% 30%, rgba(var(--rr), 0.32), rgba(var(--rr), 0.10) 68%);
   border: 2px solid rgba(var(--rr), 0.55);
   border-radius: 50%;
-  box-shadow: 0 0 12px rgba(var(--rr), 0.28), inset 0 1px 4px rgba(255, 255, 255, 0.10);
+  box-shadow: 0 0 12px rgba(var(--rr), 0.28), 0 6px 16px rgba(0, 0, 0, 0.35), inset 0 1px 4px rgba(255, 255, 255, 0.10);
 }
 .medal.got.bronze   { --rr: 184, 115, 51; }
 .medal.got.silver   { --rr: 159, 178, 192; }
@@ -1277,9 +1282,10 @@ onMounted(async () => {
   stroke-width: 2.5;
   stroke-linejoin: round;
 }
-/* 勋章墙代表勋章：加大到 56px，内层形状同步放大（浮层已迁移 Teleport+floating-ui） */
-.big-medal { width: 56px; height: 56px; }
-.big-medal .medal-bg { inset: 14%; }
+/* 勋章墙代表勋章（成就展柜）：加大到 64px，向下投影悬浮，hover 上浮（浮层已迁移 Teleport+floating-ui） */
+.big-medal { width: 64px; height: 64px; }
+.big-medal .medal-bg { inset: 16%; }
+.big-medal:hover { transform: translateY(-4px) scale(1.08); }
 @keyframes medalWiggle {
   0%, 100% { transform: translateY(-3px) scale(1.12) rotate(0); }
   30% { transform: translateY(-3px) scale(1.12) rotate(-8deg); }
