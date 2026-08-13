@@ -294,7 +294,7 @@ const achPoints = computed(() => achievements.value.filter(a => a.got).reduce((s
 const achLv = computed(() => achLevel(achPoints.value))
 const achPct = computed(() => achievements.value.length ? Math.round((unlockedCount.value / achievements.value.length) * 100) : 0)
 // 系列折叠状态（默认全部展开）
-const achOpen = ref(new Set(ACH_SERIES.map(x => x.key))) // 勋章墙：系列默认展开（图标墙低密度）
+const achOpen = ref(new Set()) // 勋章墙：系列默认全部折叠，从用户卡勋章区进入时只展开对应系列
 function toggleAchSeries(key) {
   const s = new Set(achOpen.value)
   if (s.has(key)) s.delete(key); else s.add(key)
@@ -328,6 +328,11 @@ function gotoAch() {
     const el = document.querySelector('.ach-card')
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   })
+}
+// 点击具体勋章 → 只展开该勋章所属系列（其余全折叠），再滚动到勋章墙
+function gotoAchFrom(a) {
+  achOpen.value = new Set(a.series ? [a.series] : [])
+  gotoAch()
 }
 
 // ---- 知识库概览（kbStats）----
@@ -375,7 +380,7 @@ onMounted(async () => {
       <!-- 勋章区：已解锁勋章全部松散平铺（自动换行填满右侧空白），点击滚动到完整勋章墙 -->
       <div class="medal-area" title="查看全部勋章" @click="gotoAch">
         <template v-for="(a, i) in stackMedals" :key="a.key">
-          <div class="medal area-medal got" :style="{ zIndex: 10 + i }">
+          <div class="medal area-medal got" :style="{ zIndex: 10 + i }" @click.stop="gotoAchFrom(a)">
             <span class="medal-icon">{{ a.icon }}</span>
             <span v-if="isNewAch(a)" class="medal-new">NEW</span>
             <div class="medal-tip">
