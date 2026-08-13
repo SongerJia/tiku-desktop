@@ -918,34 +918,6 @@ onMounted(async () => {
 .ach-series-prog { font-size: 11px; color: var(--muted); background: rgba(91,124,250,.1); border-radius: 999px; padding: 1px 8px; }
 .ach-series-arrow { margin-left: auto; font-size: 12px; color: var(--muted); transition: transform .2s; }
 .ach-series-arrow.open { transform: rotate(180deg); }
-.ach-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.ach { display: flex; flex-direction: column; gap: 3px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: rgba(255,255,255,.02); opacity: .72; transition: all .2s; }
-.ach:hover { opacity: 1; border-color: rgba(91,124,250,.5); }
-.ach.got { opacity: 1; border-color: var(--brand); background: var(--brand-light); box-shadow: var(--glow-soft); }
-.ach.hidden { opacity: .45; }
-.ach.hidden:hover { opacity: .6; }
-.ach-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.ach-icon { font-size: 18px; filter: grayscale(1) brightness(.7); flex-shrink: 0; }
-.ach.got .ach-icon { filter: none; }
-.ach-name { font-size: 13px; font-weight: 600; color: var(--text); display: inline-flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ach.got .ach-name { color: var(--brand); }
-.ach-pct { margin-left: auto; font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
-.ach-pct.done { color: var(--ok); font-weight: 600; }
-.ach-desc { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ach-bar {
-  height: 5px;
-  border-radius: 3px;
-  background: rgba(127, 127, 127, 0.25);
-  overflow: hidden;
-  margin-top: 3px;
-}
-.ach-fill {
-  height: 100%;
-  border-radius: 3px;
-  background: var(--muted);
-  transition: width .3s ease;
-}
-.ach-fill.done { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
 .ach-empty { font-size: 12px; color: var(--muted); text-align: center; padding: 12px 0; }
 
 /* 同步冲突明细 */
@@ -1131,8 +1103,6 @@ onMounted(async () => {
 [data-theme="light"] .ep-mask { background: rgba(20, 30, 50, 0.45); }
 
 
-/* 勋章墙瘦身（2026-08-13）：系列空态小字 */
-.ach-series-empty { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); text-align: center; padding: 8px 0; opacity: .7; }
 
 
 /* ===== 勋章墙（2026-08-13）：图标 + hover 浮层 + 滑过动效 ===== */
