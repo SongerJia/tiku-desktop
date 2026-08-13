@@ -12,10 +12,9 @@
           <!-- 工具条 -->
           <div class="km-toolbar">
             <input v-model="keyword" class="input km-search" placeholder="搜索文档标题（中英文均可）" />
-            <select v-model="folderFilter" class="input km-folder">
-              <option value="">全部文件夹</option>
-              <option value="__none">未分类</option>
-              <option v-for="f in folders" :key="f" :value="f">{{ f }}</option>
+            <select v-model="subjectFilter" class="input km-folder">
+              <option value="">全部科目</option>
+              <option v-for="s in subjectOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
             </select>
             <button class="btn btn-primary sm" @click="onImport">导入文档</button>
           </div>
@@ -51,11 +50,15 @@
                 <button class="btn btn-primary sm" @click="doRename(d)">确定</button>
                 <button class="btn sm" @click="renaming = null">取消</button>
               </div>
-              <!-- 行内移动 -->
+              <!-- 行内移动（到科目/章节） -->
               <div v-if="moving === d.id" class="km-inline" @click.stop>
-                <select v-model="moveVal" class="input">
-                  <option value="">未分类</option>
-                  <option v-for="f in folders" :key="f" :value="f">{{ f }}</option>
+                <select v-model="moveSubjectId" class="input" @change="moveCategoryId = ''">
+                  <option value="">不设科目</option>
+                  <option v-for="s in subjectOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
+                </select>
+                <select v-if="moveSubjectId" v-model="moveCategoryId" class="input">
+                  <option value="">（章节）</option>
+                  <option v-for="c in moveChapters" :key="c.id" :value="c.id">{{ c.name }}</option>
                 </select>
                 <button class="btn btn-primary sm" @click="doMove(d)">确定</button>
                 <button class="btn sm" @click="moving = null">取消</button>
@@ -87,27 +90,28 @@ const props = defineProps({ show: Boolean })
 const emit = defineEmits(['close', 'changed'])
 
 const docs = ref([])
-const subjects = ref([])
+const subjects = ref({})
 const keyword = ref('')
-const folderFilter = ref('')
+const subjectFilter = ref('')
 const renaming = ref(null)
 const renameVal = ref('')
 const moving = ref(null)
-const moveVal = ref('')
+const moveSubjectId = ref('')
+const moveCategoryId = ref('')
 const reader = ref({ show: false, doc: null })
 
 // 打开时加载
 watch(() => props.show, async (v) => {
   if (!v) return
   keyword.value = ''
-  folderFilter.value = ''
+  subjectFilter.value = ''
   await load()
 })
 
 async function load() {
   const [list, cats] = await Promise.all([tiku.kbList(), tiku.getCategories().catch(() => [])])
   docs.value = list || []
-  // 科目树：id → 名称（科目 + 章节两层）
+  // 科目树展平：id → 节点（含 children）
   const m = {}
   const walk = (nodes) => nodes.forEach(n => { m[n.id] = n; if (n.children) walk(n.children) })
   walk(cats || [])
@@ -121,19 +125,16 @@ function close() {
   emit('close')
 }
 
-// 文件夹列表（按出现顺序去重，未分类过滤）
-const folders = computed(() => {
-  const seen = new Set()
-  const out = []
-  docs.value.forEach(d => {
-    if (d.folder && !seen.has(d.folder)) { seen.add(d.folder); out.push(d.folder) }
-  })
-  return out
+// 科目列表（parent 为空的根节点）
+const subjectOptions = computed(() => Object.values(subjects.value).filter(n => !n.parent_id))
+// 移动时当前科目的章节
+const moveChapters = computed(() => {
+  const s = subjects.value[Number(moveSubjectId.value)]
+  return (s && s.children) || []
 })
 
-// 位置标签：文件夹优先，其次 科目·章节，再未分类
+// 位置标签：科目 · 章节 / 科目 / 未分类
 function posLabel(d) {
-  if (d.folder) return '文件夹 · ' + d.folder
   const subj = d.subject_id ? subjects.value[d.subject_id] : null
   const cat = d.category_id ? subjects.value[d.category_id] : null
   if (subj || cat) return (subj ? subj.name : '') + (cat && cat.parent_id ? ' · ' + cat.name : '')
@@ -142,10 +143,10 @@ function posLabel(d) {
 
 const filteredDocs = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
+  const sid = Number(subjectFilter.value)
   return docs.value.filter(d => {
     if (kw && !String(d.title).toLowerCase().includes(kw)) return false
-    if (folderFilter.value === '__none') return !d.folder
-    if (folderFilter.value && d.folder !== folderFilter.value) return false
+    if (sid && Number(d.subject_id) !== sid) return false
     return true
   })
 })
@@ -181,14 +182,21 @@ async function doRename(d) {
   showToast('已重命名', 'ok')
 }
 
-function startMove(d) { moving.value = d.id; moveVal.value = d.folder || ''; renaming.value = null }
+function startMove(d) {
+  moving.value = d.id
+  moveSubjectId.value = d.subject_id ? String(d.subject_id) : ''
+  moveCategoryId.value = d.category_id ? String(d.category_id) : ''
+  renaming.value = null
+}
 async function doMove(d) {
-  const f = moveVal.value.trim()
-  await tiku.kbMove(d.id, f)
-  d.folder = f
+  const subjectId = moveSubjectId.value ? Number(moveSubjectId.value) : null
+  const categoryId = moveCategoryId.value ? Number(moveCategoryId.value) : null
+  await tiku.kbUpdate(d.id, { subjectId, categoryId })
+  d.subject_id = subjectId
+  d.category_id = categoryId
   moving.value = null
   emit('changed')
-  showToast(f ? `已移动到「${f}」` : '已移回未分类', 'ok')
+  showToast('已移动', 'ok')
 }
 
 async function onDelete(d) {

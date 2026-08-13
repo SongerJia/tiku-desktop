@@ -17,7 +17,7 @@ import AboutModal from './AboutModal.vue'
 import BackupModal from './BackupModal.vue'
 import CategoryManager from './CategoryManager.vue'
 
-const emit = defineEmits(['reset', 'start', 'open-bank'])
+const emit = defineEmits(['reset', 'start', 'open-bank', 'open-kb-manager'])
 
 function forwardStart(payload) {
   emit('start', payload)
@@ -397,7 +397,7 @@ function gotoAch() {
 }
 
 // 页面分组折叠：勋章墙默认展开，其余收起（避免平铺过长）
-const secOpen = ref({ learn: false, goals: false, prefs: false, sync: false, data: false, bank: false, misc: false })
+const secOpen = ref({ learn: false, goals: false, prefs: false, sync: false, data: false, bank: false, kb: false, misc: false })
 function toggleSec(k) {
   secOpen.value[k] = !secOpen.value[k]
 }
@@ -709,6 +709,28 @@ onMounted(async () => {
       </div>
     </div>
 
+    <!-- 知识库 -->
+    <div class="sec">
+      <div class="sec-head" @click="toggleSec('kb')">
+        <span class="sec-icon sec-icon-kb"><Icon name="book" :size="16" /></span>
+        <span class="sec-title">知识库</span>
+        <span class="sec-arrow" :class="{ open: secOpen.kb }"><Icon name="chevron-down" :size="14" /></span>
+      </div>
+      <div v-show="secOpen.kb" class="sec-body">
+
+    <!-- 文档管理（内容资产：导入/重命名/移动/删除） -->
+    <div class="card">
+      <div class="card-title">知识库</div>
+      <div class="list-item highlight" @click="emit('open-kb-manager')">
+        <span class="title">知识库管理</span>
+        <span class="sub">导入 md/pdf · 搜索 · 重命名 · 整理</span>
+        <span class="arrow">›</span>
+      </div>
+    </div>
+
+      </div>
+    </div>
+
     <!-- 数据 -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('data')">
@@ -907,6 +929,7 @@ onMounted(async () => {
 .sec-icon-sync    { background: rgba(34, 211, 238, 0.14);  color: #22d3ee; }
 .sec-icon-data    { background: rgba(251, 191, 36, 0.14);  color: #fbbf24; }
 .sec-icon-bank    { background: rgba(139, 92, 246, 0.14);  color: #8b5cf6; }
+.sec-icon-kb      { background: rgba(47, 191, 143, 0.14);  color: var(--ok); }
 .sec-icon-misc    { background: rgba(251, 113, 133, 0.14); color: #fb7185; }
 .sec-icon-chapter { background: rgba(251, 191, 36, 0.14);  color: #fbbf24; }
 .sec-icon-about   { background: rgba(148, 163, 184, 0.16); color: var(--muted); }

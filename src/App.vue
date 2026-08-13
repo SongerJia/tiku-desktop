@@ -343,6 +343,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
             @reset="currentTab = 'home'"
             @start="onStart"
             @open-bank="showBank = true"
+            @open-kb-manager="showKbManager = true"
           />
             </div>
           </Transition>
