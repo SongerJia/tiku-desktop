@@ -326,10 +326,23 @@ async function showTip(e, payload) {
   medalTipEl.value.style.top = y + 'px'
 }
 function hideTip() { activeTip.value = null }
+// 3D 纵深堆叠位置：i=0 最低档（平躺）→ i=n-1 最高档（立起），下层暗上层亮
+const RAR_LABEL = { bronze: '铜', silver: '银', gold: '金', platinum: '白金' }
+function tierStyle(i, n) {
+  const STEP = 17 // 每层垂直间距
+  const tilt = Math.max(0, 58 - i * 20) // 最低档 58° 平躺，最高档 0° 立起
+  return {
+    top: ((n - 1 - i) * STEP) + 'px',
+    transform: `rotateX(${tilt}deg)`,
+    filter: `brightness(${(0.72 + 0.28 * (i / Math.max(1, n - 1))).toFixed(2)})`,
+    zIndex: i + 1
+  }
+}
 // 勋章稀有度 class：已解锁 → 'got <rarity>'（驱动 --rr 配色），未解锁 → ''
 const medalCls = (a) => a.got ? 'got ' + (a.rarity || 'bronze') : ''
 // 每系列一枚代表勋章：已解锁 → 该系列最高稀有度（点亮版）；全未解锁 → 最低档铜（灰影圆）
 const RARITY_RANK = { bronze: 1, silver: 2, gold: 3, platinum: 4 }
+const TIER_ORDER = ['bronze', 'silver', 'gold', 'platinum']
 const seriesMedals = computed(() => {
   if (!metrics.value) return []
   return ACH_SERIES.map(sr => {
@@ -339,9 +352,15 @@ const seriesMedals = computed(() => {
     const medal = best
       ? { ...best }
       : { key: sr.key + '-lock', name: sr.name, icon: sr.icon, series: sr.key, rarity: 'bronze', got: false, desc: '解锁该系列任一成就即可点亮' }
-    // others：代表勋章（最高档）之外的其他已解锁成就，稀有度降序，展示在底座上
-    const others = unlocked.slice(1)
-    return { key: sr.key, series: sr, total: list.length, got: unlocked.length, medal, others }
+    // 档位堆叠（3D 纵深）：每档 1 枚（该档已解锁则参与），铜→白金从底到顶
+    const tiers = TIER_ORDER
+      .map(r => {
+        const inTier = unlocked.filter(a => a.rarity === r)
+        if (!inTier.length) return null
+        return { rarity: r, names: inTier.map(a => a.name).join('、') }
+      })
+      .filter(Boolean)
+    return { key: sr.key, series: sr, total: list.length, got: unlocked.length, medal, tiers }
   })
 })
 // 勋章底形状（viewBox 100×100）：铜=菱形、银=六边形、金=盾形、白金=八角星（铜原为圆，与外层圆勋章重复故改菱形）
@@ -484,25 +503,27 @@ onMounted(async () => {
       </div>
 
 
-      <!-- 勋章墙（成就展柜）：代表勋章 + 底座上已解锁成就链 + 系列名 -->
+      <!-- 勋章墙（3D 纵深陈列柜）：每系列已解锁档位勋章立体堆叠，最高档立最上 -->
       <div class="medal-grid">
         <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal-cell" :class="sm.medal.got ? (sm.medal.rarity || 'bronze') : ''">
-          <div class="medal big-medal" :class="medalCls(sm.medal)" :style="{ animationDelay: (i * 0.05) + 's' }"
-               @mouseenter="showTip($event, { title: sm.series.name, sub: sm.medal.got ? (sm.got + '/' + sm.total + ' · ' + sm.medal.name) : '未点亮', desc: sm.medal.desc, got: sm.medal.got })"
-               @mouseleave="hideTip">
-            <svg v-if="sm.medal.got" class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(sm.medal.rarity)" /></svg>
-            <MedalIcon :series="sm.medal.series" :got="sm.medal.got" :size="30" class="medal-icon" />
-            <span v-if="sm.medal.got && isNewAch(sm.medal)" class="medal-new">NEW</span>
-          </div>
-          <!-- 底座上：该系列其他已解锁成就（稀有度形状宝石，最高档代表在前已大显示，其余按稀有度降序） -->
-          <div v-if="sm.others.length" class="medal-extra">
-            <div v-for="o in sm.others" :key="o.key" class="mini-gem" :class="o.rarity || 'bronze'"
-                 @mouseenter="showTip($event, { title: o.name, sub: (o.unlockAt || '已解锁') + ' 解锁', desc: o.desc, got: true })"
-                 @mouseleave="hideTip">
-              <svg class="mini-shape" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(o.rarity)" /></svg>
-              <MedalIcon :series="o.series" :got="true" :size="14" class="mini-ico" />
+          <template v-if="sm.tiers.length">
+            <div class="d3-scene" :style="{ height: (76 + (sm.tiers.length - 1) * 17) + 'px' }">
+              <div v-for="(t, ti) in sm.tiers" :key="t.rarity" class="d3-tier got" :class="t.rarity" :style="tierStyle(ti, sm.tiers.length)"
+                   @mouseenter="showTip($event, { title: sm.series.name + ' · ' + (RAR_LABEL[t.rarity] || t.rarity), sub: t.names, desc: '该档位已解锁成就', got: true })"
+                   @mouseleave="hideTip">
+                <svg class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(t.rarity)" /></svg>
+                <MedalIcon :series="sm.medal.series" :got="true" :size="24" class="medal-icon" />
+                <span v-if="ti === sm.tiers.length - 1 && isNewAch(sm.medal)" class="medal-new">NEW</span>
+              </div>
             </div>
-          </div>
+          </template>
+          <template v-else>
+            <div class="medal big-medal" :class="medalCls(sm.medal)" :style="{ animationDelay: (i * 0.05) + 's' }"
+                 @mouseenter="showTip($event, { title: sm.series.name, sub: '未点亮', desc: sm.medal.desc, got: false })"
+                 @mouseleave="hideTip">
+              <MedalIcon :series="sm.medal.series" :got="false" :size="30" class="medal-icon" />
+            </div>
+          </template>
           <div class="medal-base"></div>
           <span class="medal-sname">{{ sm.series.name }}</span>
         </div>
@@ -1214,41 +1235,33 @@ onMounted(async () => {
 .medal-cell.silver   { --rr: 159, 178, 192; }
 .medal-cell.gold     { --rr: 217, 165, 20; }
 .medal-cell.platinum { --rr: 125, 211, 252; }
-/* 底座上已解锁成就链：稀有度形状宝石（铜菱形/银六边/金盾/白金星），不套圆与代表勋章区分 */
-.medal-extra {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  margin-top: -2px;
-}
-.mini-gem {
+/* 3D 纵深陈列：每档勋章立姿堆叠（rotateX 透视，下层躺上层立，下层暗上层亮） */
+.d3-scene {
   position: relative;
-  width: 28px; height: 28px;
+  width: 80px;
+  perspective: 340px;
+  margin: 4px auto 0;
+}
+.d3-tier {
+  position: absolute; left: 50%; margin-left: -30px;
+  width: 60px; height: 60px; border-radius: 50%;
+  transform-origin: center bottom;
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
   --rr: 148, 163, 184;
-  transition: transform .15s ease;
+  background: radial-gradient(circle at 32% 26%, rgba(var(--rr), 0.5), rgba(var(--rr), 0.14) 70%);
+  border: 2px solid rgba(var(--rr), 0.6);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45), 0 0 14px rgba(var(--rr), 0.3);
+  cursor: pointer;
 }
-.mini-gem.bronze   { --rr: 184, 115, 51; }
-.mini-gem.silver   { --rr: 159, 178, 192; }
-.mini-gem.gold     { --rr: 217, 165, 20; }
-.mini-gem.platinum { --rr: 125, 211, 252; }
-.mini-shape {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  pointer-events: none;
-}
-.mini-shape path {
-  fill: rgba(var(--rr), 0.16);
-  stroke: rgba(var(--rr), 0.65);
-  stroke-width: 2.5;
-  stroke-linejoin: round;
-}
-.mini-ico { position: relative; z-index: 1; }
-.mini-gem:hover { transform: translateY(-2px) scale(1.12); }
-/* 展柜底座：椭圆发光台座（支撑代表勋章 + 成就链），已解锁带稀有度辉光、未解锁灰底，hover 增强 */
+.d3-tier.bronze   { --rr: 184, 115, 51; }
+.d3-tier.silver   { --rr: 159, 178, 192; }
+.d3-tier.gold     { --rr: 217, 165, 20; }
+.d3-tier.platinum { --rr: 125, 211, 252; outline: 1px solid rgba(125, 211, 252, 0.35); outline-offset: 2px; }
+.d3-tier .medal-bg { inset: 15%; }
+.d3-tier .medal-icon { color: rgba(var(--rr), 0.95); opacity: 1; filter: none; }
+/* 展柜底座：椭圆发光台座（3D 堆叠下方），已解锁带稀有度辉光、未解锁灰底，hover 增强 */
 .medal-base {
-  width: 100%; max-width: 220px;
+  width: 100%; max-width: 96px;
   height: 12px; border-radius: 50%;
   background: rgba(var(--rr, 148, 163, 184), 0.28);
   filter: blur(4px);
