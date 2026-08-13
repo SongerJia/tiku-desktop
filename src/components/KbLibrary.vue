@@ -7,7 +7,8 @@ import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
 import KbReader from './KbReader.vue'
 
-const props = defineProps({ subject: { type: Object, default: () => ({ id: null, name: '' }) }, scope: { type: String, default: 'current' } })
+const props = defineProps({ subject: { type: Object, default: () => ({ id: null, name: '' }) }, scope: { type: String, default: 'current' }, refreshToken: { type: Number, default: 0 } })
+const emit = defineEmits(['manage'])
 const docs = ref([])
 const allTags = ref([])
 const tagFilter = ref(null) // null=全部
@@ -60,6 +61,7 @@ async function loadCatNames() {
 }
 
 watch(() => props.subject.id, () => { if (props.scope !== 'all') loadList() }) // 顶部切科目（跟随态）→ 刷新
+watch(() => props.refreshToken, () => { if (props.refreshToken) loadList() }) // 文档管理弹窗变更 → 刷新
 watch(() => props.scope, loadList) // 范围切换（current↔all）→ 刷新
 
 onMounted(() => {
@@ -433,7 +435,7 @@ function fmtTime(ts) {
         />
         <button class="btn" :class="{ 'btn-active': viewMode === 'graph' }" @click="toggleGraph">图谱</button>
         <button class="btn" @click="onExport">导出</button>
-        <button class="btn btn-primary" @click="onImport">导入文档</button>
+        <button class="btn btn-primary" @click="emit('manage')">管理文档</button>
       </div>
       <div v-if="allTags.length" class="kb-tag-row">
         <button

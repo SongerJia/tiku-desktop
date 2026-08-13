@@ -16,6 +16,7 @@ const Stats = defineAsyncComponent(() => import('./components/Stats.vue'))
 const Profile = defineAsyncComponent(() => import('./components/Profile.vue'))
 const PracticeSetup = defineAsyncComponent(() => import('./components/PracticeSetup.vue'))
 const BankManager = defineAsyncComponent(() => import('./components/BankManager.vue'))
+const KbManager = defineAsyncComponent(() => import('./components/KbManager.vue'))
 const MockExamSetup = defineAsyncComponent(() => import('./components/MockExamSetup.vue'))
 import { tiku } from './api/tiku.js'
 import { useResponsive } from './composables/useResponsive.js'
@@ -40,6 +41,9 @@ const quiz = ref({ active: false, categoryId: null, subjectId: null, mode: 'prac
 const setup = ref({ active: false, categoryId: null, subjectId: null, presetMode: 'practice', subjectName: '', scopeLabel: '' })
 // 题库管理（导入/录题/编辑/删除）
 const showBank = ref(false)
+// 文档管理（知识库：搜索/重命名/移动/删除/导入）
+const showKbManager = ref(false)
+const kbRefreshToken = ref(0)
 // 模拟卷组卷 / 我的试卷
 const mock = ref({ active: false })
 // 统一搜索（题目 + 知识文档）
@@ -125,6 +129,8 @@ onBeforeUnmount(() => {
 async function onBankChanged() {
   currentSubject.value = await tiku.getCurrentSubject()
 }
+// 文档管理变更：通知知识库页刷新列表
+function onKbChanged() { kbRefreshToken.value++ }
 
 function switchTab(key) {
   currentTab.value = key
@@ -330,7 +336,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
             <div :key="currentTab" class="tab-page">
               <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" @quick="onQuickStart" />
               <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" @start="onStart" @manage="showBank = true" />
-              <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :scope="kbScope" />
+              <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :scope="kbScope" :refresh-token="kbRefreshToken" @manage="showKbManager = true" />
               <Stats v-else-if="currentTab === 'stats'" :subject="currentSubject" />
               <Profile
             v-else-if="currentTab === 'profile'"
@@ -383,6 +389,8 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
       @keyword-consumed="bankKeyword = ''"
       @changed="onBankChanged"
     />
+
+    <KbManager :show="showKbManager" @close="showKbManager = false" @changed="onKbChanged" />
 
     <MockExamSetup
       v-if="mock.active"
