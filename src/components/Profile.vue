@@ -328,7 +328,7 @@ async function showTip(elOrE, payload) {
 }
 function hideTip() { activeTip.value = null }
 // 扇形场景 hover：mousemove 实时计算鼠标到每档勋章中心的距离，最近者高亮 + 显示浮层
-// （重叠勋章用 mouseenter 会互相遮挡，只有最上层能命中——距离法解决）
+// （重叠勋章用 mouseenter 会互相遮挡，只有最上层能命中——距离法解决；每次 mousemove 都更新，showTip 内部 seq 防抖）
 let fanHotEl = null
 function fanMove(e, sm) {
   const scene = e.currentTarget
@@ -342,14 +342,12 @@ function fanMove(e, sm) {
     if (d < bestD) { bestD = d; best = el }
   })
   if (!best) return
-  if (fanHotEl !== best) {
-    fanHotEl = best
-    tiers.forEach(el => el.classList.remove('fan-hot'))
-    best.classList.add('fan-hot')
-    const ti = [...tiers].indexOf(best)
-    const t = sm.tiers[ti]
-    if (t) showTip(best, { title: sm.series.name + ' · ' + (RAR_LABEL[t.rarity] || t.rarity), sub: t.got ? t.names : '未点亮', desc: t.got ? '该档位已解锁成就' : '解锁该档任一成就即可点亮', got: t.got })
-  }
+  if (fanHotEl !== best) tiers.forEach(el => el.classList.remove('fan-hot'))
+  fanHotEl = best
+  best.classList.add('fan-hot')
+  const ti = [...tiers].indexOf(best)
+  const t = sm.tiers[ti]
+  if (t) showTip(best, { title: sm.series.name + ' · ' + (RAR_LABEL[t.rarity] || t.rarity), sub: t.got ? t.names : '未点亮', desc: t.got ? '该档位已解锁成就' : '解锁该档任一成就即可点亮', got: t.got })
 }
 function fanLeave(e) {
   hideTip()
@@ -371,6 +369,7 @@ function fanStyle(i, n) {
   const bright = 1 - d * 0.09 // 最高档 1.0，越远渐暗
   return {
     '--fan': `rotate(${theta}deg) translateY(-${R}px)`,
+    '--fan-b': `-${R}px`, // 底部初始下沉 R，translateY(-R) 后弧心正好回到 scene 底部 → 勋章贴底座
     filter: `brightness(${Math.max(0.6, bright).toFixed(2)})`,
     zIndex: i + 1
   }
@@ -546,7 +545,7 @@ onMounted(async () => {
       <div class="medal-grid">
         <div v-for="(sm, i) in seriesMedals" :key="sm.key" class="medal-cell" :class="sm.medal.got ? (sm.medal.rarity || 'bronze') : ''">
           <template v-if="sm.tiers.length">
-            <div class="fan-scene" @mousemove="fanMove($event, sm)" @mouseleave="fanLeave">
+            <div class="fan-scene" @mousemove="fanMove($event, sm)" @mouseenter="fanMove($event, sm)" @mouseleave="fanLeave">
               <div v-for="(t, ti) in sm.tiers" :key="t.rarity" class="fan-tier" :class="t.got ? ('got ' + t.rarity) : 'off'" :style="fanStyle(ti, sm.tiers.length)">
                 <svg class="medal-bg" viewBox="0 0 100 100" aria-hidden="true"><path :d="shapeD(t.rarity)" /></svg>
                 <MedalIcon :series="sm.medal.series" :got="t.got" :size="24" class="medal-icon" />
@@ -1272,14 +1271,15 @@ onMounted(async () => {
 .medal-cell.silver   { --rr: 159, 178, 192; }
 .medal-cell.gold     { --rr: 217, 165, 20; }
 .medal-cell.platinum { --rr: 125, 211, 252; }
-/* 扇形奖牌：每档勋章绕底部中心旋转展开（transform-origin 底中），最高档恒居弧顶正中 */
+/* 扇形奖牌：每档勋章绕弧心（transform-origin 底中）旋转展开，最高档恒居弧顶正中 */
+/* 弧心=scene 底部中心：bottom: -R + translateY(-R) 抵消，勋章底部紧贴底座；scene 高=勋章直径 56px */
 .fan-scene {
   position: relative;
-  width: 120px; height: 78px;
-  margin: 2px auto 0;
+  width: 136px; height: 58px;
+  margin: 0 auto 0;
 }
 .fan-tier {
-  position: absolute; left: 50%; bottom: 2px;
+  position: absolute; left: 50%; bottom: var(--fan-b, 0);
   width: 56px; height: 56px; margin-left: -28px;
   border-radius: 50%;
   transform-origin: 50% 100%;
@@ -1288,10 +1288,11 @@ onMounted(async () => {
   background: radial-gradient(circle at 32% 26%, rgba(var(--rr), 0.5), rgba(var(--rr), 0.14) 70%);
   border: 2px solid rgba(var(--rr), 0.6);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45), 0 0 14px rgba(var(--rr), 0.3);
-  cursor: pointer;
+  cursor: pointer; /* 事件统一由 scene 接收（fan-tier pointer-events none 穿透），距离法 100% 触发 */
   transform: var(--fan);
   transition: transform .18s ease, box-shadow .18s ease;
 }
+.fan-tier { pointer-events: none; }
 /* 距离最近的高亮档：上浮 + 光晕 + 提层（fanMove 动态加） */
 .fan-tier.fan-hot { transform: var(--fan) translateY(-5px) scale(1.06); z-index: 20 !important; box-shadow: 0 12px 26px rgba(0, 0, 0, 0.55), 0 0 18px rgba(var(--rr), 0.5); }
 .fan-tier.got.bronze   { --rr: 184, 115, 51; }
@@ -1319,6 +1320,7 @@ onMounted(async () => {
   filter: blur(4px);
   transition: background .18s ease;
   pointer-events: none;
+  margin-top: -6px; /* 上移贴近扇形勋章底部 */
 }
 .medal-cell:hover .medal-base { background: rgba(var(--rr, 148, 163, 184), 0.48); }
 .medal-sname { font-size: 10.5px; color: var(--muted); opacity: .75; letter-spacing: .3px; }
