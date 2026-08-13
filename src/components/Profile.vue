@@ -1200,10 +1200,11 @@ onMounted(async () => {
   stroke-width: 2.5;
   stroke-linejoin: round;
 }
-/* 勋章墙代表勋章：加大到 56px，内层形状与浮层同步放大 */
+/* 勋章墙代表勋章：加大到 56px，内层形状与浮层同步放大；tip 改向下弹出避免被概览条/流光圈遮挡 */
 .big-medal { width: 56px; height: 56px; }
 .big-medal .medal-bg { inset: 14%; }
-.big-medal .medal-tip { width: 200px; }
+.big-medal .medal-tip { width: 200px; top: calc(100% + 10px); bottom: auto; }
+.big-medal .medal-tip::after { top: -5px; bottom: auto; transform: translateX(-50%) rotate(180deg); }
 @keyframes medalWiggle {
   0%, 100% { transform: translateY(-3px) scale(1.12) rotate(0); }
   30% { transform: translateY(-3px) scale(1.12) rotate(-8deg); }
