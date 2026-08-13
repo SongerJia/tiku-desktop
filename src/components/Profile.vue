@@ -314,17 +314,14 @@ const isNewAch = (a) => {
   const diff = now.getTime() - t
   return diff >= 0 && diff <= 3 * 86400000
 }
-// 用户卡右侧勋章堆：最近解锁 5 枚（按解锁日期倒序），顶部叠放展示
+// 用户卡右侧勋章区：已解锁勋章全部松散平铺（按解锁日期倒序，NEW 排前）
 const stackMedals = computed(() => {
   if (!metrics.value) return []
   return achievements.value
     .filter(a => a.got)
     .sort((a, b) => String(b.unlockAt || '').localeCompare(String(a.unlockAt || '')))
-    .slice(0, 5)
 })
-// 未展示的成就数（含未解锁 + 更早解锁），>0 才显示灰影基底与计数气泡
-const achRest = computed(() => Math.max(0, achievements.value.length - stackMedals.value.length))
-// 点击勋章堆/计数气泡 → 展开学习成长分组并平滑滚动到完整勋章墙
+// 点击勋章区 → 展开学习成长分组并平滑滚动到完整勋章墙
 function gotoAch() {
   secOpen.value.learn = true
   nextTick(() => {
@@ -375,10 +372,10 @@ onMounted(async () => {
         </div>
         <div class="user-sub">数据只在本机 · 断网也能学</div>
       </div>
-      <!-- 勋章堆：最近解锁叠在上面、灰影垫底，卡片倾斜时重力滑落；点击跳完整勋章墙 -->
-      <div class="medal-stack" title="查看全部勋章" @click="gotoAch">
+      <!-- 勋章区：已解锁勋章全部松散平铺（自动换行填满右侧空白），点击滚动到完整勋章墙 -->
+      <div class="medal-area" title="查看全部勋章" @click="gotoAch">
         <template v-for="(a, i) in stackMedals" :key="a.key">
-          <div class="medal stack-medal got" :style="{ zIndex: 10 + i }">
+          <div class="medal area-medal got" :style="{ zIndex: 10 + i }">
             <span class="medal-icon">{{ a.icon }}</span>
             <span v-if="isNewAch(a)" class="medal-new">NEW</span>
             <div class="medal-tip">
@@ -388,18 +385,6 @@ onMounted(async () => {
             </div>
           </div>
         </template>
-        <div v-if="achRest > 0" class="medal stack-medal locked" :style="{ zIndex: 1 }">
-          <span class="medal-icon">?</span>
-          <div class="medal-tip">
-            <b>更多勋章</b>
-            <span class="mt-lock">未解锁</span>
-            <i>继续学习解锁更多勋章</i>
-          </div>
-        </div>
-        <div v-if="achRest > 0" class="m-count" :style="{ zIndex: 2 }" @click.stop="gotoAch">
-          <b>+{{ achRest }}</b>
-          <span>全部</span>
-        </div>
       </div>
     </div>
 
@@ -826,7 +811,7 @@ onMounted(async () => {
   transition: transform .2s ease, box-shadow .2s ease;
 }
 .user-card:hover .avatar { transform: scale(1.06); box-shadow: 0 0 0 4px rgba(91, 124, 250, 0.24), 0 6px 18px rgba(91, 124, 250, 0.5); }
-.user-info { flex: 1; overflow: hidden; }
+.user-info { flex: 0 1 auto; max-width: 200px; overflow: hidden; }
 .user-name { font-size: 16px; font-weight: 600; }
 .user-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
 
@@ -1182,57 +1167,40 @@ onMounted(async () => {
 }
 @keyframes newPop { from { opacity: 0; transform: scale(.4); } 70% { transform: scale(1.2); } to { opacity: 1; transform: scale(1); } }
 
-/* ===== 用户卡右侧勋章堆（2026-08-13）：堆叠 + 倾斜重力 ===== */
+/* ===== 用户卡右侧勋章区（2026-08-13 V2）：已解锁全部松散平铺 + 倾斜重力 ===== */
 /* tilt.js 在卡片上暴露 --tiltRx/--tiltRy（rotateY/rotateX 角度数字），
-   整堆反向位移 = 重力滑落；单枚再叠一层位移 + 反向倾倒，形成层次物理感 */
-.medal-stack {
+   整片反向位移 = 重力滑落；单枚再叠一层位移 + 反向倾倒，形成层次物理感。
+   animation:none 必须——基类 .medal 的 medalIn(fill both) 填充帧会压制 transform */
+.medal-area {
   --tiltRx: 0; --tiltRy: 0;
   position: relative;
-  display: flex; align-items: center;
-  flex-shrink: 0;
-  padding-left: 10px; padding-right: 4px;
+  flex: 1; min-width: 0;
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 8px;
+  padding-left: 8px;
   cursor: pointer;
   transform: translate(calc(var(--tiltRx) * -2.6px), calc(var(--tiltRy) * 2.6px));
   transition: transform .18s cubic-bezier(.2, .7, .3, 1);
 }
-.stack-medal {
-  width: 36px; height: 36px;
-  background: rgba(255, 255, 255, 0.04);
+.area-medal {
+  width: 34px; height: 34px;
+  animation: none;
   transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) rotate(calc(var(--tiltRx) * -0.7deg));
   transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
 }
-.stack-medal + .stack-medal { margin-left: -13px; }
-.stack-medal .medal-icon { font-size: 17px; }
-.stack-medal .medal-tip { bottom: calc(100% + 12px); width: 176px; }
-.stack-medal.locked .medal-icon { filter: grayscale(1) brightness(.4); opacity: .45; }
+.area-medal .medal-icon { font-size: 16px; }
+.area-medal .medal-tip { bottom: calc(100% + 12px); width: 176px; }
 /* hover 弹起 + 摆动（keyframes 内嵌重力项，避免动画覆盖位移） */
-.stack-medal:hover {
-  transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-9px) scale(1.22) rotate(calc(var(--tiltRx) * -0.7deg));
+.area-medal:hover {
+  transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-8px) scale(1.2) rotate(calc(var(--tiltRx) * -0.7deg));
   z-index: 30 !important;
   animation: medalStackWiggle .5s ease;
 }
 @keyframes medalStackWiggle {
-  0%, 100% { transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-9px) scale(1.22) rotate(calc(var(--tiltRx) * -0.7deg)); }
-  30% { transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-9px) scale(1.22) rotate(calc(var(--tiltRx) * -0.7deg) - 8deg); }
-  60% { transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-9px) scale(1.22) rotate(calc(var(--tiltRx) * -0.7deg) + 6deg); }
+  0%, 100% { transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-8px) scale(1.2) rotate(calc(var(--tiltRx) * -0.7deg)); }
+  30% { transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-8px) scale(1.2) rotate(calc(var(--tiltRx) * -0.7deg) - 8deg); }
+  60% { transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-8px) scale(1.2) rotate(calc(var(--tiltRx) * -0.7deg) + 6deg); }
 }
-/* 计数气泡：剩余勋章数，点击跳完整勋章墙 */
-.m-count {
-  position: relative;
-  margin-left: -10px;
-  width: 36px; height: 36px; border-radius: 50%;
-  background: rgba(91, 124, 250, 0.16);
-  border: 1px solid rgba(91, 124, 250, 0.5);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  line-height: 1.2;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: transform .16s ease;
-}
-.m-count b { font-size: 12px; color: #8fa6ff; font-weight: 700; }
-.m-count span { font-size: 9px; color: var(--muted); }
-.m-count:hover { transform: scale(1.14); border-color: var(--brand); }
-.m-count:hover b { color: var(--brand); }
 
 
 </style>
