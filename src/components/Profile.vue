@@ -1185,12 +1185,12 @@ onMounted(async () => {
 
 
 
-/* ===== 勋章墙（2026-08-13）：每系列 1 枚代表勋章，5 列 × 2 行 grid 居中排布 ===== */
+/* ===== 勋章墙（2026-08-13）：每系列 1 枚代表勋章，5 列 1fr 占满卡片宽均匀铺开 ===== */
 .medal-grid {
   display: grid;
-  grid-template-columns: repeat(5, 56px);
-  gap: 14px 16px;
-  justify-content: center;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px 8px;
+  justify-items: center;
   padding: 8px 2px 6px;
 }
 .medal {
@@ -1218,7 +1218,7 @@ onMounted(async () => {
 .medal.got.silver   { --rr: 159, 178, 192; }
 .medal.got.gold     { --rr: 217, 165, 20; }
 .medal.got.platinum { --rr: 125, 211, 252; outline: 1px solid rgba(var(--rr), 0.35); outline-offset: 2px; }
-.medal.got .medal-icon { color: rgba(var(--rr), 0.95); opacity: 1; filter: drop-shadow(0 0 3px rgba(var(--rr), 0.9)); }
+.medal.got .medal-icon { color: rgba(var(--rr), 0.95); opacity: 1; filter: none; }
 /* 特效加码（2026-08-13）：流光描边（conic 光点绕圆旋转，--ang 全局注册）+ 呼吸光晕，稀有度差异化 */
 .medal.got::before {
   content: ''; position: absolute; inset: -2px; border-radius: 50%;
