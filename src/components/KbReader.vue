@@ -965,8 +965,8 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
   border-top: 1px solid var(--line) !important;
 }
 .kb-save-state { font-size: 12px; color: var(--muted); }
-.kb-save-state.ok { color: #2ecc71; }
-.kb-save-state.err { color: #e85f3d; }
+.kb-save-state.ok { color: var(--ok); }
+.kb-save-state.err { color: var(--bad); }
 /* 抽屉（Typora 式沉浸：默认关闭，按需滑入；不挤占正文） */
 .kb-drawer {
   position: fixed;
@@ -1056,7 +1056,7 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
   0% { background-position: 0% 0; }
   100% { background-position: 300% 0; }
 }
-.kb-err { color: #e85f3d; text-align: center; padding: 40px 0; }
+.kb-err { color: var(--bad); text-align: center; padding: 40px 0; }
 .kb-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
 
 /* 窄屏：抽屉加宽适配 */

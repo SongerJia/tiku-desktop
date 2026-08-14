@@ -603,8 +603,8 @@ onBeforeUnmount(() => {
   border-radius: 10px; cursor: pointer; transition: all .15s;
 }
 .brief-bar:hover { box-shadow: var(--glow-soft); }
-.brief-text { font-size: 12.5px; color: #6fd4ac; }
-.brief-text b { color: #4fd1a5; font-weight: 600; }
+.brief-text { font-size: 12.5px; color: var(--ok-soft); }
+.brief-text b { color: var(--ok); font-weight: 600; }
 .brief-sub { color: var(--muted); margin-left: 6px; }
 .growth-bar:hover { border-color: var(--brand); }
 .growth-bar.ghost { background: transparent; border-style: dashed; cursor: default; }
@@ -675,7 +675,7 @@ onBeforeUnmount(() => {
 .dock-btn.review em { color: var(--brand); }
 .dock-btn.daily { background: rgba(47, 191, 143, 0.10); border: 1px solid rgba(47, 191, 143, 0.35); }
 .dock-btn.daily:hover { box-shadow: var(--glow-soft); }
-.dock-btn.daily b { color: #4fd1a5; }
+.dock-btn.daily b { color: var(--ok); }
 .dock-btn.daily em { color: var(--ok); }
 .dock-btn.daily.disabled { opacity: .55; cursor: default; }
 .dock-btn.quick { background: var(--card); border: 1px dashed rgba(148, 163, 184, 0.3); }
@@ -1060,15 +1060,5 @@ onBeforeUnmount(() => {
   animation: riseIn .35s cubic-bezier(.2, .7, .3, 1) both;
 }
 .focus-done .fd-ico { color: var(--ok); display: flex; }
-
-
-/* 浅色主题：绿色文字更深（浅绿底对比修复） */
-[data-theme="light"] .dock-btn.daily b { color: #0f9d6b; }
-[data-theme="light"] .brief-text, [data-theme="light"] .brief-text b { color: #0f9d6b; }
-[data-theme="light"] .dock-btn.daily em { color: #0f9d6b; }
-/* 护眼绿主题：绿色文字用护眼绿加深 */
-[data-theme="eye"] .dock-btn.daily b { color: #1f8a5b; }
-[data-theme="eye"] .brief-text, [data-theme="eye"] .brief-text b { color: #1f8a5b; }
-[data-theme="eye"] .dock-btn.daily em { color: #1f8a5b; }
 
 </style>

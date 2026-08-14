@@ -420,7 +420,7 @@ function fmtTime(ts) {
   transition: all .15s ease;
 }
 .km-op:hover { color: var(--brand); border-color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, transparent); }
-.km-op.danger:hover { color: #ff6b6b; border-color: #ff6b6b; background: rgba(255, 107, 107, 0.08); }
+.km-op.danger:hover { color: var(--bad); border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, transparent); }
 /* 底部行：统计信息右下角 */
 .km-bottom {
   display: flex; justify-content: flex-end;

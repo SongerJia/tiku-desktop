@@ -741,7 +741,7 @@ function fmtTime(ts) {
   padding: 2px 0;
 }
 .kb-act:hover { color: var(--brand); }
-.kb-act-del:hover { color: #e85f3d; }
+.kb-act-del:hover { color: var(--bad); }
 .kb-hint { font-size: 12px; color: var(--muted); margin: 6px 0 12px; }
 
 .kb-mask {

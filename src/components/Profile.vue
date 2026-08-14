@@ -1127,7 +1127,7 @@ onMounted(async () => {
   font-size: 11px;
   color: var(--muted);
 }
-.list-item.danger .title { color: #ff6b6b; }
+.list-item.danger .title { color: var(--bad); }
 
 /* 错题与收藏入口卡（2026-08-14） */
 .wf-item {
@@ -1193,7 +1193,7 @@ onMounted(async () => {
   font-size: 11px; color: var(--muted); letter-spacing: .5px;
   margin: 14px 2px 8px;
 }
-.dm-sec.danger { color: #ff6b6b; }
+.dm-sec.danger { color: var(--bad); }
 .dm-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
 }
@@ -1204,8 +1204,8 @@ onMounted(async () => {
   transition: border-color .15s ease, transform .15s ease, background .15s ease;
 }
 .dm-item:hover { border-color: var(--brand); background: var(--hover-bg); transform: translateY(-1px); }
-.dm-item.danger { border-color: rgba(255, 107, 107, 0.4); }
-.dm-item.danger:hover { border-color: #ff6b6b; background: rgba(255, 107, 107, 0.06); }
+.dm-item.danger { border-color: color-mix(in srgb, var(--bad) 40%, transparent); }
+.dm-item.danger:hover { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 6%, transparent); }
 .dm-ico {
   width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
@@ -1217,7 +1217,7 @@ onMounted(async () => {
   display: block; font-size: 13px; font-weight: 500; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.dm-item.danger .dm-name { color: #ff6b6b; }
+.dm-item.danger .dm-name { color: var(--bad); }
 .dm-desc {
   display: block; font-size: 11px; color: var(--muted); margin-top: 1px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -1640,9 +1640,9 @@ onMounted(async () => {
 }
 .local-badge {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 10px; color: #4fd1a5;
-  border: 1px solid rgba(47, 191, 143, 0.4);
-  background: rgba(47, 191, 143, 0.1);
+  font-size: 10px; color: var(--ok-soft);
+  border: 1px solid color-mix(in srgb, var(--ok) 40%, transparent);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
   border-radius: 8px; padding: 1px 7px;
   margin-left: 6px; vertical-align: 2px; white-space: nowrap;
 }
