@@ -441,14 +441,19 @@ ipcMain.handle('saveAudio', (e, buf, ext) => db.saveAudio(buf, ext))
 ipcMain.handle('getAudioUrl', (e, name) => db.getAudioUrl(name))
 ipcMain.handle('exportWrongBook', () => db.exportWrongBookMarkdown())
 ipcMain.handle('exportNotes', () => db.exportNotesMarkdown())
-ipcMain.handle('openPath', (e, p) => {
+ipcMain.handle('openPath', async (e, p) => {
     // 白名单：只允许打开应用自己导出的文件（userData/exports 下），防渲染层被攻破后打开任意路径
     try {
       const expDir = path.join(app.getPath('userData'), 'exports')
       const target = path.resolve(String(p || ''))
       if (!target.startsWith(expDir + path.sep)) return { ok: false, error: '路径不在导出目录内' }
-      shell.openPath(target)
-      return { ok: true }
+      const err = await shell.openPath(target)
+      if (err) {
+        // 打开文件失败（无关联程序/用户取消选择）→ 降级打开导出目录，用户仍能看到刚导出的文件
+        shell.openPath(expDir)
+        return { ok: true, openedDir: true }
+      }
+      return { ok: true, openedDir: false }
     } catch (err) { logger.error('openPath 失败 ' + (err && err.message)); return { ok: false } }
   })
 ipcMain.handle('restoreBackup', (e, file) => {

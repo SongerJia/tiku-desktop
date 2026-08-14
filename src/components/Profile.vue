@@ -160,23 +160,23 @@ async function cleanupImages() {
 async function exportWrong() {
   try {
     const file = await tiku.exportWrongBook()
-    await tiku.openPath(file)
-    showToast('错题本已导出并在文件管理器中打开', 'ok')
+    const r = await tiku.openPath(file)
+    showToast(r && r.openedDir ? '错题本已导出，可在导出目录查看' : '错题本已导出并在文件管理器中打开', 'ok')
   } catch (e) { showToast('导出失败：' + (e.message || '未知错误'), 'err') }
 }
 async function exportNotes() {
   try {
     const file = await tiku.exportNotes()
-    await tiku.openPath(file)
-    showToast('笔记已导出并在文件管理器中打开', 'ok')
+    const r = await tiku.openPath(file)
+    showToast(r && r.openedDir ? '笔记已导出，可在导出目录查看' : '笔记已导出并在文件管理器中打开', 'ok')
   } catch (e) { showToast('导出失败：' + (e.message || '未知错误'), 'err') }
 }
 async function exportZip() {
   try {
     const r = await tiku.exportAllZip()
     if (!r.ok) throw new Error(r.error || '打包失败')
-    await tiku.openPath(r.path)
-    showToast(`全量数据已打包（${(r.size / 1024 / 1024).toFixed(1)} MB），可在文件管理器查看`, 'ok')
+    const o = await tiku.openPath(r.path)
+    showToast(o && o.openedDir ? `全量数据已打包（${(r.size / 1024 / 1024).toFixed(1)} MB），可在导出目录查看` : `全量数据已打包（${(r.size / 1024 / 1024).toFixed(1)} MB），已打开所在目录`, 'ok')
   } catch (e) { showToast('导出失败：' + (e.message || '未知错误'), 'err') }
 }
 
