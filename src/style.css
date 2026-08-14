@@ -15,6 +15,7 @@
   --warn: #d99a3d;
   --glow: 0 0 14px rgba(91, 124, 250, 0.28);          /* 仅主按钮/焦点使用 */
   --glow-soft: 0 2px 10px rgba(0, 0, 0, 0.35);        /* 通用柔和阴影（无彩色光晕） */
+  --mx: 50vw; --my: 50vh;   /* 光标辉光位置（main.js 全局 mousemove 更新） */
   --radius: 14px;
   --radius-sm: 10px;
   --shadow: 0 10px 32px rgba(0, 0, 0, 0.42);          /* 卡片 rest */
@@ -212,6 +213,7 @@ html, body, #app {
 
 /* 卡片：近实底 + 细边框 + 柔和阴影（去毛玻璃/光晕） */
 .card {
+  position: relative;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -220,6 +222,18 @@ html, body, #app {
   margin-bottom: 14px;
   transition: border-color .2s, box-shadow .2s, transform .18s ease;
 }
+/* 卡片边缘流光扫描（2026-08-14）：hover 时光带沿圆角边缘扫一圈（conic+mask+rotate 通用技术） */
+.card::before {
+  content: ''; position: absolute; inset: -1px; border-radius: var(--radius);
+  padding: 1.5px; pointer-events: none;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(91, 124, 250, 0.85) 55deg, transparent 125deg, transparent 200deg, rgba(122, 92, 255, 0.5) 275deg, transparent 335deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: cardEdgeSpin 2.8s linear infinite;
+  opacity: 0; transition: opacity .2s ease;
+}
+.card:hover::before { opacity: .75; }
+@keyframes cardEdgeSpin { to { transform: rotate(360deg); } }
 .card:hover {
   border-color: rgba(91, 124, 250, 0.32);
   box-shadow: var(--shadow-hover);
@@ -587,6 +601,15 @@ body::after {
 @keyframes gridDrift { to { background-position: 30px 30px, 30px 30px, 0 0, 0 0; } }
 [data-theme="light"] body::after { opacity: .55; }
 [data-theme="eye"] body::after { opacity: .55; }
+
+/* ===== 高级特效（2026-08-14）：光标辉光跟随（全局）===== */
+/* App.vue 内 .app 最前的 fixed 层，radial 光晕跟随 --mx/--my；pointer-events none 不挡交互 */
+.fx-glow {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(460px circle at var(--mx) var(--my), rgba(91, 124, 250, 0.10), transparent 68%);
+}
+[data-theme="light"] .fx-glow { background: radial-gradient(460px circle at var(--mx) var(--my), rgba(61, 91, 217, 0.07), transparent 68%); }
+[data-theme="eye"] .fx-glow { background: radial-gradient(460px circle at var(--mx) var(--my), rgba(58, 125, 90, 0.06), transparent 68%); }
 
 /* ===== 门面 10 件套：全局项（⑦ 标题竖线 / ⑩ logo 呼吸）===== */
 /* ⑦ 区块标题：左侧品牌渐变竖线（全站统一语言） */

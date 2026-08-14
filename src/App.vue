@@ -9,6 +9,7 @@ import AppToast from './components/AppToast.vue'
 import AppConfirm from './components/AppConfirm.vue'
 import WelcomeGuide from './components/WelcomeGuide.vue'
 import LogoMark from './components/LogoMark.vue'
+import Starfield from './components/Starfield.vue'
 // 大组件按需拆包：进入对应视图/弹层才加载，首屏 bundle 瘦身（KbReader 的 Vditor/pdfjs 随 chunk 拆出）
 const Quiz = defineAsyncComponent(() => import('./components/Quiz.vue'))
 const Knowledge = defineAsyncComponent(() => import('./components/Knowledge.vue'))
@@ -18,6 +19,7 @@ const Profile = defineAsyncComponent(() => import('./components/Profile.vue'))
 const PracticeSetup = defineAsyncComponent(() => import('./components/PracticeSetup.vue'))
 const BankManager = defineAsyncComponent(() => import('./components/BankManager.vue'))
 const KbManager = defineAsyncComponent(() => import('./components/KbManager.vue'))
+const AchievementBurst = defineAsyncComponent(() => import('./components/AchievementBurst.vue'))
 const MockExamSetup = defineAsyncComponent(() => import('./components/MockExamSetup.vue'))
 import { tiku } from './api/tiku.js'
 import { useResponsive } from './composables/useResponsive.js'
@@ -281,6 +283,9 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
 <template>
   <!-- 容器：宽屏走 PC 布局，窄屏走手机布局 -->
   <div class="app" :class="isWide ? 'is-wide' : 'is-mobile'">
+    <!-- 全局特效层（z-index 0 垫底，不挡任何交互）：光标辉光 + 粒子星尘 -->
+    <div class="fx-glow"></div>
+    <Starfield />
     <!-- PC 侧边导航 -->
     <aside v-if="isWide" class="sidebar" :style="{ width: sidebarWidth + 'px' }">
       <div class="side-brand">
@@ -411,6 +416,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
     <AppToast />
     <AppConfirm />
     <WelcomeGuide :show="showWelcome" @close="showWelcome = false" />
+    <AchievementBurst />
   </div>
 </template>
 
