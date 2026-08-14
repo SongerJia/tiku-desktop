@@ -7,7 +7,6 @@ import { showToast } from '../utils/toast.js'
 
 const emit = defineEmits(['start'])
 const items = ref([])
-const weakChapters = ref([])
 const similarMap = ref({})   // question_id -> 相似题列表
 const expanded = ref(new Set())
 
@@ -57,7 +56,6 @@ async function loadSubjects() {
 
 onMounted(async () => {
   items.value = await tiku.getWrongBook()
-  try { weakChapters.value = await tiku.getWeakChapters(null, 5) } catch (e) { weakChapters.value = [] }
   await loadSubjects()
   await loadReviewCurve()
 })
@@ -145,23 +143,6 @@ async function toggleSimilar(qid) {
 
 <template>
   <div>
-    <!-- 薄弱章节识别：正确率升序，最弱的高亮 -->
-    <div v-if="weakChapters.length" class="weak-chapters">
-      <div class="wc-title">薄弱章节（正确率最低）</div>
-      <div class="wc-list">
-        <div
-          v-for="c in weakChapters"
-          :key="c.id"
-          class="wc-item"
-          :class="{ danger: c.rate < 50, warn: c.rate >= 50 && c.rate < 75 }"
-        >
-          <span class="wc-name">{{ c.name }}</span>
-          <span class="wc-rate">{{ c.rate }}%</span>
-          <span class="wc-wrong">错 {{ c.wrong }}</span>
-        </div>
-      </div>
-    </div>
-
     <div class="wb-head">
       <h2>错题本（{{ items.length }}）</h2>
       <button v-if="items.length" class="ghost" @click="exportWrongPdf">导出错题PDF</button>
@@ -251,7 +232,6 @@ async function toggleSimilar(qid) {
 .curve-item { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
 .cv-stem { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .cv-meta { flex: 0 0 auto; color: var(--muted); font-size: 11px; }
-.weak-chapters { margin-bottom: 12px; border: 1px solid rgba(255, 77, 109, 0.3); border-radius: 10px; padding: 10px 12px; background: rgba(255, 77, 109, 0.06); }
 .wb-groups { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 .wb-filter { display: flex; gap: 8px; margin: 10px 0 12px; flex-wrap: wrap; }
 .wb-filter .input { flex: 1; min-width: 110px; }
@@ -259,16 +239,6 @@ async function toggleSimilar(qid) {
 .wb-group em { font-style: normal; font-size: 11px; opacity: .8; }
 .wb-group.on { background: rgba(255, 77, 109, 0.12); color: var(--bad); border-color: rgba(255, 77, 109, 0.4); font-weight: 600; }
 .wb-group.on em { opacity: 1; }
-.wc-title { font-size: 12px; color: var(--bad); margin-bottom: 8px; font-weight: 600; }
-.wc-list { display: flex; flex-direction: column; gap: 6px; }
-.wc-item { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 6px 8px; border-radius: 8px; transition: background .15s; }
-.wc-item:hover { background: rgba(148, 163, 184, 0.08); }
-.wc-name { flex: 1; color: var(--text); }
-.wc-rate { font-weight: 700; }
-.wc-wrong { color: var(--muted); font-size: 11px; }
-.wc-item.danger .wc-rate { color: var(--bad); }
-.wc-item.warn .wc-rate { color: var(--warn); }
-.wc-item.danger { background: rgba(255, 77, 109, 0.08); border-radius: 6px; padding: 4px 6px; }
 
 .empty { color: var(--muted); }
 .wb-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
