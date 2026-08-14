@@ -1,5 +1,6 @@
 <script setup>
 import Icon from './Icon.vue'
+import LogoMark from './LogoMark.vue'
 import { ref, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 
@@ -51,7 +52,7 @@ function openReleases() {
   <Transition name="fade">
     <div v-if="show" class="ab-mask" @click.self="emit('close')">
       <div class="ab-box">
-        <div class="ab-logo"><Icon name="book" :size="28" /></div>
+        <div class="ab-logo"><LogoMark :size="40" /></div>
         <h3 class="ab-name">{{ info.name }}</h3>
         <div class="ab-ver">v{{ info.version }}</div>
         <p class="ab-desc">
@@ -109,18 +110,14 @@ function openReleases() {
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
   text-align: center;
 }
-/* logo 加码：呼吸光晕 + 旋转流光环（静态 conic + rotate，不依赖 --ang 插值） */
+/* logo 容器：透明承接（logo 自带底座），保留呼吸光晕 + 旋转流光环（静态 conic + rotate，不依赖 --ang 插值） */
 .ab-logo {
   position: relative;
   width: 64px;
   height: 64px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, rgba(91, 124, 250, 0.25), rgba(122, 92, 255, 0.2));
-  border: 1px solid var(--line);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--brand);
   animation: abLogoBreathe 3s ease-in-out infinite;
 }
 .ab-logo::before {

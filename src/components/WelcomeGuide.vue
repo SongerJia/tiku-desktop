@@ -1,5 +1,5 @@
 <script setup>
-import Icon from './Icon.vue'
+import LogoMark from './LogoMark.vue'
 import { ref } from 'vue'
 import { tiku } from '../api/tiku.js'
 
@@ -33,7 +33,7 @@ async function skip() {
     <div v-if="show" class="wg-mask" @click.self="skip">
       <div class="card wg-box">
         <div class="wg-head">
-          <span class="wg-logo"><Icon name="book" :size="16"/></span>
+          <span class="wg-logo"><LogoMark :size="22" /></span>
           <span class="wg-title">欢迎使用知识记忆小助手</span>
         </div>
         <div class="wg-body">
@@ -76,7 +76,7 @@ async function skip() {
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
 }
 .wg-head { display: flex; align-items: center; gap: 10px; }
-.wg-logo { font-size: 26px; }
+.wg-logo { display: flex; align-items: center; justify-content: center; }
 .wg-title { font-size: 16px; font-weight: 600; color: var(--text); }
 .wg-body { display: flex; flex-direction: column; gap: 16px; min-height: 150px; }
 .wg-step { text-align: center; }

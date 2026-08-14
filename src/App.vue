@@ -8,6 +8,7 @@ import CommandPalette from './components/CommandPalette.vue'
 import AppToast from './components/AppToast.vue'
 import AppConfirm from './components/AppConfirm.vue'
 import WelcomeGuide from './components/WelcomeGuide.vue'
+import LogoMark from './components/LogoMark.vue'
 // 大组件按需拆包：进入对应视图/弹层才加载，首屏 bundle 瘦身（KbReader 的 Vditor/pdfjs 随 chunk 拆出）
 const Quiz = defineAsyncComponent(() => import('./components/Quiz.vue'))
 const Knowledge = defineAsyncComponent(() => import('./components/Knowledge.vue'))
@@ -283,7 +284,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
     <!-- PC 侧边导航 -->
     <aside v-if="isWide" class="sidebar" :style="{ width: sidebarWidth + 'px' }">
       <div class="side-brand">
-        <img src="/logo.png" class="side-logo-img" width="36" height="36" alt="知识记忆小助手" />
+        <LogoMark :size="34" class="side-logo-img" />
         <span class="side-name">知识记忆小助手</span>
       </div>
       <nav class="side-nav">
