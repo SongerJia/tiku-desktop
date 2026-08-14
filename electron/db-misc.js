@@ -107,7 +107,7 @@ module.exports = function miscModule(ctx) {
         review,
         wrongActive: s.wrongCount,
         mastered: s.mastered,
-        totalAnswered: s.learned || s.totalAnswered || 0,
+        totalAnswered: s.learned || 0,
         kbDocs: kb.docs,
         kbLinks: kb.links,
         kbRead: kb.readCount,

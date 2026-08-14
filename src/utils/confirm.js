@@ -7,6 +7,8 @@ export const confirmState = ref({ show: false, msg: '', title: '', danger: true 
 let resolver = null
 
 export function showConfirm(msg, opts = {}) {
+  // 释放上一个未决的 confirm（连续弹窗时前一个 Promise 不悬挂，避免卡死）
+  if (resolver) { resolver(false); resolver = null }
   confirmState.value = {
     show: true,
     msg,

@@ -134,9 +134,11 @@ onMounted(async () => {
   try { ghLoad() } catch (e) { /* 同步配置读取失败不阻塞页面 */ }
 })
 
+let toastTimer = null
 function showToast(msg) {
   toast.value = msg
-  setTimeout(() => toast.value = '', 2400)
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => toast.value = '', 2400)
 }
 
 async function clearLocal() {

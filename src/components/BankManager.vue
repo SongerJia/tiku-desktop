@@ -1,7 +1,7 @@
 <script setup>
 import Icon from './Icon.vue'
 import EmptyState from './EmptyState.vue'
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 import { bankToCsv, TYPE_LABEL } from '../utils/bankParser.js'
@@ -27,6 +27,9 @@ const list = ref({ total: 0, items: [] })
 const loading = ref(false)
 const toast = ref('')
 const toastType = ref('')
+let toastTimer = null // toast/noteHint/搜索防抖统一卸载清理
+let noteHintTimer = null
+let searchTimer = null
 
 const showImport = ref(false)
 const showEditor = ref(false)
@@ -43,7 +46,8 @@ const subjects = computed(() => categories.value.map(c => ({ id: c.id, name: c.n
 function showToast(msg, type = '') {
   toast.value = msg
   toastType.value = type
-  setTimeout(() => { toast.value = '' }, 2200)
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toast.value = '' }, 2200)
 }
 
 async function loadMeta() {
@@ -101,7 +105,8 @@ async function saveNoteHere() {
   if (!noteQ.value) return
   await tiku.saveNote({ questionId: noteQ.value.id, content: noteText.value })
   noteHint.value = noteText.value.trim() ? '已保存' : '已清空'
-  setTimeout(() => { noteHint.value = '' }, 1500)
+  clearTimeout(noteHintTimer)
+  noteHintTimer = setTimeout(() => { noteHint.value = '' }, 1500)
   loadNoted()
 }
 function closeNote() { noteQ.value = null; noteText.value = '' }
@@ -121,10 +126,16 @@ onMounted(() => { if (props.show) refreshAll() })
 watch(subjectId, () => { categoryId.value = ''; page.value = 1; loadList() })
 watch(categoryId, () => { page.value = 1; loadList() })
 
-let searchTimer = null
 watch(keyword, () => {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => { page.value = 1; loadList() }, 300)
+})
+
+// 卸载清理定时器（toast/noteHint/搜索防抖），防卸载后回调
+onUnmounted(() => {
+  clearTimeout(toastTimer)
+  clearTimeout(noteHintTimer)
+  clearTimeout(searchTimer)
 })
 
 function goPage(p) {

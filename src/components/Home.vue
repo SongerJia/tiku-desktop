@@ -5,6 +5,7 @@ import SkeletonCards from './SkeletonCards.vue'
 import CountUp from './CountUp.vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
+import { vTilt } from '../utils/tilt.js' // 统一 3D 倾斜指令（2026-08-14 去重：此前 Home 内联同逻辑）
 import CardsPanel from './CardsPanel.vue'
 
 const props = defineProps({ subject: Object, refreshKey: { default: 0 } })
@@ -157,25 +158,7 @@ function flashFocusDone() {
   focusFlashTimer = setTimeout(() => { focusDoneFlash.value = false }, 3200)
 }
 
-// 通用 3D 倾斜指令（v-tilt）：任何卡片跟随鼠标立体倾斜，入场动画结束后自动解除压制
-// 幅度按元素类型分级：行动台 ±6°，其他区块 ±4°
-const vTilt = {
-  mounted(el, binding) {
-    const max = (binding.value && binding.value.deg) || 4
-    el.dataset.tiltBound = '1'
-    el.style.transition = 'transform .25s cubic-bezier(.2,.7,.3,1), box-shadow .18s ease, background .15s ease'
-    el.style.transformStyle = 'preserve-3d'
-    el.style.willChange = 'transform'
-    el.addEventListener('mousemove', (e) => {
-      const r = el.getBoundingClientRect()
-      const px = (e.clientX - r.left) / r.width - 0.5
-      const py = (e.clientY - r.top) / r.height - 0.5
-      el.style.transform = `perspective(700px) rotateY(${(px * max).toFixed(2)}deg) rotateX(${(-py * max).toFixed(2)}deg)`
-    })
-    el.addEventListener('mouseleave', () => { el.style.transform = '' })
-    el.addEventListener('animationend', (e) => { if (e.animationName === 'riseIn') el.style.animation = 'none' })
-  }
-}
+// 3D 倾斜指令已统一到 ../utils/tilt.js（vTilt，含重力变量与防御）
 
 let loadSeq = 0 // 防竞态：快速切科目时旧请求晚返回，seq 不匹配则整体丢弃，避免过期数据覆盖
 async function load() {
