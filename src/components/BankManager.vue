@@ -11,7 +11,8 @@ import QuestionEditor from './QuestionEditor.vue'
 const props = defineProps({
   show: Boolean,
   wide: Boolean,
-  initialKeyword: { type: String, default: '' }
+  initialKeyword: { type: String, default: '' },
+  initialSubjectId: { type: [Number, String], default: null }
 })
 const emit = defineEmits(['close', 'changed', 'keyword-consumed'])
 
@@ -107,6 +108,9 @@ function closeNote() { noteQ.value = null; noteText.value = '' }
 
 watch(() => props.show, (v) => {
   if (v) {
+    // 入口决定初始筛选：tab 页传当前科目，我的页不传 = 全部科目
+    if (props.initialSubjectId != null) subjectId.value = String(props.initialSubjectId)
+    else subjectId.value = ''
     if (props.initialKeyword) { keyword.value = props.initialKeyword; page.value = 1; emit('keyword-consumed') }
     refreshAll()
   }

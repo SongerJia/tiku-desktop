@@ -41,8 +41,10 @@ const quiz = ref({ active: false, categoryId: null, subjectId: null, mode: 'prac
 const setup = ref({ active: false, categoryId: null, subjectId: null, presetMode: 'practice', subjectName: '', scopeLabel: '' })
 // 题库管理（导入/录题/编辑/删除）
 const showBank = ref(false)
+const bankSubjectId = ref(null) // 入口初始科目：tab 页=当前科目，我的页=null 全部
 // 文档管理（知识库：搜索/重命名/移动/删除/导入）
 const showKbManager = ref(false)
+const kbSubjectId = ref(null) // 同上：tab 页=当前科目，我的页=null 全部
 const kbRefreshToken = ref(0)
 // 模拟卷组卷 / 我的试卷
 const mock = ref({ active: false })
@@ -55,7 +57,7 @@ const bankKeyword = ref('') // 命令面板「搜索题目」跳转到题库时�
 function onCommandPalette(cmd) {
   if (cmd.type === 'tab') switchTab(cmd.key)
   else if (cmd.type === 'start') onStart({ mode: cmd.mode })
-  else if (cmd.type === 'action' && cmd.name === 'open-bank') { showBank.value = true }
+  else if (cmd.type === 'action' && cmd.name === 'open-bank') { showBank.value = true; bankSubjectId.value = currentSubject.value.id }
   else if (cmd.type === 'search') {
     switchTab('bank')
     bankKeyword.value = cmd.text
@@ -335,15 +337,15 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
           <Transition name="fade" mode="out-in">
             <div :key="currentTab" class="tab-page">
               <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" @quick="onQuickStart" />
-              <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" @start="onStart" @manage="showBank = true" />
-              <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :scope="kbScope" :refresh-token="kbRefreshToken" @manage="showKbManager = true" />
+              <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" @start="onStart" @manage="showBank = true; bankSubjectId = currentSubject.id" />
+              <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :scope="kbScope" :refresh-token="kbRefreshToken" @manage="showKbManager = true; kbSubjectId = currentSubject.id" />
               <Stats v-else-if="currentTab === 'stats'" :subject="currentSubject" />
               <Profile
             v-else-if="currentTab === 'profile'"
             @reset="currentTab = 'home'"
             @start="onStart"
-            @open-bank="showBank = true"
-            @open-kb-manager="showKbManager = true"
+            @open-bank="showBank = true; bankSubjectId = null"
+            @open-kb-manager="showKbManager = true; kbSubjectId = null"
           />
             </div>
           </Transition>
@@ -386,12 +388,13 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
       :show="showBank"
       :wide="isWide"
       :initialKeyword="bankKeyword"
+      :initial-subject-id="bankSubjectId"
       @close="showBank = false; bankKeyword = ''"
       @keyword-consumed="bankKeyword = ''"
       @changed="onBankChanged"
     />
 
-    <KbManager :show="showKbManager" @close="showKbManager = false" @changed="onKbChanged" />
+    <KbManager :show="showKbManager" :initial-subject-id="kbSubjectId" @close="showKbManager = false" @changed="onKbChanged" />
 
     <MockExamSetup
       v-if="mock.active"

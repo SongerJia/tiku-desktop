@@ -96,7 +96,10 @@ import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
 
-const props = defineProps({ show: Boolean })
+const props = defineProps({
+  show: Boolean,
+  initialSubjectId: { type: [Number, String], default: null }
+})
 const emit = defineEmits(['close', 'changed'])
 
 const docs = ref([])
@@ -111,11 +114,11 @@ const moveSubjectId = ref('')
 const moveCategoryId = ref('')
 const reader = ref({ show: false, doc: null })
 
-// 打开时加载
+// 打开时加载（入口决定初始筛选：tab 页传当前科目，我的页不传 = 全部科目）
 watch(() => props.show, async (v) => {
   if (!v) return
   keyword.value = ''
-  subjectFilter.value = ''
+  subjectFilter.value = props.initialSubjectId != null ? String(props.initialSubjectId) : ''
   categoryFilter.value = ''
   await load()
 })
