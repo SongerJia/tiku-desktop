@@ -9,9 +9,17 @@
         </div>
 
         <div class="km-body">
+          <!-- 概览 -->
+          <div class="km-stats">
+            <div class="km-stat"><b style="animation-delay: 0s">{{ kmStats.total }}</b><span>总文档</span></div>
+            <div class="km-stat"><b style="animation-delay: .06s">{{ kmStats.unread }}</b><span>未读</span></div>
+            <div class="km-stat"><b style="animation-delay: .12s">{{ kmStats.reads }}</b><span>总阅读次数</span></div>
+          </div>
+
           <!-- 操作条 -->
           <div class="km-toolbar">
             <button class="btn btn-primary sm" @click="onImport">导入文档</button>
+            <span class="km-fmt">md / pdf</span>
             <span class="km-count">{{ filteredDocs.length }} / {{ docs.length }} 篇</span>
           </div>
 
@@ -30,7 +38,7 @@
 
           <!-- 列表 -->
           <div class="km-list">
-            <div v-for="d in filteredDocs" :key="d.id" class="km-item">
+            <div v-for="(d, i) in filteredDocs" :key="d.id" class="km-item" :style="{ animationDelay: (i * 0.035) + 's' }">
               <div class="km-top" @click="openDoc(d)">
                 <span class="km-ico"><Icon :name="d.type === 'pdf' ? 'doc' : 'note'" :size="15" /></span>
                 <span class="km-title">{{ d.title }}</span>
@@ -173,6 +181,14 @@ const filteredDocs = computed(() => {
   })
 })
 
+// 概览统计：总文档 / 未读 / 总阅读次数
+const kmStats = computed(() => {
+  const total = docs.value.length
+  const unread = docs.value.filter(d => !d.read_count).length
+  const reads = docs.value.reduce((s, d) => s + (d.read_count || 0), 0)
+  return { total, unread, reads }
+})
+
 // 打开：拉完整文档进阅读器
 async function openDoc(d) {
   const full = await tiku.kbGet(d.id).catch(() => null)
@@ -267,7 +283,12 @@ function fmtTime(ts) {
   border-radius: var(--radius);
   box-shadow: var(--shadow), var(--glow-soft);
   overflow: hidden;
+  animation: kmPanelIn .26s cubic-bezier(.2, .7, .3, 1);
 }
+/* 特效（2026-08-14）：面板上浮入场 / 数字弹入 / 列表项 stagger */
+@keyframes kmPanelIn { from { opacity: 0; transform: translateY(18px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes kmNumPop { from { opacity: 0; transform: scale(.4); } 70% { transform: scale(1.18); } to { opacity: 1; transform: scale(1); } }
+@keyframes kmItemIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .km-header {
   display: flex; align-items: center; gap: 10px;
   padding: 14px 18px;
@@ -283,13 +304,35 @@ function fmtTime(ts) {
 .km-header .count { margin-left: auto; font-size: 12px; color: var(--muted); }
 
 .km-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* 概览三格（与题库管理 stat-row 同语言） */
+.km-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  padding: 14px 18px 0;
+  flex-shrink: 0;
+}
+.km-stat {
+  background: rgba(91, 124, 250, 0.04);
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 9px 6px; text-align: center;
+  transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.km-stat:hover { border-color: var(--brand); transform: translateY(-1px); box-shadow: var(--glow-soft); }
+.km-stat b {
+  display: block; font-size: 17px; font-weight: 700;
+  background: var(--num-grad);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  animation: kmNumPop .5s cubic-bezier(.2, .7, .3, 1) both;
+}
+.km-stat span { font-size: 11px; color: var(--muted); }
 /* 操作条：导入 + 计数 */
 .km-toolbar {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 18px 0;
   flex-shrink: 0;
 }
-.km-count { font-size: 12px; color: var(--muted); }
+.km-fmt { font-size: 11px; color: var(--muted); }
+.km-count { margin-left: auto; font-size: 12px; color: var(--muted); }
 /* 筛选行：科目 → 章节（联动）→ 搜索 */
 .km-filters {
   display: flex; gap: 10px; padding: 10px 18px 12px;
@@ -303,6 +346,7 @@ function fmtTime(ts) {
 .km-item {
   position: relative;
   border-bottom: 0.5px solid var(--line);
+  animation: kmItemIn .3s ease both;
 }
 /* 顶部行：图标 + 标题 + 位置 + 右侧操作（hover 显示） */
 .km-top {
@@ -331,16 +375,15 @@ function fmtTime(ts) {
 .km-spacer { flex: 1; }
 .km-ops {
   display: flex; gap: 4px; flex-shrink: 0;
-  opacity: 0; transition: opacity .15s ease;
 }
-.km-top:hover .km-ops { opacity: 1; }
 .km-op {
   border: 1px solid var(--line); background: var(--card-solid);
   border-radius: 6px; padding: 3px 9px;
   font-size: 11.5px; color: var(--muted); cursor: pointer;
+  transition: all .15s ease;
 }
-.km-op:hover { color: var(--brand); border-color: var(--brand); }
-.km-op.danger:hover { color: #ff6b6b; border-color: #ff6b6b; }
+.km-op:hover { color: var(--brand); border-color: var(--brand); background: rgba(91, 124, 250, 0.08); }
+.km-op.danger:hover { color: #ff6b6b; border-color: #ff6b6b; background: rgba(255, 107, 107, 0.08); }
 /* 底部行：统计信息右下角 */
 .km-bottom {
   display: flex; justify-content: flex-end;

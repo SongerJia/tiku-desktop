@@ -314,13 +314,13 @@ async function batchDelete() {
         <div class="bm-body">
           <!-- 概览 -->
           <div class="stat-row">
-            <div class="stat"><b>{{ stats.total }}</b><span>总题量</span></div>
-            <div class="stat"><b>{{ stats.categories }}</b><span>分类数</span></div>
+            <div class="stat"><b style="animation-delay: 0s">{{ stats.total }}</b><span>总题量</span></div>
+            <div class="stat"><b style="animation-delay: .06s">{{ stats.categories }}</b><span>分类数</span></div>
             <div
-              v-for="t in stats.byType"
+              v-for="(t, ti) in stats.byType"
               :key="t.type"
               class="stat"
-            ><b>{{ t.n }}</b><span>{{ TYPE_LABEL[t.type] || t.type }}</span></div>
+            ><b :style="{ animationDelay: (0.12 + ti * 0.06) + 's' }">{{ t.n }}</b><span>{{ TYPE_LABEL[t.type] || t.type }}</span></div>
           </div>
 
           <!-- 操作条 -->
@@ -363,7 +363,7 @@ async function batchDelete() {
           <EmptyState v-else-if="!list.items.length" icon="book" text="没有找到题目" sub="点「批量导入」把你的真实题库导进来" />
 
           <div v-else class="q-list">
-            <div v-for="q in list.items" :key="q.id" class="q-item" :class="{ sel: batchMode && selectedIds.has(q.id) }">
+            <div v-for="(q, qi) in list.items" :key="q.id" class="q-item" :class="{ sel: batchMode && selectedIds.has(q.id) }" :style="{ animationDelay: (qi * 0.035) + 's' }">
               <label v-if="batchMode" class="q-check">
                 <input type="checkbox" :checked="selectedIds.has(q.id)" @change="toggleSelect(q)" />
               </label>
@@ -576,8 +576,16 @@ async function batchDelete() {
   padding: 9px 6px;
   text-align: center;
   background: rgba(91, 124, 250, 0.04);
+  transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
 }
-.stat b { display: block; font-size: 17px; color: var(--brand); }
+.stat:hover { border-color: var(--brand); transform: translateY(-1px); box-shadow: var(--glow-soft); }
+.stat b {
+  display: block; font-size: 17px;
+  background: var(--num-grad);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  animation: bmNumPop .5s cubic-bezier(.2, .7, .3, 1) both;
+}
 .stat span { font-size: 11px; color: var(--muted); }
 
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -654,8 +662,8 @@ async function batchDelete() {
   cursor: pointer;
   transition: all 0.15s;
 }
-.mini:hover { color: var(--brand); border-color: var(--brand); }
-.mini.danger:hover { color: var(--bad); border-color: var(--bad); }
+.mini:hover { color: var(--brand); border-color: var(--brand); background: rgba(91, 124, 250, 0.08); }
+.mini.danger:hover { color: var(--bad); border-color: var(--bad); background: rgba(255, 77, 109, 0.08); }
 .mini.danger.solid { color: var(--bad); border-color: var(--bad); background: rgba(255, 77, 109, 0.1); }
 .mini[disabled] { opacity: 0.4; cursor: not-allowed; }
 
@@ -693,6 +701,13 @@ async function batchDelete() {
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.18s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* 特效（2026-08-14）：面板上浮入场 / 概览数字弹入 / 列表项 stagger */
+.bm-panel { animation: bmPanelIn .26s cubic-bezier(.2, .7, .3, 1); }
+@keyframes bmPanelIn { from { opacity: 0; transform: translateY(18px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes bmNumPop { from { opacity: 0; transform: scale(.4); } 70% { transform: scale(1.18); } to { opacity: 1; transform: scale(1); } }
+.q-item { animation: bmItemIn .3s ease both; }
+@keyframes bmItemIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 /* 题库内联笔记 */
 .note-mask {
