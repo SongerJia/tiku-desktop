@@ -515,7 +515,9 @@ ipcMain.handle('kbExport', async () => {
 ipcMain.handle('kbOpen', (e, id) => {
   const doc = db.getKbDoc(id)
   if (!doc) return { ok: false, error: '文档不存在' }
-  const full = path.join(db.kbDir(), doc.rel_path)
+  const rel = db.safeRelPath(doc.rel_path)
+  if (!rel) return { ok: false, error: '路径非法' }
+  const full = path.join(db.kbDir(), rel)
   if (!fs.existsSync(full)) return { ok: false, error: '文件缺失' }
   shell.openPath(full)
   return { ok: true }

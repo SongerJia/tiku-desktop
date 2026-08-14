@@ -28,9 +28,13 @@ export function printHtml(title, bodyHtml, styleHtml) {
     @media print { .no-print { display: none; } }
   `
   w.document.open()
+  // title 做 HTML 转义防注入；bodyHtml 为产品拼接（调用方负责其字段转义），
+  // 仅对 `</script` 兜底转义，防止用户题干中的字面量提前终止脚本块
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  const safeBody = String(bodyHtml || '').replace(/<\/script/gi, '<\\/script')
   w.document.write(
-    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>` +
-    `<style>${base}${styleHtml || ''}</style></head><body>${bodyHtml}<script>window.onload=function(){setTimeout(function(){window.print();},250);}<\/script></body></html>`
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title>` +
+    `<style>${base}${styleHtml || ''}</style></head><body>${safeBody}<script>window.onload=function(){setTimeout(function(){window.print();},250);}<\/script></body></html>`
   )
   w.document.close()
   w.focus()

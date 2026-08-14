@@ -154,11 +154,12 @@ module.exports = function bankModule(ctx) {
          WHERE q.id=? AND q.deleted=0`
       ).get(id)
       if (!q) return { ok: false, error: '题目不存在' }
-      // 章节路径：从所属分类向上找父级（科目 › 章节）
+      // 章节路径：从所属分类向上找父级（科目 › 章节）；guard 防树环（同步合并可能引入环）
       const path = []
       let pid = q.cat_parent
       if (q.category_name) path.unshift(q.category_name)
-      while (pid) {
+      let guard = 0
+      while (pid && guard++ < 10) {
         const p = sqlite.prepare('SELECT name, parent_id FROM categories WHERE id=?').get(pid)
         if (!p) break
         path.unshift(p.name)

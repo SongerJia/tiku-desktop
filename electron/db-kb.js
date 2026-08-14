@@ -9,11 +9,21 @@ module.exports = function kbModule(ctx) {
   const { sqlite, uuid, app } = ctx
 
   return {
+    // 校验知识库相对路径（安全）：拒绝 '..' / 绝对路径 / Windows 盘符。
+    // rel_path 来自同步导入的远端清单（不可信），读写删前必须过此校验，防越界访问
+    safeRelPath(rel) {
+      const r = String(rel || '').replace(/\\/g, '/')
+      if (!r || r.includes('..') || r.startsWith('/') || /^[a-zA-Z]:/.test(r)) return null
+      return r
+    },
+
     readKbFile(id) {
       const doc = sqlite.prepare('SELECT rel_path FROM kb_docs WHERE id=? AND deleted=0').get(id)
       if (!doc) return { ok: false, error: '文档不存在' }
+      const rel = this.safeRelPath(doc.rel_path)
+      if (!rel) return { ok: false, error: '路径非法' }
       try {
-        const full = path.join(this.kbDir(), doc.rel_path)
+        const full = path.join(this.kbDir(), rel)
         if (!fs.existsSync(full)) return { ok: false, error: '文件缺失（副本可能被手动移动）' }
         return { ok: true, base64: fs.readFileSync(full).toString('base64') }
       } catch (e) {
@@ -138,7 +148,8 @@ module.exports = function kbModule(ctx) {
       })
       tx()
       try {
-        if (doc.rel_path) fs.unlinkSync(path.join(this.kbDir(), doc.rel_path))
+        const rel = this.safeRelPath(doc.rel_path)
+        if (rel) fs.unlinkSync(path.join(this.kbDir(), rel))
       } catch (e) { /* 副本文件可能已被手动删除，忽略 */ }
       return { ok: true }
     },
@@ -363,11 +374,22 @@ module.exports = function kbModule(ctx) {
       return this.getKbDoc(id)
     },
 
-    // 阅读埋点：打开阅读页 +1（同时给 5 XP，供每日任务「阅读」判定）
+    // 阅读埋点：打开阅读页 +1（同时给 5 XP，供每日任务「阅读」判定）。
+    // 防刷：同文档当天只记一次 XP（read_count 照常累加真实阅读次数），防反复开关文档刷 XP/刷阅读任务
     bumpKbRead(id) {
       sqlite.prepare('UPDATE kb_docs SET read_count=read_count+1 WHERE id=? AND deleted=0').run(id)
       const doc = sqlite.prepare('SELECT title FROM kb_docs WHERE id=? AND deleted=0').get(id)
-      this.logXp(5, 'kbread', doc ? doc.title : '')
+      const d = new Date()
+      const dayKey = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+      const key = 'kbread_today'
+      let st = { date: dayKey, ids: [] }
+      try { st = Object.assign(st, JSON.parse(this.getSetting(key) || '{}')) } catch (e) { /* 损坏重置 */ }
+      if (st.date !== dayKey) st = { date: dayKey, ids: [] }
+      if (!st.ids.includes(id)) {
+        st.ids.push(id)
+        this.setSetting(key, JSON.stringify(st))
+        this.logXp(5, 'kbread', doc ? doc.title : '')
+      }
       return { ok: true }
     },
 
@@ -376,9 +398,11 @@ module.exports = function kbModule(ctx) {
       const doc = sqlite.prepare('SELECT * FROM kb_docs WHERE id=? AND deleted=0').get(id)
       if (!doc) return { ok: false, error: '文档不存在' }
       if (doc.type !== 'md') return { ok: false, error: '仅 MD 文档支持在线编辑' }
+      const rel = this.safeRelPath(doc.rel_path)
+      if (!rel) return { ok: false, error: '路径非法' }
       try {
         const text = String(content || '')
-        const full = path.join(this.kbDir(), doc.rel_path)
+        const full = path.join(this.kbDir(), rel)
         const buf = Buffer.from(text, 'utf8')
         fs.writeFileSync(full, buf)
         const blocks = extractMd(text)
