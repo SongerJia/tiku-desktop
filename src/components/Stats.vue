@@ -671,9 +671,8 @@ async function loadAnalysis() {
 .quest-claimed { font-size: 12px; color: var(--ok); margin-bottom: 8px; }
 .quest-empty {
   font-size: 12px; color: var(--muted);
-  border: 1px dashed var(--line); border-radius: 10px; padding: 14px;
-  text-align: center;
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  border: 1px dashed var(--line); border-radius: 10px; padding: 10px 14px;
+  display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
 }
 .quest-set {
   background: transparent; border: 1px solid var(--brand); color: var(--brand);

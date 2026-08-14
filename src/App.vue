@@ -53,7 +53,7 @@ const kbRefreshToken = ref(0)
 const mock = ref({ active: false })
 // 统一搜索（题目 + 知识文档）
 const showSearch = ref(false)
-// 全局命令面板（Ctrl/Cmd+K）
+// 全局命令面板（侧栏图标打开）
 const showPalette = ref(false)
 const bankKeyword = ref('') // 命令面板「搜索题目」跳转到题库时携带的关键词
 
@@ -67,12 +67,6 @@ function onCommandPalette(cmd) {
   }
 }
 
-function onPaletteKey(e) {
-  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
-    e.preventDefault()
-    showPalette.value = !showPalette.value
-  }
-}
 // 切回首页时的刷新计数（驱动 Home 重新加载实时数据）
 const homeRefresh = ref(0)
 // 首启欢迎引导（settings 无 seen_welcome 时显示一次）
@@ -110,7 +104,6 @@ onMounted(async () => {
     const saved = Number(localStorage.getItem(SIDEBAR_KEY))
     if (saved >= SIDEBAR_MIN && saved <= SIDEBAR_MAX) sidebarWidth.value = saved
   } catch (e) { /* 忽略 */ }
-  window.addEventListener('keydown', onPaletteKey)
   currentSubject.value = await tiku.getCurrentSubject()
   await applyAppearance() // 应用上次保存的主题与字号
   try {
@@ -127,7 +120,6 @@ onMounted(async () => {
 // 卸载时清理 resize 全局监听，避免泄漏
 onBeforeUnmount(() => {
   stopResize()
-  window.removeEventListener('keydown', onPaletteKey)
 })
 
 // 导入或增删题目后，科目树可能变了（自动建了新科目），重取一次当前科目
@@ -307,7 +299,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
         <span class="side-foot">本地数据 · 离线可用</span>
         <button class="side-cmd-ico" title="命令面板：导航 / 搜索题目 / 快捷动作" aria-label="命令面板" @click="showPalette = true">
           <Icon name="search" :size="14" />
-          <span class="side-cmd-tip">命令面板 <b class="sc-kbd">Ctrl K</b></span>
+          <span class="side-cmd-tip">命令面板</span>
         </button>
       </div>
       <div class="sidebar-resize" title="拖动调整侧栏宽度" @mousedown="startResize"></div>
@@ -481,7 +473,6 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
   pointer-events: none; transition: opacity .15s, transform .15s; z-index: 20;
 }
 .side-cmd-ico:hover .side-cmd-tip { opacity: 1; transform: translateY(0); }
-.sc-kbd { font-size: 10px; opacity: .7; border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; margin-left: 3px; font-weight: 400; }
 .tab-page { height: 100%; }
 .fade-enter-active, .fade-leave-active { transition: opacity .16s ease, transform .16s ease; }
 .fade-enter-from { opacity: 0; transform: translateY(6px); }
