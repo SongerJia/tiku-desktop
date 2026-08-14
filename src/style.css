@@ -37,6 +37,7 @@
   --num-grad: linear-gradient(180deg, #f4f7ff, #a9b6da);   /* KPI 大数字渐变（深色亮字） */
   --hover-bg: rgba(148, 163, 184, 0.08);  /* 列表/行 hover 底色 */
   --hover-bg-strong: rgba(148, 163, 184, 0.14);
+  --bg-soft: rgba(148, 163, 184, 0.08);   /* 弱背景（徽标/胶囊/输入框底） */
   /* 软色语义变量（2026-08-14）：状态色系亮字（标签/徽章/错误提示文字），三主题在此统一；
      深色主题用亮色调，浅色/护眼主题用深色调，组件一律引用变量避免漏覆盖 */
   --ok-soft: #4fd1a5;            /* 绿系亮字（记忆徽章/强弱标签/完成态） */
@@ -406,6 +407,7 @@ button:focus:not(:focus-visible) { outline: none; }
   --num-grad: linear-gradient(180deg, #1f2937, #64748b);
   --hover-bg: rgba(61, 91, 217, 0.06);
   --hover-bg-strong: rgba(61, 91, 217, 0.1);
+  --bg-soft: rgba(255, 255, 255, 0.7);   /* 弱背景（徽标/胶囊/输入框底） */
   /* 浅色软色：深色调文字保证白底对比 */
   --ok-soft: #0f9d6b;
   --bad-soft: #c0392b;
@@ -452,6 +454,7 @@ button:focus:not(:focus-visible) { outline: none; }
   --num-grad: linear-gradient(180deg, #2e4a38, #5f7366);
   --hover-bg: rgba(58, 125, 90, 0.06);
   --hover-bg-strong: rgba(58, 125, 90, 0.1);
+  --bg-soft: rgba(255, 255, 255, 0.72);  /* 弱背景（徽标/胶囊/输入框底） */
   /* 护眼软色：柔和的深绿/深棕，米白底可读 */
   --ok-soft: #1f8a5b;
   --bad-soft: #b8453f;
