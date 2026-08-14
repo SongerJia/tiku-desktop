@@ -970,7 +970,7 @@ function optionClass(key) {
 .fav.on { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
 .progress { color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
 .mode-tag { background: var(--brand-light); color: var(--brand); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; font-size: 11px; }
-.recite-tag { background: rgba(255, 193, 84, 0.14); color: #ffc154; border: 1px solid rgba(255, 193, 84, 0.45); border-radius: 6px; padding: 1px 7px; font-size: 11px; }
+.recite-tag { background: rgba(255, 193, 84, 0.14); color: var(--warn-soft); border: 1px solid rgba(255, 193, 84, 0.45); border-radius: 6px; padding: 1px 7px; font-size: 11px; }
 .recite-mark { margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
 .rm-hint { font-size: 12px; color: var(--muted); }
 .rm-actions { display: flex; gap: 10px; }
@@ -1091,7 +1091,7 @@ function optionClass(key) {
 .kw-tip { color: var(--muted); font-size: 12px; margin: 8px 0 4px; }
 
 /* 笔记 */
-.note-btn.on { background: rgba(255, 193, 84, 0.14); border-color: rgba(255, 193, 84, 0.5); color: #ffc154; }
+.note-btn.on { background: rgba(255, 193, 84, 0.14); border-color: rgba(255, 193, 84, 0.5); color: var(--warn-soft); }
 .note-panel {
   margin-top: 14px;
   border: 1px solid var(--line);
@@ -1140,7 +1140,7 @@ function optionClass(key) {
   background: rgba(255, 193, 84, 0.05);
 }
 .recite-ans { font-size: 14px; line-height: 1.6; }
-.recite-ans b { color: #ffc154; }
+.recite-ans b { color: var(--warn-soft); }
 .ans-val { color: var(--ok); font-weight: 600; white-space: pre-wrap; }
 .ans-none { color: var(--muted); }
 .nav-prev {

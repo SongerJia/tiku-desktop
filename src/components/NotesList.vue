@@ -162,7 +162,7 @@ async function delNote(item) {
 .nl-filter .input { flex: 1; min-width: 110px; }
 
 .empty { text-align: center; color: var(--muted); font-size: 13px; padding: 40px 0; line-height: 2; }
-.empty-icon { font-size: 30px; color: #ffc154; opacity: 0.6; }
+.empty-icon { font-size: 30px; color: var(--warn-soft); opacity: 0.6; }
 .empty-sub { font-size: 12px; opacity: 0.75; }
 
 .nl-list { display: flex; flex-direction: column; gap: 10px; }

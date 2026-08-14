@@ -894,8 +894,8 @@ async function loadAnalysis() {
 .bw-item.strong { background: rgba(47, 191, 143, 0.08); border-color: rgba(47, 191, 143, 0.4); }
 .bw-item.weak { background: rgba(229, 83, 95, 0.07); border-color: rgba(229, 83, 95, 0.4); }
 .bw-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-.bw-item.strong .bw-label { color: #4fd1a5; }
-.bw-item.weak .bw-label { color: #f08a92; }
+.bw-item.strong .bw-label { color: var(--ok-soft); }
+.bw-item.weak .bw-label { color: var(--bad-soft); }
 .bw-name { font-size: 13px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bw-rate { font-size: 24px; font-weight: 700; margin: 4px 0 2px; }
 .bw-item.strong .bw-rate { color: var(--ok); }

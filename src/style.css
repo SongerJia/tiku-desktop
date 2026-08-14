@@ -37,6 +37,12 @@
   --num-grad: linear-gradient(180deg, #f4f7ff, #a9b6da);   /* KPI 大数字渐变（深色亮字） */
   --hover-bg: rgba(148, 163, 184, 0.08);  /* 列表/行 hover 底色 */
   --hover-bg-strong: rgba(148, 163, 184, 0.14);
+  /* 软色语义变量（2026-08-14）：状态色系亮字（标签/徽章/错误提示文字），三主题在此统一；
+     深色主题用亮色调，浅色/护眼主题用深色调，组件一律引用变量避免漏覆盖 */
+  --ok-soft: #4fd1a5;            /* 绿系亮字（记忆徽章/强弱标签/完成态） */
+  --bad-soft: #ffb3c1;           /* 红粉系亮字（错误提示/弱态/删除） */
+  --warn-soft: #ffc154;          /* 黄橙系亮字（警告/笔记/背诵/复习横幅） */
+  --brand-soft: #93b1ff;         /* 蓝紫系亮字（标签/徽章/次要品牌强调） */
 }
 
 * { box-sizing: border-box; }
@@ -337,13 +343,13 @@ button:focus:not(:focus-visible) { outline: none; }
 /* 按钮按压反馈（C 档） */
 .btn:active { transform: scale(0.96); }
 /* 滚动条（隐形 macOS 风格：细、半透明、hover 才加深、track 透明） */
-::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(127, 127, 127, 0.25);   /* 暗色主题：静态半透明 */
+  background: rgba(148, 163, 184, 0.25);   /* 暗色主题：静态半透明蓝灰 */
   border-radius: 4px;
 }
-::-webkit-scrollbar-thumb:hover { background: rgba(127, 127, 127, 0.45); }
-::-webkit-scrollbar-thumb:active { background: rgba(127, 127, 127, 0.55); }
+::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.45); }
+::-webkit-scrollbar-thumb:active { background: rgba(148, 163, 184, 0.55); }
 ::-webkit-scrollbar-track { background: transparent; }
 /* 浅色主题：更淡（白底上近乎隐形） */
 [data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(127, 127, 127, 0.15); }
@@ -400,6 +406,11 @@ button:focus:not(:focus-visible) { outline: none; }
   --num-grad: linear-gradient(180deg, #1f2937, #64748b);
   --hover-bg: rgba(61, 91, 217, 0.06);
   --hover-bg-strong: rgba(61, 91, 217, 0.1);
+  /* 浅色软色：深色调文字保证白底对比 */
+  --ok-soft: #0f9d6b;
+  --bad-soft: #c0392b;
+  --warn-soft: #b45309;
+  --brand-soft: #3d5bd9;
 }
 [data-theme="light"] .app {
   background-image:
@@ -441,6 +452,11 @@ button:focus:not(:focus-visible) { outline: none; }
   --num-grad: linear-gradient(180deg, #2e4a38, #5f7366);
   --hover-bg: rgba(58, 125, 90, 0.06);
   --hover-bg-strong: rgba(58, 125, 90, 0.1);
+  /* 护眼软色：柔和的深绿/深棕，米白底可读 */
+  --ok-soft: #1f8a5b;
+  --bad-soft: #b8453f;
+  --warn-soft: #9a6b1f;
+  --brand-soft: #3a7d5a;
 }
 [data-theme="eye"] .app {
   background-image:
@@ -473,6 +489,12 @@ body {
     radial-gradient(900px 460px at -12% 108%, rgba(124, 58, 237, 0.05), transparent 55%),
     var(--bg);
 }
+[data-theme="eye"] body {
+  background:
+    radial-gradient(1100px 520px at 78% -12%, rgba(58, 125, 90, 0.08), transparent 60%),
+    radial-gradient(900px 460px at -12% 108%, rgba(58, 125, 90, 0.05), transparent 55%),
+    var(--bg);
+}
 
 /* 卡片入场：打开页面卡片浮起淡入（配合页面切换过渡） */
 @keyframes riseIn {
@@ -480,12 +502,6 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 .tab-page .card { animation: riseIn .4s cubic-bezier(.2, .7, .3, 1) both; }
-
-/* 深色滚动条：细条 + 圆角（浅色主题 339 行已有） */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.25); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.45); }
 
 /* 键盘聚焦环：统一品牌色（精致可访问性） */
 :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 6px; }
@@ -568,15 +584,15 @@ body::after {
 /* 旋转极光：conic 双色扇光 60s 缓慢旋转（叠加在漂移光斑层，极淡不抢） */
 body::after {
   background:
-    conic-gradient(from var(--ang) at 72% 18%, transparent 0deg, rgba(91, 124, 250, 0.05) 90deg, transparent 190deg, rgba(122, 92, 255, 0.05) 280deg, transparent 360deg),
-    radial-gradient(720px 520px at 25% 12%, rgba(91, 124, 250, 0.08), transparent 55%);
+    conic-gradient(from var(--ang) at 72% 18%, transparent 0deg, color-mix(in srgb, var(--brand) 5%, transparent) 90deg, transparent 190deg, color-mix(in srgb, var(--brand2) 5%, transparent) 280deg, transparent 360deg),
+    radial-gradient(720px 520px at 25% 12%, color-mix(in srgb, var(--brand) 8%, transparent), transparent 55%);
   animation: auraDrift 22s ease-in-out infinite alternate, angSpin 60s linear infinite;
 }
 @keyframes angSpin { to { --ang: 360deg; } }
 
 /* 顶栏光带：左右来回扫动 */
 .topbar::after {
-  background: linear-gradient(90deg, transparent, rgba(91, 124, 250, 0.55), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--brand) 55%, transparent), transparent);
   background-size: 200% 100%;
   animation: topbarShimmer 5.5s ease-in-out infinite;
 }
@@ -617,8 +633,8 @@ body::after {
   animation: logoPulse 3s ease-in-out infinite;
 }
 @keyframes logoPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(91, 124, 250, 0); }
-  50% { box-shadow: 0 0 0 12px rgba(91, 124, 250, 0.12); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 0%, transparent); }
+  50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--brand) 12%, transparent); }
 }
 
 /* 流光描边共用的旋转动画（全局注册，供各组件 hover 流光复用） */
@@ -627,7 +643,7 @@ body::after {
 /* ===== 题库/知识库铺开（2026-08-12）：输入框聚焦光晕 ===== */
 input:focus, textarea:focus, select:focus, .input:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(91, 124, 250, 0.28), 0 0 14px rgba(91, 124, 250, 0.12);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 28%, transparent), 0 0 14px color-mix(in srgb, var(--brand) 12%, transparent);
   border-color: var(--brand);
 }
 

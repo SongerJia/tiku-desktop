@@ -457,8 +457,8 @@ function previewText(r) {
 .stat.bad b { color: var(--bad); }
 
 .alert { border-radius: var(--radius-sm); padding: 10px 12px; font-size: 12px; line-height: 1.8; }
-.alert.bad { border: 1px solid rgba(255, 77, 109, 0.4); background: rgba(255, 77, 109, 0.08); color: #ffb3c1; }
-.alert.warn { border: 1px solid rgba(255, 180, 84, 0.4); background: rgba(255, 180, 84, 0.08); color: #ffd9a3; }
+.alert.bad { border: 1px solid rgba(255, 77, 109, 0.4); background: rgba(255, 77, 109, 0.08); color: var(--bad-soft); }
+.alert.warn { border: 1px solid rgba(255, 180, 84, 0.4); background: rgba(255, 180, 84, 0.08); color: var(--warn-soft); }
 .alert-title { font-weight: 600; margin-bottom: 4px; }
 .err-line { display: flex; gap: 8px; }
 .rowno { flex-shrink: 0; opacity: 0.75; }

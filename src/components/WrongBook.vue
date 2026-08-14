@@ -248,9 +248,9 @@ async function toggleSimilar(qid) {
 .stubborn { color: var(--bad); border: 1px solid rgba(229, 83, 95, 0.4); background: rgba(229, 83, 95, 0.08); border-radius: 6px; padding: 0 6px; margin-left: 6px; font-size: 11px; }
 /* 记忆状态徽标（E-1） */
 .mem-badge { font-size: 10.5px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
-.mem-badge.ok { background: rgba(47, 191, 143, 0.12); border: 1px solid rgba(47, 191, 143, 0.45); color: #5dcaa5; }
-.mem-badge.mid { background: rgba(91, 124, 250, 0.15); border: 1px solid rgba(91, 124, 250, 0.5); color: #85b7eb; }
-.mem-badge.bad { background: rgba(229, 83, 95, 0.15); border: 1px solid rgba(229, 83, 95, 0.5); color: #f09595; }
+.mem-badge.ok { background: rgba(47, 191, 143, 0.12); border: 1px solid rgba(47, 191, 143, 0.45); color: var(--ok-soft); }
+.mem-badge.mid { background: rgba(91, 124, 250, 0.15); border: 1px solid rgba(91, 124, 250, 0.5); color: var(--brand-soft); }
+.mem-badge.bad { background: rgba(229, 83, 95, 0.15); border: 1px solid rgba(229, 83, 95, 0.5); color: var(--bad-soft); }
 .actions { display: flex; gap: 8px; }
 button { border: none; padding: 7px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; }
 .primary { background: var(--brand); color: #fff; }

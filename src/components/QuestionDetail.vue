@@ -224,7 +224,7 @@ function showToast(msg, type) {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center; gap: 8px;
   background: rgba(2, 6, 16, 0.55);
-  font-size: 13.5px; color: var(--muted, #7c8aa5);
+  font-size: 13.5px; color: #dfe7fa;
   transition: opacity .2s;
 }
 .qd-lock { font-size: 11px; }
@@ -236,7 +236,7 @@ function showToast(msg, type) {
 .qd-tag {
   font-size: 12px; padding: 4px 12px; border-radius: 11px;
   background: rgba(91, 124, 250, 0.12); border: 1px solid rgba(91, 124, 250, 0.35);
-  color: #93b1ff;
+  color: var(--brand-soft);
   font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
   line-height: 1.5;
 }

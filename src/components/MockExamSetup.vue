@@ -318,7 +318,7 @@ async function exportPaperPdf(p) {
 .rule-sum { margin-top: 8px; font-size: 12px; color: var(--muted); }
 .rule-sum b { color: var(--brand); }
 
-.err { font-size: 12px; color: #ffb3c1; border: 1px solid rgba(255,77,109,.4); background: rgba(255,77,109,.08); border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; }
+.err { font-size: 12px; color: var(--bad-soft); border: 1px solid rgba(255,77,109,.4); background: rgba(255,77,109,.08); border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; }
 
 .footer { display: flex; gap: 12px; margin-top: 6px; }
 .btn-outline, .btn-primary {

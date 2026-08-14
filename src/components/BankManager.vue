@@ -629,7 +629,7 @@ async function batchDelete() {
 .q-cat { font-size: 11px; color: var(--muted); }
 .q-note {
   font-size: 13px;
-  color: #ffc154;
+  color: var(--warn-soft);
   cursor: pointer;
   padding: 1px 5px;
   border: 1px solid rgba(255, 193, 84, 0.45);
@@ -676,7 +676,7 @@ async function batchDelete() {
   justify-content: space-between;
   gap: 10px;
   font-size: 12px;
-  color: #ffb3c1;
+  color: var(--bad-soft);
 }
 
 .pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 6px 0 2px; }

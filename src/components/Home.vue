@@ -668,7 +668,7 @@ onBeforeUnmount(() => {
 .dock-btn em { font-style: normal; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .dock-btn.review { background: rgba(91, 124, 250, 0.14); border: 1px solid rgba(91, 124, 250, 0.4); }
 .dock-btn.review:hover { box-shadow: var(--glow-soft); }
-.dock-btn.review b { color: #d6ddf7; }
+.dock-btn.review b { color: var(--brand-soft); }
 .dock-btn.review em { color: var(--brand); }
 .dock-btn.daily { background: rgba(47, 191, 143, 0.10); border: 1px solid rgba(47, 191, 143, 0.35); }
 .dock-btn.daily:hover { box-shadow: var(--glow-soft); }
@@ -734,11 +734,11 @@ onBeforeUnmount(() => {
 .more-item:hover { border-color: var(--brand); box-shadow: var(--glow-soft); }
 .mi-ico { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .mi-ico.wrong { background: rgba(255, 77, 109, 0.14); color: var(--bad); }
-.mi-ico.fav { background: rgba(244, 114, 182, 0.14); color: #f472b6; }
+.mi-ico.fav { background: rgba(244, 114, 182, 0.14); color: var(--bad-soft); }
 .mi-ico.all { background: rgba(91, 124, 250, 0.14); color: var(--brand); }
 .mi-ico.kb { background: rgba(44, 229, 168, 0.14); color: var(--ok); }
-.mi-ico.exam { background: rgba(56, 189, 248, 0.14); color: #38bdf8; }
-.mi-ico.cards { background: rgba(167, 139, 250, 0.14); color: #a78bfa; }
+.mi-ico.exam { background: rgba(56, 189, 248, 0.14); color: var(--brand-soft); }
+.mi-ico.cards { background: rgba(167, 139, 250, 0.14); color: var(--brand-soft); }
 .mi-main { flex: 1; font-size: 13px; color: var(--text); }
 .mi-count { font-size: 11px; color: var(--muted); }
 .mi-count.due { color: var(--warn); font-weight: 600; }
@@ -995,7 +995,7 @@ onBeforeUnmount(() => {
   background: rgba(229, 83, 95, 0.10);
   border-color: rgba(229, 83, 95, 0.5);
 }
-.review-banner.urgent .rb-title { color: #f0a8ad; }
+.review-banner.urgent .rb-title { color: var(--bad-soft); }
 .review-banner.urgent .rb-btn { background: var(--bad); }
 .review-banner.urgent::after { border-color: rgba(229, 83, 95, 0.5); }
 
@@ -1005,11 +1005,11 @@ onBeforeUnmount(() => {
   background: rgba(47, 191, 143, 0.10);
   border: 1px solid rgba(47, 191, 143, 0.45);
   border-radius: 12px; padding: 12px 14px;
-  font-size: 13.5px; color: #a8d9c5;
+  font-size: 13.5px; color: var(--ok-soft);
   animation: riseIn .35s cubic-bezier(.2, .7, .3, 1) both;
 }
 .review-done .rd-ico { color: var(--ok); display: flex; }
-.review-done b { color: #bfe8d8; }
+.review-done b { color: var(--ok-soft); }
 
 
 /* H20/H21/H22 样式：建议行 / 番茄完成闪条 */
@@ -1024,7 +1024,7 @@ onBeforeUnmount(() => {
   background: rgba(47, 191, 143, 0.10);
   border: 1px solid rgba(47, 191, 143, 0.45);
   border-radius: 12px; padding: 12px 14px;
-  font-size: 13.5px; color: #a8d9c5;
+  font-size: 13.5px; color: var(--ok-soft);
   animation: riseIn .35s cubic-bezier(.2, .7, .3, 1) both;
 }
 .focus-done .fd-ico { color: var(--ok); display: flex; }

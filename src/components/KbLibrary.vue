@@ -788,13 +788,13 @@ function fmtTime(ts) {
 /* A1 类型徽章：渐变底 + 微光 */
 .kb-type.pdf {
   background: linear-gradient(135deg, rgba(232, 95, 61, 0.28), rgba(232, 95, 61, 0.10));
-  color: #ff9a7a;
+  color: var(--warn-soft);
   border: 1px solid rgba(232, 95, 61, 0.45);
   box-shadow: 0 0 8px rgba(232, 95, 61, 0.15);
 }
 .kb-type.md {
   background: linear-gradient(135deg, rgba(91, 124, 250, 0.28), rgba(122, 92, 255, 0.12));
-  color: #93b1ff;
+  color: var(--brand-soft);
   border: 1px solid rgba(91, 124, 250, 0.45);
   box-shadow: 0 0 8px rgba(91, 124, 250, 0.15);
 }
@@ -811,7 +811,7 @@ function fmtTime(ts) {
   background: rgba(91, 124, 250, 0.12);
   border: 1px solid rgba(91, 124, 250, 0.3);
   border-radius: 10px; padding: 1px 8px;
-  font-weight: 600; color: #93b1ff;
+  font-weight: 600; color: var(--brand-soft);
 }
 
 /* B1 继续阅读浮层：hover 显示在卡片顶部（三主题由语义变量统一） */
@@ -835,7 +835,7 @@ function fmtTime(ts) {
   border-radius: 8px; padding: 0 6px; font-size: 10.5px;
 }
 .kb-read-pos {
-  color: #4fd1a5;
+  color: var(--ok-soft);
   border: 1px solid rgba(47, 191, 143, 0.4);
   background: rgba(47, 191, 143, 0.08);
   border-radius: 8px; padding: 0 6px; font-size: 10.5px;

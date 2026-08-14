@@ -785,6 +785,8 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
 .kb-spacer { flex: 1; }
 .kb-type { text-transform: uppercase; letter-spacing: 1px; }
 .kb-type.pdf { background: rgba(232, 95, 61, 0.15); color: #e85f3d; }
+[data-theme="light"] .kb-type.pdf { color: #b23c1f; }
+[data-theme="eye"] .kb-type.pdf { color: #96411f; }
 .kb-type.md { background: rgba(91, 124, 250, 0.12); color: var(--brand); }
 .kb-pdf-prog { font-size: 12px; color: var(--muted); }
 .kb-act { padding: 4px 12px; }
@@ -1150,7 +1152,7 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
 .kb-toc-item.active {
   background: rgba(91, 124, 250, 0.16);
   border-left: 2px solid var(--brand);
-  color: #93b1ff;
+  color: var(--brand-soft);
   font-weight: 600;
 }
 

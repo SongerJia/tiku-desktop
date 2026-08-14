@@ -526,7 +526,7 @@ async function save() {
 
 .err {
   font-size: 12px;
-  color: #ffb3c1;
+  color: var(--bad-soft);
   border: 1px solid rgba(255, 77, 109, 0.4);
   background: rgba(255, 77, 109, 0.08);
   border-radius: var(--radius-sm);

@@ -1459,6 +1459,9 @@ onMounted(async () => {
   background: var(--ok); border-radius: 999px; padding: 2px 8px;
   flex-shrink: 0; letter-spacing: .3px;
 }
+/* 浅色/护眼：--ok 为深绿底，深字对比不足 → 白字 */
+[data-theme="light"] .goal-on { color: #fff; }
+[data-theme="eye"] .goal-on { color: #fff; }
 .goal-tip { font-size: 11px; color: var(--muted); margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); }
 
 /* 成就墙 */
@@ -1481,7 +1484,7 @@ onMounted(async () => {
   text-align: left;
 }
 .medal-float .mf-title { font-size: 12.5px; color: var(--tip-text); font-weight: 500; margin-bottom: 3px; }
-.medal-float .mf-sub { font-size: 10.5px; color: #4fd1a5; margin-bottom: 2px; }
+.medal-float .mf-sub { font-size: 10.5px; color: var(--ok-soft); margin-bottom: 2px; }
 .medal-float .mf-sub.lock { color: var(--tip-muted); }
 .medal-float .mf-desc { font-size: 11px; color: var(--tip-muted); margin-top: 4px; line-height: 1.5; }
 

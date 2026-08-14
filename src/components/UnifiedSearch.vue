@@ -206,4 +206,6 @@ useEsc(() => { if (!reader.value.show) emit('close') }) // 阅读器打开时 Es
 }
 .us-arrow { font-size: 18px; color: var(--brand); }
 .us-badge-pdf.pdf { background: rgba(232, 95, 61, 0.15); color: #e85f3d; }
+[data-theme="light"] .us-badge-pdf.pdf { color: #b23c1f; }
+[data-theme="eye"] .us-badge-pdf.pdf { color: #96411f; }
 </style>

@@ -290,10 +290,10 @@ watch(scope, () => { if (props.show) load() })
 .card-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
 /* 记忆状态徽标（E-1） */
 .mem-badge { font-size: 10px; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
-.mem-badge.ok { background: rgba(47, 191, 143, 0.12); border: 1px solid rgba(47, 191, 143, 0.45); color: #5dcaa5; }
-.mem-badge.mid { background: rgba(91, 124, 250, 0.15); border: 1px solid rgba(91, 124, 250, 0.5); color: #85b7eb; }
-.mem-badge.warn { background: rgba(217, 154, 61, 0.12); border: 1px solid rgba(217, 154, 61, 0.45); color: #ef9f27; }
-.mem-badge.new { background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.35); color: #b4b2a9; }
+.mem-badge.ok { background: rgba(47, 191, 143, 0.12); border: 1px solid rgba(47, 191, 143, 0.45); color: var(--ok-soft); }
+.mem-badge.mid { background: rgba(91, 124, 250, 0.15); border: 1px solid rgba(91, 124, 250, 0.5); color: var(--brand-soft); }
+.mem-badge.warn { background: rgba(217, 154, 61, 0.12); border: 1px solid rgba(217, 154, 61, 0.45); color: var(--warn-soft); }
+.mem-badge.new { background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.35); color: var(--muted); }
 .cat-badge { font-size: 10px; color: var(--brand); border: 1px solid rgba(91, 124, 250, 0.35); border-radius: 5px; padding: 0 6px; font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif; }
 .cat-badge.uncat { color: var(--muted); border-color: var(--line); }
 /* 记忆卡范围角标（点击切换全部/当前科目） */
