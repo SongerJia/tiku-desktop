@@ -1059,16 +1059,6 @@ onMounted(async () => {
   mask: radial-gradient(circle, transparent 58%, #000 62%);
   animation: auraSpin 4s linear infinite;
 }
-/* 慢速流光带叠加（rotate 方案不依赖 --ang，与光弧错相位） */
-.user-aura::before {
-  content: ''; position: absolute; inset: -2px; border-radius: 50%;
-  padding: 1.5px;
-  background: conic-gradient(from 0deg, transparent 0deg, rgba(91, 124, 250, 0.85) 55deg, transparent 115deg);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor; mask-composite: exclude;
-  animation: achSpin 5s linear infinite;
-  opacity: .45;
-}
 .user-aura::after {
   content: ''; position: absolute; inset: 32%;
   border-radius: 50%;
@@ -1555,6 +1545,17 @@ onMounted(async () => {
   width: 56px; height: 56px;
   cursor: pointer;
 }
+/* 头像外圈流光环：双光带绕头像旋转（放容器上，避开 user-aura 的 mask 裁剪） */
+.avatar-wrap::after {
+  content: ''; position: absolute; inset: -3px; border-radius: 50%;
+  padding: 2px; z-index: 1; pointer-events: none;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(91, 124, 250, 0.95) 48deg, transparent 96deg, rgba(122, 92, 255, 0.6) 165deg, transparent 215deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: achSpin 3.4s linear infinite;
+  opacity: .7;
+}
+.avatar-wrap:hover::after { opacity: 1; }
 .avatar-img {
   width: 56px; height: 56px; border-radius: 50%;
   object-fit: cover;
