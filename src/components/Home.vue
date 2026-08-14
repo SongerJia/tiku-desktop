@@ -90,12 +90,6 @@ function onDockAnimEnd(e) {
   if (e.animationName === 'riseIn') e.currentTarget.style.animation = 'none'
 }
 
-// ---- 方案一「光随指动」：柔和光斑跟随鼠标（fixed 层，滚动不跟丢）----
-function onAuraMove(e) {
-  const el = e.currentTarget
-  el.style.setProperty('--mx', e.clientX + 'px')
-  el.style.setProperty('--my', e.clientY + 'px')
-}
 // 目标达成爆光：进度首次到 100% 时目标环脉冲一次（回落后可再次触发）
 const goalBurst = ref(false)
 let goalBursted = false
@@ -354,7 +348,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="home" @mousemove="onAuraMove">
+  <div class="home">
     <SkeletonCards v-if="loading" :count="3" />
 
     <template v-else>
@@ -581,18 +575,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .home { display: flex; flex-direction: column; gap: 14px; }
-/* 方案一「光随指动」：柔和光斑跟随鼠标（fixed 层，淡光叠加在卡片上） */
-.home::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background: radial-gradient(340px 200px at var(--mx, 50%) var(--my, 30%), color-mix(in srgb, var(--brand) 9%, transparent), transparent 70%);
-  opacity: 0;
-  transition: opacity .6s;
-}
-.home:hover::after { opacity: 1; }
 /* 目标达成爆光：环外光晕扩散 + 轻微放大（一次性） */
 .dock-ring.ring-burst { animation: ringBurst .8s ease-out; }
 @keyframes ringBurst {
