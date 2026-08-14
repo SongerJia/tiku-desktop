@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useBodyLock } from '../composables/useBodyLock.js'
 import EmptyState from './EmptyState.vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
@@ -8,6 +9,7 @@ import { useEsc } from '../utils/useEsc.js'
 import Icon from './Icon.vue'
 
 const props = defineProps({ show: Boolean, subject: { type: Object, default: () => ({ id: null, name: '' }) } })
+useBodyLock(() => props.show)
 const emit = defineEmits(['close', 'updated'])
 
 const cards = ref([])

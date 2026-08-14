@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useBodyLock } from '../composables/useBodyLock.js'
 import { tiku } from '../api/tiku.js'
 import Icon from './Icon.vue'
 
@@ -8,6 +9,7 @@ const props = defineProps({
   wide: Boolean,
   preset: { type: Object, default: () => ({ categoryId: null, subjectId: null, presetMode: 'practice', subjectName: '', scopeLabel: '' }) }
 })
+useBodyLock(() => props.show)
 const emit = defineEmits(['confirm', 'cancel', 'resume'])
 
 // 章节维度（2026-08-12 重构）：题目归属是章节粒度，练习范围按章节选。

@@ -1,5 +1,6 @@
 <script setup>
 import Icon from './Icon.vue'
+import { useBodyLock } from '../composables/useBodyLock.js'
 import { ref, computed } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { useEsc } from '../utils/useEsc.js'
@@ -13,6 +14,7 @@ const props = defineProps({
   wide: Boolean,
   subjects: { type: Array, default: () => [] }
 })
+useBodyLock(() => props.show)
 const emit = defineEmits(['close', 'imported'])
 
 const step = ref(1)              // 1 选文件 / 2 预览校验 / 3 结果

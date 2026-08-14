@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, nextTick, watch, onBeforeUnmount } from 'vue'
+import { useBodyLock } from '../composables/useBodyLock.js'
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
 import { tiku } from '../api/tiku.js'
@@ -9,6 +10,7 @@ import { useEsc } from '../utils/useEsc.js'
 import SimpleQuestion from './SimpleQuestion.vue'
 
 const props = defineProps({ show: Boolean, doc: Object })
+useBodyLock(() => props.show)
 const emit = defineEmits(['close', 'open-doc'])
 
 const HL_COLORS = {

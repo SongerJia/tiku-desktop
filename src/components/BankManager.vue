@@ -1,5 +1,6 @@
 <script setup>
 import Icon from './Icon.vue'
+import { useBodyLock } from '../composables/useBodyLock.js'
 import EmptyState from './EmptyState.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
@@ -17,6 +18,7 @@ const props = defineProps({
   initialKeyword: { type: String, default: '' },
   initialSubjectId: { type: [Number, String], default: null }
 })
+useBodyLock(() => props.show)
 const emit = defineEmits(['close', 'changed', 'keyword-consumed'])
 
 const stats = ref({ total: 0, categories: 0, byType: [], bySubject: [] })

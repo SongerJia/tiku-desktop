@@ -1,11 +1,13 @@
 <script setup>
 import { ref, watch } from 'vue'
+import { useBodyLock } from '../composables/useBodyLock.js'
 import { tiku } from '../api/tiku.js'
 import { showConfirm } from '../utils/confirm.js'
 import { showToast } from '../utils/toast.js'
 import { useEsc } from '../utils/useEsc.js'
 
 const props = defineProps({ show: Boolean })
+useBodyLock(() => props.show)
 const emit = defineEmits(['close'])
 
 const backups = ref([])

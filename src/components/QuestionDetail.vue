@@ -89,6 +89,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useBodyLock } from '../composables/useBodyLock.js'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 
@@ -96,6 +97,7 @@ const props = defineProps({
   show: Boolean,
   questionId: { type: Number, default: 0 }
 })
+useBodyLock(() => props.show)
 const emit = defineEmits(['close', 'start'])
 
 const REASONS = ['粗心', '知识点不懂', '时间不够']

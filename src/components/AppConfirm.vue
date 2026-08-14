@@ -1,5 +1,8 @@
 <script setup>
 import { confirmState, resolveConfirm } from '../utils/confirm.js'
+import { useBodyLock } from '../composables/useBodyLock.js'
+
+useBodyLock(() => confirmState.show)
 </script>
 
 <template>

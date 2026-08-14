@@ -1,5 +1,6 @@
 <script setup>
 import Icon from './Icon.vue'
+import { useBodyLock } from '../composables/useBodyLock.js'
 import EmptyState from './EmptyState.vue'
 import { ref, computed, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
@@ -10,6 +11,7 @@ const props = defineProps({
   show: Boolean,
   wide: Boolean
 })
+useBodyLock(() => props.show)
 const emit = defineEmits(['close'])
 
 const list = ref([])

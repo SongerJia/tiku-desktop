@@ -8,6 +8,7 @@ import { celebrate } from '../utils/celebrate.js'
 import { showToast } from '../utils/toast.js'
 import KbReader from './KbReader.vue'
 import { speakText } from '../utils/speech.js'
+import { useBodyLock } from '../composables/useBodyLock.js'
 
 const props = defineProps({
   categoryId: { default: null },
@@ -32,6 +33,7 @@ const props = defineProps({
   resume: { default: null }
 })
 const emit = defineEmits(['exit'])
+useBodyLock(() => true) // 答题页挂载即锁背景滚动（全屏 mask 覆盖），卸载自动释放
 
 const questions = ref([])
 const idx = ref(0)

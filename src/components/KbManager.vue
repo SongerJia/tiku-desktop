@@ -116,6 +116,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useBodyLock } from '../composables/useBodyLock.js'
 import Icon from './Icon.vue'
 import KbReader from './KbReader.vue'
 import { tiku } from '../api/tiku.js'
@@ -127,6 +128,7 @@ const props = defineProps({
   show: Boolean,
   initialSubjectId: { type: [Number, String], default: null }
 })
+useBodyLock(() => props.show)
 const emit = defineEmits(['close', 'changed'])
 
 const docs = ref([])

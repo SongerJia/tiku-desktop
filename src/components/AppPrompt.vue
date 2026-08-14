@@ -2,9 +2,12 @@
 // 全局输入弹层（替代 window.prompt）：Teleport 到 body，脱离组件树；自动聚焦 + Enter 确定 + Esc 取消
 import { ref, watch, nextTick } from 'vue'
 import { promptState, resolvePrompt } from '../utils/prompt.js'
+import { useBodyLock } from '../composables/useBodyLock.js'
 
 const val = ref('')
 const inputEl = ref(null)
+
+useBodyLock(() => promptState.value.show)
 
 watch(() => promptState.value.show, async (v) => {
   if (!v) return

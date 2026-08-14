@@ -2,6 +2,7 @@
 // 科目管理弹窗：新建科目/章节、改名、删除（删除级联其下题目，强确认）
 // 入口：我的 → 数据管理 → 科目管理
 import Icon from './Icon.vue'
+import { useBodyLock } from '../composables/useBodyLock.js'
 import { ref, onMounted, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
@@ -10,6 +11,7 @@ import { showPrompt } from '../utils/prompt.js'
 import { useEsc } from '../utils/useEsc.js'
 
 const props = defineProps({ show: Boolean })
+useBodyLock(() => props.show)
 const emit = defineEmits(['close'])
 
 const tree = ref([])

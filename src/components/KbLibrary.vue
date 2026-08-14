@@ -6,6 +6,7 @@ import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
 import { useEsc } from '../utils/useEsc.js'
+import { useBodyLock } from '../composables/useBodyLock.js'
 import KbReader from './KbReader.vue'
 
 const props = defineProps({ subject: { type: Object, default: () => ({ id: null, name: '' }) }, scope: { type: String, default: 'current' }, refreshToken: { type: Number, default: 0 } })
@@ -18,6 +19,7 @@ const loading = ref(true)
 const importing = ref(false)
 const reader = ref({ show: false, doc: null })
 const editor = ref({ show: false, doc: null, tags: [], title: '', subjectId: null, categoryId: null, chapters: [] })
+useBodyLock(() => editor.value.show)
 // 文档编辑弹窗「所属科目」下拉的数据源
 const subjects = ref([])
 // 知识库范围：'current' 跟随顶部科目（tab 默认）；'all' 全部科目管理（「我的→知识库概览」进入）
