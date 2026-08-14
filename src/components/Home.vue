@@ -419,6 +419,8 @@ onBeforeUnmount(() => {
             <circle cx="30" cy="30" r="25" fill="none" stroke="rgba(148,163,184,0.14)" stroke-width="5"/>
             <circle cx="30" cy="30" r="25" fill="none" stroke="var(--brand)" stroke-width="5" stroke-linecap="round" class="ring-anim"
               :stroke-dasharray="'157 157'" :stroke-dashoffset="ringAnim ? ringOffset : 157" transform="rotate(-90 30 30)"/>
+            <!-- 外圈流光环：双光带绕进度环旋转（引导注意力到今日行动） -->
+            <circle cx="30" cy="30" r="29" fill="none" stroke="var(--brand)" stroke-width="1.6" class="ring-flow" />
           </svg>
           <!-- 环中心数字：HTML 覆盖层（CountUp 滚动与环填充同步） -->
           <div class="ring-center">
@@ -647,6 +649,14 @@ onBeforeUnmount(() => {
 }
 .dock-ring.clickable { cursor: pointer; }
 .dock-ring.clickable:hover { border-color: var(--brand); }
+/* 外圈流光环：双光带绕进度环旋转（transform-box 必须 fill-box） */
+.ring-flow {
+  transform-box: fill-box; transform-origin: center;
+  stroke-dasharray: 24 158 24 158;
+  opacity: .55;
+  animation: ringFlowSpin 3.6s linear infinite;
+}
+@keyframes ringFlowSpin { to { transform: rotate(360deg); } }
 .ring-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
 .dock-actions { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .dock-btn {

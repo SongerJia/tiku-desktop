@@ -1059,6 +1059,16 @@ onMounted(async () => {
   mask: radial-gradient(circle, transparent 58%, #000 62%);
   animation: auraSpin 4s linear infinite;
 }
+/* 慢速流光带叠加（rotate 方案不依赖 --ang，与光弧错相位） */
+.user-aura::before {
+  content: ''; position: absolute; inset: -2px; border-radius: 50%;
+  padding: 1.5px;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(91, 124, 250, 0.85) 55deg, transparent 115deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: achSpin 5s linear infinite;
+  opacity: .45;
+}
 .user-aura::after {
   content: ''; position: absolute; inset: 32%;
   border-radius: 50%;
@@ -1187,16 +1197,29 @@ onMounted(async () => {
   padding: 14px 0; margin-top: 10px; border-top: 1px solid var(--line);
 }
 .sync-ico {
+  position: relative;
   width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   background: rgba(148, 163, 184, 0.12); color: var(--muted);
   box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.25);
   transition: background .2s ease, color .2s ease, box-shadow .2s ease;
 }
+/* 流光环（LogoMark 同款：conic 双光带 + mask 环形 + rotate），未连接隐藏 */
+.sync-ico::after {
+  content: ''; position: absolute; inset: -2px; border-radius: 14px;
+  padding: 1.5px; z-index: 1; pointer-events: none;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(34, 211, 238, 0.95) 48deg, transparent 96deg, rgba(34, 211, 238, 0.55) 165deg, transparent 215deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: achSpin 3.5s linear infinite;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
 .sync-ico.on {
   background: rgba(34, 211, 238, 0.15); color: #22d3ee;
   box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.4), 0 0 12px rgba(34, 211, 238, 0.2);
 }
+.sync-ico.on::after { opacity: .75; }
 .sync-status-main { flex: 1; min-width: 0; }
 .sync-status-line { display: flex; align-items: center; gap: 7px; }
 .sync-status-line b { font-size: 14px; font-weight: 600; color: var(--text); }
@@ -1345,12 +1368,25 @@ onMounted(async () => {
 .goal-row:hover { background: rgba(255, 255, 255, 0.02); border-radius: 8px; }
 /* 图标胶囊：每项目标一个主题色（--gc 实色 + --gc-a 透明版） */
 .goal-ico {
+  position: relative;
   width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   background: rgba(var(--gc-a), 0.13);
   color: var(--gc);
   box-shadow: inset 0 0 0 1px rgba(var(--gc-a), 0.26);
 }
+/* 流光环：已设目标（行内有 .goal-on 徽标）才显示，颜色跟随行主题色 --gc-a */
+.goal-ico::after {
+  content: ''; position: absolute; inset: -2px; border-radius: 12px;
+  padding: 1.5px; z-index: 1; pointer-events: none;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--gc-a), 0.95) 48deg, transparent 96deg, rgba(var(--gc-a), 0.55) 165deg, transparent 215deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: achSpin 3.8s linear infinite;
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.goal-row:has(.goal-on) .goal-ico::after { opacity: .7; }
 .goal-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .goal-name { font-size: 13.5px; font-weight: 600; color: var(--text); }
 .goal-desc { font-size: 11px; color: var(--muted); }
@@ -1665,20 +1701,33 @@ onMounted(async () => {
 .medal.got.gold     { --rr: 217, 165, 20; }
 .medal.got.platinum { --rr: 125, 211, 252; outline: 1px solid rgba(var(--rr), 0.35); outline-offset: 2px; }
 .medal.got .medal-icon { color: rgba(var(--rr), 0.95); opacity: 1; filter: none; }
-/* 特效加码（2026-08-13）：流光描边（conic 光点绕圆旋转，--ang 全局注册）+ 呼吸光晕，稀有度差异化 */
+/* 特效加码（2026-08-14）：外圈流光环——完整光带绕圆旋转（rotate 方案，不依赖 --ang），
+   档位差异化：光带数（铜1/银2/金2/白金3）+ 亮度 + 速度；与内圈 ::after 反向对向转 */
 .medal.got::before {
   content: ''; position: absolute; inset: -2px; border-radius: 50%;
   padding: 2px; z-index: 2; pointer-events: none;
-  background: conic-gradient(from var(--ang), transparent 0deg, rgba(var(--rr), 0.7) 70deg, transparent 140deg);
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 0.9) 55deg, transparent 110deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;
-  animation: angSpin 3s linear infinite;
-  opacity: .55;
+  animation: achSpin 5s linear infinite;
+  opacity: .35;
 }
-.medal.got.bronze::before   { opacity: .25; animation-duration: 5s; }
-.medal.got.silver::before   { opacity: .4;  animation-duration: 4s; }
-.medal.got.gold::before     { opacity: .7;  animation-duration: 2.6s; }
-.medal.got.platinum::before { opacity: .9;  animation-duration: 2s; }
+.medal.got.bronze::before {
+  opacity: .3; animation-duration: 6s;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 0.9) 55deg, transparent 110deg);
+}
+.medal.got.silver::before {
+  opacity: .5; animation-duration: 4.5s;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 0.9) 45deg, transparent 85deg, rgba(var(--rr), 0.6) 175deg, transparent 215deg);
+}
+.medal.got.gold::before {
+  opacity: .75; animation-duration: 3s;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 1) 40deg, transparent 75deg, rgba(var(--rr), 0.75) 160deg, transparent 195deg);
+}
+.medal.got.platinum::before {
+  opacity: .95; animation-duration: 2.2s;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 1) 30deg, transparent 60deg, rgba(var(--rr), 0.85) 125deg, transparent 155deg, rgba(var(--rr), 0.7) 230deg, transparent 260deg);
+}
 /* 内圈反向流光（::after 环形，rotate 旋转不依赖 --ang，与外圈对向转；稀有度差异化） */
 .medal.got::after {
   content: ''; position: absolute; inset: 13%;
@@ -1694,6 +1743,7 @@ onMounted(async () => {
 .medal.got.silver::after   { opacity: .4;  animation-duration: 5s; }
 .medal.got.gold::after     { opacity: .65; animation-duration: 3.2s; }
 .medal.got.platinum::after { opacity: .85; animation-duration: 2.6s; }
+@keyframes achSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes achSpinRev { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
 /* hover 流光加速：内外圈都转快，光效更热烈 */
 .medal.got:hover::before { animation-duration: 1.6s; }
