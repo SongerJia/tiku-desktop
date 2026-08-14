@@ -11,6 +11,7 @@ import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { applyAppearance } from '../utils/appearance.js'
 import { useBodyLock } from '../composables/useBodyLock.js'
+import { useFocusTrap } from '../composables/useFocusTrap.js'
 import WrongBook from './WrongBook.vue'
 import Favorites from './Favorites.vue'
 import NotesList from './NotesList.vue'
@@ -29,6 +30,7 @@ const userName = ref('本地用户')
 const avatar = ref('') // 本地头像（base64，localStorage 存储，不进同步）
 const editOpen = ref(false) // 编辑资料弹窗
 useBodyLock(editOpen)
+useFocusTrap(editOpen, '.ep-panel')
 const editName = ref('')
 const fileInput = ref(null)
 

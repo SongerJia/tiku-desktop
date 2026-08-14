@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
+import { useFocusTrap } from '../composables/useFocusTrap.js'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { useEsc } from '../utils/useEsc.js'
@@ -14,6 +15,7 @@ const props = defineProps({
   defaultCategoryId: { type: [Number, String], default: '' }
 })
 useBodyLock(() => props.show)
+useFocusTrap(() => props.show, '.qe-panel')
 const emit = defineEmits(['close', 'saved'])
 
 const type = ref('single')

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
+import { useFocusTrap } from '../composables/useFocusTrap.js'
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
 import { tiku } from '../api/tiku.js'
@@ -11,6 +12,7 @@ import SimpleQuestion from './SimpleQuestion.vue'
 
 const props = defineProps({ show: Boolean, doc: Object })
 useBodyLock(() => props.show)
+useFocusTrap(() => props.show, '.kb-page')
 const emit = defineEmits(['close', 'open-doc'])
 
 const HL_COLORS = {

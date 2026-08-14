@@ -1,12 +1,14 @@
 <script setup>
 import Icon from './Icon.vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
+import { useFocusTrap } from '../composables/useFocusTrap.js'
 import LogoMark from './LogoMark.vue'
 import { ref, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 
 const props = defineProps({ show: Boolean })
 useBodyLock(() => props.show)
+useFocusTrap(() => props.show, '.ab-box')
 const emit = defineEmits(['close'])
 
 const info = ref({ name: '知识记忆小助手', version: '0.6.0' })

@@ -1,6 +1,7 @@
 <script setup>
 import Icon from './Icon.vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
+import { useFocusTrap } from '../composables/useFocusTrap.js'
 import EmptyState from './EmptyState.vue'
 import { ref, onMounted, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
@@ -8,6 +9,7 @@ import { useEsc } from '../utils/useEsc.js'
 
 const props = defineProps({ show: Boolean, currentId: [Number, String], wide: Boolean })
 useBodyLock(() => props.show)
+useFocusTrap(() => props.show, '.selector-panel')
 const emit = defineEmits(['update:show', 'select', 'close'])
 
 const tree = ref([])

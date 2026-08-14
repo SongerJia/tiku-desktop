@@ -90,6 +90,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
+import { useFocusTrap } from '../composables/useFocusTrap.js'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 
@@ -98,6 +99,7 @@ const props = defineProps({
   questionId: { type: Number, default: 0 }
 })
 useBodyLock(() => props.show)
+useFocusTrap(() => props.show, '.qd-panel')
 const emit = defineEmits(['close', 'start'])
 
 const REASONS = ['粗心', '知识点不懂', '时间不够']

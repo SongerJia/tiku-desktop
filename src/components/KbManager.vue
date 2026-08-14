@@ -117,6 +117,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
+import { useFocusTrap } from '../composables/useFocusTrap.js'
 import Icon from './Icon.vue'
 import KbReader from './KbReader.vue'
 import { tiku } from '../api/tiku.js'
@@ -129,6 +130,7 @@ const props = defineProps({
   initialSubjectId: { type: [Number, String], default: null }
 })
 useBodyLock(() => props.show)
+useFocusTrap(() => props.show, '.km-panel')
 const emit = defineEmits(['close', 'changed'])
 
 const docs = ref([])

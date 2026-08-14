@@ -9,6 +9,7 @@ import { showToast } from '../utils/toast.js'
 import KbReader from './KbReader.vue'
 import { speakText } from '../utils/speech.js'
 import { useBodyLock } from '../composables/useBodyLock.js'
+import { useFocusTrap } from '../composables/useFocusTrap.js'
 
 const props = defineProps({
   categoryId: { default: null },
@@ -34,6 +35,8 @@ const props = defineProps({
 })
 const emit = defineEmits(['exit'])
 useBodyLock(() => true) // 答题页挂载即锁背景滚动（全屏 mask 覆盖），卸载自动释放
+// 焦点圈定：仅 wide（居中模态）时 trap 到 quiz-modal；非 wide 是主内容视图，无需圈定
+useFocusTrap(() => true, () => (props.wide ? document.querySelector('.quiz-modal') : null))
 
 const questions = ref([])
 const idx = ref(0)

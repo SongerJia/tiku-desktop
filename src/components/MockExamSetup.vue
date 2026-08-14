@@ -1,6 +1,7 @@
 <script setup>
 import Icon from './Icon.vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
+import { useFocusTrap } from '../composables/useFocusTrap.js'
 import EmptyState from './EmptyState.vue'
 import { ref, onMounted, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
@@ -14,6 +15,7 @@ const props = defineProps({
   subject: { type: Object, default: () => ({ id: null, name: '' }) }
 })
 useBodyLock(() => props.show)
+useFocusTrap(() => props.show, '.me-panel')
 const emit = defineEmits(['confirm', 'cancel'])
 
 const tab = ref('compose') // compose=新建组卷 / mine=我的试卷

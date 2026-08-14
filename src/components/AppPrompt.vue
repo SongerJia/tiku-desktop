@@ -3,11 +3,13 @@
 import { ref, watch, nextTick } from 'vue'
 import { promptState, resolvePrompt } from '../utils/prompt.js'
 import { useBodyLock } from '../composables/useBodyLock.js'
+import { useFocusTrap } from '../composables/useFocusTrap.js'
 
 const val = ref('')
 const inputEl = ref(null)
 
 useBodyLock(() => promptState.value.show)
+useFocusTrap(() => promptState.value.show, '.pp-box')
 
 watch(() => promptState.value.show, async (v) => {
   if (!v) return

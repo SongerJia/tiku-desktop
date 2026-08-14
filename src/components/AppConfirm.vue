@@ -1,8 +1,10 @@
 <script setup>
 import { confirmState, resolveConfirm } from '../utils/confirm.js'
 import { useBodyLock } from '../composables/useBodyLock.js'
+import { useFocusTrap } from '../composables/useFocusTrap.js'
 
 useBodyLock(() => confirmState.show)
+useFocusTrap(() => confirmState.show, '.cf-box')
 </script>
 
 <template>

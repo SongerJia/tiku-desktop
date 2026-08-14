@@ -3,6 +3,7 @@
 // 入口：我的 → 数据管理 → 科目管理
 import Icon from './Icon.vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
+import { useFocusTrap } from '../composables/useFocusTrap.js'
 import { ref, onMounted, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
@@ -12,6 +13,7 @@ import { useEsc } from '../utils/useEsc.js'
 
 const props = defineProps({ show: Boolean })
 useBodyLock(() => props.show)
+useFocusTrap(() => props.show, '.cat-panel')
 const emit = defineEmits(['close'])
 
 const tree = ref([])

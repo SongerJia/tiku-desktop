@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
+import { useFocusTrap } from '../composables/useFocusTrap.js'
 import { tiku } from '../api/tiku.js'
 import { useEsc } from '../utils/useEsc.js'
 // KbReader 含 Vditor/pdfjs 大依赖，懒加载避免拖进首屏主包
@@ -9,6 +10,7 @@ import SimpleQuestion from './SimpleQuestion.vue'
 
 const props = defineProps({ show: Boolean })
 useBodyLock(() => props.show)
+useFocusTrap(() => props.show, '.us-box')
 const emit = defineEmits(['close'])
 
 const keyword = ref('')

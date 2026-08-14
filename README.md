@@ -2,7 +2,7 @@
 
 一个**本地安装、离线可用**的刷题题库桌面软件。数据全存在你电脑上的一个 SQLite 文件里，不需要服务器、不需要联网、不需要备案。支持分类刷题、选择题自动判分、问答题自评、错题本、收藏、学习统计、模拟卷组卷、题目图片与笔记，以及 CSV / Excel / JSON 导入导出。内置**个人知识库**（md / pdf 知识文档，与题库题目双向联动），升级为"刷题 + 资料库"all-in-one 学习工具。
 
-> 当前版本：**v0.6.3（Phase 1 本地 + Phase 2 全量云同步 + 科目维度全闭环 + 模拟卷/图片 + 个人知识库全闭环 + 学习反馈层 + 赛季系统 + 全局打磨 + 阅读器体验升级 + 自动更新）**。已实现本地刷题全闭环、**GitHub 仓库全量云同步**（学习数据 + 题库 + 知识库文档原件 + 题目图片，跨 Windows/macOS/安卓）、**科目维度全闭环**（题库/错题/收藏/复习/每日一题/薄弱点/知识库/记忆卡全部跟随科目）、模拟卷组卷、题目图片与音频、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就与**赛季挑战**、批量操作、浅色主题，**个人知识库**（md/pdf 导入、全文搜索、阅读、MD 在线编辑、文件夹分类、同步、导出、与题目双向联动、统计），**学习反馈层**（XP 等级、每日任务、每日回顾、番茄钟、习惯打卡、错题原因、文档高亮/双链、周排行、学习周报），**记忆卡**（按科目归类 + SM-2 调度复习）、**全局体验打磨**（应用内 Toast/Confirm、骨架屏、计数动画、Tab 过渡、Esc 关闭、键盘可达、自动备份、首启引导、打包图标）与**学习体验打磨**（知识块间隔复习、练习完成总结、顽固错题优先、键盘快捷键、成就/升级即时庆祝）与**阅读器体验升级**（知识库全屏单栏沉浸阅读页、目录/相关抽屉按需唤出、MD 打开即 **Typora 式所见即所得**（Vditor 即时渲染：点击行即编辑、无工具栏纯正文）、PDF 懒渲染 + 缩放缓存 + Ctrl+滚轮 + 右下角缩放浮层）与**发布体系**（GitHub Releases 应用内自动更新、安装包瘦身、一键安装向导）；Phase 3 用 Capacitor 出 Android APK。
+> 当前版本：**v0.6.3（Phase 1 本地 + Phase 2 全量云同步 + 科目维度全闭环 + 模拟卷/图片 + 个人知识库全闭环 + 学习反馈层 + 赛季系统 + 全局打磨 + 阅读器体验升级 + 自动更新）**。已实现本地刷题全闭环、**GitHub 仓库全量云同步**（学习数据 + 题库 + 知识库文档原件 + 题目图片，跨 Windows/macOS）、**科目维度全闭环**（题库/错题/收藏/复习/每日一题/薄弱点/知识库/记忆卡全部跟随科目）、模拟卷组卷、题目图片与音频、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就（**20 个归类成就 × 4 档**）与**赛季挑战**、批量操作、**三主题**（深色 / 浅色 / 护眼绿），**个人知识库**（md/pdf 导入、全文搜索、阅读、MD 在线编辑、文件夹分类、同步、导出、与题目双向联动、统计），**学习反馈层**（XP 等级、每日任务、每日回顾、番茄钟、错题原因、文档高亮/双链、周排行、学习周报），**记忆卡**（按科目归类 + SM-2 调度复习）、**全局体验打磨**（应用内 Toast/Confirm/Prompt、骨架屏、计数动画、Tab 过渡、Esc 关闭、**弹窗背景滚动锁定 + 焦点圈定**、键盘可达、自动备份、首启引导、打包图标）与**学习体验打磨**（知识块间隔复习、练习完成总结、顽固错题优先、答题键盘快捷键、成就/升级即时庆祝）与**阅读器体验升级**（知识库全屏单栏沉浸阅读页、目录/相关抽屉按需唤出、MD 打开即 **Typora 式所见即所得**（Vditor 即时渲染：点击行即编辑、无工具栏纯正文）、PDF 懒渲染 + 缩放缓存 + Ctrl+滚轮 + 右下角缩放浮层）与**发布体系**（GitHub Releases 应用内自动更新、安装包瘦身、一键安装向导）；Phase 3 用 Capacitor 出 Android APK。
 
 ---
 
@@ -57,9 +57,9 @@
 | **弱点强化** | 按正确率/错题数加权自动抽取最薄弱的题练习 | ✅ 完成 | `getWeakQuestions`；练习设置新增「弱点强化」范围 |
 | **错题深度分析** | 薄弱章节自动识别（正确率升序）+ 相似题推荐 + 交卷逐题解析页 | ✅ 完成 | `getWeakChapters`/`getSimilarQuestions`；Quiz 交卷后可看「你的答案 vs 正确答案 + 解析」 |
 | **模拟卷/错题 导出 PDF** | 打印/导出为 PDF（答题卷 + 答案键 / 错题解析） | ✅ 完成 | `src/utils/print.js` 独立窗口调起系统打印；题干图内联 base64 |
-| **游戏化成就** | 成就墙（10 项）+ 每日目标进度 + 首页今日进度卡 | ✅ 完成 | `getAchievements`；成就阈值在前端派生；目标存 `settings.daily_goal` |
-| **题目批量操作** | 多选题目批量移动章节/打标签/改难度/删除 | ✅ 完成 | `batchUpdateQuestions`/`batchDeleteQuestions`；软删兼容同步 |
-| **浅色主题 + 字号** | 护眼浅色主题、字号 80%–140% 全局缩放 | ✅ 完成 | `data-theme="light"` 覆盖 CSS 变量 + `documentElement.zoom`；存 `settings.theme/font_scale` |
+| **游戏化成就** | 成就墙（**20 个归类成就 × 4 档**：错题/记忆卡/专注/知识库/学习习惯等系列，每档铜银金白金）+ 每日目标进度 + 首页今日进度卡 | ✅ 完成 | `getAchievements`；`src/utils/achievements.js` 共享定义（档位单调校验）；目标存 `settings.daily_goal` |
+| **题目批量操作** | 多选题目批量移动章节/打标签/改难度/删除（含二次确认） | ✅ 完成 | `batchUpdateQuestions`/`batchDeleteQuestions`；软删兼容同步 |
+| **三主题 + 字号** | 深色 / 浅色 / 护眼绿三主题（`--tip-*`/`--num-grad`/`--modal-mask` 等 37+ 语义变量三主题各配），字号 80%–140% 全局缩放 | ✅ 完成 | `data-theme="dark|light|eye"` 覆盖 CSS 变量 + `documentElement.zoom`；`scripts/check-css-vars.py` 强制 var 引用有定义 |
 | **图片跨设备同步** | 题图独立存储跨设备（原仅传文件名会裂图，也不再把 base64 塞进 JSON 快照） | ✅ 完成 | 图片独立存仓库 `images/` 目录（hash 去重双向增量）；`exportImageFiles`/`restoreImages`；manifest 按 sha256 跳过重传 |
 | **个人知识库** | 知识文档（md/pdf）入库、MD 按标题切块 / PDF 逐页抽文本、全文检索、知识库 Tab（列表/搜索/标签/**全屏单栏沉浸阅读**：Vditor IR 即时渲染编辑 + pdfjs 懒渲染）、**题目↔文档双向联动**（解析页「相关文档」+ 文档页「相关题目」+ L2 自动推荐） | ✅ 完成 | `kb_docs`/`kb_blocks`/`kb_tags`/`kb_links` 四表 + `electron/kbExtract.js` + LIKE 检索 + `getSuggestedDocsForQuestion`/`getSuggestedQuestionsForDoc`（共享标签 + 题干/块关键词，零 ML） |
 | **统一搜索** | 顶部搜索按钮一处搜题目 + 知识文档（双组结果，题目速览 / 文档阅读直达） | ✅ 完成 | `UnifiedSearch.vue` + `SimpleQuestion.vue`；并行 `listQuestions(keyword)` + `kbSearch` |
@@ -79,7 +79,6 @@
 | **每日任务 Quest** | 每日 3 任务（刷 20 题/复习 5 条/阅读 1 篇），达标自动发 XP（当天一次） | ✅ 完成 | `checkQuests` 实时判定当天指标，零新表 |
 | **每日回顾** | 到期错题 + 知识库随机块 → 卡片翻面主动回忆，记结果 + XP | ✅ 完成 | `review_logs` + `getDailyReview`；`ReviewPanel.vue` |
 | **专注番茄钟** | 25 分钟专注计时，完成记入统计 + XP | ✅ 完成 | `focus_sessions`；首页卡片计时器 |
-| **习惯打卡** | 多目标习惯（雅思/健身…）每日打卡、连续天数、首页快速打卡 | ✅ 完成 | `habits` + `habit_checks`（UNIQUE 每日一次，随同步） |
 | **错题原因标签** | 错题标记错因（粗心/知识点不懂/时间不够/审题不清/其他），随同步传播 | ✅ 完成 | `wrong_books.reason` 列 + 错题本下拉 |
 | **文档高亮批注** | 阅读时选中文字高亮 + 批注列表 | ✅ 完成 | `kb_highlights`（带 client_id 随同步） |
 | **文档双链** | 文档↔文档双向关联，阅读页搜索关联 + 跳转 | ✅ 完成 | `kb_doc_links`（UNIQUE，cid 引用解析随同步） |
@@ -92,15 +91,14 @@
 | **成就/升级即时庆祝** | 答题/复习/阅读后检测，新成就解锁与等级升级即时 toast 庆祝（首次不打扰老数据） | ✅ 完成 | `utils/achievements.js` 共享定义 + `utils/celebrate.js` 触发器 |
 | **记忆卡** | 正反面记忆卡：添加/批量管理/翻卡复习，复用遗忘曲线调度（记住→3 天 / 忘记→1 天），**按科目归类**（错题/题目一键生成自动继承科目、切科目只看该科目卡、可切全部科目），随仓库同步 | ✅ 完成 | `cards` 表 + `CardsPanel.vue`（科目范围角标 + 列表/翻卡复习）；首页入口显示到期数 |
 | **听力音频** | 题目可配 `audio_url`（本地路径或 http 链接），答题页自动显示播放器——雅思等听力题的扩展点 | ✅ 完成 | `questions.audio_url` 列 + 录题表单字段 + Quiz `<audio>` 渲染；随同步/备份传播 |
-| **习惯增强** | 打卡 +5 XP（当天首次）+ 首页显示近 7 天圆点 + 空态引导；修复打卡勾选图标渲染 bug | ✅ 完成 | `checkHabit` XP 奖励 + `listHabits` 返回 week 位图 |
-| **备份补全** | 整库备份/恢复补上反馈层 7 表（XP/习惯/打卡/回顾/专注/高亮/双链）+ 单词卡——之前备份会丢这些数据 | ✅ 完成 | `exportData` + `importData` 全覆盖，老备份自动跳过 |
+| **备份补全** | 整库备份/恢复补上反馈层 7 表（XP/回顾/专注/高亮/双链/复习日志/单词卡）+ 设置项——之前备份会丢这些数据 | ✅ 完成 | `exportData` + `importData` 全覆盖，老备份自动跳过 |
 | **同步安全加固** | 快照 gzip 压缩体积降 70-85%；下载失败自动重试 3 次 + 备用源（API contents 兜底 raw 502）；同步失败收集重试（成功才写 manifest）；token safeStorage 加密 + 路径穿越防护 + 超时/防重入 | ✅ 完成 | `sync-runner.js` + `sync-github-repo.js`；gh_token 加密文件 |
 | **手动同步** | 「我的 → 数据管理 → 云盘同步（GitHub 仓库）」一键同步（自动保存配置）；测试连接 + 上次同步时间 + 结果摘要（数据/图片/文档增删 + 冲突数 + 失败清单） | ✅ 完成 | `ghSync` IPC + Profile 同步卡；`sync-runner.sync` 双向 |
 | **同步冲突可视** | 合并时统计冲突条数（同记录双端都改过），同步 toast 展示「冲突 N 条（按时间戳覆盖）」 | ✅ 完成 | `makeUpsert` 冲突计数 + Profile toast |
 | **导入备份保护** | 导入备份前**差异预览**：新增/覆盖/本地独有统计 + 明确确认，防误导入覆盖新数据 | ✅ 完成 | `db.importPreview` + Profile 导入确认弹层 |
 | **导入去重三模式** | 题库导入重复处理升级：跳过重复（默认）/ 覆盖更新同题干 / 全部新增；结果页显示更新数 | ✅ 完成 | `duplicateMode` 参数 + ImportWizard 三选 |
 | **导入模板补字段** | CSV/Excel 模板加「听力音频」列，解析器识别 audio 并写入 `audio_url` | ✅ 完成 | `bankParser.js` TEMPLATE_HEADER/别名/数据行 |
-| **全局体验打磨** | 应用内 Toast（替代原生 alert）/ Confirm 弹层（替代原生 confirm）/ 骨架屏加载 / 计数动画 / Tab 切换过渡 / Esc 统一关闭 / 键盘 focus 可达 / 卡片 hover 反馈 | ✅ 完成 | `utils/toast.js` + `AppToast.vue`、`utils/confirm.js` + `AppConfirm.vue`、`SkeletonCards.vue`、`CountUp.vue`、`useEsc.js`；原生弹窗清零 |
+| **全局体验打磨** | 应用内 Toast / Confirm / Prompt 三件套（替代原生弹窗）、骨架屏加载、计数动画、Tab 切换过渡、Esc 统一关闭、**弹窗背景滚动锁定（useBodyLock 计数器式）**、**弹窗焦点圈定（useFocusTrap，Tab 不逃逸背景）**、卡片 hover 反馈 | ✅ 完成 | `utils/toast|confirm|prompt.js` + `AppToast|AppConfirm|AppPrompt.vue`、`SkeletonCards.vue`、`CountUp.vue`、`useEsc.js`、`composables/useBodyLock.js`、`composables/useFocusTrap.js`；原生弹窗清零（window.prompt 已由 AppPrompt 替代） |
 | **数据安全** | 每次启动自动备份 `tiku.db`（按天去重，保留 5 份）+ 主进程全局错误日志 | ✅ 完成 | `db.autoBackup()` → `userData/backups/`；`error.log` |
 | **首启欢迎引导** | 首次启动 3 步引导（导入题库/知识库/设目标），看过后不再显示 | ✅ 完成 | `WelcomeGuide.vue` + `settings.seen_welcome` |
 | **打包发布** | electron-builder 配置（productName/appId/NSIS）+ 1024×1024 精致图标 + 安装包瘦身 + **GitHub Releases 应用内自动更新** | ✅ 完成 | `npm run dist` → `release/`；`npm run release` 发布（防呆查重 + 自动上传）；依赖瘦身（渲染层依赖移 devDependencies，asar 226MB→约 90MB） |
@@ -113,7 +111,7 @@
 > 「我的笔记」入口已从占位升级为真实功能（展示/删除全部笔记）；原「默写记录」「我的反馈」两个纯占位入口已移除。
 
 ### 当前阶段一句话
-v0.6.0 全功能落地：题库闭环、模拟卷、标签、错题、笔记、知识库全链路、反馈层（XP/任务/回顾/番茄/习惯/高亮/双链/周报）、**科目维度全闭环**（题库/错题/收藏/复习/每日一题/薄弱点/知识库/记忆卡全跟科目）、**赛季系统**、全局打磨与数据安全（备份/引导/图标/打包配置）均已完成；**云同步升级为 GitHub 仓库单后端**（学习数据 + 题库 + 知识库文档原件 + 题目图片全量），**发布体系就绪**（bump 升版 + release 发布 + 应用内自动更新）。代码可直接 `npm install && npm run dev` 跑起来，`npm run dist` 可打包安装包，`npm run release` 发布后已装用户自动更新；下一步可选：**Phase 3 安卓 APK** 或 **扫描版 PDF OCR**。
+v0.6.3 全功能落地：题库闭环、模拟卷、标签、错题、笔记、知识库全链路、反馈层（XP/任务/回顾/番茄/高亮/双链/周报）、**科目维度全闭环**、**赛季系统**、**三主题**、全局打磨与数据安全（备份/引导/图标/打包配置）均已完成；**云同步为 GitHub 仓库单后端**（学习数据 + 题库 + 知识库文档原件 + 题目图片全量），**发布体系就绪**（bump 升版 + release 发布 + 应用内自动更新）。代码经过 **5 轮代码审计（38 项修复）+ 全量逐行审查 + UX 交互专项 + 性能优化**，配套 `docs/ui-guidelines.md`（UI 设计规范，改展示元素前必读）与 `docs/audit/`（审计报告）。代码可直接 `npm install && npm run dev` 跑起来，`npm run dist` 可打包安装包，`npm run release` 发布后已装用户自动更新；下一步可选：**发版 v0.6.4（推送 60+ 项修复）**、**Phase 3 安卓 APK** 或 **扫描版 PDF OCR**。
 
 ---
 
@@ -124,22 +122,33 @@ v0.6.0 全功能落地：题库闭环、模拟卷、标签、错题、笔记、�
 tiku-desktop/
 ├─ electron/
 │  ├─ main.js          # 主进程入口：窗口、IPC、菜单隐藏、知识库导入编排
-│  ├─ preload.js       # 渲染层白名单 API（contextIsolation 安全）
-│  ├─ db.js            # SQLite 数据层：建表/判分/统计/导入导出/迁移/kb_* 四表与联动
-│  ├─ kbExtract.js     # 知识库抽取：MD 按标题切块、PDF pdfjs 逐页抽文本、文件名去重
+│  ├─ preload.js       # 渲染层白名单 API（contextIsolation 安全，IPC 三层接线）
+│  ├─ db.js            # SQLite 数据层入口：连接/PRAGMA/备份恢复，拆分加载子模块
+│  ├─ db-schema.js     # 建表 + 迁移（全部 CREATE TABLE/INDEX + ALTER 兜底）
+│  ├─ db-stats.js      # 统计口径（掌握/活跃/今日/正确率，排除背题自评）
+│  ├─ db-gamify.js     # XP/等级/每日任务/周排行
+│  ├─ db-quiz.js       # 答题提交/错题本/收藏/复习调度（SM-2）
+│  ├─ db-bank.js       # 题库 CRUD/搜索/统计（含批量操作）
+│  ├─ db-kb.js         # 知识库四表 + 搜索/联动/阅读埋点
+│  ├─ db-sync.js       # 同步导出/合并（LWW + client_id + review_logs）
+│  ├─ sync-runner.js / sync-github-repo.js   # 云同步执行器 + GitHub 仓库传输
+│  ├─ db-assets.js     # 题图/音频存取（内存缓存 + 魔数识别格式）
+│  ├─ kbExtract.js     # 知识库抽取：MD 按标题切块、PDF pdfjs 逐页抽文本
 │  ├─ xlsx-lite.js     # 零依赖 Excel 读写器
 │  └─ sampleData.js    # 首启样例数据（二级建造师）
 ├─ src/
 │  ├─ App.vue          # 5 Tab 导航 + 顶部科目选择器/统一搜索按钮 + 答题覆盖层
 │  ├─ main.js          # Vue 入口
-│  ├─ style.css        # 全局 CSS 变量 + 基础样式（精致现代暗色主题 + 浅色主题；字体 Inter + Noto Sans SC 本地打包）
-│  ├─ api/tiku.js      # 渲染层 IPC 调用封装（Proxy 自动转发 window.electronAPI + 统一错误日志）
-│  ├─ utils/bankParser.js   # CSV/Excel/JSON 题库解析与校验
-│  ├─ utils/print.js        # 独立窗口打印/导出 PDF
-│  ├─ utils/appearance.js   # 主题/字号应用
-│  └─ components/      # 页面与业务组件（KbLibrary/KbReader/UnifiedSearch/SimpleQuestion 为知识库新增）
-├─ public/            # 静态资源（logo、主题初始化脚本）
-├─ scripts/            # 独立测试脚本（test-kb.py / test-kb-extract.mjs / test-parser.mjs / test-xlsx.mjs / test-mock-paper.js / test-tag-filter.py）
+│  ├─ style.css        # 全局 CSS 变量（三主题 dark/light/eye）+ 基础样式
+│  ├─ api/tiku.js      # 渲染层 IPC 调用封装（Proxy 自动转发 window.electronAPI）
+│  ├─ composables/     # useBodyLock（弹窗背景滚动锁定）/ useFocusTrap（弹窗焦点圈定）/ useResponsive
+│  ├─ utils/           # toast/confirm/prompt 三件套、appearance、achievements、print 等
+│  └─ components/      # 页面与业务组件（34 个）
+├─ docs/
+│  ├─ ui-guidelines.md # UI 设计规范（三主题/页面/弹窗/浮层/提示/特效 + 检查清单）
+│  ├─ audit/           # 5 轮代码审计报告 + 修复清单（38 项）
+│  └─ import-guide.md  # 题库导入转换规范（给 AI/协作者）
+├─ scripts/            # 独立测试脚本 + check-css-vars.py（CSS 变量一致性）
 ├─ vite.config.js
 ├─ vite.verify.config.js   # 纯编译校验（不落盘产物）
 └─ package.json
@@ -160,9 +169,14 @@ tiku-desktop/
 6. `electron/main.js`：如导出列需要调整，同步更新 `EXPORT_HEADER`/`bankToMatrix`。
 
 ### 3.4 样式规范
-- 全部颜色用 CSS 变量（见 `style.css`）：`var(--brand)`、`var(--ok)`、`var(--bad)`、`var(--warn)`、`var(--muted)`、`var(--text)`、`var(--bg)`、`var(--card-solid)`、`var(--line)`。
+> **改任何页面/弹窗/浮层/提示/展示元素前，先读 [`docs/ui-guidelines.md`](docs/ui-guidelines.md)**（UI 设计规范：三主题适配 / 弹窗结构 / 浮层 / 提示三件套 / 特效 / 检查清单）。
+- **三主题适配是最高优先级**：颜色一律用 CSS 语义变量（`--brand`/`--ok`/`--bad`/`--warn`/`--text`/`--bg`/`--card`/`--line`/`--tip-*` 等 37+），新增颜色须在 `style.css` 三主题（dark/light/eye）各配定义；`[data-theme="light"]` 覆盖必须同步补 `eye`。
+- 品牌色光晕/边框用 `color-mix(in srgb, var(--brand) X%, transparent)`（dark 零变化，浅色/护眼自动跟随）。
+- `var()` 引用必须有定义：每次审查跑 `python scripts/check-css-vars.py`。
+- 弹窗统一 `{前缀}-mask/panel/header/body` 结构 + Teleport + Esc + `useBodyLock`（背景锁定）+ `useFocusTrap`（焦点圈定）；z-index 分层：弹窗 200–400 / confirm 900 / prompt 910 / toast 999。
+- 提示走全局三件套（`showToast`/`showConfirm`/`showPrompt`），禁自建/原生弹窗。
+- 特效：入场动画统一 `cubic-bezier(.2,.7,.3,1)`；呼吸/循环动画必须 `ease-in-out` 对称 + 只动 `opacity/transform`。
 - 圆角变量：`--radius`、`--radius-sm`；阴影/发光：`--shadow`、`--glow-soft`。
-- 响应式：默认移动端窄屏布局，`.wide` / `@media (min-width: 900px)` 覆盖宽屏。
 - 组件 scoped style，全局原子类放 `style.css`。
 
 ### 3.5 数据库迁移
@@ -240,11 +254,11 @@ npm run release               # ④ 打包 + 上传 GitHub Releases（内置防�
 ## 5. 界面结构
 
 5 个底部 Tab：
-- **首页**：欢迎卡 + 知识卡片总数（计数动画）+ 快捷入口 + 今日目标进度 + **每日任务 Quest** + **习惯打卡** + **每日回顾/番茄钟** + 空题库引导。
-- **题库**（原「知识库」）：搜索框 + 章节筛选 chips + 知识点卡片列表，点卡片即进入答题。题库管理的入口在「我的」。
+- **首页**：欢迎卡 + 问候卡（右上圆环波纹呼吸）+ 今日行动台（目标进度环 + 快捷入口）+ 今日刷题 KPI（渐变数字 + 扫光）+ 每日任务 Quest + 番茄专注 + 每日回顾 + 考试倒计时 + 空题库引导。
+- **题库**：搜索框 + 章节筛选 chips + 知识点卡片列表，点卡片即进入答题。题库管理的入口在「我的」。
 - **知识库**（个人文档）：md / pdf 知识文档的导入、全文搜索、标签筛选、**全屏单栏沉浸阅读**（正文占满，目录/相关为按需唤出的抽屉）；MD 文档**打开即 Typora 式所见即所得**（Vditor IR：整篇渲染、点击行即编辑、无工具栏、自动保存），PDF 懒渲染 + Ctrl+滚轮/右下角浮层缩放；阅读页含「相关题目」+「批注与关联」（高亮 + 文档双链）。
-- **学习统计**：环形掌握进度 + 数字卡 + 学习趋势（周柱状）+ 学习习惯 + 当月学习日历 + 学习周报导出。
-- **我的**：用户卡（右侧紧凑 XP 等级）+ 按类别折叠分组（学习成长：XP/知识库概览/成就墙；偏好设置；习惯管理；云同步与数据；错题与收藏含笔记）+ 底部菜单（**章节进度**弹层：按科目逐章展示 已学/正确率/掌握/错题；**关于我们**弹层：版本/技术栈/GitHub 链接）。
+- **学习统计**：环形掌握进度 + 数字卡 + 学习趋势（周柱状）+ 学习习惯 + 当月学习日历 + 每日任务空态直达设置 + 学习周报导出。
+- **我的**：用户卡（首字头像/上传头像 + XP 等级 + 勋章区）+ 按类别折叠分组（勋章墙 / 学习目标 / 偏好设置 / 云同步 / 题库 / 知识库 / 数据 / 错题收藏 / 关于我们）+ 编辑资料弹窗（名字 + 头像，未换图自动首字头像）。
 
 顶部为**科目选择器**（点击弹出底部抽屉）与**统一搜索按钮**（🔍，一处搜题目 + 知识文档）。答题页（`Quiz.vue`）覆盖在 Tab 之上；考试模式支持「提前交卷」（确认后收卷）。
 
@@ -270,8 +284,8 @@ npm run release               # ④ 打包 + 上传 GitHub Releases（内置防�
 | 表 | 作用 |
 |---|---|
 | `xp_logs` | XP 事件流水（刷题/复习/阅读/专注/任务），**事件行按 client_id 去重，多端总量正确** |
-| `habits` / `habit_checks` | 多目标习惯 + 每日打卡（`UNIQUE(habit_id, check_date)`，跨设备同日合并不冲突） |
-| `review_logs` | 每日回顾记录（题目/知识块，答对/没想起） |
+| `habits` / `habit_checks` | 多目标习惯 + 每日打卡（表保留兼容老库，**UI 已下线**） |
+| `review_logs` | 每日回顾记录（题目/知识块，答对/没想起；已纳入同步导出） |
 | `focus_sessions` | 番茄钟专注 session |
 | `kb_highlights` | 文档高亮批注（doc 引用按 cid 解析） |
 | `kb_doc_links` | 文档↔文档双链（`UNIQUE(from, to)` + OR IGNORE） |
@@ -401,10 +415,9 @@ npx electron-rebuild
 ```
 
 ### 首启没数据 / 想换自己的题
-首次启动会自动建库并灌入「二级建造师」样题，库文件在系统用户目录（如 `~/tiku.db`）。
-换成自己的题走「我的 → 题库管理 → 批量导入」。
+首次启动会自动建库并灌入「二级建造师」样题，库文件在系统用户数据目录（`userData/`，如 `C:\Users\你\AppData\Roaming\知识记忆小助手\tiku.db`，打包版为 `知识记忆小助手-正式版`）。换成自己的题走「我的 → 题库管理 → 批量导入」。
 
 ### 知识库常见问题
 - **导入 PDF 后搜索不到**：该 PDF 是扫描版（无文本层）。靠文件名 + 手动打标签检索，或「系统阅读器打开」原件；有文字层的 PDF（复制出文字的那种）才能全文检索。
-- **换设备后知识库文档没了**：知识库跨设备同步（阶段 E）尚未实现；当前文档只在本机 `userData/kb/`，同步的是题库学习数据。
+- **换设备后知识库文档丢了**：确认同步是否成功（「我的 → 云同步」看结果摘要）。知识库文档原件（md/pdf）随仓库 `kb/` 目录双向增量同步，元数据走快照合并；若未配置同步或同步失败，文档只在本机 `userData/kb/`。
 - **搜索中文词没结果**：确认关键词在文档正文/标题里确实存在；`LIKE` 是子串匹配，个别长句分词边界（见「知识库能力与使用」）可能导致推荐 miss，可给文档打标签后按标签筛选。
