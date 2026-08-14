@@ -255,6 +255,7 @@ async function importData(event) {
 // ---- 外观 / 偏好 ----
 const theme = ref('dark')
 const fontScale = ref('1')
+const compact = ref(false) // 数据密度：紧凑模式（App.vue 读设置加 .compact class）
 const examDate = ref('') // 目标考试日（YYYY-MM-DD），首页显示倒计时
 async function setTheme(t) {
   theme.value = t
@@ -264,6 +265,14 @@ async function setTheme(t) {
 async function setFontScale(v) {
   fontScale.value = v
   await tiku.setSetting('font_scale', String(v))
+  await applyAppearance()
+}
+// 拖动只更新预览（气泡/刻度/百分比），松开（change）才应用全局字号 → 消除拖动时页面实时抖动
+function onScaleDrag(e) { fontScale.value = e.target.value }
+function onScaleCommit(e) { setFontScale(e.target.value) }
+async function setCompact(v) {
+  compact.value = v
+  await tiku.setSetting('compact_mode', v ? '1' : '0')
   await applyAppearance()
 }
 async function setExamDate(v) {
@@ -412,13 +421,14 @@ function toggleSec(k) {
 }
 
 onMounted(async () => {
-  const [tR, fR, achR, msR] = await Promise.allSettled([
-    tiku.getSetting('theme'), tiku.getSetting('font_scale'),
+  const [tR, fR, cR, achR, msR] = await Promise.allSettled([
+    tiku.getSetting('theme'), tiku.getSetting('font_scale'), tiku.getSetting('compact_mode'),
     tiku.getAchievements(),
     tiku.getMonthStats()
   ])
   if (tR.status === 'fulfilled') theme.value = tR.value || 'dark'
   if (fR.status === 'fulfilled') fontScale.value = fR.value || '1'
+  if (cR.status === 'fulfilled') compact.value = cR.value === '1'
   try { const n = await tiku.getSetting('user_name'); if (n) userName.value = n } catch (e) {}
   try { avatar.value = localStorage.getItem('tiku_avatar') || '' } catch (e) {}
   if (achR.status === 'fulfilled' && msR.status === 'fulfilled') metrics.value = { ...achR.value, ...msR.value }
@@ -631,16 +641,30 @@ onMounted(async () => {
         </div>
       </div>
       <div class="pref-row">
-        <span class="pref-label">字号 <b class="pref-pct">{{ Math.round(fontScale * 100) }}%</b></span>
+        <span class="pref-label">字号</span>
         <span class="pref-a">A</span>
         <div class="pref-range-wrap">
-          <input class="pref-range" type="range" min="0.8" max="1.4" step="0.05" :value="fontScale" @input="setFontScale($event.target.value)"
+          <div class="pref-bubble" :style="{ left: `calc(${(fontScale - 0.8) / 0.6 * 100}% - 19px)` }">
+            <b>{{ Math.round(fontScale * 100) }}%</b>
+          </div>
+          <input class="pref-range" type="range" min="0.8" max="1.4" step="0.05" :value="fontScale"
+                 @input="onScaleDrag" @change="onScaleCommit"
                  :style="{ background: `linear-gradient(90deg, var(--brand) ${(fontScale - 0.8) / 0.6 * 100}%, var(--line) ${(fontScale - 0.8) / 0.6 * 100}%)` }" />
           <div class="pref-ticks">
-            <i v-for="t in 7" :key="t" :class="{ on: Math.round(fontScale * 100) >= Math.round((0.8 + (t - 1) * 0.1) * 100) }"></i>
+            <i v-for="t in 7" :key="t" :class="{ on: Math.round(fontScale * 100) >= Math.round((0.8 + (t - 1) * 0.1) * 100) }"
+               :style="{ left: ((t - 1) / 6 * 100) + '%' }"></i>
           </div>
         </div>
         <span class="pref-a big">A</span>
+        <button class="pref-reset" :disabled="Math.abs(fontScale - 1) < 0.001" @click="setFontScale(1)" title="重置 100%">↺</button>
+      </div>
+      <div class="pref-row">
+        <span class="pref-label">数据密度</span>
+        <div class="pref-seg">
+          <button class="seg" :class="{ on: !compact }" @click="setCompact(false)">标准</button>
+          <button class="seg" :class="{ on: compact }" @click="setCompact(true)">紧凑</button>
+        </div>
+        <span class="pref-hint">紧凑模式：列表间距更小，一屏看更多</span>
       </div>
     </div>
 
@@ -1520,11 +1544,26 @@ onMounted(async () => {
   animation: tcPop .3s cubic-bezier(.2, .9, .3, 1.3);
 }
 @keyframes tcPop { from { transform: scale(0); } to { transform: scale(1); } }
-/* 字号滑块：刻度点 + 品牌色填充 + A 小/A 大 */
-.pref-pct { color: var(--brand); font-weight: 700; margin-left: 4px; font-variant-numeric: tabular-nums; }
+/* 字号滑块：气泡跟随 + 刻度精确对齐 + 重置 */
 .pref-a { font-size: 12px; color: var(--muted); flex-shrink: 0; }
 .pref-a.big { font-size: 16px; }
-.pref-range-wrap { flex: 1; position: relative; }
+.pref-range-wrap { flex: 1; position: relative; padding-top: 22px; }
+/* 数值气泡：跟随 thumb（left 由百分比驱动，-19px 让气泡中心对齐 thumb） */
+.pref-bubble {
+  position: absolute; top: 0;
+  background: var(--brand); color: #fff;
+  font-size: 11px; font-weight: 700; line-height: 1;
+  padding: 4px 8px; border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(91, 124, 250, 0.4);
+  transition: left .05s linear;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.pref-bubble::after {
+  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 4px solid transparent; border-top-color: var(--brand);
+}
+.pref-range-wrap .pref-range { margin-top: 4px; }
 .pref-range {
   width: 100%; accent-color: var(--brand); cursor: pointer;
   -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px;
@@ -1536,11 +1575,34 @@ onMounted(async () => {
   box-shadow: 0 0 8px rgba(91, 124, 250, 0.45);
   cursor: pointer; margin-top: 0;
 }
-.pref-ticks { display: flex; justify-content: space-between; margin-top: 5px; padding: 0 2px; }
+.pref-range:hover::-webkit-slider-thumb { transform: scale(1.15); box-shadow: 0 0 12px rgba(91, 124, 250, 0.65); }
+/* 刻度：绝对定位精确对齐滑块位置（0%/16.7%/…/100%） */
+.pref-ticks { position: relative; height: 6px; margin-top: 6px; }
 .pref-ticks i {
-  width: 3px; height: 5px; border-radius: 1px; background: var(--line); transition: background .2s;
+  position: absolute; top: 0;
+  width: 3px; height: 6px; border-radius: 1px; background: var(--line); transition: background .2s;
+  transform: translateX(-50%);
 }
 .pref-ticks i.on { background: var(--brand); }
+/* 重置按钮 */
+.pref-reset {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
+  border: 1px solid var(--line); background: transparent; color: var(--muted);
+  font-size: 14px; cursor: pointer; transition: all .15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.pref-reset:hover:not(:disabled) { color: var(--brand); border-color: var(--brand); transform: rotate(-30deg); }
+.pref-reset:disabled { opacity: .35; cursor: default; }
+/* 数据密度分段按钮 */
+.pref-seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex-shrink: 0; }
+.pref-seg .seg {
+  padding: 5px 14px; font-size: 12px; cursor: pointer;
+  background: transparent; color: var(--muted); border: none;
+  transition: all .15s;
+}
+.pref-seg .seg + .seg { border-left: 1px solid var(--line); }
+.pref-seg .seg.on { background: var(--brand); color: #fff; font-weight: 600; }
+.pref-hint { flex: 1; color: var(--muted); font-size: 11px; }
 
 /* ===== 我的页铺开（2026-08-12）：渐变语言 / 流光 ===== */
 /* 用户卡/成就墙卡：渐变边框（门面） */
