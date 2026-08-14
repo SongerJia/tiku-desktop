@@ -618,24 +618,23 @@ body::after {
   background: linear-gradient(180deg, var(--brand), var(--brand2));
 }
 
-/* ⑩ 侧栏 logo：缓慢柔光呼吸（静态双层光晕 + opacity 起伏，GPU 合成无重绘；ease-in-out 对称缓动） */
+/* ⑩ 侧栏 logo：波纹呼吸（参考问候卡圆环：静态柔光 + scale 收放 + opacity，幅度更小） */
 .side-brand { position: relative; }
 .side-brand::after {
   content: '';
   position: absolute;
   left: 0;
   top: 50%;
-  transform: translateY(-50%);
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  box-shadow: 0 0 14px color-mix(in srgb, var(--brand) 22%, transparent), 0 0 34px color-mix(in srgb, var(--brand) 12%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--brand) 20%, transparent), 0 0 26px color-mix(in srgb, var(--brand) 10%, transparent);
   pointer-events: none;
   animation: logoPulse 3.2s ease-in-out infinite;
 }
 @keyframes logoPulse {
-  0%, 100% { opacity: .4; }
-  50% { opacity: 1; }
+  0%, 100% { transform: translateY(-50%) scale(1); opacity: .55; }
+  50% { transform: translateY(-50%) scale(1.12); opacity: 1; }
 }
 
 /* 流光描边共用的旋转动画（全局注册，供各组件 hover 流光复用） */
