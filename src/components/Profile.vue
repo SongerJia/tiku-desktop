@@ -255,7 +255,6 @@ async function importData(event) {
 // ---- 外观 / 偏好 ----
 const theme = ref('dark')
 const fontScale = ref('1')
-const compact = ref(false) // 数据密度：紧凑模式（App.vue 读设置加 .compact class）
 const examDate = ref('') // 目标考试日（YYYY-MM-DD），首页显示倒计时
 async function setTheme(t) {
   theme.value = t
@@ -270,11 +269,6 @@ async function setFontScale(v) {
 // 拖动只更新预览（气泡/刻度/百分比），松开（change）才应用全局字号 → 消除拖动时页面实时抖动
 function onScaleDrag(e) { fontScale.value = e.target.value }
 function onScaleCommit(e) { setFontScale(e.target.value) }
-async function setCompact(v) {
-  compact.value = v
-  await tiku.setSetting('compact_mode', v ? '1' : '0')
-  await applyAppearance()
-}
 async function setExamDate(v) {
   examDate.value = v || ''
   await tiku.setSetting(goalKey('exam_date'), v || '')
@@ -421,14 +415,13 @@ function toggleSec(k) {
 }
 
 onMounted(async () => {
-  const [tR, fR, cR, achR, msR] = await Promise.allSettled([
-    tiku.getSetting('theme'), tiku.getSetting('font_scale'), tiku.getSetting('compact_mode'),
+  const [tR, fR, achR, msR] = await Promise.allSettled([
+    tiku.getSetting('theme'), tiku.getSetting('font_scale'),
     tiku.getAchievements(),
     tiku.getMonthStats()
   ])
   if (tR.status === 'fulfilled') theme.value = tR.value || 'dark'
   if (fR.status === 'fulfilled') fontScale.value = fR.value || '1'
-  if (cR.status === 'fulfilled') compact.value = cR.value === '1'
   try { const n = await tiku.getSetting('user_name'); if (n) userName.value = n } catch (e) {}
   try { avatar.value = localStorage.getItem('tiku_avatar') || '' } catch (e) {}
   if (achR.status === 'fulfilled' && msR.status === 'fulfilled') metrics.value = { ...achR.value, ...msR.value }
@@ -657,14 +650,6 @@ onMounted(async () => {
         </div>
         <span class="pref-a big">A</span>
         <button class="pref-reset" :disabled="Math.abs(fontScale - 1) < 0.001" @click="setFontScale(1)" title="重置 100%">↺</button>
-      </div>
-      <div class="pref-row">
-        <span class="pref-label">数据密度</span>
-        <div class="pref-seg">
-          <button class="seg" :class="{ on: !compact }" @click="setCompact(false)">标准</button>
-          <button class="seg" :class="{ on: compact }" @click="setCompact(true)">紧凑</button>
-        </div>
-        <span class="pref-hint">紧凑模式：列表间距更小，一屏看更多</span>
       </div>
     </div>
 
@@ -1593,16 +1578,6 @@ onMounted(async () => {
 }
 .pref-reset:hover:not(:disabled) { color: var(--brand); border-color: var(--brand); transform: rotate(-30deg); }
 .pref-reset:disabled { opacity: .35; cursor: default; }
-/* 数据密度分段按钮 */
-.pref-seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex-shrink: 0; }
-.pref-seg .seg {
-  padding: 5px 14px; font-size: 12px; cursor: pointer;
-  background: transparent; color: var(--muted); border: none;
-  transition: all .15s;
-}
-.pref-seg .seg + .seg { border-left: 1px solid var(--line); }
-.pref-seg .seg.on { background: var(--brand); color: #fff; font-weight: 600; }
-.pref-hint { flex: 1; color: var(--muted); font-size: 11px; }
 
 /* ===== 我的页铺开（2026-08-12）：渐变语言 / 流光 ===== */
 /* 用户卡/成就墙卡：渐变边框（门面） */
