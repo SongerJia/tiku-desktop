@@ -4,13 +4,11 @@ import { ref, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import Home from './components/Home.vue'
 import SubjectSelector from './components/SubjectSelector.vue'
 import UnifiedSearch from './components/UnifiedSearch.vue'
-import CommandPalette from './components/CommandPalette.vue'
 import AppToast from './components/AppToast.vue'
 import AppConfirm from './components/AppConfirm.vue'
 import AppPrompt from './components/AppPrompt.vue'
 import WelcomeGuide from './components/WelcomeGuide.vue'
 import LogoMark from './components/LogoMark.vue'
-import Icon from './components/Icon.vue'
 // 大组件按需拆包：进入对应视图/弹层才加载，首屏 bundle 瘦身（KbReader 的 Vditor/pdfjs 随 chunk 拆出）
 const Quiz = defineAsyncComponent(() => import('./components/Quiz.vue'))
 const Knowledge = defineAsyncComponent(() => import('./components/Knowledge.vue'))
@@ -53,20 +51,6 @@ const kbRefreshToken = ref(0)
 const mock = ref({ active: false })
 // 统一搜索（题目 + 知识文档）
 const showSearch = ref(false)
-// 全局命令面板（侧栏图标打开）
-const showPalette = ref(false)
-const bankKeyword = ref('') // 命令面板「搜索题目」跳转到题库时携带的关键词
-
-function onCommandPalette(cmd) {
-  if (cmd.type === 'tab') switchTab(cmd.key)
-  else if (cmd.type === 'start') onStart({ mode: cmd.mode })
-  else if (cmd.type === 'action' && cmd.name === 'open-bank') { showBank.value = true; bankSubjectId.value = currentSubject.value.id }
-  else if (cmd.type === 'search') {
-    switchTab('bank')
-    bankKeyword.value = cmd.text
-  }
-}
-
 // 切回首页时的刷新计数（驱动 Home 重新加载实时数据）
 const homeRefresh = ref(0)
 // 首启欢迎引导（settings 无 seen_welcome 时显示一次）
@@ -295,13 +279,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
           <span class="side-label">{{ t.label }}</span>
         </button>
       </nav>
-      <div class="side-foot-row">
-        <span class="side-foot">本地数据 · 离线可用</span>
-        <button class="side-cmd-ico" title="命令面板：导航 / 搜索题目 / 快捷动作" aria-label="命令面板" @click="showPalette = true">
-          <Icon name="search" :size="14" />
-          <span class="side-cmd-tip">命令面板</span>
-        </button>
-      </div>
+      <div class="side-foot">本地数据 · 离线可用</div>
       <div class="sidebar-resize" title="拖动调整侧栏宽度" @mousedown="startResize"></div>
     </aside>
 
@@ -392,10 +370,8 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
     <BankManager
       :show="showBank"
       :wide="isWide"
-      :initialKeyword="bankKeyword"
       :initial-subject-id="bankSubjectId"
-      @close="showBank = false; bankKeyword = ''"
-      @keyword-consumed="bankKeyword = ''"
+      @close="showBank = false"
       @changed="onBankChanged"
     />
 
@@ -411,7 +387,6 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
     />
 
     <UnifiedSearch :show="showSearch" @close="showSearch = false" />
-    <CommandPalette :show="showPalette" @close="showPalette = false" @command="onCommandPalette" />
     <AppToast />
     <AppConfirm />
     <AppPrompt />
@@ -452,27 +427,6 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
   transition: border-color .2s, box-shadow .2s, color .2s;
 }
 .top-search:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow-soft); }
-/* 侧栏底部：本地数据 + 命令面板图标并列，hover 浮层提示 */
-.side-foot-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 6px;
-  padding: 10px 14px 8px;
-}
-.side-cmd-ico {
-  position: relative; flex-shrink: 0;
-  width: 26px; height: 26px; border-radius: 7px;
-  display: flex; align-items: center; justify-content: center;
-  border: 1px solid transparent; background: transparent; color: var(--muted);
-  cursor: pointer; transition: all .15s;
-}
-.side-cmd-ico:hover { color: var(--brand); border-color: var(--line); background: var(--side-active-bg); }
-.side-cmd-tip {
-  position: absolute; right: 0; bottom: calc(100% + 8px);
-  white-space: nowrap; font-size: 11px; padding: 5px 10px; border-radius: 6px;
-  background: var(--tip-bg); color: var(--tip-text); border: 1px solid var(--line);
-  box-shadow: var(--glow-soft); opacity: 0; transform: translateY(4px);
-  pointer-events: none; transition: opacity .15s, transform .15s; z-index: 20;
-}
-.side-cmd-ico:hover .side-cmd-tip { opacity: 1; transform: translateY(0); }
 .tab-page { height: 100%; }
 .fade-enter-active, .fade-leave-active { transition: opacity .16s ease, transform .16s ease; }
 .fade-enter-from { opacity: 0; transform: translateY(6px); }

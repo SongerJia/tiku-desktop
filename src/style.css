@@ -138,7 +138,7 @@ html, body, #app {
 }
 .side-item.active .side-icon { fill: var(--brand); }
 .side-icon { width: 20px; height: 20px; fill: currentColor; flex-shrink: 0; }
-.side-foot { font-size: 11px; color: var(--muted); letter-spacing: .5px; }
+.side-foot { font-size: 11px; color: var(--muted); text-align: center; padding: 10px 0 2px; letter-spacing: .5px; }
 
 /* 侧栏拖动把手：右边缘 6px 区域可拖拽改宽度 */
 .sidebar-resize {
