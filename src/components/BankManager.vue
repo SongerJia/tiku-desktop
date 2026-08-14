@@ -575,7 +575,7 @@ async function batchDelete() {
   border-radius: var(--radius-sm);
   padding: 9px 6px;
   text-align: center;
-  background: rgba(91, 124, 250, 0.04);
+  background: color-mix(in srgb, var(--brand) 4%, transparent);
   transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
 }
 .stat:hover { border-color: var(--brand); transform: translateY(-1px); box-shadow: var(--glow-soft); }
@@ -616,7 +616,7 @@ async function batchDelete() {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   padding: 11px 12px;
-  background: rgba(91, 124, 250, 0.03);
+  background: color-mix(in srgb, var(--brand) 3%, transparent);
 }
 .q-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
 .q-type {
@@ -644,7 +644,7 @@ async function batchDelete() {
   padding: 1px 6px;
   border: 1px solid var(--line);
   border-radius: 4px;
-  background: rgba(91, 124, 250, 0.10);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
 }
 .q-spacer { flex: 1; }
 .q-stem { font-size: 13px; color: var(--text); line-height: 1.65; }
@@ -662,7 +662,7 @@ async function batchDelete() {
   cursor: pointer;
   transition: all 0.15s;
 }
-.mini:hover { color: var(--brand); border-color: var(--brand); background: rgba(91, 124, 250, 0.08); }
+.mini:hover { color: var(--brand); border-color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, transparent); }
 .mini.danger:hover { color: var(--bad); border-color: var(--bad); background: rgba(255, 77, 109, 0.08); }
 .mini.danger.solid { color: var(--bad); border-color: var(--bad); background: rgba(255, 77, 109, 0.1); }
 .mini[disabled] { opacity: 0.4; cursor: not-allowed; }
@@ -774,7 +774,7 @@ async function batchDelete() {
   cursor: pointer;
   transition: all 0.15s;
 }
-.note-save:hover { background: rgba(91, 124, 250, 0.12); box-shadow: var(--glow-soft); }
+.note-save:hover { background: color-mix(in srgb, var(--brand) 12%, transparent); box-shadow: var(--glow-soft); }
 
 /* 标签筛选 */
 .tag-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
@@ -835,5 +835,5 @@ async function batchDelete() {
 
 /* 题库铺开（2026-08-12）：列表项 hover 渐变底 */
 .q-item { transition: background .15s ease, border-color .15s ease, box-shadow .15s ease; }
-.q-item:hover { background: linear-gradient(135deg, rgba(91, 124, 250, 0.08), rgba(122, 92, 255, 0.04)); }
+.q-item:hover { background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 8%, transparent), color-mix(in srgb, var(--brand2) 4%, transparent)); }
 </style>

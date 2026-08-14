@@ -224,11 +224,11 @@ async function delNote(item) {
 
 /* 次级组件铺开（2026-08-12）：笔记行 hover 渐变底 */
 .nl-item { transition: background .15s ease, border-color .15s ease; }
-.nl-item:hover { background: linear-gradient(135deg, rgba(91, 124, 250, 0.06), rgba(122, 92, 255, 0.03)); }
+.nl-item:hover { background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 6%, transparent), color-mix(in srgb, var(--brand2) 3%, transparent)); }
 
 
 /* 次级组件铺开（2026-08-12）：笔记行 hover 渐变底 */
 .nl-item { transition: background .15s ease, border-color .15s ease; }
-.nl-item:hover { background: linear-gradient(135deg, rgba(91, 124, 250, 0.06), rgba(122, 92, 255, 0.03)); }
+.nl-item:hover { background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 6%, transparent), color-mix(in srgb, var(--brand2) 3%, transparent)); }
 
 </style>

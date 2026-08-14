@@ -167,7 +167,7 @@ function typeLabel(t) {
   color: #ffffff;
   border-color: var(--brand);
   font-weight: 600;
-  box-shadow: 0 2px 10px rgba(91, 124, 250, 0.32);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--brand) 32%, transparent);
 }
 .more-chip {
   border-style: dashed;
@@ -227,7 +227,7 @@ function typeLabel(t) {
   border: 1px solid transparent;
   background-image:
     linear-gradient(var(--card), var(--card)),
-    linear-gradient(135deg, rgba(91, 124, 250, 0.35), rgba(122, 92, 255, 0.35));
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 35%, transparent), color-mix(in srgb, var(--brand2) 35%, transparent));
   background-origin: border-box;
   background-clip: padding-box, border-box;
   position: relative;

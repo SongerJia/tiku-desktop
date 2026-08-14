@@ -98,7 +98,7 @@ function isRight(i) {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 1px 8px;
-  background: rgba(91, 124, 250, 0.08);
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
 }
 .sq-close { padding: 3px 12px; }
 .sq-body { padding: 16px 18px; overflow-y: auto; }

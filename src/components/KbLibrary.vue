@@ -635,27 +635,27 @@ function fmtTime(ts) {
   display: inline-block; font-size: 11px; color: var(--muted);
   border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px;
 }
-.kb-scope-tag.all { color: var(--brand); border-color: rgba(91,124,250,.4); background: rgba(91,124,250,.06); }
+.kb-scope-tag.all { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, transparent); background: color-mix(in srgb, var(--brand) 6%, transparent); }
 .kb-tools .input { flex: 1; }
 .kb-tag-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 /* 知识库 chip 统一样式：与文档卡片 q-tag 一致（圆角矩形 + 品牌色淡背景） */
 .kb-tag-row .filter-chip, .kb-scope-line .filter-chip {
   font-size: 12px; color: var(--brand);
   border: 1px solid var(--line); border-radius: 12px;
-  background: rgba(91, 124, 250, 0.08);
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
   padding: 4px 12px; display: inline-flex; align-items: center; gap: 4px;
   font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
   line-height: 1.5;
 }
 .kb-tag-row .filter-chip:hover, .kb-scope-line .filter-chip:hover {
-  border-color: var(--brand); background: rgba(91, 124, 250, 0.16);
+  border-color: var(--brand); background: color-mix(in srgb, var(--brand) 16%, transparent);
 }
 .kb-tag-row .filter-chip.active, .kb-scope-line .filter-chip.active {
   background: var(--brand); color: #fff; font-weight: 600; border-color: var(--brand);
 }
 .kb-tag-n {
   font-size: 10px; line-height: 14px; min-width: 14px; text-align: center;
-  color: var(--brand); background: rgba(91, 124, 250, 0.14);
+  color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent);
   border-radius: 999px; padding: 0 5px; margin-left: 2px;
 }
 .kb-tag-row .filter-chip.active .kb-tag-n {
@@ -692,7 +692,7 @@ function fmtTime(ts) {
 .kb-head { display: flex; align-items: center; gap: 8px; }
 .kb-type { text-transform: uppercase; letter-spacing: 1px; }
 .kb-type.pdf { background: rgba(232, 95, 61, 0.15); color: #e85f3d; }
-.kb-type.md { background: rgba(91, 124, 250, 0.12); color: var(--brand); }
+.kb-type.md { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
 .kb-title {
   font-size: 14px;
   font-weight: 500;
@@ -710,7 +710,7 @@ function fmtTime(ts) {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 1px 8px;
-  background: rgba(91, 124, 250, 0.08);
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
   cursor: pointer;
   /* 中英混排基线对齐：中文字体优先，英文/数字不再回退到 Segoe UI（基线不同会错位） */
   font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
@@ -755,12 +755,12 @@ function fmtTime(ts) {
 .graph-card { margin-bottom: 12px; }
 .graph-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
 .graph-hint { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
-.graph-svg { width: 100%; background: radial-gradient(circle, rgba(91, 124, 250, 0.07), transparent 72%); border-radius: 12px; }
+.graph-svg { width: 100%; background: radial-gradient(circle, color-mix(in srgb, var(--brand) 7%, transparent), transparent 72%); border-radius: 12px; }
 .g-edge { stroke: var(--line); stroke-width: 1; }
 .g-node { cursor: pointer; }
 .g-node circle { transition: r .12s ease; }
 .g-node:hover circle { fill: var(--brand); }
-.g-md { fill: rgba(91, 124, 250, 0.72); }
+.g-md { fill: color-mix(in srgb, var(--brand) 72%, transparent); }
 .g-pdf { fill: rgba(255, 77, 109, 0.72); }
 .g-label { font-size: 9px; fill: var(--muted); text-anchor: middle; }
 .empty-sm { font-size: 12px; color: var(--muted); padding: 10px 0; }
@@ -770,7 +770,7 @@ function fmtTime(ts) {
   border: 1px solid transparent;
   background-image:
     linear-gradient(var(--card), var(--card)),
-    linear-gradient(135deg, rgba(91, 124, 250, 0.35), rgba(122, 92, 255, 0.35));
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 35%, transparent), color-mix(in srgb, var(--brand2) 35%, transparent));
   background-origin: border-box;
   background-clip: padding-box, border-box;
 }
@@ -793,10 +793,10 @@ function fmtTime(ts) {
   box-shadow: 0 0 8px rgba(232, 95, 61, 0.15);
 }
 .kb-type.md {
-  background: linear-gradient(135deg, rgba(91, 124, 250, 0.28), rgba(122, 92, 255, 0.12));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 28%, transparent), color-mix(in srgb, var(--brand2) 12%, transparent));
   color: var(--brand-soft);
-  border: 1px solid rgba(91, 124, 250, 0.45);
-  box-shadow: 0 0 8px rgba(91, 124, 250, 0.15);
+  border: 1px solid color-mix(in srgb, var(--brand) 45%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--brand) 15%, transparent);
 }
 
 /* A3 分组标题：渐变竖线 + 计数徽章 */
@@ -808,8 +808,8 @@ function fmtTime(ts) {
   background: linear-gradient(180deg, var(--brand), var(--brand2, #7a5cff));
 }
 .kb-group-n {
-  background: rgba(91, 124, 250, 0.12);
-  border: 1px solid rgba(91, 124, 250, 0.3);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
   border-radius: 10px; padding: 1px 8px;
   font-weight: 600; color: var(--brand-soft);
 }
@@ -818,7 +818,7 @@ function fmtTime(ts) {
 .kb-card { position: relative; }
 .kb-continue {
   position: absolute; top: 8px; left: 50%; transform: translateX(-50%) translateY(-4px);
-  background: var(--tip-bg); border: 1px solid rgba(91, 124, 250, 0.45);
+  background: var(--tip-bg); border: 1px solid color-mix(in srgb, var(--brand) 45%, transparent);
   border-radius: 14px; padding: 5px 14px;
   font-size: 11.5px; color: var(--tip-text); white-space: nowrap;
   opacity: 0; pointer-events: none; z-index: 5;
@@ -859,7 +859,7 @@ function fmtTime(ts) {
 .g-legend-item i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 .g-legend-item.muted { color: var(--muted); opacity: .7; }
 .g-node circle { transition: r .12s ease, filter .15s ease; }
-.g-node:hover circle { filter: brightness(1.35) drop-shadow(0 0 4px rgba(91, 124, 250, 0.8)); }
+.g-node:hover circle { filter: brightness(1.35) drop-shadow(0 0 4px color-mix(in srgb, var(--brand) 80%, transparent)); }
 
 
 /* 组内更多按钮：橙色虚线（与章节筛选「更多」同语言） */
@@ -885,7 +885,7 @@ function fmtTime(ts) {
   position: relative; overflow: hidden; border-radius: 10px;
   cursor: grab; touch-action: none;
   border: 1px solid var(--line);
-  background: radial-gradient(circle, rgba(91, 124, 250, 0.05), transparent 72%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--brand) 5%, transparent), transparent 72%);
 }
 .graph-stage:active { cursor: grabbing; }
 .graph-svg { width: 100%; height: auto; display: block; }
@@ -932,7 +932,7 @@ function fmtTime(ts) {
 /* ① 文档卡 hover 流光描边（conic 光点沿边框旋转，首页同款；--ang 全局注册） */
 .kb-card::after {
   content: ''; position: absolute; inset: -1px; border-radius: inherit;
-  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.55) 60deg, transparent 130deg, transparent 360deg);
+  background: conic-gradient(from var(--ang), transparent 0deg, color-mix(in srgb, var(--brand) 55%, transparent) 60deg, transparent 130deg, transparent 360deg);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;
   padding: 1px;
@@ -960,8 +960,8 @@ function fmtTime(ts) {
 .g-node circle { transition: r .12s ease, filter .15s ease; }
 .g-node circle.hub { animation: hubPulse 2.4s ease-in-out infinite; }
 @keyframes hubPulse {
-  0%, 100% { filter: drop-shadow(0 0 2px rgba(91, 124, 250, 0.4)); }
-  50% { filter: drop-shadow(0 0 8px rgba(91, 124, 250, 0.8)); }
+  0%, 100% { filter: drop-shadow(0 0 2px color-mix(in srgb, var(--brand) 40%, transparent)); }
+  50% { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--brand) 80%, transparent)); }
 }
 
 </style>

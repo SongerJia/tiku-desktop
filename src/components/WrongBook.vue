@@ -226,7 +226,7 @@ async function toggleSimilar(qid) {
 .curve-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 10px; }
 .curve-bars { display: flex; align-items: flex-end; gap: 2px; height: 44px; overflow-x: auto; padding-bottom: 2px; }
 .curve-bar-wrap { flex: 0 0 5px; display: flex; align-items: flex-end; height: 100%; }
-.curve-bar { width: 4px; border-radius: 2px 2px 0 0; background: rgba(91, 124, 250, 0.45); min-height: 2px; }
+.curve-bar { width: 4px; border-radius: 2px 2px 0 0; background: color-mix(in srgb, var(--brand) 45%, transparent); min-height: 2px; }
 .curve-bar.today { background: var(--brand); }
 .curve-list { margin-top: 10px; display: flex; flex-direction: column; gap: 4px; }
 .curve-item { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
@@ -249,7 +249,7 @@ async function toggleSimilar(qid) {
 /* 记忆状态徽标（E-1） */
 .mem-badge { font-size: 10.5px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
 .mem-badge.ok { background: rgba(47, 191, 143, 0.12); border: 1px solid rgba(47, 191, 143, 0.45); color: var(--ok-soft); }
-.mem-badge.mid { background: rgba(91, 124, 250, 0.15); border: 1px solid rgba(91, 124, 250, 0.5); color: var(--brand-soft); }
+.mem-badge.mid { background: color-mix(in srgb, var(--brand) 15%, transparent); border: 1px solid color-mix(in srgb, var(--brand) 50%, transparent); color: var(--brand-soft); }
 .mem-badge.bad { background: rgba(229, 83, 95, 0.15); border: 1px solid rgba(229, 83, 95, 0.5); color: var(--bad-soft); }
 .actions { display: flex; gap: 8px; }
 button { border: none; padding: 7px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; }
@@ -276,6 +276,6 @@ button { border: none; padding: 7px 14px; border-radius: 8px; font-size: 13px; c
 .sim-ans { font-size: 11px; color: var(--ok); margin-top: 2px; }
 
 /* 次级组件铺开（2026-08-12）：列表卡 hover 渐变底 */
-.card:hover { background: linear-gradient(135deg, rgba(91, 124, 250, 0.06), rgba(122, 92, 255, 0.03)); }
+.card:hover { background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 6%, transparent), color-mix(in srgb, var(--brand2) 3%, transparent)); }
 
 </style>

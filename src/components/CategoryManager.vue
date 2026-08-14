@@ -161,7 +161,7 @@ async function remove(node) {
   display: flex; align-items: center; gap: 6px;
   padding: 7px 8px; border-radius: 8px; transition: background .15s;
 }
-.cat-row:hover { background: rgba(91, 124, 250, 0.06); }
+.cat-row:hover { background: color-mix(in srgb, var(--brand) 6%, transparent); }
 .cat-row.child { padding-left: 26px; }
 .cat-caret { width: 14px; font-size: 11px; color: var(--muted); cursor: pointer; flex-shrink: 0; }
 .cat-name { font-size: 13px; color: var(--text); cursor: pointer; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

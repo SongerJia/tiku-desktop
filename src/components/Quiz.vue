@@ -1004,7 +1004,7 @@ function optionClass(key) {
 .q-img { max-width: 100%; max-height: 220px; border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--glow-soft); }
 
 .timeup { background: rgba(255, 77, 109, 0.12); border: 1px solid var(--bad); color: var(--bad); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; }
-.material-card { border: 1px solid rgba(91, 124, 250, 0.35); border-radius: 10px; background: rgba(91, 124, 250, 0.05); margin-bottom: 12px; overflow: hidden; cursor: pointer; }
+.material-card { border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--brand) 5%, transparent); margin-bottom: 12px; overflow: hidden; cursor: pointer; }
 .mc-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; font-size: 13px; color: var(--text); }
 .mc-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mc-toggle { font-size: 11px; color: var(--muted); flex-shrink: 0; }
@@ -1176,7 +1176,7 @@ function optionClass(key) {
   color: #fff;
   box-shadow: var(--glow);
 }
-.submit:hover, .next:hover { box-shadow: 0 0 20px rgba(91, 124, 250, 0.6); }
+.submit:hover, .next:hover { box-shadow: 0 0 20px color-mix(in srgb, var(--brand) 60%, transparent); }
 .submit:disabled { background: rgba(255, 255, 255, 0.10); color: var(--muted); box-shadow: none; cursor: not-allowed; flex: 1; }
 .grade-yes { background: rgba(44, 229, 168, 0.18); border: 1px solid var(--ok); color: var(--ok); }
 .grade-yes:hover { box-shadow: 0 0 16px rgba(44, 229, 168, 0.4); }
@@ -1247,7 +1247,7 @@ function optionClass(key) {
   cursor: pointer;
   box-shadow: var(--glow);
 }
-.done button:hover { box-shadow: 0 0 20px rgba(91, 124, 250, 0.6); }
+.done button:hover { box-shadow: 0 0 20px color-mix(in srgb, var(--brand) 60%, transparent); }
 
 /* 逐题解析页 */
 .review { display: flex; flex-direction: column; gap: 12px; }
@@ -1362,7 +1362,7 @@ function optionClass(key) {
   border: 1px solid transparent;
   background-image:
     linear-gradient(var(--card), var(--card)),
-    linear-gradient(135deg, rgba(91, 124, 250, 0.4), rgba(122, 92, 255, 0.4));
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 40%, transparent), color-mix(in srgb, var(--brand2) 40%, transparent));
   background-origin: border-box;
   background-clip: padding-box, border-box;
   position: relative;
@@ -1371,7 +1371,7 @@ function optionClass(key) {
 .card::after {
   content: ''; position: absolute; inset: -1px; border-radius: inherit;
   padding: 1px;
-  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.7) 80deg, transparent 170deg);
+  background: conic-gradient(from var(--ang), transparent 0deg, color-mix(in srgb, var(--brand) 70%, transparent) 80deg, transparent 170deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -1380,7 +1380,7 @@ function optionClass(key) {
 .card:hover::after { opacity: 1; animation: angSpin 2.2s linear infinite; }
 
 /* 选项 hover：品牌渐变底（比原纯色更有层次） */
-.option:hover { background: linear-gradient(135deg, rgba(91, 124, 250, 0.10), rgba(122, 92, 255, 0.06)); }
+.option:hover { background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 10%, transparent), color-mix(in srgb, var(--brand2) 6%, transparent)); }
 
 /* 结果页大数字：渐变（正确率/得分） */
 .rh-pct {

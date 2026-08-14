@@ -787,7 +787,7 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
 .kb-type.pdf { background: rgba(232, 95, 61, 0.15); color: #e85f3d; }
 [data-theme="light"] .kb-type.pdf { color: #b23c1f; }
 [data-theme="eye"] .kb-type.pdf { color: #96411f; }
-.kb-type.md { background: rgba(91, 124, 250, 0.12); color: var(--brand); }
+.kb-type.md { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
 .kb-pdf-prog { font-size: 12px; color: var(--muted); }
 .kb-act { padding: 4px 12px; }
 /* PDF 缩放浮层：右下角，滑条 + −/＋ + 百分比 + 复位 */
@@ -1082,13 +1082,13 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
   font-size: 13px;
   font-weight: 500;
   color: var(--brand);
-  background: rgba(91, 124, 250, 0.05);
+  background: color-mix(in srgb, var(--brand) 5%, transparent);
   user-select: none;
 }
 .kb-links-count {
   font-size: 11px;
   color: var(--muted);
-  background: rgba(91, 124, 250, 0.1);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
   border-radius: 10px;
   padding: 0 8px;
 }
@@ -1146,11 +1146,11 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
   height: 100%;
   background: linear-gradient(90deg, var(--brand), var(--brand2, #7a5cff));
   border-radius: 0 2px 2px 0;
-  box-shadow: 0 0 8px rgba(91, 124, 250, 0.6);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--brand) 60%, transparent);
   transition: width .08s linear;
 }
 .kb-toc-item.active {
-  background: rgba(91, 124, 250, 0.16);
+  background: color-mix(in srgb, var(--brand) 16%, transparent);
   border-left: 2px solid var(--brand);
   color: var(--brand-soft);
   font-weight: 600;
@@ -1160,7 +1160,7 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
 /* ===== 阅读页特效（2026-08-13）：正文聚焦光（极淡，不干扰阅读） ===== */
 .kb-main {
   background:
-    radial-gradient(900px 480px at 50% -4%, rgba(91, 124, 250, 0.05), transparent 62%),
+    radial-gradient(900px 480px at 50% -4%, color-mix(in srgb, var(--brand) 5%, transparent), transparent 62%),
     transparent;
 }
 

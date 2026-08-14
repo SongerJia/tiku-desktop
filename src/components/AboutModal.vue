@@ -125,7 +125,7 @@ function openReleases() {
   position: absolute; inset: -3px;
   border-radius: 19px;
   padding: 1.5px;
-  background: conic-gradient(from 0deg, transparent 0deg, rgba(91, 124, 250, 0.7) 80deg, transparent 160deg);
+  background: conic-gradient(from 0deg, transparent 0deg, color-mix(in srgb, var(--brand) 70%, transparent) 80deg, transparent 160deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -134,18 +134,18 @@ function openReleases() {
   pointer-events: none;
 }
 @keyframes abLogoBreathe {
-  0%, 100% { box-shadow: 0 0 10px rgba(91, 124, 250, 0.18); }
-  50% { box-shadow: 0 0 24px rgba(91, 124, 250, 0.42); }
+  0%, 100% { box-shadow: 0 0 10px color-mix(in srgb, var(--brand) 18%, transparent); }
+  50% { box-shadow: 0 0 24px color-mix(in srgb, var(--brand) 42%, transparent); }
 }
 @keyframes abRingSpin { to { transform: rotate(360deg); } }
 .ab-name { margin: 6px 0 0; font-size: 17px; font-weight: 600; color: var(--text); }
 .ab-ver {
   font-size: 12px;
   color: var(--brand);
-  border: 1px solid rgba(91, 124, 250, 0.35);
+  border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent);
   border-radius: 10px;
   padding: 1px 10px;
-  background: rgba(91, 124, 250, 0.08);
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
 }
 .ab-desc { margin: 6px 0; font-size: 11.5px; line-height: 1.7; color: var(--muted); }
 .ab-stack { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 4px 0 12px; }
@@ -161,7 +161,7 @@ function openReleases() {
 }
 .ab-tag:hover {
   color: var(--text);
-  border-color: rgba(91, 124, 250, 0.45);
+  border-color: color-mix(in srgb, var(--brand) 45%, transparent);
   transform: translateY(-1px);
 }
 .ab-repo { margin-top: 4px; font-size: 12px; font-weight: 500; padding: 6px 14px; }

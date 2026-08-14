@@ -467,7 +467,7 @@ async function save() {
 .audio-row .input { flex: 1; }
 .audio-pick {
   flex-shrink: 0; padding: 8px 14px; border-radius: var(--radius-sm);
-  border: 1px solid var(--line); background: rgba(91, 124, 250, 0.06);
+  border: 1px solid var(--line); background: color-mix(in srgb, var(--brand) 6%, transparent);
   color: var(--muted); font-size: 13px; cursor: pointer; transition: all .15s;
 }
 .audio-pick:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow-soft); }
@@ -477,7 +477,7 @@ async function save() {
   padding: 7px 16px;
   border-radius: 20px;
   border: 1px solid var(--line);
-  background: rgba(91, 124, 250, 0.05);
+  background: color-mix(in srgb, var(--brand) 5%, transparent);
   color: var(--muted);
   font-size: 13px;
   cursor: pointer;
@@ -497,7 +497,7 @@ async function save() {
   height: 32px;
   border-radius: 50%;
   border: 1px solid var(--line);
-  background: rgba(91, 124, 250, 0.05);
+  background: color-mix(in srgb, var(--brand) 5%, transparent);
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;

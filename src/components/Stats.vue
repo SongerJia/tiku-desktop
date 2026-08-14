@@ -491,7 +491,7 @@ async function loadAnalysis() {
         <svg v-if="radarCats.length" viewBox="0 0 180 176" class="radar">
           <polygon :points="gridHex(56)" fill="none" stroke="var(--line)" stroke-width="1"/>
           <polygon :points="gridHex(28)" fill="none" stroke="var(--line)" stroke-width="1"/>
-          <polygon :points="radarPoly" fill="rgba(91,124,250,0.25)" stroke="var(--brand)" stroke-width="2" pathLength="1" class="radar-poly"/>
+          <polygon :points="radarPoly" fill="var(--brand)" fill-opacity="0.25" stroke="var(--brand)" stroke-width="2" pathLength="1" class="radar-poly"/>
           <text x="90" y="80" text-anchor="middle" class="radar-avg">{{ avgRate }}%</text>
           <text x="90" y="94" text-anchor="middle" class="radar-avg-sub">平均正确率</text>
           <circle v-for="(p, i) in radarPoints" :key="p.cat" :cx="p.x" :cy="p.y" r="3" fill="var(--brand)" class="radar-dot" :style="{ animationDelay: (0.55 + i * 0.06) + 's' }">
@@ -605,7 +605,7 @@ async function loadAnalysis() {
 .kpi-strip {
   display: flex; align-items: stretch; gap: 0;
   border: 1px solid var(--line); border-radius: 14px; padding: 12px 8px;
-  background: linear-gradient(135deg, rgba(91, 124, 250, 0.07), rgba(122, 92, 255, 0.04));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 7%, transparent), color-mix(in srgb, var(--brand2) 4%, transparent));
 }
 .kpi-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
 .kpi-sep { width: 1px; background: var(--line); margin: 4px 6px; }
@@ -636,7 +636,7 @@ async function loadAnalysis() {
 .hm-label { position: absolute; top: 0; font-size: 9px; color: var(--muted); white-space: nowrap; }
 .heat-grid { display: grid; grid-auto-flow: column; gap: 2px; }
 .heat-cell { width: 10px; height: 10px; border-radius: 2px; background: rgba(148, 163, 184, 0.14); transition: transform .12s ease, box-shadow .12s ease; }
-.heat-cell:hover { transform: scale(1.35); box-shadow: 0 0 8px rgba(91, 124, 250, 0.45); position: relative; z-index: 2; }
+.heat-cell:hover { transform: scale(1.35); box-shadow: 0 0 8px color-mix(in srgb, var(--brand) 45%, transparent); position: relative; z-index: 2; }
 .heat-cell.ghost { background: transparent; }
 .heat-cell.ghost:hover { box-shadow: none; }
 .heat-cell.today { outline: 1.5px solid var(--brand); outline-offset: 1px; }
@@ -704,7 +704,7 @@ async function loadAnalysis() {
 .rc-fill { height: 100%; border-radius: 3px; }
 .rc-tip {
   padding: 10px 12px; font-size: 12.5px; line-height: 1.6; color: var(--tip-text);
-  background: rgba(91, 124, 250, 0.08); border: 1px solid rgba(91, 124, 250, 0.3); border-radius: 10px;
+  background: color-mix(in srgb, var(--brand) 8%, transparent); border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent); border-radius: 10px;
 }
 .rc-tip b { color: var(--brand); }
 .rc-empty {
@@ -728,7 +728,7 @@ async function loadAnalysis() {
   border: 1px solid transparent;
   background-image:
     linear-gradient(var(--card), var(--card)),
-    linear-gradient(135deg, rgba(91, 124, 250, 0.45), rgba(122, 92, 255, 0.45));
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 45%, transparent), color-mix(in srgb, var(--brand2) 45%, transparent));
   background-origin: border-box;
   background-clip: padding-box, border-box;
   position: relative;
@@ -736,7 +736,7 @@ async function loadAnalysis() {
 .heat-card::after {
   content: ''; position: absolute; inset: -1px; border-radius: inherit;
   padding: 1px;
-  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.7) 80deg, transparent 170deg);
+  background: conic-gradient(from var(--ang), transparent 0deg, color-mix(in srgb, var(--brand) 70%, transparent) 80deg, transparent 170deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -778,7 +778,7 @@ async function loadAnalysis() {
 .heat-card::before {
   content: ''; position: absolute; top: -60px; right: -48px;
   width: 170px; height: 170px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(91, 124, 250, 0.09), transparent 62%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--brand) 9%, transparent), transparent 62%);
   pointer-events: none;
 }
 
@@ -792,7 +792,7 @@ async function loadAnalysis() {
 .analysis-card::after, .reason-card::after, .quest-card::after {
   content: ''; position: absolute; inset: -1px; border-radius: inherit;
   padding: 1px;
-  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.55) 80deg, transparent 170deg);
+  background: conic-gradient(from var(--ang), transparent 0deg, color-mix(in srgb, var(--brand) 55%, transparent) 80deg, transparent 170deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;
   opacity: 0; transition: opacity .2s ease; pointer-events: none; z-index: 1;
@@ -809,7 +809,7 @@ async function loadAnalysis() {
   fill: var(--brand);
   stroke: var(--bg, #0b1020);
   stroke-width: 1.5;
-  filter: drop-shadow(0 0 5px rgba(91, 124, 250, 0.9));
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--brand) 90%, transparent));
   transition: r .2s ease, filter .2s ease;
 }
 
@@ -818,8 +818,8 @@ async function loadAnalysis() {
 /* B1 今日格子：呼吸光晕（品牌光 2.4s 一圈，叠加现有 today outline） */
 .heat-cell.today { animation: heatToday 2.4s ease-in-out infinite; }
 @keyframes heatToday {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(91, 124, 250, 0.35); }
-  50% { box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.55); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 35%, transparent); }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 55%, transparent); }
 }
 
 /* B2 年份切换：淡出 → 数据回来淡入 */
@@ -831,7 +831,7 @@ async function loadAnalysis() {
   transition: background .15s ease;
   border-radius: 8px; padding: 6px 8px; margin: 0 -8px;
 }
-.rc-row:hover { background: rgba(91, 124, 250, 0.07); }
+.rc-row:hover { background: color-mix(in srgb, var(--brand) 7%, transparent); }
 .rc-row:hover .rc-fill { filter: brightness(1.3); }
 
 /* C2 学习习惯数字：渐变 + 弹入（KPI 同语言） */
@@ -856,7 +856,7 @@ async function loadAnalysis() {
 
 /* ④ 曲线点 hover 放大发光（最新点已有专属发光，历史点补反馈） */
 .hist circle { transition: r .15s ease, filter .15s ease; cursor: pointer; }
-.hist circle:hover { r: 4.5; filter: drop-shadow(0 0 5px rgba(91, 124, 250, 0.85)); }
+.hist circle:hover { r: 4.5; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--brand) 85%, transparent)); }
 
 /* ⑦ 曲线面积：淡入（等描边画完后 0.3s 渐显） */
 .hist-area { opacity: 0; animation: areaFade .6s ease 1.1s forwards; }
@@ -864,11 +864,11 @@ async function loadAnalysis() {
 
 /* ⑨ 雷达顶点 hover 放大发光 */
 .radar-dot { transition: r .15s ease, filter .15s ease; cursor: pointer; }
-.radar-dot:hover { r: 4.5; filter: drop-shadow(0 0 5px rgba(91, 124, 250, 0.85)); }
+.radar-dot:hover { r: 4.5; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--brand) 85%, transparent)); }
 
 /* ⑩ 导出周报按钮：hover 品牌光晕 + 微弹 */
 .report-btn { transition: all .18s ease; }
-.report-btn:hover { box-shadow: 0 4px 18px rgba(91, 124, 250, 0.45), 0 0 0 1px rgba(91, 124, 250, 0.5); transform: translateY(-1px); }
+.report-btn:hover { box-shadow: 0 4px 18px color-mix(in srgb, var(--brand) 45%, transparent), 0 0 0 1px color-mix(in srgb, var(--brand) 50%, transparent); transform: translateY(-1px); }
 .report-btn:active { transform: translateY(0) scale(.97); }
 
 

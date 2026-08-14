@@ -26,8 +26,8 @@ const emit = defineEmits(['action'])
 }
 .es-icon {
   width: 54px; height: 54px; border-radius: 50%; margin-bottom: 6px;
-  background: linear-gradient(135deg, rgba(91, 124, 250, 0.14), rgba(122, 92, 255, 0.08));
-  border: 1px solid rgba(91, 124, 250, 0.3);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 14%, transparent), color-mix(in srgb, var(--brand2) 8%, transparent));
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
   display: flex; align-items: center; justify-content: center;
   color: var(--brand);
 }
@@ -35,7 +35,7 @@ const emit = defineEmits(['action'])
 .es-sub { font-size: 12px; color: var(--muted); line-height: 1.6; max-width: 300px; }
 .es-btn {
   margin-top: 8px; background: var(--brand-light); color: var(--brand);
-  border: 1px solid rgba(91, 124, 250, 0.4); border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent); border-radius: 999px;
   padding: 7px 18px; font-size: 12.5px; font-weight: 600; cursor: pointer;
   transition: all .15s;
 }

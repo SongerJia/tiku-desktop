@@ -999,8 +999,8 @@ onMounted(async () => {
   transition: background .2s, border-color .2s;
 }
 .sec-head:hover {
-  background: rgba(91, 124, 250, 0.06);
-  border-color: rgba(91, 124, 250, 0.32);
+  background: color-mix(in srgb, var(--brand) 6%, transparent);
+  border-color: color-mix(in srgb, var(--brand) 32%, transparent);
 }
 .sec-head:hover .sec-title { color: var(--brand); }
 
@@ -1017,8 +1017,8 @@ onMounted(async () => {
 }
 .sec-head:hover .sec-icon { transform: scale(1.06); }
 .sec-icon-learn   { background: rgba(47, 191, 143, 0.14);  color: var(--ok); }
-.sec-icon-goals   { background: rgba(91, 124, 250, 0.14);  color: var(--brand); }
-.sec-icon-prefs   { background: rgba(91, 124, 250, 0.14);  color: var(--brand); }
+.sec-icon-goals   { background: color-mix(in srgb, var(--brand) 14%, transparent);  color: var(--brand); }
+.sec-icon-prefs   { background: color-mix(in srgb, var(--brand) 14%, transparent);  color: var(--brand); }
 .sec-icon-sync    { background: rgba(34, 211, 238, 0.14);  color: #22d3ee; }
 .sec-icon-data    { background: rgba(251, 191, 36, 0.14);  color: #fbbf24; }
 .sec-icon-bank    { background: rgba(139, 92, 246, 0.14);  color: #8b5cf6; }
@@ -1071,10 +1071,10 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.15), 0 4px 14px rgba(91, 124, 250, 0.35);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 15%, transparent), 0 4px 14px color-mix(in srgb, var(--brand) 35%, transparent);
   transition: transform .2s ease, box-shadow .2s ease;
 }
-.user-card:hover .avatar { transform: scale(1.06); box-shadow: 0 0 0 4px rgba(91, 124, 250, 0.24), 0 6px 18px rgba(91, 124, 250, 0.5); }
+.user-card:hover .avatar { transform: scale(1.06); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 24%, transparent), 0 6px 18px color-mix(in srgb, var(--brand) 50%, transparent); }
 .user-info { flex: 0 1 auto; max-width: 200px; overflow: hidden; }
 
 /* 右侧呼吸圈（纯装饰，conic 渐变旋转 + 中心呼吸光点；flex 流内定位不遮挡勋章区） */
@@ -1085,7 +1085,7 @@ onMounted(async () => {
   margin-left: 12px;
   pointer-events: none;
   opacity: .8;
-  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.5) 90deg, transparent 180deg, rgba(122, 92, 255, 0.4) 270deg, transparent 360deg);
+  background: conic-gradient(from var(--ang), transparent 0deg, color-mix(in srgb, var(--brand) 50%, transparent) 90deg, transparent 180deg, color-mix(in srgb, var(--brand2) 40%, transparent) 270deg, transparent 360deg);
   -webkit-mask: radial-gradient(circle, transparent 58%, #000 62%);
   mask: radial-gradient(circle, transparent 58%, #000 62%);
   animation: auraSpin 4s linear infinite;
@@ -1093,7 +1093,7 @@ onMounted(async () => {
 .user-aura::after {
   content: ''; position: absolute; inset: 32%;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(91, 124, 250, 0.85), rgba(91, 124, 250, 0.1) 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--brand) 85%, transparent), color-mix(in srgb, var(--brand) 10%, transparent) 70%);
   animation: auraBreathe 2.6s ease-in-out infinite;
 }
 @keyframes auraSpin { to { --ang: 360deg; } }
@@ -1364,14 +1364,14 @@ onMounted(async () => {
 .pref-sub { flex: 1; color: var(--muted); font-size: 11px; }
 
 /* 学习目标（卡片式：图标 + 名称 + 输入 + 状态徽标） */
-.goal-card { border-color: rgba(91, 124, 250, 0.4); }
+.goal-card { border-color: color-mix(in srgb, var(--brand) 40%, transparent); }
 .goal-scope { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
 /* 科目范围行 */
 .goal-scope-row {
   display: flex; align-items: center; gap: 8px;
   padding: 10px 12px; margin-bottom: 4px;
-  background: rgba(91, 124, 250, 0.06);
-  border: 1px solid rgba(91, 124, 250, 0.16);
+  background: color-mix(in srgb, var(--brand) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 16%, transparent);
   border-radius: 10px;
 }
 .goal-scope-icon { display: inline-flex; color: var(--brand); }
@@ -1431,14 +1431,14 @@ onMounted(async () => {
   overflow: hidden;
   transition: border-color .15s, box-shadow .15s;
 }
-.goal-stepper:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.15); }
+.goal-stepper:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 15%, transparent); }
 .gs-btn {
   width: 28px; height: 30px;
   background: transparent; border: none;
   color: var(--muted); font-size: 15px; line-height: 1;
   cursor: pointer; transition: color .15s, background .15s;
 }
-.gs-btn:hover { color: var(--brand); background: rgba(91, 124, 250, 0.1); }
+.gs-btn:hover { color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, transparent); }
 .gs-btn:active { transform: scale(.92); }
 .goal-unit { font-size: 11px; color: var(--muted); flex-shrink: 0; margin-left: 6px; }
 /* 日期输入：图标 + 输入一体胶囊 */
@@ -1450,7 +1450,7 @@ onMounted(async () => {
   border-radius: 10px; padding: 0 10px;
   transition: border-color .15s, box-shadow .15s;
 }
-.goal-date-wrap:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.15); }
+.goal-date-wrap:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 15%, transparent); }
 .gd-ico { color: var(--muted); flex-shrink: 0; }
 .goal-date-wrap .goal-date { width: auto; min-width: 118px; text-align: left; padding: 6px 0; }
 .goal-date-wrap .goal-date::-webkit-calendar-picker-indicator { filter: invert(.6); cursor: pointer; }
@@ -1478,7 +1478,7 @@ onMounted(async () => {
 .medal-float {
   position: fixed; z-index: 9999; pointer-events: none;
   width: max-content; max-width: 240px;
-  background: var(--tip-bg); border: 1px solid rgba(91, 124, 250, 0.4);
+  background: var(--tip-bg); border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
   border-radius: 10px; padding: 8px 10px;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
   text-align: left;
@@ -1500,8 +1500,8 @@ onMounted(async () => {
   border-radius: 12px; padding: 10px 10px 9px; cursor: pointer;
   transition: all .18s ease;
 }
-.theme-card:hover { border-color: rgba(91, 124, 250, 0.45); transform: translateY(-1px); }
-.theme-card.on { border-color: var(--brand); box-shadow: 0 0 0 1.5px var(--brand), 0 4px 14px rgba(91, 124, 250, 0.22); }
+.theme-card:hover { border-color: color-mix(in srgb, var(--brand) 45%, transparent); transform: translateY(-1px); }
+.theme-card.on { border-color: var(--brand); box-shadow: 0 0 0 1.5px var(--brand), 0 4px 14px color-mix(in srgb, var(--brand) 22%, transparent); }
 .theme-card.on .tc-name { color: var(--text); font-weight: 600; }
 /* mini 界面预览 */
 .tc-preview {
@@ -1528,7 +1528,7 @@ onMounted(async () => {
   background: var(--brand); color: #fff;
   font-size: 11px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 8px rgba(91, 124, 250, 0.6);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--brand) 60%, transparent);
   animation: tcPop .3s cubic-bezier(.2, .9, .3, 1.3);
 }
 @keyframes tcPop { from { transform: scale(0); } to { transform: scale(1); } }
@@ -1542,7 +1542,7 @@ onMounted(async () => {
   background: var(--brand); color: #fff;
   font-size: 11px; font-weight: 700; line-height: 1;
   padding: 4px 8px; border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(91, 124, 250, 0.4);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 40%, transparent);
   transition: left .05s linear;
   pointer-events: none;
   white-space: nowrap;
@@ -1560,10 +1560,10 @@ onMounted(async () => {
 .pref-range::-webkit-slider-thumb {
   -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
   background: #fff; border: 2px solid var(--brand);
-  box-shadow: 0 0 8px rgba(91, 124, 250, 0.45);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--brand) 45%, transparent);
   cursor: pointer; margin-top: 0;
 }
-.pref-range:hover::-webkit-slider-thumb { transform: scale(1.15); box-shadow: 0 0 12px rgba(91, 124, 250, 0.65); }
+.pref-range:hover::-webkit-slider-thumb { transform: scale(1.15); box-shadow: 0 0 12px color-mix(in srgb, var(--brand) 65%, transparent); }
 /* 刻度：绝对定位精确对齐滑块位置（0%/16.7%/…/100%） */
 .pref-ticks { position: relative; height: 6px; margin-top: 6px; }
 .pref-ticks i {
@@ -1588,7 +1588,7 @@ onMounted(async () => {
   border: 1px solid transparent;
   background-image:
     linear-gradient(var(--card), var(--card)),
-    linear-gradient(135deg, rgba(91, 124, 250, 0.4), rgba(122, 92, 255, 0.4));
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 40%, transparent), color-mix(in srgb, var(--brand2) 40%, transparent));
   background-origin: border-box;
   background-clip: padding-box, border-box;
   position: relative;
@@ -1597,7 +1597,7 @@ onMounted(async () => {
 .ach-card::after {
   content: ''; position: absolute; inset: -1px; border-radius: inherit;
   padding: 1px;
-  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.7) 80deg, transparent 170deg);
+  background: conic-gradient(from var(--ang), transparent 0deg, color-mix(in srgb, var(--brand) 70%, transparent) 80deg, transparent 170deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -1632,13 +1632,13 @@ onMounted(async () => {
 .user-card::before {
   content: ''; position: absolute; top: -18px; right: -8px;
   width: 110px; height: 110px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(91, 124, 250, 0.08), transparent 62%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--brand) 8%, transparent), transparent 62%);
   pointer-events: none;
 }
 /* 用户卡瘦身（2026-08-13）：顶部渐变光带 + 本地徽章 + 今日XP胶囊 */
 .user-card::after {
   content: ''; position: absolute; top: 0; left: 0; right: 0; height: 44px;
-  background: linear-gradient(180deg, rgba(91, 124, 250, 0.10), transparent 65%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 10%, transparent), transparent 65%);
   pointer-events: none;
 }
 .local-badge {
@@ -1665,7 +1665,7 @@ onMounted(async () => {
 .avatar-wrap::after {
   content: ''; position: absolute; inset: -3px; border-radius: 50%;
   padding: 2px; z-index: 1; pointer-events: none;
-  background: conic-gradient(from 0deg, transparent 0deg, rgba(91, 124, 250, 0.95) 48deg, transparent 96deg, rgba(122, 92, 255, 0.6) 165deg, transparent 215deg);
+  background: conic-gradient(from 0deg, transparent 0deg, color-mix(in srgb, var(--brand) 95%, transparent) 48deg, transparent 96deg, color-mix(in srgb, var(--brand2) 60%, transparent) 165deg, transparent 215deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;
   animation: achSpin 3.4s linear infinite;
@@ -1675,7 +1675,7 @@ onMounted(async () => {
 .avatar-img {
   width: 56px; height: 56px; border-radius: 50%;
   object-fit: cover;
-  box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.15), 0 4px 14px rgba(91, 124, 250, 0.35);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 15%, transparent), 0 4px 14px color-mix(in srgb, var(--brand) 35%, transparent);
 }
 /* 编辑入口：低调（✎ 低透明），hover 名字区才亮起 */
 .user-name { display: flex; align-items: center; gap: 6px; }
@@ -1704,7 +1704,7 @@ onMounted(async () => {
   background: linear-gradient(135deg, var(--brand), var(--brand2, #7a5cff));
   color: #fff; font-size: 24px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 15%, transparent);
 }
 .ep-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .ep-avatar-hint {

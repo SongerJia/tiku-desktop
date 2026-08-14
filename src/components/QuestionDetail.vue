@@ -193,8 +193,8 @@ function showToast(msg, type) {
   flex-shrink: 0;
 }
 .qd-type {
-  background: rgba(91, 124, 250, 0.15); color: var(--brand, #5b7cfa);
-  border: 1px solid rgba(91, 124, 250, 0.4);
+  background: color-mix(in srgb, var(--brand) 15%, transparent); color: var(--brand, #5b7cfa);
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
   font-size: 12.5px; padding: 4px 12px; border-radius: 7px; flex-shrink: 0;
 }
 .qd-path { font-size: 13.5px; color: var(--muted, #7c8aa5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -235,7 +235,7 @@ function showToast(msg, type) {
 .qd-path-full { font-size: 13px; color: var(--text, #d6e2f5); }
 .qd-tag {
   font-size: 12px; padding: 4px 12px; border-radius: 11px;
-  background: rgba(91, 124, 250, 0.12); border: 1px solid rgba(91, 124, 250, 0.35);
+  background: color-mix(in srgb, var(--brand) 12%, transparent); border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent);
   color: var(--brand-soft);
   font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
   line-height: 1.5;

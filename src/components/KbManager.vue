@@ -339,7 +339,7 @@ function fmtTime(ts) {
   flex-shrink: 0;
 }
 .km-stat {
-  background: rgba(91, 124, 250, 0.04);
+  background: color-mix(in srgb, var(--brand) 4%, transparent);
   border: 1px solid var(--line); border-radius: 10px;
   padding: 9px 6px; text-align: center;
   transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
@@ -387,7 +387,7 @@ function fmtTime(ts) {
 .km-ico {
   width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(91, 124, 250, 0.12); color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand);
 }
 .km-title {
   font-size: 13px; font-weight: 500; color: var(--text);
@@ -410,7 +410,7 @@ function fmtTime(ts) {
   font-size: 11.5px; color: var(--muted); cursor: pointer;
   transition: all .15s ease;
 }
-.km-op:hover { color: var(--brand); border-color: var(--brand); background: rgba(91, 124, 250, 0.08); }
+.km-op:hover { color: var(--brand); border-color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, transparent); }
 .km-op.danger:hover { color: #ff6b6b; border-color: #ff6b6b; background: rgba(255, 107, 107, 0.08); }
 /* 底部行：统计信息右下角 */
 .km-bottom {

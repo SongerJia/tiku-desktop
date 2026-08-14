@@ -406,7 +406,7 @@ function previewText(r) {
   border-radius: var(--radius);
   padding: 26px 16px;
   text-align: center;
-  background: rgba(91, 124, 250, 0.04);
+  background: color-mix(in srgb, var(--brand) 4%, transparent);
   transition: all 0.18s;
 }
 .dropzone.over { border-color: var(--brand); box-shadow: var(--glow-soft); background: var(--brand-light); }
@@ -427,11 +427,11 @@ function previewText(r) {
   border-radius: 20px;
   border: 1px solid var(--line);
   color: var(--muted);
-  background: rgba(91, 124, 250, 0.05);
+  background: color-mix(in srgb, var(--brand) 5%, transparent);
 }
 .tips { margin: 0; padding-left: 18px; color: var(--muted); font-size: 12px; line-height: 1.9; }
 .tips code {
-  background: rgba(91, 124, 250, 0.1);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
   color: var(--brand);
   padding: 1px 5px;
   border-radius: 4px;
@@ -448,7 +448,7 @@ function previewText(r) {
   border-radius: var(--radius-sm);
   padding: 10px 6px;
   text-align: center;
-  background: rgba(91, 124, 250, 0.04);
+  background: color-mix(in srgb, var(--brand) 4%, transparent);
 }
 .stat b { display: block; font-size: 18px; color: var(--text); }
 .stat span { font-size: 11px; color: var(--muted); }
@@ -498,7 +498,7 @@ function previewText(r) {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   padding: 10px;
-  background: rgba(91, 124, 250, 0.03);
+  background: color-mix(in srgb, var(--brand) 3%, transparent);
 }
 .pv-head { display: flex; gap: 8px; align-items: baseline; }
 .pv-type {

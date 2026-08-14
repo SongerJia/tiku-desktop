@@ -283,7 +283,7 @@ watch(scope, () => { if (props.show) load() })
   border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
   transition: border-color .15s;
 }
-.card-item:hover { border-color: rgba(91, 124, 250, 0.35); }
+.card-item:hover { border-color: color-mix(in srgb, var(--brand) 35%, transparent); }
 .card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .card-front { font-size: 14px; font-weight: 600; color: var(--text); }
 .card-back { font-size: 13px; color: var(--muted); }
@@ -291,18 +291,18 @@ watch(scope, () => { if (props.show) load() })
 /* 记忆状态徽标（E-1） */
 .mem-badge { font-size: 10px; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
 .mem-badge.ok { background: rgba(47, 191, 143, 0.12); border: 1px solid rgba(47, 191, 143, 0.45); color: var(--ok-soft); }
-.mem-badge.mid { background: rgba(91, 124, 250, 0.15); border: 1px solid rgba(91, 124, 250, 0.5); color: var(--brand-soft); }
+.mem-badge.mid { background: color-mix(in srgb, var(--brand) 15%, transparent); border: 1px solid color-mix(in srgb, var(--brand) 50%, transparent); color: var(--brand-soft); }
 .mem-badge.warn { background: rgba(217, 154, 61, 0.12); border: 1px solid rgba(217, 154, 61, 0.45); color: var(--warn-soft); }
 .mem-badge.new { background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.35); color: var(--muted); }
-.cat-badge { font-size: 10px; color: var(--brand); border: 1px solid rgba(91, 124, 250, 0.35); border-radius: 5px; padding: 0 6px; font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif; }
+.cat-badge { font-size: 10px; color: var(--brand); border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent); border-radius: 5px; padding: 0 6px; font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif; }
 .cat-badge.uncat { color: var(--muted); border-color: var(--line); }
 /* 记忆卡范围角标（点击切换全部/当前科目） */
 .card-scope {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 11px; color: var(--brand); border: 1px dashed rgba(91,124,250,.4);
+  font-size: 11px; color: var(--brand); border: 1px dashed color-mix(in srgb, var(--brand) 40%, transparent);
   border-radius: 999px; padding: 2px 10px; cursor: pointer; user-select: none; transition: all .15s;
 }
-.card-scope:hover { background: rgba(91,124,250,.08); }
+.card-scope:hover { background: color-mix(in srgb, var(--brand) 8%, transparent); }
 .card-scope.all { color: var(--muted); border-color: var(--line); }
 .state { font-size: 11px; color: var(--muted); }
 .state.due { color: var(--warn); }
@@ -323,7 +323,7 @@ watch(scope, () => { if (props.show) load() })
   transition: transform .2s, border-color .2s;
   position: relative;
 }
-.card:hover { border-color: rgba(91, 124, 250, 0.4); transform: translateY(-2px); }
+.card:hover { border-color: color-mix(in srgb, var(--brand) 40%, transparent); transform: translateY(-2px); }
 .face { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 20px; text-align: center; }
 .face-label { font-size: 11px; color: var(--muted); letter-spacing: 2px; }
 .face-text { font-size: 22px; font-weight: 700; color: var(--text); word-break: break-word; }
@@ -341,6 +341,6 @@ watch(scope, () => { if (props.show) load() })
 
 /* 次级组件铺开（2026-08-12）：卡片行 hover 渐变底 */
 .card-item { transition: background .15s ease, border-color .15s ease, box-shadow .15s ease; }
-.card-item:hover { background: linear-gradient(135deg, rgba(91, 124, 250, 0.06), rgba(122, 92, 255, 0.03)); box-shadow: var(--glow-soft); }
+.card-item:hover { background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 6%, transparent), color-mix(in srgb, var(--brand2) 3%, transparent)); box-shadow: var(--glow-soft); }
 
 </style>

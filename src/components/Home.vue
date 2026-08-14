@@ -588,8 +588,8 @@ onBeforeUnmount(() => {
 .growth-bar {
   display: flex; align-items: center; gap: 8px;
   margin-top: 12px; padding: 10px 12px;
-  background: rgba(91, 124, 250, 0.10);
-  border: 1px solid rgba(91, 124, 250, 0.35);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent);
   border-radius: 10px; cursor: pointer; transition: all .15s;
 }
 /* 昨日小结条 */
@@ -666,7 +666,7 @@ onBeforeUnmount(() => {
 .dock-btn b { font-size: 15px; font-weight: 600; display: block; }
 .db-sub { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
 .dock-btn em { font-style: normal; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; flex-shrink: 0; }
-.dock-btn.review { background: rgba(91, 124, 250, 0.14); border: 1px solid rgba(91, 124, 250, 0.4); }
+.dock-btn.review { background: color-mix(in srgb, var(--brand) 14%, transparent); border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent); }
 .dock-btn.review:hover { box-shadow: var(--glow-soft); }
 .dock-btn.review b { color: var(--brand-soft); }
 .dock-btn.review em { color: var(--brand); }
@@ -735,7 +735,7 @@ onBeforeUnmount(() => {
 .mi-ico { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .mi-ico.wrong { background: rgba(255, 77, 109, 0.14); color: var(--bad); }
 .mi-ico.fav { background: rgba(244, 114, 182, 0.14); color: var(--bad-soft); }
-.mi-ico.all { background: rgba(91, 124, 250, 0.14); color: var(--brand); }
+.mi-ico.all { background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand); }
 .mi-ico.kb { background: rgba(44, 229, 168, 0.14); color: var(--ok); }
 .mi-ico.exam { background: rgba(56, 189, 248, 0.14); color: var(--brand-soft); }
 .mi-ico.cards { background: rgba(167, 139, 250, 0.14); color: var(--brand-soft); }
@@ -757,8 +757,8 @@ onBeforeUnmount(() => {
 
 /* 问候卡：靛蓝渐变打底 + 品牌描边（门面质感） */
 .greet-card {
-  background: linear-gradient(160deg, rgba(91, 124, 250, 0.12), var(--card) 55%);
-  border-color: rgba(91, 124, 250, 0.35);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--brand) 12%, transparent), var(--card) 55%);
+  border-color: color-mix(in srgb, var(--brand) 35%, transparent);
 }
 
 /* 目标进度环：从空环填充到目标值 */
@@ -766,12 +766,12 @@ onBeforeUnmount(() => {
 
 /* 更多宫格：hover 抬升 + 亮底 */
 .more-item { transition: transform .15s ease, background .15s ease, box-shadow .15s ease; }
-.more-item:hover { transform: translateY(-2px); background: rgba(91, 124, 250, 0.08); box-shadow: var(--glow-soft); }
+.more-item:hover { transform: translateY(-2px); background: color-mix(in srgb, var(--brand) 8%, transparent); box-shadow: var(--glow-soft); }
 
 /* ===== 首页审查精修（2026-08-12）：hover 质感统一 + 图标对齐 ===== */
 /* 进度环卡：无论是否可点，统一 hover 抬升亮边 */
 .dock-ring { transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
-.dock-ring:hover { transform: translateY(-2px); box-shadow: var(--glow-soft); border-color: rgba(91, 124, 250, 0.4); }
+.dock-ring:hover { transform: translateY(-2px); box-shadow: var(--glow-soft); border-color: color-mix(in srgb, var(--brand) 40%, transparent); }
 
 /* KPI 条 hover 微亮（只增质感，不暗示可点） */
 .kpi-strip { transition: box-shadow .18s ease; }
@@ -783,7 +783,7 @@ onBeforeUnmount(() => {
 
 /* 薄弱点行 hover 亮底 */
 .weak-item { transition: background .15s ease; border-radius: 8px; }
-.weak-item:hover { background: rgba(91, 124, 250, 0.08); }
+.weak-item:hover { background: color-mix(in srgb, var(--brand) 8%, transparent); }
 /* 薄弱点卡标题：Icon 与文字垂直居中 */
 .weak-card .card-title { display: flex; align-items: center; gap: 6px; }
 
@@ -820,13 +820,13 @@ onBeforeUnmount(() => {
 
 /* ⑤ 问候卡：更浓渐变 + 顶部高光线 */
 .greet-card {
-  background: linear-gradient(160deg, rgba(91, 124, 250, 0.16), var(--card) 60%);
-  border-color: rgba(91, 124, 250, 0.45);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--brand) 16%, transparent), var(--card) 60%);
+  border-color: color-mix(in srgb, var(--brand) 45%, transparent);
   position: relative; overflow: hidden;
 }
 .greet-card::before {
   content: ''; position: absolute; top: 0; left: 10%; right: 10%;
-  height: 1px; background: linear-gradient(90deg, transparent, rgba(91, 124, 250, 0.65), transparent);
+  height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--brand) 65%, transparent), transparent);
 }
 
 /* ⑥ 日期胶囊化 */
@@ -846,10 +846,10 @@ onBeforeUnmount(() => {
 @keyframes numPop { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: scale(1); } }
 
 /* 行动按钮 hover：彩色光晕描边（品牌色晕 + 1px 亮边，质感拉满） */
-.dock-btn.review:hover { box-shadow: 0 6px 22px rgba(91, 124, 250, 0.35), 0 0 0 1px rgba(91, 124, 250, 0.5); }
+.dock-btn.review:hover { box-shadow: 0 6px 22px color-mix(in srgb, var(--brand) 35%, transparent), 0 0 0 1px color-mix(in srgb, var(--brand) 50%, transparent); }
 .dock-btn.daily:hover { box-shadow: 0 6px 22px rgba(47, 191, 143, 0.28), 0 0 0 1px rgba(47, 191, 143, 0.45); }
-.dock-btn.quick:hover { box-shadow: 0 6px 22px rgba(91, 124, 250, 0.3), 0 0 0 1px rgba(91, 124, 250, 0.4); }
-.more-item:hover { box-shadow: var(--glow-soft), 0 0 0 1px rgba(91, 124, 250, 0.3); }
+.dock-btn.quick:hover { box-shadow: 0 6px 22px color-mix(in srgb, var(--brand) 30%, transparent), 0 0 0 1px color-mix(in srgb, var(--brand) 40%, transparent); }
+.more-item:hover { box-shadow: var(--glow-soft), 0 0 0 1px color-mix(in srgb, var(--brand) 30%, transparent); }
 
 /* ===== 实验：hover 流光描边（2026-08-12，用户好奇项，不合适可回退）===== */
 /* @property --ang 已移 style.css 全局注册 */
@@ -857,7 +857,7 @@ onBeforeUnmount(() => {
 .dock-btn::after {
   content: ''; position: absolute; inset: -1px; border-radius: inherit;
   padding: 1px;
-  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.85) 80deg, transparent 170deg);
+  background: conic-gradient(from var(--ang), transparent 0deg, color-mix(in srgb, var(--brand) 85%, transparent) 80deg, transparent 170deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -871,7 +871,7 @@ onBeforeUnmount(() => {
 .more-item::after {
   content: ''; position: absolute; inset: -1px; border-radius: inherit;
   padding: 1px;
-  background: conic-gradient(from var(--ang), transparent 0deg, rgba(91, 124, 250, 0.7) 80deg, transparent 170deg);
+  background: conic-gradient(from var(--ang), transparent 0deg, color-mix(in srgb, var(--brand) 70%, transparent) 80deg, transparent 170deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -891,8 +891,8 @@ onBeforeUnmount(() => {
 .greet-card::after {
   content: ''; position: absolute; top: -42px; right: -34px;
   width: 150px; height: 150px; border-radius: 50%;
-  border: 1px solid rgba(91, 124, 250, 0.20);
-  box-shadow: 0 0 0 20px rgba(91, 124, 250, 0.05), 0 0 0 40px rgba(91, 124, 250, 0.03);
+  border: 1px solid color-mix(in srgb, var(--brand) 20%, transparent);
+  box-shadow: 0 0 0 20px color-mix(in srgb, var(--brand) 5%, transparent), 0 0 0 40px color-mix(in srgb, var(--brand) 3%, transparent);
   pointer-events: none;
 }
 
@@ -900,8 +900,8 @@ onBeforeUnmount(() => {
 .lv-bar { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 .lv-badge {
   flex-shrink: 0; font-size: 11px; font-weight: 600;
-  background: linear-gradient(135deg, rgba(91, 124, 250, 0.25), rgba(122, 92, 255, 0.2));
-  border: 1px solid rgba(91, 124, 250, 0.45); color: var(--tip-text);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 25%, transparent), color-mix(in srgb, var(--brand2) 20%, transparent));
+  border: 1px solid color-mix(in srgb, var(--brand) 45%, transparent); color: var(--tip-text);
   border-radius: 999px; padding: 2px 9px;
 }
 .lv-track { flex: 1; height: 6px; border-radius: 3px; background: rgba(148, 163, 184, 0.14); overflow: hidden; position: relative; }
@@ -922,8 +922,8 @@ onBeforeUnmount(() => {
 .greet-card {
   border: 1px solid transparent;
   background-image:
-    linear-gradient(160deg, rgba(91, 124, 250, 0.16), var(--card) 60%),
-    linear-gradient(135deg, rgba(91, 124, 250, 0.55), rgba(122, 92, 255, 0.55));
+    linear-gradient(160deg, color-mix(in srgb, var(--brand) 16%, transparent), var(--card) 60%),
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 55%, transparent), color-mix(in srgb, var(--brand2) 55%, transparent));
   background-origin: border-box;
   background-clip: padding-box, border-box;
 }
@@ -931,7 +931,7 @@ onBeforeUnmount(() => {
   border: 1px solid transparent;
   background-image:
     linear-gradient(var(--card), var(--card)),
-    linear-gradient(135deg, rgba(91, 124, 250, 0.45), rgba(122, 92, 255, 0.45));
+    linear-gradient(135deg, color-mix(in srgb, var(--brand) 45%, transparent), color-mix(in srgb, var(--brand2) 45%, transparent));
   background-origin: border-box;
   background-clip: padding-box, border-box;
   position: relative;
@@ -939,7 +939,7 @@ onBeforeUnmount(() => {
 
 /* ⑥ 宫格图标 hover：渐变底（品牌紫蓝统一语言） */
 .mi-ico { transition: transform .18s cubic-bezier(.3, .7, .3, 1), background .18s ease; }
-.more-item:hover .mi-ico { background: linear-gradient(135deg, rgba(91, 124, 250, 0.3), rgba(122, 92, 255, 0.2)); }
+.more-item:hover .mi-ico { background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 30%, transparent), color-mix(in srgb, var(--brand2) 20%, transparent)); }
 
 /* ⑧ 环中心数字：HTML 覆盖层（CountUp 滚动与环填充同步） */
 .ring-center {
@@ -965,7 +965,7 @@ onBeforeUnmount(() => {
 .tip {
   position: absolute; bottom: calc(100% + 10px); left: 50%;
   transform: translateX(-50%) translateY(3px);
-  background: var(--tip-bg); border: 1px solid rgba(91, 124, 250, 0.35);
+  background: var(--tip-bg); border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent);
   border-radius: 8px; padding: 6px 11px;
   font-size: 11.5px; color: var(--tip-text); white-space: nowrap; line-height: 1.5;
   opacity: 0; pointer-events: none; z-index: 40;

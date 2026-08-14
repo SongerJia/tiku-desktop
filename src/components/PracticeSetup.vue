@@ -256,8 +256,8 @@ function confirm() {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  border: 1px solid rgba(91, 124, 250, 0.4);
-  background: rgba(91, 124, 250, 0.08);
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+  background: color-mix(in srgb, var(--brand) 8%, transparent);
   border-radius: 10px;
   padding: 10px 14px;
   margin-bottom: 12px;
@@ -375,7 +375,7 @@ function confirm() {
 .btn-outline { background: transparent; border-color: var(--line, #1d2740); color: var(--text, #d6e2f5); }
 .btn-outline:hover { border-color: var(--brand, #5b7cfa); color: var(--brand, #5b7cfa); }
 .btn-primary { background: var(--brand, #5b7cfa); color: #fff; border: none; box-shadow: var(--glow, 0 0 16px rgba(42,245,255,.5)); }
-.btn-primary:hover { box-shadow: 0 0 22px rgba(91, 124, 250, 0.7); }
+.btn-primary:hover { box-shadow: 0 0 22px color-mix(in srgb, var(--brand) 70%, transparent); }
 
 .fade-enter-active, .fade-leave-active { transition: opacity .22s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }

@@ -119,11 +119,11 @@ async function setGroup(it, val) {
 .fav-filter .input { flex: 1; min-width: 110px; }
 .fav-group { font-size: 12px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 4px; }
 .fav-group em { font-style: normal; font-size: 11px; opacity: .8; }
-.fav-group.on { background: rgba(91, 124, 250, 0.12); color: var(--brand); border-color: rgba(91, 124, 250, 0.4); font-weight: 600; }
+.fav-group.on { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, transparent); font-weight: 600; }
 .group-row { margin-top: 6px; }
 .group-select { font-size: 12px; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; }
 
 /* 次级组件铺开（2026-08-12）：列表卡 hover 渐变底 */
-.card:hover { background: linear-gradient(135deg, rgba(91, 124, 250, 0.06), rgba(122, 92, 255, 0.03)); }
+.card:hover { background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 6%, transparent), color-mix(in srgb, var(--brand2) 3%, transparent)); }
 
 </style>
