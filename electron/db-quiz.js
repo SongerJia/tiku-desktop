@@ -175,7 +175,8 @@ module.exports = function quizModule(ctx) {
     },
 
     getWrongBook() {
-      const rows = sqlite.prepare(`SELECT w.*, q.stem, q.type, q.options_json, q.answer_json, q.analysis, q.images_json
+      const rows = sqlite.prepare(`SELECT w.*, q.stem, q.type, q.options_json, q.answer_json, q.analysis, q.images_json,
+        q.category_id, q.subject_id
         FROM wrong_books w JOIN questions q ON q.id=w.question_id
         WHERE w.user_id=? AND w.status='wrong' AND w.deleted=0`).all(LOCAL_USER)
       return rows.map(r => ({
@@ -187,7 +188,8 @@ module.exports = function quizModule(ctx) {
     },
 
     getFavorites() {
-      const rows = sqlite.prepare(`SELECT f.*, q.stem, q.type, q.options_json, q.answer_json, q.images_json
+      const rows = sqlite.prepare(`SELECT f.*, q.stem, q.type, q.options_json, q.answer_json, q.images_json,
+        q.category_id, q.subject_id
         FROM favorites f JOIN questions q ON q.id=f.question_id
         WHERE f.user_id=? AND f.deleted=0`).all(LOCAL_USER)
       return rows.map(r => ({
@@ -245,7 +247,7 @@ module.exports = function quizModule(ctx) {
 
     listNotes() {
       return sqlite.prepare(`SELECT n.question_id, n.content, n.updated_at,
-          q.stem, q.type, c.name AS category
+          q.stem, q.type, c.name AS category, q.category_id, q.subject_id
         FROM notes n
         JOIN questions q ON q.id=n.question_id AND q.deleted=0
         LEFT JOIN categories c ON c.id=q.category_id

@@ -1,7 +1,7 @@
 <script setup>
 import Icon from './Icon.vue'
 import EmptyState from './EmptyState.vue'
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 
 const props = defineProps({
@@ -12,6 +12,27 @@ const emit = defineEmits(['close'])
 
 const list = ref([])
 const toast = ref('')
+
+// 筛选：科目 → 章节（联动）→ 题干模糊搜索
+const filterSubject = ref('')
+const filterCategory = ref('')
+const filterKw = ref('')
+const subjects = ref([])
+const filterChapters = computed(() => {
+  const s = subjects.value.find(x => String(x.id) === String(filterSubject.value))
+  return (s && s.children) || []
+})
+const filtered = computed(() => {
+  const kw = filterKw.value.trim().toLowerCase()
+  const sid = Number(filterSubject.value)
+  const cid = Number(filterCategory.value)
+  return list.value.filter(n => {
+    if (sid && Number(n.subject_id) !== sid) return false
+    if (cid && Number(n.category_id) !== cid) return false
+    if (kw && !String(n.stem || '').toLowerCase().includes(kw)) return false
+    return true
+  })
+})
 
 function showToast(m) {
   toast.value = m
@@ -26,8 +47,8 @@ function fmt(ts) {
 }
 
 async function load() {
-  try { list.value = await tiku.listNotes() }
-  catch (e) { list.value = [] }
+  try { list.value = await tiku.listNotes() } catch (e) { list.value = [] }
+  try { subjects.value = await tiku.getCategories() } catch (e) { subjects.value = [] }
 }
 
 watch(() => props.show, (v) => { if (v) load() })
@@ -52,19 +73,35 @@ async function delNote(item) {
         <div class="nl-body">
           <EmptyState v-if="!list.length" icon="note" text="还没有笔记" sub="在答题页点「笔记」写下你的理解" />
 
-          <div v-else class="nl-list">
-            <div v-for="n in list" :key="n.question_id" class="nl-item">
-              <div class="nl-top">
-                <span class="nl-cat">{{ n.category_name || '未分类' }}</span>
-                <span class="nl-date">{{ fmt(n.updated_at) }}</span>
-              </div>
-              <div class="nl-stem">{{ n.stem }}</div>
-              <div class="nl-content">{{ n.content }}</div>
-              <div class="nl-foot">
-                <button class="mini danger" @click="delNote(n)">删除笔记</button>
+          <template v-else>
+            <!-- 筛选：科目 → 章节（联动）→ 题干模糊搜索 -->
+            <div class="nl-filter">
+              <select v-model="filterSubject" class="input" @change="filterCategory = ''">
+                <option value="">全部科目</option>
+                <option v-for="s in subjects" :key="s.id" :value="s.id">{{ s.name }}</option>
+              </select>
+              <select v-model="filterCategory" class="input" :disabled="!filterChapters.length">
+                <option value="">全部章节</option>
+                <option v-for="c in filterChapters" :key="c.id" :value="c.id">{{ c.name }}</option>
+              </select>
+              <input v-model="filterKw" class="input" placeholder="搜索题干关键词…" />
+            </div>
+
+            <EmptyState v-if="!filtered.length" icon="search" text="没有匹配的笔记" sub="换个关键词或清空筛选试试" />
+            <div v-else class="nl-list">
+              <div v-for="n in filtered" :key="n.question_id" class="nl-item">
+                <div class="nl-top">
+                  <span class="nl-cat">{{ n.category || '未分类' }}</span>
+                  <span class="nl-date">{{ fmt(n.updated_at) }}</span>
+                </div>
+                <div class="nl-stem">{{ n.stem }}</div>
+                <div class="nl-content">{{ n.content }}</div>
+                <div class="nl-foot">
+                  <button class="mini danger" @click="delNote(n)">删除笔记</button>
+                </div>
               </div>
             </div>
-          </div>
+          </template>
         </div>
 
         <div v-if="toast" class="nl-toast">{{ toast }}</div>
@@ -79,45 +116,50 @@ async function delNote(item) {
   inset: 0;
   background: var(--modal-mask);
   backdrop-filter: blur(var(--modal-blur));
-  z-index: 190;
+  -webkit-backdrop-filter: blur(var(--modal-blur));
+  z-index: 200;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
+  padding: 20px;
 }
 .nl-mask.is-wide { align-items: center; }
 
 .nl-panel {
   position: relative;
-  width: 100%;
-  height: 88vh;
+  width: 780px;
+  max-width: 94vw;
+  height: 84vh;
   display: flex;
   flex-direction: column;
   background: var(--card-solid);
   border: 1px solid var(--line);
-  border-radius: var(--radius) var(--radius) 0 0;
-  box-shadow: var(--shadow), var(--glow-soft);
-}
-.nl-panel.is-wide {
-  width: 620px;
-  max-width: 94vw;
-  height: 80vh;
   border-radius: var(--radius);
+  box-shadow: var(--shadow), var(--glow-soft);
+  overflow: hidden;
+  animation: nlPanelIn .26s cubic-bezier(.2, .7, .3, 1);
 }
+@keyframes nlPanelIn { from { opacity: 0; transform: translateY(18px) scale(.98); } to { opacity: 1; transform: none; } }
+.nl-panel.is-wide { width: 780px; max-width: 94vw; height: 84vh; }
 
 .nl-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 16px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
-.nl-header .title { flex: 1; font-size: 16px; font-weight: 700; color: var(--text); }
-.nl-header .close { font-size: 22px; color: var(--muted); cursor: pointer; line-height: 1; }
-.nl-header .close:hover { color: var(--brand); }
-.nl-header .count { font-size: 12px; color: #ffc154; }
+.nl-header .title { flex: 1; font-size: 15px; font-weight: 600; color: var(--text); }
+.nl-header .close { font-size: 18px; color: var(--muted); cursor: pointer; line-height: 1; padding: 4px 8px; border-radius: 6px; }
+.nl-header .close:hover { color: var(--text); background: var(--hover-bg); }
+.nl-header .count { font-size: 12px; color: var(--muted); }
 
-.nl-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+.nl-body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 18px; }
+
+/* 筛选行 */
+.nl-filter { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.nl-filter .input { flex: 1; min-width: 110px; }
 
 .empty { text-align: center; color: var(--muted); font-size: 13px; padding: 40px 0; line-height: 2; }
 .empty-icon { font-size: 30px; color: #ffc154; opacity: 0.6; }

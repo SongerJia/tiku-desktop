@@ -15,13 +15,34 @@ const groups = computed(() => {
   return Array.from(s)
 })
 const filtered = computed(() => {
-  if (groupFilter.value === 'all') return items.value
-  if (groupFilter.value === '') return items.value.filter(i => !i.fav_group)
-  return items.value.filter(i => i.fav_group === groupFilter.value)
+  const kw = filterKw.value.trim().toLowerCase()
+  const sid = Number(filterSubject.value)
+  const cid = Number(filterCategory.value)
+  return items.value.filter(i => {
+    // 收藏分组（组合式，不提前 return，保证与科目/章节/搜索叠加）
+    if (groupFilter.value === '' && !!i.fav_group) return false
+    if (groupFilter.value !== 'all' && groupFilter.value !== '' && i.fav_group !== groupFilter.value) return false
+    // 科目/章节/题干搜索
+    if (sid && Number(i.subject_id) !== sid) return false
+    if (cid && Number(i.category_id) !== cid) return false
+    if (kw && !String(i.stem || '').toLowerCase().includes(kw)) return false
+    return true
+  })
+})
+
+// 筛选：科目 → 章节（联动）→ 题干模糊搜索
+const filterSubject = ref('')
+const filterCategory = ref('')
+const filterKw = ref('')
+const subjects = ref([])
+const filterChapters = computed(() => {
+  const s = subjects.value.find(x => String(x.id) === String(filterSubject.value))
+  return (s && s.children) || []
 })
 
 onMounted(async () => {
   items.value = await tiku.getFavorites()
+  try { subjects.value = await tiku.getCategories() } catch (e) { subjects.value = [] }
 })
 
 async function remove(id) {
@@ -48,6 +69,19 @@ async function setGroup(it, val) {
 <template>
   <div>
     <h2>收藏（{{ items.length }}）</h2>
+
+    <!-- 筛选：科目 → 章节（联动）→ 题干模糊搜索 -->
+    <div v-if="items.length" class="fav-filter">
+      <select v-model="filterSubject" class="input" @change="filterCategory = ''">
+        <option value="">全部科目</option>
+        <option v-for="s in subjects" :key="s.id" :value="s.id">{{ s.name }}</option>
+      </select>
+      <select v-model="filterCategory" class="input" :disabled="!filterChapters.length">
+        <option value="">全部章节</option>
+        <option v-for="c in filterChapters" :key="c.id" :value="c.id">{{ c.name }}</option>
+      </select>
+      <input v-model="filterKw" class="input" placeholder="搜索题干关键词…" />
+    </div>
 
     <div v-if="groups.length || items.some(i => !i.fav_group)" class="fav-groups">
       <button class="fav-group" :class="{ on: groupFilter === 'all' }" @click="groupFilter = 'all'">全部 <em>{{ items.length }}</em></button>
@@ -81,6 +115,8 @@ async function setGroup(it, val) {
 .review { background: var(--brand); color: #fff; border: none; padding: 7px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; }
 .del { background: transparent; color: var(--bad); border: 1px solid var(--bad); padding: 7px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; }
 .fav-groups { display: flex; gap: 8px; margin: 10px 0 14px; flex-wrap: wrap; }
+.fav-filter { display: flex; gap: 8px; margin: 10px 0 8px; flex-wrap: wrap; }
+.fav-filter .input { flex: 1; min-width: 110px; }
 .fav-group { font-size: 12px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 4px; }
 .fav-group em { font-style: normal; font-size: 11px; opacity: .8; }
 .fav-group.on { background: rgba(91, 124, 250, 0.12); color: var(--brand); border-color: rgba(91, 124, 250, 0.4); font-weight: 600; }

@@ -27,17 +27,38 @@ const groupCounts = computed(() => {
 const filteredItems = computed(() => {
   const now = Date.now()
   const week = now + 7 * 86400000
+  const kw = filterKw.value.trim().toLowerCase()
+  const sid = Number(filterSubject.value)
+  const cid = Number(filterCategory.value)
   return items.value.filter(it => {
-    if (wrongGroup.value === 'today') return it.next_review_at && it.next_review_at <= now
-    if (wrongGroup.value === 'week') return it.next_review_at && it.next_review_at <= week
-    if (wrongGroup.value === 'stubborn') return it.wrong_count >= 3
+    // 分组条件（组合式，不能提前 return，否则跳过科目/章节/搜索筛选）
+    if (wrongGroup.value === 'today' && !(it.next_review_at && it.next_review_at <= now)) return false
+    if (wrongGroup.value === 'week' && !(it.next_review_at && it.next_review_at <= week)) return false
+    if (wrongGroup.value === 'stubborn' && !(it.wrong_count >= 3)) return false
+    if (sid && Number(it.subject_id) !== sid) return false
+    if (cid && Number(it.category_id) !== cid) return false
+    if (kw && !String(it.stem || '').toLowerCase().includes(kw)) return false
     return true
   })
 })
 
+// 筛选：科目 → 章节（联动）→ 题干模糊搜索
+const filterSubject = ref('')
+const filterCategory = ref('')
+const filterKw = ref('')
+const subjects = ref([])
+const filterChapters = computed(() => {
+  const s = subjects.value.find(x => String(x.id) === String(filterSubject.value))
+  return (s && s.children) || []
+})
+async function loadSubjects() {
+  try { subjects.value = await tiku.getCategories() } catch (e) { subjects.value = [] }
+}
+
 onMounted(async () => {
   items.value = await tiku.getWrongBook()
   try { weakChapters.value = await tiku.getWeakChapters(null, 5) } catch (e) { weakChapters.value = [] }
+  await loadSubjects()
   await loadReviewCurve()
 })
 
@@ -146,6 +167,19 @@ async function toggleSimilar(qid) {
       <button v-if="items.length" class="ghost" @click="exportWrongPdf">导出错题PDF</button>
     </div>
 
+    <!-- 筛选：科目 → 章节（联动）→ 题干模糊搜索 -->
+    <div v-if="items.length" class="wb-filter">
+      <select v-model="filterSubject" class="input" @change="filterCategory = ''">
+        <option value="">全部科目</option>
+        <option v-for="s in subjects" :key="s.id" :value="s.id">{{ s.name }}</option>
+      </select>
+      <select v-model="filterCategory" class="input" :disabled="!filterChapters.length">
+        <option value="">全部章节</option>
+        <option v-for="c in filterChapters" :key="c.id" :value="c.id">{{ c.name }}</option>
+      </select>
+      <input v-model="filterKw" class="input" placeholder="搜索题干关键词…" />
+    </div>
+
     <!-- 错题分组（今日/本周/常错） -->
     <div v-if="items.length" class="wb-groups">
       <button class="wb-group" :class="{ on: wrongGroup === 'all' }" @click="wrongGroup = 'all'">全部 <em>{{ groupCounts.all }}</em></button>
@@ -219,6 +253,8 @@ async function toggleSimilar(qid) {
 .cv-meta { flex: 0 0 auto; color: var(--muted); font-size: 11px; }
 .weak-chapters { margin-bottom: 12px; border: 1px solid rgba(255, 77, 109, 0.3); border-radius: 10px; padding: 10px 12px; background: rgba(255, 77, 109, 0.06); }
 .wb-groups { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.wb-filter { display: flex; gap: 8px; margin: 10px 0 12px; flex-wrap: wrap; }
+.wb-filter .input { flex: 1; min-width: 110px; }
 .wb-group { font-size: 12px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 5px; }
 .wb-group em { font-style: normal; font-size: 11px; opacity: .8; }
 .wb-group.on { background: rgba(255, 77, 109, 0.12); color: var(--bad); border-color: rgba(255, 77, 109, 0.4); font-weight: 600; }
