@@ -223,6 +223,7 @@ async function importData(event) {
       if (d.categories && d.categories.total) parts.push(`章节：${d.categories.total} 条`)
       if (d.kbDocs && d.kbDocs.total) parts.push(`知识文档：${d.kbDocs.total} 篇`)
       if (d.notes && d.notes.total) parts.push(`笔记：${d.notes.total} 条`)
+      if (d.settings && d.settings.total) parts.push(`偏好设置：${d.settings.total} 项（用户名/目标/主题）`)
       if (d.otherTables) parts.push(`反馈数据：${d.otherTables} 类`)
       const lines = [
         '备份文件内容与当前库的差异：',

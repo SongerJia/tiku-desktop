@@ -53,6 +53,7 @@ module.exports = function syncModule(ctx) {
         focusSessions: dump('focus_sessions'),
         kbHighlights: dump('kb_highlights'),
         kbDocLinks: dump('kb_doc_links'),
+        settings: dump('settings'), // 用户偏好：用户名/每日目标/主题/字号/同步配置等（换机完整迁移）
         cards: sqlite.prepare(
           `SELECT c.*, cs.client_id AS subject_cid FROM cards c LEFT JOIN categories cs ON cs.id = c.subject_id WHERE c.deleted=0`
         ).all(),
@@ -511,6 +512,14 @@ module.exports = function syncModule(ctx) {
         kbDocs: diff('kb_docs', data.kbDocs),
         notes: diff('notes', data.notes),
         wrongBooks: diff('wrong_books', data.wrongBooks),
+        settings: (() => {
+          if (!Array.isArray(data.settings) || !data.settings.length) return { total: 0, fresh: 0, update: 0, localOnly: 0 }
+          const keys = new Set(data.settings.map(r => r.key))
+          const local = sqlite.prepare('SELECT key FROM settings').all().map(r => r.key)
+          let fresh = 0, update = 0
+          for (const k of keys) { if (local.includes(k)) update++; else fresh++ }
+          return { total: data.settings.length, fresh, update, localOnly: 0 }
+        })(),
         otherTables: ['xp_logs', 'focus_sessions', 'kb_highlights', 'kb_doc_links', 'cards', 'papers', 'answer_records', 'favorites']
           .filter(t => Array.isArray(data[t]) && data[t].length)
           .length
@@ -562,6 +571,14 @@ module.exports = function syncModule(ctx) {
       replace('cards', data.cards, ['id', 'front', 'back', 'category', 'subject_id', 'subject_cid', 'source_question_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'])
       replace('materials', data.materials, ['id', 'title', 'content', 'subject_id', 'subject_cid', 'created_at', 'updated_at', 'deleted', 'client_id'])
       this.restoreKbFiles(data.kbFiles)
+      // 偏好设置（用户名/每日目标/主题/字号/同步配置等）随备份恢复，INSERT OR REPLACE by key
+      if (Array.isArray(data.settings) && data.settings.length) {
+        const setStmt = sqlite.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)')
+        const txSet = sqlite.transaction(() => {
+          data.settings.forEach(s => setStmt.run(String(s.key), String(s.value ?? '')))
+        })
+        txSet()
+      }
       // 补齐可能缺失的 client_id（老备份无 cid 列）
       this.backfillClientIds()
       return { ok: true, imported: (data.questions || []).length, kbDocs: (data.kbDocs || []).length }
