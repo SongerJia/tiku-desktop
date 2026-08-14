@@ -12,7 +12,6 @@ import { applyAppearance } from '../utils/appearance.js'
 import WrongBook from './WrongBook.vue'
 import Favorites from './Favorites.vue'
 import NotesList from './NotesList.vue'
-import ChapterProgress from './ChapterProgress.vue'
 import AboutModal from './AboutModal.vue'
 import BackupModal from './BackupModal.vue'
 import CategoryManager from './CategoryManager.vue'
@@ -127,7 +126,6 @@ async function ghDoSync() {
   finally { ghSyncing.value = false }
 }
 
-const showChapter = ref(false)
 const showAbout = ref(false)
 const showBackup = ref(false)
 const showCats = ref(false)
@@ -857,14 +855,6 @@ onMounted(async () => {
     </div>
 
 
-    <!-- 其它 -->
-    <div class="sec">
-      <div class="sec-head sec-head-link" @click="showChapter = true">
-        <span class="sec-icon sec-icon-chapter"><Icon name="bookmark" :size="16" /></span>
-        <span class="sec-title">章节进度</span>
-        <span class="sec-arrow-r"><Icon name="chevron-right" :size="14" /></span>
-      </div>
-    </div>
     <div class="sec">
       <div class="sec-head sec-head-link" @click="showAbout = true">
         <span class="sec-icon sec-icon-about"><Icon name="info" :size="16" /></span>
@@ -876,7 +866,6 @@ onMounted(async () => {
     <div v-if="toast" class="toast">{{ toast }}</div>
 
     <NotesList :show="showNotes" @close="showNotes = false" />
-    <ChapterProgress :show="showChapter" @close="showChapter = false" />
     <AboutModal :show="showAbout" @close="showAbout = false" />
     <BackupModal :show="showBackup" @close="showBackup = false" />
     <CategoryManager :show="showCats" @close="showCats = false" />
@@ -1004,7 +993,6 @@ onMounted(async () => {
 .sec-icon-bank    { background: rgba(139, 92, 246, 0.14);  color: #8b5cf6; }
 .sec-icon-kb      { background: rgba(47, 191, 143, 0.14);  color: var(--ok); }
 .sec-icon-misc    { background: rgba(251, 113, 133, 0.14); color: #fb7185; }
-.sec-icon-chapter { background: rgba(251, 191, 36, 0.14);  color: #fbbf24; }
 .sec-icon-about   { background: rgba(148, 163, 184, 0.16); color: var(--muted); }
 
 .sec-title { font-size: 14px; font-weight: 600; color: var(--text); flex: 1; transition: color .2s; }
