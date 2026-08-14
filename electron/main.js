@@ -484,12 +484,22 @@ ipcMain.handle('kbExport', async () => {
   const docCount = db.getKbDocs().length
   let files = 0
   if (fs.existsSync(srcDir)) {
-    for (const name of fs.readdirSync(srcDir)) {
-      const full = path.join(srcDir, name)
-      if (!fs.statSync(full).isFile()) continue
-      fs.copyFileSync(full, path.join(target, name))
-      files++
+    // 递归复制（kb/notes/ 等子目录文档不能漏），保留相对结构；防穿越（rel 来自磁盘扫描，安全）
+    const walk = (d, prefix) => {
+      for (const name of fs.readdirSync(d)) {
+        const full = path.join(d, name)
+        const rel = prefix ? prefix + '/' + name : name
+        if (fs.statSync(full).isFile()) {
+          const outFull = path.join(target, rel)
+          fs.mkdirSync(path.dirname(outFull), { recursive: true })
+          fs.copyFileSync(full, outFull)
+          files++
+        } else if (fs.statSync(full).isDirectory()) {
+          walk(full, rel)
+        }
+      }
     }
+    walk(srcDir, '')
   }
   const manifest = {
     exportedAt: Date.now(),

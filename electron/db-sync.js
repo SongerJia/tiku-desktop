@@ -54,7 +54,8 @@ module.exports = function syncModule(ctx) {
         reviewLogs: dump('review_logs'), // 复习轨迹（成就/周报数据源，表无 deleted 列）
         kbHighlights: dump('kb_highlights'),
         kbDocLinks: dump('kb_doc_links'),
-        settings: dump('settings'), // 用户偏好：用户名/每日目标/主题/字号/同步配置等（换机完整迁移）
+        // 用户偏好随备份迁移；会话/本地状态键排除（断点续做、每日一题、当前科目、窗口位置、GitHub 同步配置）
+        settings: dump('settings').filter(r => !['resume_session', 'daily_puzzle', 'current_subject_id', 'window_bounds', 'gh_token', 'gh_owner', 'gh_repo', 'gh_last_sync'].includes(r.key)),
         avatar: avatar || null, // 头像 base64（渲染层 localStorage 传入，主进程读不到本地存储）
         cards: sqlite.prepare(
           `SELECT c.*, cs.client_id AS subject_cid FROM cards c LEFT JOIN categories cs ON cs.id = c.subject_id WHERE c.deleted=0`

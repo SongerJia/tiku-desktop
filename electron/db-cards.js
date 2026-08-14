@@ -31,6 +31,13 @@ module.exports = function cardsModule(ctx) {
       if (!q) return { ok: false, error: '题目不存在' }
       const dup = sqlite.prepare('SELECT id FROM cards WHERE source_question_id=? AND deleted=0').get(q.id)
       if (dup) return { ok: true, duplicate: true, cardId: dup.id }
+      // 软删卡复活：删卡后再生成复用原卡（不 INSERT 新行 → 杜绝同题双卡；source_question_id 无 UNIQUE 兜底）
+      const now = Date.now()
+      const tomb = sqlite.prepare('SELECT id FROM cards WHERE source_question_id=? AND deleted=1 ORDER BY id DESC LIMIT 1').get(q.id)
+      if (tomb) {
+        sqlite.prepare('UPDATE cards SET deleted=0, updated_at=? WHERE id=?').run(now, tomb.id)
+        return { ok: true, duplicate: true, cardId: tomb.id }
+      }
       const front = String(q.stem || '').trim().slice(0, 80)
       if (!front) return { ok: false, error: '题干为空' }
       const ans = Array.isArray(q.answer) && q.answer.length ? '【答案】' + q.answer.join('、') : ''
@@ -42,7 +49,6 @@ module.exports = function cardsModule(ctx) {
         if (c) category = c.name
       }
       const subjectId = q.category_id ? this._rootSubjectOf(q.category_id) : null
-      const now = Date.now()
       sqlite.prepare('INSERT INTO cards (front, back, category, subject_id, source_question_id, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,0,?)')
         .run(front, back, category, subjectId, q.id, now, now, uuid())
       this.logXp(2, 'card', 'new')
