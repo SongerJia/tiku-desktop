@@ -45,7 +45,7 @@
                 <span class="km-cat">{{ posLabel(d) }}</span>
                 <span class="km-spacer"></span>
                 <div class="km-ops" @click.stop>
-                  <button class="km-op" @click="toggleEdit(d)">{{ editing === d.id ? '收起' : '编辑' }}</button>
+                  <button class="km-op" @click="toggleEdit(d)">{{ editDoc === d ? '收起' : '编辑' }}</button>
                   <button class="km-op danger" @click="onDelete(d)">删除</button>
                 </div>
               </div>
@@ -58,31 +58,6 @@
                   <i>·</i>
                   <span>{{ fmtTime(d.updated_at) }}</span>
                 </span>
-              </div>
-
-              <!-- 行内编辑区：打开 / 重命名 / 移动 -->
-              <div v-if="editing === d.id" class="km-edit" @click.stop>
-                <div class="km-edit-row">
-                  <span class="km-edit-label">打开</span>
-                  <button class="btn sm" @click="openDoc(d)">阅读全文</button>
-                </div>
-                <div class="km-edit-row">
-                  <span class="km-edit-label">重命名</span>
-                  <input v-model="renameVal" class="input" placeholder="新标题" @keyup.enter="doRename(d)" @keyup.esc="editing = null" />
-                  <button class="btn btn-primary sm" @click="doRename(d)">确定</button>
-                </div>
-                <div class="km-edit-row">
-                  <span class="km-edit-label">移动</span>
-                  <select v-model="moveSubjectId" class="input" @change="moveCategoryId = ''">
-                    <option value="">不设科目</option>
-                    <option v-for="s in subjectOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
-                  </select>
-                  <select v-if="moveSubjectId" v-model="moveCategoryId" class="input">
-                    <option value="">（章节）</option>
-                    <option v-for="c in moveChapters" :key="c.id" :value="c.id">{{ c.name }}</option>
-                  </select>
-                  <button class="btn btn-primary sm" @click="doMove(d)">应用</button>
-                </div>
               </div>
             </div>
 
@@ -97,6 +72,46 @@
       </div>
     </div>
   </transition>
+
+  <!-- 编辑弹窗（Teleport 到 body，独立于管理面板） -->
+  <Teleport to="body">
+    <transition name="fade">
+      <div v-if="editDoc" class="km-emask" @click.self="editDoc = null">
+        <div class="km-ebox">
+          <div class="km-ehead">
+            <span class="km-etitle">编辑文档</span>
+            <span class="close" @click="editDoc = null">×</span>
+          </div>
+          <div class="km-ebody">
+            <div class="km-edit-row">
+              <span class="km-edit-label">文档</span>
+              <span class="km-edoc" :title="editDoc.title">{{ editDoc.title }}</span>
+              <button class="btn sm" @click="openFromEdit">阅读全文</button>
+            </div>
+            <div class="km-edit-row">
+              <span class="km-edit-label">重命名</span>
+              <input v-model="renameVal" class="input" placeholder="新标题" @keyup.enter="saveEdit" />
+            </div>
+            <div class="km-edit-row">
+              <span class="km-edit-label">移动</span>
+              <select v-model="moveSubjectId" class="input" @change="moveCategoryId = ''">
+                <option value="">不设科目</option>
+                <option v-for="s in subjectOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
+              </select>
+              <select v-if="moveSubjectId" v-model="moveCategoryId" class="input">
+                <option value="">（章节）</option>
+                <option v-for="c in moveChapters" :key="c.id" :value="c.id">{{ c.name }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="km-efoot">
+            <button class="btn" @click="editDoc = null">取消</button>
+            <button class="btn btn-primary" @click="saveEdit">保存</button>
+          </div>
+        </div>
+      </div>
+    </transition>
+  </Teleport>
 </template>
 
 <script setup>
@@ -118,7 +133,7 @@ const subjects = ref({})
 const keyword = ref('')
 const subjectFilter = ref('')
 const categoryFilter = ref('')
-const editing = ref(null) // 行内编辑中的文档 id
+const editDoc = ref(null) // 编辑弹窗中的文档对象
 const renameVal = ref('')
 const moveSubjectId = ref('')
 const moveCategoryId = ref('')
@@ -144,7 +159,7 @@ async function load() {
 }
 
 function close() {
-  editing.value = null
+  editDoc.value = null
   reader.value = { show: false, doc: null }
   emit('close')
 }
@@ -210,33 +225,40 @@ async function onImport() {
   if (msgs.length) showToast(msgs.join('；'), failed.length ? 'err' : 'ok')
 }
 
-// 编辑：展开/收起行内编辑区，预填当前值
+// 编辑：打开/关闭编辑弹窗，预填当前值
 function toggleEdit(d) {
-  if (editing.value === d.id) { editing.value = null; return }
-  editing.value = d.id
+  if (editDoc.value === d) { editDoc.value = null; return }
+  editDoc.value = d
   renameVal.value = d.title
   moveSubjectId.value = d.subject_id ? String(d.subject_id) : ''
   moveCategoryId.value = d.category_id ? String(d.category_id) : ''
 }
-async function doRename(d) {
+// 保存：一次性应用重命名 + 移动
+async function saveEdit() {
+  const d = editDoc.value
+  if (!d) return
   const t = renameVal.value.trim()
-  if (!t || t === d.title) { editing.value = null; return }
-  await tiku.kbUpdate(d.id, { title: t })
-  d.title = t
-  editing.value = null
-  emit('changed')
-  showToast('已重命名', 'ok')
-}
-
-async function doMove(d) {
+  if (t && t !== d.title) {
+    await tiku.kbUpdate(d.id, { title: t })
+    d.title = t
+  }
   const subjectId = moveSubjectId.value ? Number(moveSubjectId.value) : null
   const categoryId = moveCategoryId.value ? Number(moveCategoryId.value) : null
-  await tiku.kbUpdate(d.id, { subjectId, categoryId })
-  d.subject_id = subjectId
-  d.category_id = categoryId
-  editing.value = null
+  if (subjectId !== d.subject_id || categoryId !== d.category_id) {
+    await tiku.kbUpdate(d.id, { subjectId, categoryId })
+    d.subject_id = subjectId
+    d.category_id = categoryId
+  }
+  editDoc.value = null
   emit('changed')
-  showToast('已移动', 'ok')
+  showToast('已保存', 'ok')
+}
+// 从编辑弹窗打开阅读（关弹窗，阅读器盖在管理面板上）
+function openFromEdit() {
+  const d = editDoc.value
+  if (!d) return
+  editDoc.value = null
+  openDoc(d)
 }
 
 async function onDelete(d) {
@@ -269,6 +291,10 @@ function fmtTime(ts) {
 </script>
 
 <style scoped>
+/* 遮罩/弹窗淡入（管理面板 + 编辑弹窗共用） */
+.fade-enter-active, .fade-leave-active { transition: opacity .18s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+
 .km-mask {
   position: fixed; inset: 0; z-index: 195;
   background: var(--modal-mask);
@@ -398,15 +424,38 @@ function fmtTime(ts) {
 .km-meta i { font-style: normal; opacity: .5; }
 .km-unread { color: var(--brand); font-weight: 500; }
 
-.km-edit {
-  display: flex; flex-direction: column; gap: 8px;
-  margin: 4px 6px 12px;
-  padding: 10px 12px;
-  background: var(--hover-bg);
-  border: 1px solid var(--line); border-radius: 10px;
-  animation: kmEditIn .18s ease;
+/* 编辑弹窗（Teleport 到 body） */
+.km-emask {
+  position: fixed; inset: 0; z-index: 220;
+  background: var(--modal-mask);
+  backdrop-filter: blur(var(--modal-blur));
+  -webkit-backdrop-filter: blur(var(--modal-blur));
+  display: flex; align-items: center; justify-content: center; padding: 20px;
 }
-@keyframes kmEditIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.km-ebox {
+  width: 460px; max-width: 92vw;
+  background: var(--card-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), var(--glow-soft);
+  animation: kmEditIn .2s cubic-bezier(.2, .7, .3, 1);
+}
+@keyframes kmEditIn { from { opacity: 0; transform: translateY(12px) scale(.97); } to { opacity: 1; transform: none; } }
+.km-ehead {
+  display: flex; align-items: center; gap: 8px;
+  padding: 13px 16px; border-bottom: 1px solid var(--line);
+}
+.km-etitle { font-size: 14px; font-weight: 600; color: var(--text); }
+.km-ehead .close { font-size: 17px; color: var(--muted); cursor: pointer; margin-left: auto; padding: 2px 8px; border-radius: 6px; }
+.km-ehead .close:hover { color: var(--text); background: var(--hover-bg); }
+.km-ebody {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px 16px;
+}
+.km-efoot {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 12px 16px; border-top: 1px solid var(--line);
+}
 .km-edit-row {
   display: flex; align-items: center; gap: 8px;
 }
@@ -415,6 +464,11 @@ function fmtTime(ts) {
   font-size: 11.5px; color: var(--muted);
 }
 .km-edit-row .input { flex: 1; min-width: 0; }
+.km-edoc {
+  flex: 1; min-width: 0;
+  font-size: 13px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 .km-empty {
   text-align: center; padding: 48px 0;
