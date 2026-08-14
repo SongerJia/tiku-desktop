@@ -629,7 +629,7 @@ body::after {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  box-shadow: 0 0 8px color-mix(in srgb, var(--brand) 20%, transparent), 0 0 22px color-mix(in srgb, var(--brand) 10%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--brand) 22%, transparent), 0 0 34px color-mix(in srgb, var(--brand) 12%, transparent);
   pointer-events: none;
   animation: logoPulse 3.2s ease-in-out infinite;
 }
