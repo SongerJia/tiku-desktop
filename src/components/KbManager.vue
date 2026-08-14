@@ -45,9 +45,7 @@
                 <span class="km-cat">{{ posLabel(d) }}</span>
                 <span class="km-spacer"></span>
                 <div class="km-ops" @click.stop>
-                  <button class="km-op" @click="openDoc(d)">打开</button>
-                  <button class="km-op" @click="startRename(d)">重命名</button>
-                  <button class="km-op" @click="startMove(d)">移动</button>
+                  <button class="km-op" @click="toggleEdit(d)">{{ editing === d.id ? '收起' : '编辑' }}</button>
                   <button class="km-op danger" @click="onDelete(d)">删除</button>
                 </div>
               </div>
@@ -62,24 +60,29 @@
                 </span>
               </div>
 
-              <!-- 行内重命名 -->
-              <div v-if="renaming === d.id" class="km-inline" @click.stop>
-                <input v-model="renameVal" class="input" placeholder="新标题" @keyup.enter="doRename(d)" @keyup.esc="renaming = null" />
-                <button class="btn btn-primary sm" @click="doRename(d)">确定</button>
-                <button class="btn sm" @click="renaming = null">取消</button>
-              </div>
-              <!-- 行内移动（到科目/章节） -->
-              <div v-if="moving === d.id" class="km-inline" @click.stop>
-                <select v-model="moveSubjectId" class="input" @change="moveCategoryId = ''">
-                  <option value="">不设科目</option>
-                  <option v-for="s in subjectOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
-                </select>
-                <select v-if="moveSubjectId" v-model="moveCategoryId" class="input">
-                  <option value="">（章节）</option>
-                  <option v-for="c in moveChapters" :key="c.id" :value="c.id">{{ c.name }}</option>
-                </select>
-                <button class="btn btn-primary sm" @click="doMove(d)">确定</button>
-                <button class="btn sm" @click="moving = null">取消</button>
+              <!-- 行内编辑区：打开 / 重命名 / 移动 -->
+              <div v-if="editing === d.id" class="km-edit" @click.stop>
+                <div class="km-edit-row">
+                  <span class="km-edit-label">打开</span>
+                  <button class="btn sm" @click="openDoc(d)">阅读全文</button>
+                </div>
+                <div class="km-edit-row">
+                  <span class="km-edit-label">重命名</span>
+                  <input v-model="renameVal" class="input" placeholder="新标题" @keyup.enter="doRename(d)" @keyup.esc="editing = null" />
+                  <button class="btn btn-primary sm" @click="doRename(d)">确定</button>
+                </div>
+                <div class="km-edit-row">
+                  <span class="km-edit-label">移动</span>
+                  <select v-model="moveSubjectId" class="input" @change="moveCategoryId = ''">
+                    <option value="">不设科目</option>
+                    <option v-for="s in subjectOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
+                  </select>
+                  <select v-if="moveSubjectId" v-model="moveCategoryId" class="input">
+                    <option value="">（章节）</option>
+                    <option v-for="c in moveChapters" :key="c.id" :value="c.id">{{ c.name }}</option>
+                  </select>
+                  <button class="btn btn-primary sm" @click="doMove(d)">应用</button>
+                </div>
               </div>
             </div>
 
@@ -115,9 +118,8 @@ const subjects = ref({})
 const keyword = ref('')
 const subjectFilter = ref('')
 const categoryFilter = ref('')
-const renaming = ref(null)
+const editing = ref(null) // 行内编辑中的文档 id
 const renameVal = ref('')
-const moving = ref(null)
 const moveSubjectId = ref('')
 const moveCategoryId = ref('')
 const reader = ref({ show: false, doc: null })
@@ -142,8 +144,7 @@ async function load() {
 }
 
 function close() {
-  renaming.value = null
-  moving.value = null
+  editing.value = null
   reader.value = { show: false, doc: null }
   emit('close')
 }
@@ -209,30 +210,31 @@ async function onImport() {
   if (msgs.length) showToast(msgs.join('；'), failed.length ? 'err' : 'ok')
 }
 
-function startRename(d) { renaming.value = d.id; renameVal.value = d.title; moving.value = null }
+// 编辑：展开/收起行内编辑区，预填当前值
+function toggleEdit(d) {
+  if (editing.value === d.id) { editing.value = null; return }
+  editing.value = d.id
+  renameVal.value = d.title
+  moveSubjectId.value = d.subject_id ? String(d.subject_id) : ''
+  moveCategoryId.value = d.category_id ? String(d.category_id) : ''
+}
 async function doRename(d) {
   const t = renameVal.value.trim()
-  if (!t || t === d.title) { renaming.value = null; return }
+  if (!t || t === d.title) { editing.value = null; return }
   await tiku.kbUpdate(d.id, { title: t })
   d.title = t
-  renaming.value = null
+  editing.value = null
   emit('changed')
   showToast('已重命名', 'ok')
 }
 
-function startMove(d) {
-  moving.value = d.id
-  moveSubjectId.value = d.subject_id ? String(d.subject_id) : ''
-  moveCategoryId.value = d.category_id ? String(d.category_id) : ''
-  renaming.value = null
-}
 async function doMove(d) {
   const subjectId = moveSubjectId.value ? Number(moveSubjectId.value) : null
   const categoryId = moveCategoryId.value ? Number(moveCategoryId.value) : null
   await tiku.kbUpdate(d.id, { subjectId, categoryId })
   d.subject_id = subjectId
   d.category_id = categoryId
-  moving.value = null
+  editing.value = null
   emit('changed')
   showToast('已移动', 'ok')
 }
@@ -396,12 +398,23 @@ function fmtTime(ts) {
 .km-meta i { font-style: normal; opacity: .5; }
 .km-unread { color: var(--brand); font-weight: 500; }
 
-.km-inline {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 6px 10px 48px;
+.km-edit {
+  display: flex; flex-direction: column; gap: 8px;
+  margin: 4px 6px 12px;
+  padding: 10px 12px;
   background: var(--hover-bg);
+  border: 1px solid var(--line); border-radius: 10px;
+  animation: kmEditIn .18s ease;
 }
-.km-inline .input { flex: 1; min-width: 0; }
+@keyframes kmEditIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.km-edit-row {
+  display: flex; align-items: center; gap: 8px;
+}
+.km-edit-label {
+  width: 46px; flex-shrink: 0;
+  font-size: 11.5px; color: var(--muted);
+}
+.km-edit-row .input { flex: 1; min-width: 0; }
 
 .km-empty {
   text-align: center; padding: 48px 0;
