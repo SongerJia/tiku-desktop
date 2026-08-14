@@ -1703,31 +1703,32 @@ onMounted(async () => {
 .medal.got.platinum { --rr: 125, 211, 252; outline: 1px solid rgba(var(--rr), 0.35); outline-offset: 2px; }
 .medal.got .medal-icon { color: rgba(var(--rr), 0.95); opacity: 1; filter: none; }
 /* 特效加码（2026-08-14）：外圈流光环——完整光带绕圆旋转（rotate 方案，不依赖 --ang），
-   档位差异化：光带数（铜1/银2/金2/白金3）+ 亮度 + 速度；与内圈 ::after 反向对向转 */
+   档位差异化：光带数（铜1/银2/金2/白金3）+ 亮度 + 速度；与内圈 ::after 反向对向转。
+   inset -5px 让光带脱离勋章本体一圈，避免与 2px 实色边框同色系融在一起 */
 .medal.got::before {
-  content: ''; position: absolute; inset: -2px; border-radius: 50%;
-  padding: 2px; z-index: 2; pointer-events: none;
-  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 0.9) 55deg, transparent 110deg);
+  content: ''; position: absolute; inset: -5px; border-radius: 50%;
+  padding: 3px; z-index: 1; pointer-events: none;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 1) 70deg, transparent 130deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor; mask-composite: exclude;
   animation: achSpin 5s linear infinite;
-  opacity: .35;
+  opacity: .5;
 }
 .medal.got.bronze::before {
-  opacity: .3; animation-duration: 6s;
-  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 0.9) 55deg, transparent 110deg);
+  opacity: .45; animation-duration: 5.5s;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 1) 70deg, transparent 130deg);
 }
 .medal.got.silver::before {
-  opacity: .5; animation-duration: 4.5s;
-  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 0.9) 45deg, transparent 85deg, rgba(var(--rr), 0.6) 175deg, transparent 215deg);
+  opacity: .6; animation-duration: 4.5s;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 1) 55deg, transparent 100deg, rgba(var(--rr), 0.7) 175deg, transparent 220deg);
 }
 .medal.got.gold::before {
-  opacity: .75; animation-duration: 3s;
-  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 1) 40deg, transparent 75deg, rgba(var(--rr), 0.75) 160deg, transparent 195deg);
+  opacity: .85; animation-duration: 3s;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 1) 50deg, transparent 90deg, rgba(var(--rr), 0.8) 165deg, transparent 205deg);
 }
 .medal.got.platinum::before {
-  opacity: .95; animation-duration: 2.2s;
-  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 1) 30deg, transparent 60deg, rgba(var(--rr), 0.85) 125deg, transparent 155deg, rgba(var(--rr), 0.7) 230deg, transparent 260deg);
+  opacity: 1; animation-duration: 2.2s;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(var(--rr), 1) 40deg, transparent 75deg, rgba(var(--rr), 0.9) 130deg, transparent 165deg, rgba(var(--rr), 0.75) 235deg, transparent 270deg);
 }
 /* 内圈反向流光（::after 环形，rotate 旋转不依赖 --ang，与外圈对向转；稀有度差异化） */
 .medal.got::after {
