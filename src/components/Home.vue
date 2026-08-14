@@ -89,6 +89,25 @@ function onDockAnimEnd(e) {
   if (e.animationName === 'riseIn') e.currentTarget.style.animation = 'none'
 }
 
+// ---- 方案一「光随指动」：柔和光斑跟随鼠标（fixed 层，滚动不跟丢）----
+function onAuraMove(e) {
+  const el = e.currentTarget
+  el.style.setProperty('--mx', e.clientX + 'px')
+  el.style.setProperty('--my', e.clientY + 'px')
+}
+// 目标达成爆光：进度首次到 100% 时目标环脉冲一次（回落后可再次触发）
+const goalBurst = ref(false)
+let goalBursted = false
+watch(goalPct, (v) => {
+  if (v >= 100 && !goalBursted) {
+    goalBursted = true
+    goalBurst.value = true
+    setTimeout(() => { goalBurst.value = false }, 900)
+  } else if (v < 100) {
+    goalBursted = false
+  }
+})
+
 // ---- 首页交互加码（2026-08-12）：倒计时 / 距差 / 预览浮层数据 ----
 const hoursLeft = computed(() => 24 - new Date().getHours()) // 今天还剩几小时（复习最佳窗口）
 const goalLeft = computed(() => Math.max(0, (dailyGoal.value || 0) - (summary.value.today || 0))) // 距今日目标还差
@@ -352,7 +371,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="home">
+  <div class="home" @mousemove="onAuraMove">
     <SkeletonCards v-if="loading" :count="3" />
 
     <template v-else>
@@ -414,7 +433,7 @@ onBeforeUnmount(() => {
 
       <!-- 今日行动台：目标进度环 + 三大行动 -->
       <div class="action-dock" @mousemove="onDockMove" @mouseleave="onDockLeave" @animationend="onDockAnimEnd">
-        <div class="dock-ring" :class="{ clickable: true }" @click="dailyGoal ? emit('goto', 'stats') : emit('goto', 'profile')" :title="dailyGoal ? '看学习热力图' : '设置今日目标'">
+        <div class="dock-ring" :class="{ clickable: true, 'ring-burst': goalBurst }" @click="dailyGoal ? emit('goto', 'stats') : emit('goto', 'profile')" :title="dailyGoal ? '看学习热力图' : '设置今日目标'">
           <svg viewBox="0 0 60 60" width="88" height="88">
             <circle cx="30" cy="30" r="25" fill="none" stroke="rgba(148,163,184,0.14)" stroke-width="5"/>
             <circle cx="30" cy="30" r="25" fill="none" stroke="var(--brand)" stroke-width="5" stroke-linecap="round" class="ring-anim"
@@ -579,6 +598,24 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .home { display: flex; flex-direction: column; gap: 14px; }
+/* 方案一「光随指动」：柔和光斑跟随鼠标（fixed 层，淡光叠加在卡片上） */
+.home::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(340px 200px at var(--mx, 50%) var(--my, 30%), color-mix(in srgb, var(--brand) 9%, transparent), transparent 70%);
+  opacity: 0;
+  transition: opacity .6s;
+}
+.home:hover::after { opacity: 1; }
+/* 目标达成爆光：环外光晕扩散 + 轻微放大（一次性） */
+.dock-ring.ring-burst { animation: ringBurst .8s ease-out; }
+@keyframes ringBurst {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 45%, transparent); transform: scale(1); }
+  100% { box-shadow: 0 0 0 22px transparent; transform: scale(1.04); }
+}
 
 /* 问候卡 + 成长总结 */
 .greet-card { padding: 16px; }
@@ -663,6 +700,7 @@ onBeforeUnmount(() => {
   flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 12px 14px; border-radius: 12px; cursor: pointer; transition: all .15s;
 }
+.dock-btn:hover { transform: translateY(-2px); }
 .dock-btn b { font-size: 15px; font-weight: 600; display: block; }
 .db-sub { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
 .dock-btn em { font-style: normal; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; flex-shrink: 0; }
@@ -687,12 +725,36 @@ onBeforeUnmount(() => {
 .kpi-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
 .kpi-item.link { cursor: pointer; }
 .kpi-sep { width: 1px; background: var(--line); margin: 4px 6px; }
-.kpi-num { font-size: 20px; font-weight: 700; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
-.kpi-num small { font-size: 12px; color: var(--muted); font-weight: 400; }
-.kpi-num.accent { color: var(--brand); font-size: 15px; }
+.kpi-num {
+  font-size: 20px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums;
+  background-image: linear-gradient(100deg, transparent 42%, color-mix(in srgb, var(--text) 28%, transparent) 50%, transparent 58%), var(--num-grad);
+  background-size: 220% 100%, 100% 100%;
+  background-position: 120% 0, 0 0;
+  background-clip: text; -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  animation: numSweep 6s ease-in-out infinite;
+}
+@keyframes numSweep {
+  0%, 55% { background-position: 120% 0, 0 0; }
+  85%, 100% { background-position: -40% 0, 0 0; }
+}
+.kpi-num small { font-size: 12px; color: var(--muted); font-weight: 400; background: none; -webkit-text-fill-color: var(--muted); }
+.kpi-num.accent { background: none; color: var(--brand); font-size: 15px; -webkit-text-fill-color: var(--brand); }
 .kpi-label { font-size: 11px; color: var(--muted); }
 .kpi-bar { height: 4px; border-radius: 2px; background: var(--line); width: 70%; margin-top: 4px; overflow: hidden; }
-.kpi-fill { height: 100%; border-radius: 2px; background: var(--brand); transition: width .4s; }
+/* 方案二：进度条高光点流动 */
+.kpi-fill { height: 100%; border-radius: 2px; background: var(--brand); transition: width .4s; position: relative; overflow: hidden; }
+.kpi-fill::after {
+  content: '';
+  position: absolute; top: 0; bottom: 0; width: 26%;
+  left: -30%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+  animation: barShine 2.8s ease-in-out infinite;
+}
+@keyframes barShine {
+  0% { left: -30%; }
+  55%, 100% { left: 115%; }
+}
 
 /* 薄弱点 */
 .weak-card { display: flex; flex-direction: column; gap: 10px; }

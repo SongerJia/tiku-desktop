@@ -618,7 +618,7 @@ body::after {
   background: linear-gradient(180deg, var(--brand), var(--brand2));
 }
 
-/* ⑩ 侧栏 logo：呼吸光晕（3s 一圈扩散消隐） */
+/* ⑩ 侧栏 logo：柔光呼吸（AboutModal 同款：0 0 10px→24px 光晕收放，替代原硬边扩散圈） */
 .side-brand { position: relative; }
 .side-brand::after {
   content: '';
@@ -633,8 +633,8 @@ body::after {
   animation: logoPulse 3s ease-in-out infinite;
 }
 @keyframes logoPulse {
-  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 0%, transparent); }
-  50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--brand) 12%, transparent); }
+  0%, 100% { box-shadow: 0 0 10px color-mix(in srgb, var(--brand) 18%, transparent); }
+  50% { box-shadow: 0 0 24px color-mix(in srgb, var(--brand) 42%, transparent); }
 }
 
 /* 流光描边共用的旋转动画（全局注册，供各组件 hover 流光复用） */
