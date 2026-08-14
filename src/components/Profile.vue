@@ -173,7 +173,7 @@ async function exportNotes() {
 }
 async function exportZip() {
   try {
-    const r = await tiku.exportAllZip()
+    const r = await tiku.exportAllZip(localStorage.getItem('tiku_avatar') || '')
     if (!r.ok) throw new Error(r.error || '打包失败')
     const o = await tiku.openPath(r.path)
     showToast(o && o.openedDir ? `全量数据已打包（${(r.size / 1024 / 1024).toFixed(1)} MB），可在导出目录查看` : `全量数据已打包（${(r.size / 1024 / 1024).toFixed(1)} MB），已打开所在目录`, 'ok')
@@ -197,7 +197,8 @@ function fmtTime(ts) {
 }
 
 async function exportData() {
-  const json = await tiku.exportData()
+  const avatarData = localStorage.getItem('tiku_avatar') || ''
+  const json = await tiku.exportData(avatarData)
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -235,6 +236,13 @@ async function importData(event) {
       const ok = await showConfirm(lines.join('\n'), { title: '导入备份确认' })
       if (!ok) return
       const r = await tiku.importData(json)
+      // 恢复头像/用户名显示状态（头像存 localStorage，settings 已随备份恢复）
+      try {
+        const d2 = JSON.parse(json)
+        if (d2.avatar) { localStorage.setItem('tiku_avatar', d2.avatar); avatar.value = d2.avatar }
+        const n = await tiku.getSetting('user_name')
+        if (n) userName.value = n
+      } catch (err) { /* 显示状态恢复失败不影响导入 */ }
       showToast(`导入成功：${r.imported} 题 · ${r.kbDocs || 0} 篇文档`, 'ok')
     } catch (err) {
       showToast('导入失败：' + (err.message || String(err)), 'err')

@@ -15,7 +15,7 @@ module.exports = function syncModule(ctx) {
   const { sqlite, LOCAL_USER, uuid } = ctx
 
   return {
-    exportData() {
+    exportData(avatar) {
       const dump = (table, cols) => {
         // 部分表（kb_blocks/kb_tags/kb_links、materials 等）没有 deleted 列：动态检测避免 SQL 报错
         const hasDel = cols ? cols.includes('deleted')
@@ -54,6 +54,7 @@ module.exports = function syncModule(ctx) {
         kbHighlights: dump('kb_highlights'),
         kbDocLinks: dump('kb_doc_links'),
         settings: dump('settings'), // 用户偏好：用户名/每日目标/主题/字号/同步配置等（换机完整迁移）
+        avatar: avatar || null, // 头像 base64（渲染层 localStorage 传入，主进程读不到本地存储）
         cards: sqlite.prepare(
           `SELECT c.*, cs.client_id AS subject_cid FROM cards c LEFT JOIN categories cs ON cs.id = c.subject_id WHERE c.deleted=0`
         ).all(),
@@ -64,11 +65,11 @@ module.exports = function syncModule(ctx) {
     },
 
     // 全量数据导出 ZIP（零依赖 STORE 打包）：题库 JSON + 图片 + 音频 + 知识库 → userData/exports
-    exportAllZip() {
+    exportAllZip(avatar) {
       const { makeZip } = require('./zip')
       const root = app.getPath('userData')
       const files = []
-      files.push({ path: 'tiku-data.json', data: Buffer.from(JSON.stringify(this.exportData(), null, 2)) })
+      files.push({ path: 'tiku-data.json', data: Buffer.from(JSON.stringify(this.exportData(avatar), null, 2)) })
       const addDir = (rel, zipPath) => {
         const dir = path.join(root, rel)
         if (!fs.existsSync(dir)) return
