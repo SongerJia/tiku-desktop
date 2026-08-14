@@ -533,7 +533,7 @@ function previewText(r) {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 18px rgba(44, 229, 168, 0.35);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--ok) 35%, transparent);
 }
 .done-title { font-size: 17px; font-weight: 700; color: var(--text); }
 .done-stats { font-size: 13px; color: var(--muted); line-height: 2; }

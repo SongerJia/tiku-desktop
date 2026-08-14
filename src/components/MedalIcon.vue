@@ -17,7 +17,6 @@ defineProps({
       <linearGradient id="ms" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8fe8d2"/><stop offset=".55" stop-color="#35c0a2"/><stop offset="1" stop-color="#1f8f76"/></linearGradient>
       <linearGradient id="mc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e4c2ff"/><stop offset=".5" stop-color="#b77cf2"/><stop offset="1" stop-color="#8a4fd8"/></linearGradient>
       <linearGradient id="mh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd68a"/><stop offset=".6" stop-color="#f59a3a"/><stop offset="1" stop-color="#d96f1e"/></linearGradient>
-      <linearGradient id="ml" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9deebb"/><stop offset=".55" stop-color="#3ed49c"/><stop offset="1" stop-color="#1fa374"/></linearGradient>
       <linearGradient id="mb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#93c4ff"/><stop offset=".55" stop-color="#3f8ae8"/><stop offset="1" stop-color="#2462b8"/></linearGradient>
       <linearGradient id="mn" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d9bcff"/><stop offset=".55" stop-color="#a47af0"/><stop offset="1" stop-color="#7a4fd0"/></linearGradient>
       <radialGradient id="mst" cx=".4" cy=".3" r="1.2"><stop offset="0" stop-color="#fff3c4"/><stop offset=".55" stop-color="#fdd75e"/><stop offset="1" stop-color="#e0a012"/></radialGradient>
@@ -84,17 +83,6 @@ defineProps({
       <circle cx="26.5" cy="31.5" r="1.3" fill="#ffe9c4"/>
       <circle cx="17" cy="33" r="1" fill="#ffd68a" opacity=".8"/>
       <circle cx="31" cy="18" r="1" fill="#ffd68a" opacity=".8"/>
-    </g>
-
-    <!-- 任务达人：旗帜 + 星 + 飘线 -->
-    <g v-else-if="series === 'quest'">
-      <path d="M11 2v44" stroke="url(#ml)" stroke-width="3.6" stroke-linecap="round"/>
-      <path d="M13 4c7.5-3 11 3.5 20 1.8 0 0-3.2 10-20 11z" fill="url(#ml)" stroke="#1fa374" stroke-width="1.4"/>
-      <path d="M23 10.5l2.6 5.2 5.8.9-4.2 4 1 5.7-5.2-2.7-5.2 2.7 1-5.7-4.2-4 5.8-.9z" fill="#fff" opacity=".95"/>
-      <path d="M34 27c1.5 3 2.3 6 2.3 8.8" stroke="#3ed49c" stroke-width="1.8" fill="none" stroke-linecap="round" opacity=".8"/>
-      <circle cx="37" cy="40" r="1.4" fill="#3ed49c" opacity=".8"/>
-      <circle cx="10" cy="24" r="1.2" fill="#3ed49c" opacity=".8"/>
-      <path d="M11 40c4 2.5 8 2.5 12 0" stroke="url(#ml)" stroke-width="2.4" fill="none"/>
     </g>
 
     <!-- 知识库：翻开的书 + 书签 + 文字线 -->

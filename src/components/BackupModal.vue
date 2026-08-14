@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { showConfirm } from '../utils/confirm.js'
+import { showToast } from '../utils/toast.js'
 
 const props = defineProps({ show: Boolean })
 const emit = defineEmits(['close'])
@@ -31,7 +32,7 @@ async function restore(b) {
   restoring.value = true
   const r = await tiku.restoreBackup(b.file)
   restoring.value = false
-  if (!r.ok) { emit('close'); return }
+  if (!r.ok) { showToast('恢复失败：' + (r.error || '未知错误'), 'err'); return }
   // 主进程会自动 relaunch；这里不再提示
 }
 </script>

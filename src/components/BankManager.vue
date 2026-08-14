@@ -803,9 +803,9 @@ async function batchDelete() {
 .q-check input { width: 18px; height: 18px; accent-color: var(--brand); }
 .q-item.sel { border-color: var(--brand); box-shadow: var(--glow-soft); }
 .q-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
-.q-tag { font-size: 11px; color: var(--brand); border: 1px solid var(--line); border-radius: 12px; padding: 1px 8px; background: rgba(42,245,255,.08); cursor: pointer; }
+.q-tag { font-size: 11px; color: var(--brand); border: 1px solid var(--line); border-radius: 12px; padding: 1px 8px; background: color-mix(in srgb, var(--brand) 8%, transparent); cursor: pointer; }
 .q-tag:hover { border-color: var(--brand); }
-.tag-btn { color: var(--brand); border-color: rgba(42,245,255,.4); }
+.tag-btn { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, transparent); }
 
 /* 单题标签编辑弹层 */
 .tag-mask { position: fixed; inset: 0; background: rgba(3,6,14,.6); z-index: 210; display: flex; align-items: center; justify-content: center; }

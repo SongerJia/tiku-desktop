@@ -275,14 +275,14 @@ async function exportPaperPdf(p) {
   width: 100%; max-width: 560px; margin: 0 auto; max-height: 90%;
   background: var(--card-solid, #0b1020); border: 1px solid var(--line, #1d2740);
   border-radius: 20px 20px 0 0; display: flex; flex-direction: column; overflow: hidden;
-  box-shadow: var(--shadow, 0 20px 60px rgba(0,0,0,.5)), var(--glow-soft, 0 0 20px rgba(42,245,255,.2));
+  box-shadow: var(--shadow, 0 20px 60px rgba(0,0,0,.5)), var(--glow-soft, 0 0 20px color-mix(in srgb, var(--brand) 20%, transparent));
 }
 .me-mask.is-wide .me-panel { width: 520px; max-width: 92vw; height: auto; border-radius: 16px; }
 
 .header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid var(--line); }
 .header .close { font-size: 24px; color: var(--muted); cursor: pointer; width: 32px; }
 .header .title { font-size: 17px; font-weight: 700; color: var(--text); }
-.header .scope { font-size: 12px; color: var(--brand); background: var(--brand-light, rgba(42,245,255,.12)); border: 1px solid var(--line); border-radius: 20px; padding: 3px 10px; }
+.header .scope { font-size: 12px; color: var(--brand); background: var(--brand-light, color-mix(in srgb, var(--brand) 12%, transparent)); border: 1px solid var(--line); border-radius: 20px; padding: 3px 10px; }
 
 .tabs { display: flex; gap: 8px; padding: 12px 18px 0; }
 .tab {
@@ -290,7 +290,7 @@ async function exportPaperPdf(p) {
   border: 1px solid var(--line); border-bottom: none; background: rgba(255,255,255,.02);
   color: var(--muted); transition: all .18s;
 }
-.tab.active { background: var(--brand-light, rgba(42,245,255,.08)); color: var(--brand); border-color: var(--brand); }
+.tab.active { background: var(--brand-light, color-mix(in srgb, var(--brand) 8%, transparent)); color: var(--brand); border-color: var(--brand); }
 
 .body { padding: 14px 18px 20px; overflow-y: auto; border-top: 1px solid var(--line); }
 .field { margin-bottom: 14px; display: flex; flex-direction: column; gap: 6px; }
@@ -327,8 +327,8 @@ async function exportPaperPdf(p) {
 .btn-outline { background: transparent; border-color: var(--line); color: var(--text); }
 .btn-outline:hover { border-color: var(--brand); color: var(--brand); }
 .btn-outline.danger:hover { border-color: var(--bad); color: var(--bad); }
-.btn-primary { background: var(--brand); color: #fff; border: none; box-shadow: var(--glow, 0 0 16px rgba(42,245,255,.5)); }
-.btn-primary:hover { box-shadow: 0 0 22px rgba(42,245,255,.7); }
+.btn-primary { background: var(--brand); color: #fff; border: none; box-shadow: var(--glow, 0 0 16px color-mix(in srgb, var(--brand) 50%, transparent)); }
+.btn-primary:hover { box-shadow: 0 0 22px color-mix(in srgb, var(--brand) 70%, transparent); }
 .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
 .btn-outline.sm, .btn-primary.sm { flex: 0 0 auto; padding: 6px 16px; font-size: 12px; }
 
@@ -337,7 +337,7 @@ async function exportPaperPdf(p) {
 .empty-sub { font-size: 12px; opacity: .75; }
 
 .paper-list { display: flex; flex-direction: column; gap: 10px; }
-.paper-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: rgba(42,245,255,.03); }
+.paper-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: color-mix(in srgb, var(--brand) 3%, transparent); }
 .pc-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
 .pc-title { font-size: 14px; color: var(--text); font-weight: 600; }
 .pc-sub { font-size: 11px; color: var(--muted); }

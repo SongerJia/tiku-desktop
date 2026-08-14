@@ -294,7 +294,7 @@ function confirm() {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: var(--shadow, 0 20px 60px rgba(0,0,0,.5)), var(--glow-soft, 0 0 20px rgba(42,245,255,.2));
+  box-shadow: var(--shadow, 0 20px 60px rgba(0,0,0,.5)), var(--glow-soft, 0 0 20px color-mix(in srgb, var(--brand) 20%, transparent));
 }
 .setup-mask.is-wide { align-items: center; justify-content: center; padding: 24px; }
 .setup-panel.is-wide { width: 480px; max-width: 92vw; height: auto; border-radius: 16px; }
@@ -310,7 +310,7 @@ function confirm() {
 }
 .header .close { font-size: 24px; color: var(--muted, #7c8aa5); cursor: pointer; width: 32px; }
 .header .title { font-size: 17px; font-weight: 600; }
-.header .scope { font-size: 12px; color: var(--brand, #5b7cfa); background: var(--brand-light, rgba(42,245,255,.12)); border: 1px solid var(--line, #1d2740); border-radius: 20px; padding: 3px 10px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.header .scope { font-size: 12px; color: var(--brand, #5b7cfa); background: var(--brand-light, color-mix(in srgb, var(--brand) 12%, transparent)); border: 1px solid var(--line, #1d2740); border-radius: 20px; padding: 3px 10px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .section { padding: 14px 18px; border-bottom: 1px solid var(--line, #1d2740); }
 .sec-title { font-size: 13px; color: var(--muted, #7c8aa5); margin-bottom: 10px; }
@@ -346,8 +346,8 @@ function confirm() {
   font-weight: 600;
 }
 .chip-more:hover { border-color: var(--warn, #ffb84d); }
-.chip:hover { border-color: var(--brand, #5b7cfa); box-shadow: var(--glow-soft, 0 0 12px rgba(42,245,255,.25)); }
-.chip.active { background: var(--brand, #5b7cfa); color: #fff; border-color: var(--brand, #5b7cfa); box-shadow: var(--glow, 0 0 16px rgba(42,245,255,.5)); }
+.chip:hover { border-color: var(--brand, #5b7cfa); box-shadow: var(--glow-soft, 0 0 12px color-mix(in srgb, var(--brand) 25%, transparent)); }
+.chip.active { background: var(--brand, #5b7cfa); color: #fff; border-color: var(--brand, #5b7cfa); box-shadow: var(--glow, 0 0 16px color-mix(in srgb, var(--brand) 50%, transparent)); }
 .chip.active .chip-desc { color: rgba(255, 255, 255, 0.78); } /* 蓝底上副标题用半透明白（上一轮漏改） */
 .chip-label { font-size: 14px; font-weight: 600; }
 .chip-desc { font-size: 10px; opacity: .8; line-height: 1.3; }
@@ -374,7 +374,7 @@ function confirm() {
 .btn { flex: 1; padding: 11px; border-radius: 24px; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
 .btn-outline { background: transparent; border-color: var(--line, #1d2740); color: var(--text, #d6e2f5); }
 .btn-outline:hover { border-color: var(--brand, #5b7cfa); color: var(--brand, #5b7cfa); }
-.btn-primary { background: var(--brand, #5b7cfa); color: #fff; border: none; box-shadow: var(--glow, 0 0 16px rgba(42,245,255,.5)); }
+.btn-primary { background: var(--brand, #5b7cfa); color: #fff; border: none; box-shadow: var(--glow, 0 0 16px color-mix(in srgb, var(--brand) 50%, transparent)); }
 .btn-primary:hover { box-shadow: 0 0 22px color-mix(in srgb, var(--brand) 70%, transparent); }
 
 .fade-enter-active, .fade-leave-active { transition: opacity .22s; }

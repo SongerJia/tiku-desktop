@@ -14,6 +14,10 @@ const logger = require('./logger')
 module.exports = function syncModule(ctx) {
   const { sqlite, LOCAL_USER, uuid } = ctx
 
+  // 会话/本地状态键：不进任何导出（备份/云同步均排除；断点续做、每日一题、当前科目、
+  // 窗口位置、GitHub 同步配置属本机状态或敏感凭据，不随迁移/同步扩散）
+  const SESSION_SETTING_KEYS = ['resume_session', 'daily_puzzle', 'current_subject_id', 'window_bounds', 'gh_token', 'gh_owner', 'gh_repo', 'gh_last_sync']
+
   return {
     exportData(avatar) {
       const dump = (table, cols) => {
@@ -55,7 +59,7 @@ module.exports = function syncModule(ctx) {
         kbHighlights: dump('kb_highlights'),
         kbDocLinks: dump('kb_doc_links'),
         // 用户偏好随备份迁移；会话/本地状态键排除（断点续做、每日一题、当前科目、窗口位置、GitHub 同步配置）
-        settings: dump('settings').filter(r => !['resume_session', 'daily_puzzle', 'current_subject_id', 'window_bounds', 'gh_token', 'gh_owner', 'gh_repo', 'gh_last_sync'].includes(r.key)),
+        settings: dump('settings').filter(r => !SESSION_SETTING_KEYS.includes(r.key)),
         avatar: avatar || null, // 头像 base64（渲染层 localStorage 传入，主进程读不到本地存储）
         cards: sqlite.prepare(
           `SELECT c.*, cs.client_id AS subject_cid FROM cards c LEFT JOIN categories cs ON cs.id = c.subject_id WHERE c.deleted=0`
@@ -173,6 +177,10 @@ module.exports = function syncModule(ctx) {
         exportedAt: Date.now(),
         categories: dump('categories'),
         questions: dump('questions'),
+        // 用户偏好随云同步迁移（换机恢复每日目标/主题/字号等）；
+        // settings 表无 updated_at 列，不走 dump 增量逻辑（全量携带，量小无碍）；会话/本地键排除
+        settings: sqlite.prepare('SELECT key, value FROM settings').all()
+          .filter(r => !SESSION_SETTING_KEYS.includes(r.key)),
         answerRecords: dump('answer_records'),
         wrongBooks: dump('wrong_books'),
         favorites: dump('favorites'),

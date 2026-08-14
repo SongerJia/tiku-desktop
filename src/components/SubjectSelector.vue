@@ -16,7 +16,7 @@ onMounted(load)
 watch(() => props.show, (v) => { if (v) { load(); selectedId.value = props.currentId } })
 
 async function load() {
-  tree.value = await tiku.getCategories()
+  try { tree.value = await tiku.getCategories() } catch (e) { tree.value = [] }
 }
 
 // 左侧箭头：仅控制展开/收起，不触发选中

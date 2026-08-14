@@ -90,6 +90,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
+import { showToast } from '../utils/toast.js'
 
 const props = defineProps({
   show: Boolean,
@@ -160,11 +161,6 @@ async function markReason(r) {
   info.value.status.reason = r
   reasonOpen.value = false
   showToast(`已标记：${r}`, 'ok')
-}
-
-function showToast(msg, type) {
-  const ev = new CustomEvent('toast', { detail: { msg, type } })
-  window.dispatchEvent(ev)
 }
 </script>
 

@@ -1086,7 +1086,7 @@ function optionClass(key) {
 .kw-part { color: var(--brand); font-weight: 600; }
 .kw-none { color: var(--muted); }
 .kw-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
-.kw-hit { background: rgba(44, 229, 168, 0.12); border: 1px solid var(--ok); color: var(--ok); border-radius: 6px; padding: 2px 8px; font-size: 12px; }
+.kw-hit { background: color-mix(in srgb, var(--ok) 12%, transparent); border: 1px solid var(--ok); color: var(--ok); border-radius: 6px; padding: 2px 8px; font-size: 12px; }
 .kw-miss { background: rgba(255, 77, 109, 0.10); border: 1px solid var(--bad); color: var(--bad); border-radius: 6px; padding: 2px 8px; font-size: 12px; }
 .kw-tip { color: var(--muted); font-size: 12px; margin: 8px 0 4px; }
 
@@ -1178,13 +1178,13 @@ function optionClass(key) {
 }
 .submit:hover, .next:hover { box-shadow: 0 0 20px color-mix(in srgb, var(--brand) 60%, transparent); }
 .submit:disabled { background: rgba(255, 255, 255, 0.10); color: var(--muted); box-shadow: none; cursor: not-allowed; flex: 1; }
-.grade-yes { background: rgba(44, 229, 168, 0.18); border: 1px solid var(--ok); color: var(--ok); }
-.grade-yes:hover { box-shadow: 0 0 16px rgba(44, 229, 168, 0.4); }
+.grade-yes { background: color-mix(in srgb, var(--ok) 18%, transparent); border: 1px solid var(--ok); color: var(--ok); }
+.grade-yes:hover { box-shadow: 0 0 16px color-mix(in srgb, var(--ok) 40%, transparent); }
 .grade-no { background: rgba(255, 77, 109, 0.14); border: 1px solid var(--bad); color: var(--bad); }
 .grade-no:hover { box-shadow: 0 0 16px rgba(255, 77, 109, 0.4); }
 
 .result { margin-top: 14px; }
-.ok { color: var(--ok); font-weight: 600; text-shadow: 0 0 8px rgba(44, 229, 168, 0.45); }
+.ok { color: var(--ok); font-weight: 600; text-shadow: 0 0 8px color-mix(in srgb, var(--ok) 45%, transparent); }
 .no { color: var(--bad); font-weight: 600; text-shadow: 0 0 8px rgba(255, 77, 109, 0.45); }
 .ans { color: var(--muted); font-weight: 400; margin-left: 8px; }
 .analysis { margin: 10px 0; color: var(--text); opacity: .85; line-height: 1.6; }
@@ -1255,7 +1255,7 @@ function optionClass(key) {
 .rv-head h2 { color: var(--brand); text-shadow: var(--glow-soft); }
 .rv-list { display: flex; flex-direction: column; gap: 12px; max-height: 60vh; overflow-y: auto; }
 .rv-item { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: rgba(255, 255, 255, 0.02); }
-.rv-item.ok { border-color: rgba(44, 229, 168, 0.4); }
+.rv-item.ok { border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
 .rv-item.no { border-color: rgba(255, 77, 109, 0.4); }
 .rv-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .rv-no { font-size: 13px; color: var(--muted); }
@@ -1333,17 +1333,17 @@ function optionClass(key) {
 .ac-cell { aspect-ratio: 1; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 12px; cursor: pointer; transition: transform .1s ease; }
 .ac-cell:hover { transform: scale(1.08); }
 .ac-cell.current { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand) inset; font-weight: 700; }
-.ac-cell.right { background: rgba(44, 196, 138, 0.18); border-color: var(--good); color: var(--good); }
+.ac-cell.right { background: color-mix(in srgb, var(--ok) 18%, transparent); border-color: var(--ok); color: var(--ok); }
 .ac-cell.wrong { background: rgba(255, 77, 109, 0.16); border-color: var(--bad); color: var(--bad); }
 .ac-cell.todo { opacity: .7; }
 .ac-legend { display: flex; align-items: center; gap: 6px; margin-top: 12px; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
 .ac-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 .ac-dot.current { background: var(--brand); }
-.ac-dot.right { background: var(--good); }
+.ac-dot.right { background: var(--ok); }
 .ac-dot.wrong { background: var(--bad); }
 .ac-dot.todo { background: var(--line); }
-.master-btn { margin-top: 8px; background: rgba(44, 196, 138, 0.14); color: var(--good); border: 1px solid var(--good); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: 600; }
-.master-btn:hover { background: rgba(44, 196, 138, 0.26); }
+.master-btn { margin-top: 8px; background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); border: 1px solid var(--ok); border-radius: 8px; padding: 6px 12px; cursor: pointer; font-weight: 600; }
+.master-btn:hover { background: color-mix(in srgb, var(--ok) 26%, transparent); }
 
 /* 四档复习反馈 */
 .rate-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }

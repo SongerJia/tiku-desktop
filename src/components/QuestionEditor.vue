@@ -507,8 +507,8 @@ async function save() {
 .opt-key.picked {
   border-color: var(--ok);
   color: var(--ok);
-  background: rgba(44, 229, 168, 0.14);
-  box-shadow: 0 0 10px rgba(44, 229, 168, 0.3);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--ok) 30%, transparent);
 }
 .del {
   flex-shrink: 0;

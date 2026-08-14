@@ -70,12 +70,31 @@ module.exports = {
     } catch (e) { return null }
   },
 
-  // 听力音频：存 userData/audio/，统一转 mp3 便于播放器兼容；库里只存文件名。
-  saveAudio(buffer, ext = 'mp3') {
+  // 按文件魔数识别真实音频格式（注释曾承诺"统一转 mp3"，实际从未转码——
+  // 直接按真实格式命名 + 正确 mime，避免 wav/ogg/webm 等被误标 .mp3 导致播放器解码失败）
+  sniffAudioExt(buf) {
+    const b = buf
+    if (b.length >= 12 && b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70) return 'm4a' // ISO BMFF (ftyp)
+    if (b.length >= 4) {
+      if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46) return 'wav'   // RIFF....
+      if (b[0] === 0x4F && b[1] === 0x67 && b[2] === 0x67 && b[3] === 0x53) return 'ogg'   // OggS
+      if (b[0] === 0x66 && b[1] === 0x4C && b[2] === 0x61 && b[3] === 0x43) return 'flac'  // fLaC
+      if (b[0] === 0x1A && b[1] === 0x45 && b[2] === 0xDF && b[3] === 0xA3) return 'webm'  // EBML (webm/mkv)
+      if (b[0] === 0x00 && b[1] === 0x00 && b[2] === 0x00 && b[3] === 0x18) return 'm4a'   // ISO BMFF
+    }
+    if (b.length >= 3 && b[0] === 0x49 && b[1] === 0x44 && b[2] === 0x33) return 'mp3'     // ID3 tag
+    if (b.length >= 2 && b[0] === 0xFF && (b[1] & 0xE0) === 0xE0) return 'mp3'             // MPEG frame sync
+    return 'mp3' // 兜底（含未知格式，保持原行为）
+  },
+
+  // 听力音频：存 userData/audio/，按真实格式命名；库里只存文件名。
+  saveAudio(buffer) {
     const dir = audioDir()
     try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }) } catch (e) {}
-    const name = uuid() + '.mp3'
-    fs.writeFileSync(path.join(dir, name), Buffer.from(buffer))
+    const buf = Buffer.from(buffer)
+    const realExt = this.sniffAudioExt(buf)
+    const name = uuid() + '.' + realExt
+    fs.writeFileSync(path.join(dir, name), buf)
     return name
   },
 

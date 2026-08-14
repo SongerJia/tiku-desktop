@@ -677,7 +677,7 @@ async function loadAnalysis() {
   display: flex; align-items: center; gap: 10px;
   border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
 }
-.quest-item.done { border-color: rgba(44, 229, 168, 0.4); background: rgba(44, 229, 168, 0.05); }
+.quest-item.done { border-color: color-mix(in srgb, var(--ok) 40%, transparent); background: color-mix(in srgb, var(--ok) 5%, transparent); }
 .quest-check { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--muted); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: var(--muted); }
 .quest-item.done .quest-check { border-color: var(--ok); color: var(--ok); }
 .quest-name { flex: 1; font-size: 13px; color: var(--text); }
@@ -876,7 +876,7 @@ async function loadAnalysis() {
 /* A2 雷达中心均值：渐变 + 弹入（KPI 同语言） */
 .radar-avg {
   font-size: 17px; font-weight: 700;
-  fill: url(#none); fill: var(--brand);
+  fill: var(--brand);
   animation: numPop .5s cubic-bezier(.2, .7, .3, 1) .55s both;
 }
 .radar-avg-sub { font-size: 8.5px; fill: var(--muted); animation: numPop .5s cubic-bezier(.2, .7, .3, 1) .65s both; }

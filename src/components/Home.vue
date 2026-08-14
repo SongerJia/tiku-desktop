@@ -638,7 +638,7 @@ onBeforeUnmount(() => {
 .review-banner:hover { box-shadow: var(--glow-soft); }
 .rb-ico { color: var(--warn); flex-shrink: 0; display: flex; }
 .rb-info { flex: 1; min-width: 0; }
-.rb-title { font-size: 14px; font-weight: 600; color: #f0c98a; }
+.rb-title { font-size: 14px; font-weight: 600; color: var(--warn-soft); }
 .rb-sub { font-size: 12px; color: var(--muted); }
 .rb-btn { flex-shrink: 0; background: var(--warn); color: #1a160e; border-radius: 9px; padding: 7px 14px; font-size: 13px; font-weight: 600; }
 
@@ -763,7 +763,7 @@ onBeforeUnmount(() => {
 .mi-ico.wrong { background: rgba(255, 77, 109, 0.14); color: var(--bad); }
 .mi-ico.fav { background: rgba(244, 114, 182, 0.14); color: var(--bad-soft); }
 .mi-ico.all { background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand); }
-.mi-ico.kb { background: rgba(44, 229, 168, 0.14); color: var(--ok); }
+.mi-ico.kb { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
 .mi-ico.exam { background: rgba(56, 189, 248, 0.14); color: var(--brand-soft); }
 .mi-ico.cards { background: rgba(167, 139, 250, 0.14); color: var(--brand-soft); }
 .mi-main { flex: 1; font-size: 13px; color: var(--text); }
