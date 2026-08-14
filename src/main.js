@@ -72,15 +72,3 @@ app.config.errorHandler = (err) => {
   else console.error('[vue-error]', err)
 }
 app.mount('#app')
-
-// 全局光标辉光（2026-08-14）：mousemove 更新 --mx/--my，rAF 节流避免高频重绘
-let glowRaf = 0
-window.addEventListener('mousemove', (e) => {
-  if (glowRaf) return
-  glowRaf = requestAnimationFrame(() => {
-    const el = document.documentElement
-    el.style.setProperty('--mx', e.clientX + 'px')
-    el.style.setProperty('--my', e.clientY + 'px')
-    glowRaf = 0
-  })
-}, { passive: true })
