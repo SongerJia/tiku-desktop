@@ -70,6 +70,8 @@ function clearAvatar() {
 }
 const toast = ref('')
 const showNotes = ref(false)
+const showWrong = ref(false) // 错题管理弹窗
+const showFav = ref(false) // 收藏管理弹窗
 
 // ---- GitHub 仓库同步（唯一后端：数据快照 + 知识库文档 + 题目图片）----
 const ghToken = ref('')
@@ -811,7 +813,7 @@ onMounted(async () => {
     </div>
 
 
-    <!-- 错题与收藏 -->
+    <!-- 错题与收藏（入口卡 + 管理弹窗） -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('misc')">
         <span class="sec-icon sec-icon-misc"><Icon name="note" :size="16" /></span>
@@ -820,18 +822,35 @@ onMounted(async () => {
       </div>
       <div v-show="secOpen.misc" class="sec-body">
 
-    <!-- 错题本 / 收藏 / 笔记 -->
     <div class="card">
       <div class="card-title">我的错题与收藏</div>
-      <WrongBook @start="forwardStart" />
-      <Favorites @start="forwardStart" />
-      <div class="list-item" @click="showNotes = true">
-        <span class="title">我的笔记</span>
-        <span class="sub">查看与删除全部题目笔记</span>
-        <span class="arrow">›</span>
+      <div class="wf-item" @click="showWrong = true">
+        <span class="wf-ico" style="--gc: #fb7185; --gc-a: 251, 113, 133"><Icon name="fire" :size="15" /></span>
+        <div class="wf-main">
+          <span class="wf-name">错题本</span>
+          <span class="wf-desc">未掌握题目 · 错题重练</span>
+        </div>
+        <span v-if="metrics" class="wf-badge">{{ metrics.wrongCount }} 道待练</span>
+        <span class="wf-arrow">›</span>
+      </div>
+      <div class="wf-item" @click="showFav = true">
+        <span class="wf-ico" style="--gc: #fbbf24; --gc-a: 251, 191, 36"><Icon name="star" :size="15" /></span>
+        <div class="wf-main">
+          <span class="wf-name">收藏</span>
+          <span class="wf-desc">重点题目 · 收藏复习</span>
+        </div>
+        <span v-if="metrics" class="wf-badge">{{ metrics.favCount }} 道</span>
+        <span class="wf-arrow">›</span>
+      </div>
+      <div class="wf-item" @click="showNotes = true">
+        <span class="wf-ico" style="--gc: #a78bfa; --gc-a: 167, 139, 250"><Icon name="note" :size="15" /></span>
+        <div class="wf-main">
+          <span class="wf-name">我的笔记</span>
+          <span class="wf-desc">查看与删除全部题目笔记</span>
+        </div>
+        <span class="wf-arrow">›</span>
       </div>
     </div>
-
 
       </div>
     </div>
@@ -898,6 +917,42 @@ onMounted(async () => {
         <div class="mf-sub" :class="{ lock: !activeTip.got }">{{ activeTip.sub }}</div>
         <div class="mf-desc">{{ activeTip.desc }}</div>
       </div>
+    </Teleport>
+
+    <!-- 错题管理弹窗（Teleport：包完整 WrongBook 列表） -->
+    <Teleport to="body">
+      <transition name="fade">
+        <div v-if="showWrong" class="wf-mask" @click.self="showWrong = false">
+          <div class="wf-panel">
+            <div class="wf-head">
+              <span class="close" @click="showWrong = false">×</span>
+              <span class="title">错题本</span>
+              <span class="count">{{ metrics ? metrics.wrongCount : 0 }} 道</span>
+            </div>
+            <div class="wf-body">
+              <WrongBook @start="forwardStart" />
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
+
+    <!-- 收藏管理弹窗（Teleport：包完整 Favorites 列表） -->
+    <Teleport to="body">
+      <transition name="fade">
+        <div v-if="showFav" class="wf-mask" @click.self="showFav = false">
+          <div class="wf-panel">
+            <div class="wf-head">
+              <span class="close" @click="showFav = false">×</span>
+              <span class="title">收藏</span>
+              <span class="count">{{ metrics ? metrics.favCount : 0 }} 道</span>
+            </div>
+            <div class="wf-body">
+              <Favorites @start="forwardStart" />
+            </div>
+          </div>
+        </div>
+      </transition>
     </Teleport>
 </template>
 
@@ -1039,6 +1094,65 @@ onMounted(async () => {
   color: var(--muted);
 }
 .list-item.danger .title { color: #ff6b6b; }
+
+/* 错题与收藏入口卡（2026-08-14） */
+.wf-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 4px;
+  border-bottom: 0.5px solid var(--line);
+  cursor: pointer;
+  transition: background .15s ease;
+}
+.wf-item:last-of-type { border-bottom: none; }
+.wf-item:hover { background: var(--hover-bg); }
+.wf-ico {
+  width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(var(--gc-a), 0.13); color: var(--gc);
+  box-shadow: inset 0 0 0 1px rgba(var(--gc-a), 0.3);
+}
+.wf-main { flex: 1; min-width: 0; }
+.wf-name { display: block; font-size: 13.5px; font-weight: 500; color: var(--text); }
+.wf-desc { display: block; font-size: 11px; color: var(--muted); margin-top: 1px; }
+.wf-badge {
+  font-size: 11px; color: var(--muted); flex-shrink: 0;
+  background: var(--bg-soft); border: 1px solid var(--line);
+  border-radius: 999px; padding: 2px 9px;
+}
+.wf-arrow { font-size: 15px; color: var(--muted); flex-shrink: 0; }
+
+/* 错题/收藏管理弹窗（Teleport） */
+.wf-mask {
+  position: fixed; inset: 0; z-index: 200;
+  background: var(--modal-mask);
+  backdrop-filter: blur(var(--modal-blur));
+  -webkit-backdrop-filter: blur(var(--modal-blur));
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.wf-panel {
+  width: 780px; max-width: 94vw; height: 84vh;
+  display: flex; flex-direction: column;
+  background: var(--card-solid);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow), var(--glow-soft);
+  overflow: hidden;
+  animation: wfPanelIn .26s cubic-bezier(.2, .7, .3, 1);
+}
+@keyframes wfPanelIn { from { opacity: 0; transform: translateY(18px) scale(.98); } to { opacity: 1; transform: none; } }
+.wf-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px; border-bottom: 1px solid var(--line); flex-shrink: 0;
+}
+.wf-head .close { font-size: 18px; color: var(--muted); cursor: pointer; line-height: 1; padding: 4px 8px; border-radius: 6px; }
+.wf-head .close:hover { color: var(--text); background: var(--hover-bg); }
+.wf-head .title { font-size: 15px; font-weight: 600; color: var(--text); }
+.wf-head .count { margin-left: auto; font-size: 12px; color: var(--muted); }
+.wf-body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 18px; }
+.wf-body :deep(h2) { display: none; } /* 组件内自带 h2 与弹窗头重复，隐藏 */
+
+/* 弹窗淡入（Profile 此前未定义 fade） */
+.fade-enter-active, .fade-leave-active { transition: opacity .18s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 
 /* 数据管理分区（2026-08-14）：分区标题 + 图标操作卡 2 列网格 */
 .dm-sec {
