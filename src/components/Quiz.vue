@@ -207,7 +207,9 @@ onMounted(async () => {
       categoryIds: props.categoryIds && props.categoryIds.length ? props.categoryIds : null,
       subjectId: props.subjectId,
       mode: props.mode,
-      tags: props.tags
+      tags: props.tags,
+      // 顺序模式 + 限定题数：SQL 层 LIMIT 截断（避免全量拉取后 JS slice，大题库 IPC/parse 开销大）
+      limit: props.order === 'random' ? undefined : (props.limit || undefined)
     })
     if (props.order === 'random') list = shuffle(list)
     if (props.limit) list = list.slice(0, Number(props.limit))

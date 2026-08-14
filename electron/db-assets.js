@@ -16,6 +16,14 @@ function cacheImage(name, dataUrl) {
 }
 function clearImageCache() { imageCache.clear() }
 
+// getAudioUrl 内存缓存（听力音频播放时重复读盘转 base64 开销大，缓存 dataURL）
+const audioCache = new Map()
+const AUDIO_CACHE_MAX = 100
+function cacheAudio(name, dataUrl) {
+  if (audioCache.size >= AUDIO_CACHE_MAX) audioCache.clear()
+  audioCache.set(name, dataUrl)
+}
+
 function imageDir() { return path.join(app.getPath('userData'), 'images') }
 function audioDir() { return path.join(app.getPath('userData'), 'audio') }
 
@@ -100,12 +108,15 @@ module.exports = {
 
   getAudioUrl(name) {
     if (!name) return null
+    if (audioCache.has(name)) return audioCache.get(name)
     const full = path.join(audioDir(), path.basename(String(name)))
     try {
       if (!fs.existsSync(full)) return null
       const b64 = fs.readFileSync(full).toString('base64')
       const ext = path.extname(name).slice(1).toLowerCase() || 'mp3'
-      return `data:audio/${ext};base64,${b64}`
+      const dataUrl = `data:audio/${ext};base64,${b64}`
+      cacheAudio(name, dataUrl)
+      return dataUrl
     } catch (e) { return null }
   }
 }
