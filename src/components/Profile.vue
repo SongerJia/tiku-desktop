@@ -430,10 +430,9 @@ onMounted(async () => {
   <div class="profile">
     <!-- 用户信息 + XP 等级（紧凑右侧） -->
     <div class="card user-card" v-tilt="{ deg: 3 }">
-      <div class="avatar-wrap" @click="openEdit" title="编辑资料">
+      <div class="avatar-wrap">
         <img v-if="avatar" :src="avatar" class="avatar-img" alt="头像" />
         <div v-else class="avatar">{{ userName.slice(0, 1) }}</div>
-        <div class="avatar-mask"><span>编辑资料</span></div>
       </div>
       <div class="user-info">
         <div class="user-name">
@@ -605,20 +604,43 @@ onMounted(async () => {
       <div class="pref-row">
         <span class="pref-label">主题</span>
         <div class="theme-palette">
-          <button class="theme-swatch" :class="{ on: theme === 'dark' }" @click="setTheme('dark')">
-            <i class="sw-dot" style="background:#1a1f2e"></i><span>深色</span>
+          <button class="theme-card" :class="{ on: theme === 'dark' }" @click="setTheme('dark')">
+            <span class="tc-preview tc-dark">
+              <i class="tc-bar"></i>
+              <i class="tc-line"></i><i class="tc-line"></i><i class="tc-line short"></i>
+            </span>
+            <span class="tc-name">深色</span>
+            <span v-if="theme === 'dark'" class="tc-check">✓</span>
           </button>
-          <button class="theme-swatch" :class="{ on: theme === 'light' }" @click="setTheme('light')">
-            <i class="sw-dot" style="background:#eef1f6"></i><span>浅色</span>
+          <button class="theme-card" :class="{ on: theme === 'light' }" @click="setTheme('light')">
+            <span class="tc-preview tc-light">
+              <i class="tc-bar"></i>
+              <i class="tc-line"></i><i class="tc-line"></i><i class="tc-line short"></i>
+            </span>
+            <span class="tc-name">浅色</span>
+            <span v-if="theme === 'light'" class="tc-check">✓</span>
           </button>
-          <button class="theme-swatch" :class="{ on: theme === 'eye' }" @click="setTheme('eye')">
-            <i class="sw-dot" style="background:#e9f0e6"></i><span>护眼绿</span>
+          <button class="theme-card" :class="{ on: theme === 'eye' }" @click="setTheme('eye')">
+            <span class="tc-preview tc-eye">
+              <i class="tc-bar"></i>
+              <i class="tc-line"></i><i class="tc-line"></i><i class="tc-line short"></i>
+            </span>
+            <span class="tc-name">护眼绿</span>
+            <span v-if="theme === 'eye'" class="tc-check">✓</span>
           </button>
         </div>
       </div>
       <div class="pref-row">
-        <span class="pref-label">字号 {{ Math.round(fontScale * 100) }}%</span>
-        <input class="pref-range" type="range" min="0.8" max="1.4" step="0.05" :value="fontScale" @input="setFontScale($event.target.value)" />
+        <span class="pref-label">字号 <b class="pref-pct">{{ Math.round(fontScale * 100) }}%</b></span>
+        <span class="pref-a">A</span>
+        <div class="pref-range-wrap">
+          <input class="pref-range" type="range" min="0.8" max="1.4" step="0.05" :value="fontScale" @input="setFontScale($event.target.value)"
+                 :style="{ background: `linear-gradient(90deg, var(--brand) ${(fontScale - 0.8) / 0.6 * 100}%, var(--line) ${(fontScale - 0.8) / 0.6 * 100}%)` }" />
+          <div class="pref-ticks">
+            <i v-for="t in 7" :key="t" :class="{ on: Math.round(fontScale * 100) >= Math.round((0.8 + (t - 1) * 0.1) * 100) }"></i>
+          </div>
+        </div>
+        <span class="pref-a big">A</span>
       </div>
     </div>
 
@@ -1456,15 +1478,69 @@ onMounted(async () => {
 
 /* 同步冲突明细 */
 
-/* 主题色板（方向 12） */
-.theme-palette { display: flex; gap: 8px; }
-.theme-swatch {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  font-size: 11px; color: var(--muted); background: transparent; border: 1px solid var(--line);
-  border-radius: 10px; padding: 8px 10px; cursor: pointer; transition: all .15s;
+/* 主题选择：大卡片预览式（mini 界面卡 + 选中光晕 + 对勾角标） */
+.theme-palette { display: flex; gap: 10px; }
+.theme-card {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  font-size: 11px; color: var(--muted);
+  background: transparent; border: 1px solid var(--line);
+  border-radius: 12px; padding: 10px 10px 9px; cursor: pointer;
+  transition: all .18s ease;
 }
-.theme-swatch.on { border-color: var(--brand); color: var(--text); box-shadow: var(--glow-soft); }
-.sw-dot { width: 30px; height: 22px; border-radius: 6px; border: 1px solid var(--line); }
+.theme-card:hover { border-color: rgba(91, 124, 250, 0.45); transform: translateY(-1px); }
+.theme-card.on { border-color: var(--brand); box-shadow: 0 0 0 1.5px var(--brand), 0 4px 14px rgba(91, 124, 250, 0.22); }
+.theme-card.on .tc-name { color: var(--text); font-weight: 600; }
+/* mini 界面预览 */
+.tc-preview {
+  display: block; width: 74px; height: 46px; border-radius: 8px;
+  overflow: hidden; border: 1px solid var(--line); position: relative;
+  display: flex; flex-direction: column; gap: 4px; padding: 6px 7px;
+}
+.tc-bar { display: block; height: 6px; border-radius: 3px; margin-bottom: 3px; opacity: .9; }
+.tc-line { display: block; height: 3px; border-radius: 2px; opacity: .5; }
+.tc-line.short { width: 55%; }
+.tc-dark   { background: #131827; }
+.tc-dark .tc-bar { background: #2a3550; }
+.tc-dark .tc-line { background: #39466b; }
+.tc-light  { background: #f3f5fa; }
+.tc-light .tc-bar { background: #d7deeb; }
+.tc-light .tc-line { background: #cdd6e6; }
+.tc-eye    { background: #eef4ea; }
+.tc-eye .tc-bar { background: #cfe0c8; }
+.tc-eye .tc-line { background: #c4d8bb; }
+/* 选中对勾角标 */
+.tc-check {
+  position: absolute; top: -7px; right: -7px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--brand); color: #fff;
+  font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 8px rgba(91, 124, 250, 0.6);
+  animation: tcPop .3s cubic-bezier(.2, .9, .3, 1.3);
+}
+@keyframes tcPop { from { transform: scale(0); } to { transform: scale(1); } }
+/* 字号滑块：刻度点 + 品牌色填充 + A 小/A 大 */
+.pref-pct { color: var(--brand); font-weight: 700; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.pref-a { font-size: 12px; color: var(--muted); flex-shrink: 0; }
+.pref-a.big { font-size: 16px; }
+.pref-range-wrap { flex: 1; position: relative; }
+.pref-range {
+  width: 100%; accent-color: var(--brand); cursor: pointer;
+  -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px;
+  background: var(--line);
+}
+.pref-range::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; border: 2px solid var(--brand);
+  box-shadow: 0 0 8px rgba(91, 124, 250, 0.45);
+  cursor: pointer; margin-top: 0;
+}
+.pref-ticks { display: flex; justify-content: space-between; margin-top: 5px; padding: 0 2px; }
+.pref-ticks i {
+  width: 3px; height: 5px; border-radius: 1px; background: var(--line); transition: background .2s;
+}
+.pref-ticks i.on { background: var(--brand); }
 
 /* ===== 我的页铺开（2026-08-12）：渐变语言 / 流光 ===== */
 /* 用户卡/成就墙卡：渐变边框（门面） */
@@ -1561,16 +1637,6 @@ onMounted(async () => {
   object-fit: cover;
   box-shadow: 0 0 0 3px rgba(91, 124, 250, 0.15), 0 4px 14px rgba(91, 124, 250, 0.35);
 }
-/* 头像 hover 遮罩：底部半透明「更换」+ 右上清除 × */
-.avatar-mask {
-  position: absolute; inset: 0; border-radius: 50%;
-  background: rgba(2, 6, 16, 0.55);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 10.5px; color: #dfe7fa;
-  opacity: 0; transition: opacity .18s ease;
-  backdrop-filter: blur(2px);
-}
-.avatar-wrap:hover .avatar-mask { opacity: 1; }
 /* 编辑入口：低调（✎ 低透明），hover 名字区才亮起 */
 .user-name { display: flex; align-items: center; gap: 6px; }
 .user-name-text { font-size: 16px; font-weight: 600; color: var(--text); }
