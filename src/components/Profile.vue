@@ -741,51 +741,59 @@ onMounted(async () => {
       <div v-show="secOpen.data" class="sec-body">
 
 
-    <!-- 数据导入导出 -->
+    <!-- 数据管理（分区：备份迁移 / 内容整理 / 导出内容 / 危险操作） -->
     <div class="card">
       <div class="card-title">数据管理</div>
-      <div class="list-item" @click="exportData">
-        <span class="title">导出备份</span>
-        <span class="arrow">›</span>
+
+      <p class="dm-sec">备份与迁移</p>
+      <div class="dm-grid">
+        <div class="dm-item" @click="exportData">
+          <span class="dm-ico" style="--gc: #5b7cfa; --gc-a: 91, 124, 250"><Icon name="download" :size="15" /></span>
+          <div class="dm-main"><span class="dm-name">导出备份</span><span class="dm-desc">JSON 快照</span></div>
+        </div>
+        <label class="dm-item">
+          <span class="dm-ico" style="--gc: #8b5cf6; --gc-a: 139, 92, 246"><Icon name="paper" :size="15" /></span>
+          <div class="dm-main"><span class="dm-name">导入备份</span><span class="dm-desc">恢复 JSON 快照</span></div>
+          <input type="file" accept=".json" style="display:none" @change="importData" />
+        </label>
+        <div class="dm-item" @click="showBackup = true">
+          <span class="dm-ico" style="--gc: #22d3ee; --gc-a: 34, 211, 238"><Icon name="clock" :size="15" /></span>
+          <div class="dm-main"><span class="dm-name">备份管理</span><span class="dm-desc">自动备份 · 一键恢复</span></div>
+        </div>
+        <div class="dm-item" @click="exportZip">
+          <span class="dm-ico" style="--gc: #fbbf24; --gc-a: 251, 191, 36"><Icon name="chest" :size="15" /></span>
+          <div class="dm-main"><span class="dm-name">导出全量 ZIP</span><span class="dm-desc">题库+图片+知识库打包</span></div>
+        </div>
       </div>
-      <label class="list-item" style="display:flex;cursor:pointer">
-        <span class="title">导入备份</span>
-        <span class="arrow">›</span>
-        <input type="file" accept=".json" style="display:none" @change="importData" />
-      </label>
-      <div class="list-item" @click="showBackup = true">
-        <span class="title">备份管理</span>
-        <span class="sub">自动备份列表 · 一键恢复</span>
-        <span class="arrow">›</span>
+
+      <p class="dm-sec">内容整理</p>
+      <div class="dm-grid">
+        <div class="dm-item" @click="showCats = true">
+          <span class="dm-ico" style="--gc: #4fd1a5; --gc-a: 79, 209, 165"><Icon name="grid" :size="15" /></span>
+          <div class="dm-main"><span class="dm-name">科目管理</span><span class="dm-desc">科目与章节</span></div>
+        </div>
+        <div class="dm-item" @click="cleanupImages">
+          <span class="dm-ico" style="--gc: #fb7185; --gc-a: 251, 113, 133"><Icon name="broom" :size="15" /></span>
+          <div class="dm-main"><span class="dm-name">清理无用图片</span><span class="dm-desc">释放存储空间</span></div>
+        </div>
       </div>
-      <div class="list-item" @click="showCats = true">
-        <span class="title">科目管理</span>
-        <span class="sub">新建 / 改名 / 删除科目与章节</span>
-        <span class="arrow">›</span>
+
+      <p class="dm-sec">导出内容</p>
+      <div class="dm-grid">
+        <div class="dm-item" @click="exportWrong">
+          <span class="dm-ico" style="--gc: #fb923c; --gc-a: 251, 146, 60"><Icon name="note" :size="15" /></span>
+          <div class="dm-main"><span class="dm-name">导出错题本</span><span class="dm-desc">Markdown 打开</span></div>
+        </div>
+        <div class="dm-item" @click="exportNotes">
+          <span class="dm-ico" style="--gc: #a78bfa; --gc-a: 167, 139, 250"><Icon name="doc" :size="15" /></span>
+          <div class="dm-main"><span class="dm-name">导出笔记</span><span class="dm-desc">Markdown 打开</span></div>
+        </div>
       </div>
-      <div class="list-item" @click="cleanupImages">
-        <span class="title">清理无用图片</span>
-        <span class="sub">回收未使用的题图，释放存储空间</span>
-        <span class="arrow">›</span>
-      </div>
-      <div class="list-item" @click="exportWrong">
-        <span class="title">导出错题本</span>
-        <span class="sub">生成 Markdown 在文件管理器中打开</span>
-        <span class="arrow">›</span>
-      </div>
-      <div class="list-item" @click="exportNotes">
-        <span class="title">导出笔记</span>
-        <span class="sub">生成 Markdown 在文件管理器中打开</span>
-        <span class="arrow">›</span>
-      </div>
-      <div class="list-item" @click="exportZip">
-        <span class="title">导出全量数据 ZIP</span>
-        <span class="sub">题库 + 图片 + 音频 + 知识库一键打包，可迁移</span>
-        <span class="arrow">›</span>
-      </div>
-      <div class="list-item" @click="clearLocal">
-        <span class="title danger">清空本地学习数据</span>
-        <span class="arrow">›</span>
+
+      <p class="dm-sec danger">危险操作</p>
+      <div class="dm-item danger" @click="clearLocal">
+        <span class="dm-ico" style="--gc: #ff6b6b; --gc-a: 255, 107, 107"><Icon name="trash" :size="15" /></span>
+        <div class="dm-main"><span class="dm-name">清空本地学习数据</span><span class="dm-desc">不可恢复，需二次确认</span></div>
       </div>
     </div>
 
@@ -1022,6 +1030,41 @@ onMounted(async () => {
   color: var(--muted);
 }
 .list-item.danger .title { color: #ff6b6b; }
+
+/* 数据管理分区（2026-08-14）：分区标题 + 图标操作卡 2 列网格 */
+.dm-sec {
+  font-size: 11px; color: var(--muted); letter-spacing: .5px;
+  margin: 14px 2px 8px;
+}
+.dm-sec.danger { color: #ff6b6b; }
+.dm-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+.dm-item {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 9px 10px; cursor: pointer;
+  transition: border-color .15s ease, transform .15s ease, background .15s ease;
+}
+.dm-item:hover { border-color: var(--brand); background: var(--hover-bg); transform: translateY(-1px); }
+.dm-item.danger { border-color: rgba(255, 107, 107, 0.4); }
+.dm-item.danger:hover { border-color: #ff6b6b; background: rgba(255, 107, 107, 0.06); }
+.dm-ico {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(var(--gc-a), 0.13); color: var(--gc);
+  box-shadow: inset 0 0 0 1px rgba(var(--gc-a), 0.3);
+}
+.dm-main { min-width: 0; }
+.dm-name {
+  display: block; font-size: 13px; font-weight: 500; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dm-item.danger .dm-name { color: #ff6b6b; }
+.dm-desc {
+  display: block; font-size: 11px; color: var(--muted); margin-top: 1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 /* 云同步卡片（2026-08-13：连接状态卡 V2） */
 .sync-card { border-color: rgba(34, 211, 238, 0.35); }
