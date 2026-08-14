@@ -11,7 +11,8 @@ module.exports = function statsModule(ctx) {
 
   return {
     getStats() {
-      const overall = sqlite.prepare('SELECT COUNT(*) AS n, SUM(is_correct) AS c FROM answer_records WHERE user_id=? AND deleted=0').get(LOCAL_USER)
+      // 口径与 getSummary.accuracy 统一：排除背题 recite / 卡片 card / 问答题自评 self_graded
+      const overall = sqlite.prepare("SELECT COUNT(*) AS n, SUM(is_correct) AS c FROM answer_records WHERE user_id=? AND deleted=0 AND mode NOT IN ('recite','card') AND self_graded=0").get(LOCAL_USER)
       const total = overall.n || 0
       const correct = overall.c || 0
       const rate = total ? Math.round((correct / total) * 100) : 0
@@ -91,6 +92,8 @@ module.exports = function statsModule(ctx) {
       const favGroups = sqlite.prepare("SELECT COUNT(DISTINCT fav_group) AS n FROM favorites WHERE user_id=? AND deleted=0 AND TRIM(IFNULL(fav_group,''))<>''").get(LOCAL_USER).n
       const cardsCount = sqlite.prepare('SELECT COUNT(*) AS n FROM cards WHERE deleted=0').get().n
       const reviewCount = sqlite.prepare('SELECT COUNT(*) AS n FROM review_logs').get().n
+      // 错题毕业数（status 从 wrong 走向 mastered 的题，区别于"答对过的题数"mastered）
+      const wrongGraduated = sqlite.prepare("SELECT COUNT(*) AS n FROM wrong_books WHERE user_id=? AND deleted=0 AND status='mastered'").get(LOCAL_USER).n
       const focusMin = sqlite.prepare('SELECT COALESCE(SUM(minutes),0) AS n FROM focus_sessions WHERE deleted=0').get().n
       const habitChecks = sqlite.prepare('SELECT COUNT(*) AS n FROM habit_checks').get().n
       const kb = this.kbStats()
@@ -99,7 +102,7 @@ module.exports = function statsModule(ctx) {
         totalAnswered, mastered: s.mastered, wrongCount: s.wrongCount,
         correctCount, essayCount,
         papersCount, notesCount, tagsUsed, favCount,
-        favGroups, cardsCount, reviewCount, focusMin, habitChecks,
+        favGroups, cardsCount, reviewCount, focusMin, habitChecks, wrongGraduated,
         kbDocs: kb.docs, kbBlocks: kb.blocks, kbLinks: kb.links, kbReadCount: kb.readCount,
         dailyGoal: Number(this.getSetting('daily_goal') || 0)
       }
@@ -129,11 +132,14 @@ module.exports = function statsModule(ctx) {
       const learned = sqlite.prepare(`SELECT COUNT(DISTINCT ar.question_id) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0${sc.sql}`).get(LOCAL_USER, ...sc.params).n
       const mastered = sqlite.prepare(`SELECT COUNT(DISTINCT ar.question_id) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.is_correct=1${sc.sql}`).get(LOCAL_USER, ...sc.params).n
       const todayStart = new Date().setHours(0, 0, 0, 0)
-      const today = sqlite.prepare(`SELECT COUNT(*) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=?${sc.sql}`).get(LOCAL_USER, todayStart, ...sc.params).n
+      const tomorrowStart = todayStart + 86400000
+      // 今日口径：[今日 0 点, 明日 0 点)，未来时间戳不计入
+      const today = sqlite.prepare(`SELECT COUNT(*) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=? AND ar.created_at<?${sc.sql}`).get(LOCAL_USER, todayStart, tomorrowStart, ...sc.params).n
       const wrongCount = sqlite.prepare(`SELECT COUNT(*) AS n FROM wrong_books wb JOIN questions q ON q.id=wb.question_id WHERE wb.user_id=? AND wb.status='wrong' AND wb.deleted=0 AND q.deleted=0${sc.sql}`).get(LOCAL_USER, ...sc.params).n
 
       const localDateKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      const dayRows = sqlite.prepare("SELECT DISTINCT DATE(created_at/1000, 'unixepoch', 'localtime') AS day FROM answer_records WHERE user_id=? AND deleted=0").all(LOCAL_USER)
+      // 活跃天口径与 learned/mastered 一致：仅统计未删除题目的答题记录
+      const dayRows = sqlite.prepare("SELECT DISTINCT DATE(ar.created_at/1000, 'unixepoch', 'localtime') AS day FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0").all(LOCAL_USER)
       const daySet = new Set(dayRows.map(r => r.day))
       const activeDays = daySet.size
       let streak = 0

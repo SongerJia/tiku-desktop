@@ -157,7 +157,7 @@ module.exports = function paperModule(ctx) {
           const stat = sqlite.prepare('SELECT COUNT(*) AS n, SUM(is_correct) AS c FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.category_id=?').get(LOCAL_USER, ch.id)
           const n = stat.n || 0
           const mastered = sqlite.prepare('SELECT COUNT(DISTINCT question_id) AS n FROM answer_records WHERE user_id=? AND deleted=0 AND is_correct=1 AND question_id IN (SELECT id FROM questions WHERE category_id=?)').get(LOCAL_USER, ch.id).n
-          const wrong = sqlite.prepare("SELECT COUNT(*) AS n FROM wrong_books WHERE user_id=? AND status='wrong' AND deleted=0 AND question_id IN (SELECT id FROM questions WHERE category_id=?)").get(LOCAL_USER, ch.id).n
+          const wrong = sqlite.prepare("SELECT COUNT(*) AS n FROM wrong_books WHERE user_id=? AND status='wrong' AND deleted=0 AND question_id IN (SELECT id FROM questions WHERE category_id=? AND deleted=0)").get(LOCAL_USER, ch.id).n
           return { id: ch.id, name: ch.name, totalQ: totalQ || 0, learned: learned || 0, answered: n, rate: n ? Math.round(((stat.c || 0) / n) * 100) : 0, mastered: mastered || 0, wrong: wrong || 0 }
         })
         out.push({ subjectId: sub.id, subjectName: sub.name, chapters: list })

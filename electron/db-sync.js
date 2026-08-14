@@ -51,6 +51,7 @@ module.exports = function syncModule(ctx) {
         kbFiles,
         xpLogs: dump('xp_logs'),
         focusSessions: dump('focus_sessions'),
+        reviewLogs: dump('review_logs'), // 复习轨迹（成就/周报数据源，表无 deleted 列）
         kbHighlights: dump('kb_highlights'),
         kbDocLinks: dump('kb_doc_links'),
         settings: dump('settings'), // 用户偏好：用户名/每日目标/主题/字号/同步配置等（换机完整迁移）
@@ -189,6 +190,7 @@ module.exports = function syncModule(ctx) {
         kbFiles,
         xpLogs: dump('xp_logs'),
         focusSessions: dump('focus_sessions'),
+        reviewLogs: dump('review_logs'), // 复习轨迹（成就/周报数据源，表无 deleted 列）
         cards: sqlite.prepare(
           `SELECT c.*, cs.client_id AS subject_cid FROM cards c LEFT JOIN categories cs ON cs.id = c.subject_id WHERE c.deleted=0`
         ).all(),
@@ -264,7 +266,8 @@ module.exports = function syncModule(ctx) {
         { table: 'cards', cols: ['front', 'back', 'category', 'subject_id', 'subject_cid', 'source_question_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'] },
         { table: 'materials', cols: ['title', 'content', 'subject_id', 'subject_cid', 'created_at', 'updated_at', 'deleted', 'client_id'] },
         { table: 'kb_highlights', cols: ['doc_id', 'block_id', 'text', 'note', 'color', 'created_at', 'updated_at', 'deleted', 'client_id'] },
-        { table: 'kb_doc_links', cols: ['from_doc_id', 'to_doc_id', 'note', 'created_at', 'client_id'], orIgnore: true }
+        { table: 'kb_doc_links', cols: ['from_doc_id', 'to_doc_id', 'note', 'created_at', 'client_id'], orIgnore: true },
+        { table: 'review_logs', cols: ['item_type', 'item_id', 'result', 'created_at', 'client_id'] }
       ]
 
       let syncConflicts = 0 // 冲突数：同 client_id 双端都有且 updated_at 不同（LWW 按时间戳覆盖）
@@ -451,6 +454,7 @@ module.exports = function syncModule(ctx) {
         }
         const xpN = mergeSimple(9, 'xpLogs')
         const fsN = mergeSimple(10, 'focusSessions')
+        const rvN = mergeSimple(15, 'reviewLogs') // 复习轨迹（2026-08-14 补：成就/周报数据源随同步迁移）
         // cards：改手动合并（mergeSimple 无法做 subject 外键映射）——科目归属按 cid 重映射
         const cdMerged = lwwMerge(readAll('cards'), remote.cards || [])
         applyFk(cdMerged, 'subject_cid', 'subject_id', catCidToId)
@@ -521,7 +525,7 @@ module.exports = function syncModule(ctx) {
           for (const k of keys) { if (local.includes(k)) update++; else fresh++ }
           return { total: data.settings.length, fresh, update, localOnly: 0 }
         })(),
-        otherTables: ['xp_logs', 'focus_sessions', 'kb_highlights', 'kb_doc_links', 'cards', 'papers', 'answer_records', 'favorites']
+        otherTables: ['xp_logs', 'focus_sessions', 'review_logs', 'kb_highlights', 'kb_doc_links', 'cards', 'papers', 'answer_records', 'favorites']
           .filter(t => Array.isArray(data[t]) && data[t].length)
           .length
       }

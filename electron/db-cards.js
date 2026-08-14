@@ -81,8 +81,8 @@ module.exports = function cardsModule(ctx) {
       if (!rc) return { ok: false, error: 'card not found' }
       const n = (rc.review_count || 0) + 1
       const interval = felt ? 3 : 1
-      sqlite.prepare('UPDATE cards SET review_at=?, review_count=?, review_lapses=review_lapses+? WHERE id=?')
-        .run(now + interval * 86400000, n, felt ? 0 : 1, cardId)
+      sqlite.prepare('UPDATE cards SET review_at=?, review_count=?, review_lapses=review_lapses+?, updated_at=? WHERE id=?')
+        .run(now + interval * 86400000, n, felt ? 0 : 1, now, cardId)
       if (felt) this.logXp(5, 'card', 'review')
       return { ok: true }
     },

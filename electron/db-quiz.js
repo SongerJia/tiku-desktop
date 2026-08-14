@@ -113,6 +113,7 @@ module.exports = function quizModule(ctx) {
             wrong_count=wrong_books.wrong_count+1,
             reviewed_count=0,
             status='wrong',
+            deleted=0,
             next_review_at=excluded.next_review_at,
             ease=excluded.ease,
             interval=excluded.interval,
@@ -144,18 +145,20 @@ module.exports = function quizModule(ctx) {
               wrong_count=wrong_books.wrong_count+1,
               reviewed_count=0,
               status='wrong',
+              deleted=0,
               next_review_at=excluded.next_review_at,
               ease=excluded.ease,
               interval=excluded.interval,
               updated_at=?`)
             .run(LOCAL_USER, questionId, 'wrong', sched.next, sched.ease, sched.interval, now, uuid(), qCid, now)
         } else {
-          const wb = sqlite.prepare('SELECT id, reviewed_count, ease, interval FROM wrong_books WHERE user_id=? AND question_id=?').get(LOCAL_USER, questionId)
+          // 答对：只推进「未删除」的错题行（用户主动删除的错题不因答对而复出）
+          const wb = sqlite.prepare('SELECT id, reviewed_count, ease, interval FROM wrong_books WHERE user_id=? AND question_id=? AND deleted=0').get(LOCAL_USER, questionId)
           if (wb) {
             const rc = (wb.reviewed_count || 0) + 1
             const graduated = rc >= 3
             const sched = scheduleNextReview({ interval: wb.interval || 0, ease: wb.ease || 2.5 }, quality)
-            sqlite.prepare('UPDATE wrong_books SET reviewed_count=?, status=?, next_review_at=?, ease=?, interval=?, updated_at=? WHERE id=?')
+            sqlite.prepare('UPDATE wrong_books SET reviewed_count=?, status=?, next_review_at=?, ease=?, interval=?, updated_at=? WHERE id=? AND deleted=0')
               .run(rc, graduated ? 'mastered' : 'wrong', sched.next, sched.ease, sched.interval, now, wb.id)
           }
         }
@@ -177,7 +180,7 @@ module.exports = function quizModule(ctx) {
     getWrongBook() {
       const rows = sqlite.prepare(`SELECT w.*, q.stem, q.type, q.options_json, q.answer_json, q.analysis, q.images_json,
         q.category_id, q.subject_id
-        FROM wrong_books w JOIN questions q ON q.id=w.question_id
+        FROM wrong_books w JOIN questions q ON q.id=w.question_id AND q.deleted=0
         WHERE w.user_id=? AND w.status='wrong' AND w.deleted=0`).all(LOCAL_USER)
       return rows.map(r => ({
         ...r,
@@ -190,7 +193,7 @@ module.exports = function quizModule(ctx) {
     getFavorites() {
       const rows = sqlite.prepare(`SELECT f.*, q.stem, q.type, q.options_json, q.answer_json, q.images_json,
         q.category_id, q.subject_id
-        FROM favorites f JOIN questions q ON q.id=f.question_id
+        FROM favorites f JOIN questions q ON q.id=f.question_id AND q.deleted=0
         WHERE f.user_id=? AND f.deleted=0`).all(LOCAL_USER)
       return rows.map(r => ({
         ...r,
@@ -271,7 +274,7 @@ module.exports = function quizModule(ctx) {
     const wb = sqlite.prepare('SELECT id FROM wrong_books WHERE user_id=? AND question_id=?').get(LOCAL_USER, questionId)
     const next = now + 365 * 86400000
     if (wb) {
-      sqlite.prepare(`UPDATE wrong_books SET reviewed_count=3, status='mastered', next_review_at=?, ease=2.8, interval=365, updated_at=? WHERE id=?`)
+      sqlite.prepare(`UPDATE wrong_books SET reviewed_count=3, status='mastered', next_review_at=?, ease=2.8, interval=365, deleted=0, updated_at=? WHERE id=?`)
         .run(next, now, wb.id)
     } else {
       sqlite.prepare(`INSERT INTO wrong_books (user_id, question_id, wrong_count, reviewed_count, status, next_review_at, ease, interval, updated_at, client_id, question_cid)
@@ -293,7 +296,7 @@ module.exports = function quizModule(ctx) {
     if (quality < 3) {
       const sched = scheduleNextReview({ interval: wb ? (wb.interval || 0) : 0, ease: wb ? (wb.ease || 2.5) : 2.5 }, quality)
       if (wb) {
-        sqlite.prepare(`UPDATE wrong_books SET reviewed_count=0, status='wrong', next_review_at=?, ease=?, interval=?, updated_at=? WHERE id=?`)
+        sqlite.prepare(`UPDATE wrong_books SET reviewed_count=0, status='wrong', next_review_at=?, ease=?, interval=?, deleted=0, updated_at=? WHERE id=?`)
           .run(sched.next, sched.ease, sched.interval, now, wb.id)
       } else {
         sqlite.prepare(`INSERT INTO wrong_books (user_id, question_id, wrong_count, reviewed_count, status, next_review_at, ease, interval, updated_at, client_id, question_cid)
@@ -304,7 +307,7 @@ module.exports = function quizModule(ctx) {
       const rc = (wb.reviewed_count || 0) + 1
       const graduated = rc >= 3
       const sched = scheduleNextReview({ interval: wb.interval || 0, ease: wb.ease || 2.5 }, quality)
-      sqlite.prepare('UPDATE wrong_books SET reviewed_count=?, status=?, next_review_at=?, ease=?, interval=?, updated_at=? WHERE id=?')
+      sqlite.prepare('UPDATE wrong_books SET reviewed_count=?, status=?, next_review_at=?, ease=?, interval=?, deleted=0, updated_at=? WHERE id=?')
         .run(rc, graduated ? 'mastered' : 'wrong', sched.next, sched.ease, sched.interval, now, wb.id)
     }
     return { ok: true, quality }

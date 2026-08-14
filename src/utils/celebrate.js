@@ -6,7 +6,8 @@ import { notifyNew, notifyLevelUp } from './achievements.js'
 export async function celebrate() {
   try {
     const [ach, xp, ms] = await Promise.all([tiku.getAchievements(), tiku.xpStats(), tiku.getMonthStats()])
-    const merged = { ...ach, ...ms }
+    // focusMin 以成就口径（累计）为准，不被 getMonthStats 的「本月专注」覆盖，保证成就墙与庆祝检测一致
+    const merged = { ...ach, ...ms, focusMin: ach.focusMin }
     const fresh = notifyNew(merged)
     if (fresh.length) {
       // 首次解锁奖励 XP：每个成就 +20（仅新解锁计入）

@@ -16,7 +16,7 @@ module.exports = function weakModule(ctx) {
           FROM answer_records ar JOIN questions q ON q.id=ar.question_id
           WHERE ar.user_id=? AND ar.deleted=0 AND q.category_id=?`).get(LOCAL_USER, ch.id)
         const totalQ = sqlite.prepare('SELECT COUNT(*) AS n FROM questions WHERE deleted=0 AND category_id=?').get(ch.id).n
-        const wrong = sqlite.prepare("SELECT COUNT(*) AS n FROM wrong_books WHERE user_id=? AND status='wrong' AND deleted=0 AND question_id IN (SELECT id FROM questions WHERE category_id=?)").get(LOCAL_USER, ch.id).n
+        const wrong = sqlite.prepare("SELECT COUNT(*) AS n FROM wrong_books WHERE user_id=? AND status='wrong' AND deleted=0 AND question_id IN (SELECT id FROM questions WHERE category_id=? AND deleted=0)").get(LOCAL_USER, ch.id).n
         const n = stat.n || 0
         result.push({
           id: ch.id, name: cat.name, totalQ: totalQ || 0, answered: n,
@@ -56,8 +56,8 @@ module.exports = function weakModule(ctx) {
       }
       const rows = sqlite.prepare(`SELECT q.*,
           COALESCE((SELECT wrong_count FROM wrong_books w WHERE w.user_id=? AND w.question_id=q.id AND w.deleted=0 ORDER BY w.wrong_count DESC LIMIT 1),0) AS wc,
-          COALESCE((SELECT SUM(is_correct) FROM answer_records ar WHERE ar.user_id=? AND ar.question_id=q.id AND ar.deleted=0),0) AS cor,
-          COALESCE((SELECT COUNT(*) FROM answer_records ar WHERE ar.user_id=? AND ar.question_id=q.id AND ar.deleted=0),0) AS tot
+          COALESCE((SELECT SUM(is_correct) FROM answer_records ar WHERE ar.user_id=? AND ar.question_id=q.id AND ar.deleted=0 AND ar.mode NOT IN ('recite','card') AND ar.self_graded=0),0) AS cor,
+          COALESCE((SELECT COUNT(*) FROM answer_records ar WHERE ar.user_id=? AND ar.question_id=q.id AND ar.deleted=0 AND ar.mode NOT IN ('recite','card') AND ar.self_graded=0),0) AS tot
         FROM questions q WHERE ${scope}`).all(LOCAL_USER, LOCAL_USER, LOCAL_USER, ...params)
       const scored = rows.map(r => {
         const tot = r.tot || 0

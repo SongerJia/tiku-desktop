@@ -10,7 +10,6 @@ export const ACH_SERIES = [
   { key: 'wrong', name: '错题大师', icon: 'shield' },
   { key: 'cards', name: '记忆卡达人', icon: 'card' },
   { key: 'focus', name: '专注达人', icon: 'hourglass' },
-  { key: 'quest', name: '任务达人', icon: 'flag' },
   { key: 'kb', name: '知识库', icon: 'book' },
   { key: 'notes', name: '笔记整理', icon: 'note' },
   { key: 'fav', name: '收藏卷宗', icon: 'star' }
@@ -39,14 +38,12 @@ export const ACH_DEFS = [
   { key: 'masterCount', name: '掌握量', icon: 'trophy', series: 'master', metric: 'mastered', tiers: [20, 50, 200, 500], desc: '掌握题目', fmt: (m, t) => `${m.mastered}/${t}` },
   // ===== 错题大师（wrong）：2 个维度 =====
   { key: 'wrongCount', name: '错题积累', icon: 'shield', series: 'wrong', metric: 'wrongCount', tiers: [10, 50, 100, 200], desc: '错题本积累', fmt: (m, t) => `${m.wrongCount}/${t}` },
-  { key: 'wrongClear', name: '错题毕业', icon: 'shield', series: 'wrong', metric: 'mastered', tiers: [50, 100, 200, 300], desc: '错题毕业', fmt: (m, t) => `${m.mastered}/${t}` },
+  { key: 'wrongClear', name: '错题毕业', icon: 'shield', series: 'wrong', metric: 'wrongGraduated', tiers: [50, 100, 200, 300], desc: '错题毕业', fmt: (m, t) => `${m.wrongGraduated}/${t}` },
   // ===== 记忆卡达人（cards）：2 个维度 =====
   { key: 'cardCount', name: '建卡量', icon: 'card', series: 'cards', metric: 'cardsCount', tiers: [1, 10, 50, 100], desc: '制作记忆卡', fmt: (m, t) => `${Math.min(m.cardsCount, t)}/${t}` },
   { key: 'cardReview', name: '复习量', icon: 'card', series: 'cards', metric: 'reviewCount', tiers: [20, 50, 200, 500], desc: '累计复习', fmt: (m, t) => `${m.reviewCount}/${t}` },
   // ===== 专注达人（focus）：1 个维度 =====
   { key: 'focusMin', name: '专注时长', icon: 'hourglass', series: 'focus', metric: 'focusMin', tiers: [30, 300, 1500, 5000], desc: '累计专注', fmt: (m, t) => `${m.focusMin}/${t}` },
-  // ===== 任务达人（quest）：1 个维度 =====
-  { key: 'questCheck', name: '习惯打卡', icon: 'flag', series: 'quest', metric: 'habitChecks', tiers: [5, 30, 100, 300], desc: '习惯打卡', fmt: (m, t) => `${m.habitChecks}/${t}` },
   // ===== 知识库（kb）：3 个维度 =====
   { key: 'kbDocs', name: '藏书阁', icon: 'book', series: 'kb', metric: 'kbDocs', tiers: [1, 10, 50, 100], desc: '导入文档', fmt: (m, t) => `${Math.min(m.kbDocs, t)}/${t}` },
   { key: 'kbRead', name: '阅读家', icon: 'book', series: 'kb', metric: 'kbReadCount', tiers: [10, 50, 200, 500], desc: '阅读文档', fmt: (m, t) => `${m.kbReadCount}/${t}` },

@@ -11,11 +11,12 @@ module.exports = {
     notes: ['id', 'user_id', 'question_id', 'content', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'],
     papers: ['id', 'user_id', 'title', 'subject_id', 'duration_minutes', 'total_score', 'rules_json', 'created_at', 'client_id', 'updated_at', 'deleted'],
     paperQuestions: ['id', 'paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted'],
-    kbDocs: ['id', 'title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'subject_id', 'subject_cid', 'category_id', 'last_page', 'created_at', 'updated_at', 'deleted', 'client_id'],
+    kbDocs: ['id', 'title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'subject_id', 'subject_cid', 'category_id', 'category_cid', 'last_page', 'created_at', 'updated_at', 'deleted', 'client_id'],
     kbBlocks: ['id', 'doc_id', 'seq', 'heading', 'content', 'char_start', 'char_end', 'review_at', 'review_count', 'review_lapses'],
     kbTags: ['doc_id', 'tag'],
     kbLinks: ['id', 'doc_id', 'block_id', 'question_id', 'note', 'created_at'],
     cards: ['id', 'front', 'back', 'category', 'subject_id', 'subject_cid', 'source_question_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'],
-    materials: ['id', 'title', 'content', 'subject_id', 'subject_cid', 'created_at', 'updated_at', 'deleted', 'client_id']
+    materials: ['id', 'title', 'content', 'subject_id', 'subject_cid', 'created_at', 'updated_at', 'deleted', 'client_id'],
+    reviewLogs: ['id', 'item_type', 'item_id', 'result', 'created_at', 'client_id']
   }
 }

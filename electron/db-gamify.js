@@ -22,9 +22,9 @@ module.exports = function gamifyModule(ctx) {
       const level = Math.floor(Math.sqrt(total / 100)) + 1
       const curLevelBase = 100 * (level - 1) * (level - 1)
       const nextLevelBase = 100 * level * level
-      // 近 8 周排行（自己 vs 历史周）
+      // 近 8 周排行（自己 vs 历史周）：ISO 周（%G-W%V，周一为一周起点，跨年不串周）
       const weeks = sqlite.prepare(
-        `SELECT strftime('%Y-%W', datetime(created_at/1000,'unixepoch','localtime')) AS wk, SUM(xp) AS n
+        `SELECT strftime('%G-W%V', datetime(created_at/1000,'unixepoch','localtime')) AS wk, SUM(xp) AS n
          FROM xp_logs WHERE deleted=0 AND user_id=? GROUP BY wk ORDER BY wk DESC LIMIT 8`
       ).all(LOCAL_USER)
       return {
@@ -88,13 +88,15 @@ module.exports = function gamifyModule(ctx) {
       const reviewGoal = goalOf('review_goal')
       const readGoal = goalOf('read_goal')
       const tasks = []
-      if (dailyGoal > 0) tasks.push({ key: 'quiz', name: `刷 ${dailyGoal} 题`, note: `刷${dailyGoal}题`, done: s.today >= dailyGoal })
-      if (reviewGoal > 0) tasks.push({ key: 'review', name: `复习 ${reviewGoal} 条`, note: `复习${reviewGoal}条`, done: tc.review >= reviewGoal })
-      if (readGoal > 0) tasks.push({ key: 'read', name: `阅读 ${readGoal} 篇`, note: `阅读${readGoal}篇`, done: tc.kbRead >= readGoal })
+      if (dailyGoal > 0) tasks.push({ key: 'quiz', name: `刷 ${dailyGoal} 题`, done: s.today >= dailyGoal })
+      if (reviewGoal > 0) tasks.push({ key: 'review', name: `复习 ${reviewGoal} 条`, done: tc.review >= reviewGoal })
+      if (readGoal > 0) tasks.push({ key: 'read', name: `阅读 ${readGoal} 篇`, done: tc.kbRead >= readGoal })
       const claimed = []
       tasks.forEach(t => {
-        if (t.done && !has(t.note)) {
-          this.logXp(20, 'quest', t.note)
+        // 去重按任务 key（quest:quiz 等），与目标值解耦——改目标后同任务不会重复领 XP
+        const note = 'quest:' + t.key
+        if (t.done && !has(note)) {
+          this.logXp(20, 'quest', note)
           claimed.push(t.name)
         }
       })

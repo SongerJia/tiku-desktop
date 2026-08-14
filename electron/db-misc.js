@@ -50,15 +50,17 @@ module.exports = function miscModule(ctx) {
     },
 
     // ---- 学习周报（聚合近 7 天，前端拼 HTML 导出 PDF）----
+    // 周起点统一为周一（与 getSummary.weekAccuracy / xpStats.week 口径一致），不再用滚动 7 天
     getWeeklyReport(subjectId) {
       const now = new Date()
-      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7).getTime()
-      let qSql = 'SELECT COUNT(*) AS n, COALESCE(SUM(ar.is_correct),0) AS c FROM answer_records ar WHERE ar.user_id=? AND ar.deleted=0 AND ar.created_at>=?'
+      const dow = (now.getDay() + 6) % 7 // 周一=0
+      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow).getTime()
+      let qSql = 'SELECT COUNT(*) AS n, COALESCE(SUM(ar.is_correct),0) AS c FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=?'
       const qParams = [LOCAL_USER, weekStart]
       if (subjectId) {
         const ids = descendantCategoryIds(subjectId)
         if (ids.length) {
-          qSql = 'SELECT COUNT(*) AS n, COALESCE(SUM(ar.is_correct),0) AS c FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=? AND q.category_id IN (' + ids.map(() => '?').join(',') + ')'
+          qSql += ' AND q.category_id IN (' + ids.map(() => '?').join(',') + ')'
           qParams.push(...ids)
         } else {
           qSql = 'SELECT 0 AS n, 0 AS c'
@@ -78,12 +80,12 @@ module.exports = function miscModule(ctx) {
         const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
         const start = d.setHours(0, 0, 0, 0)
         const end = start + 86400000
-        let dSql = 'SELECT COUNT(*) AS n FROM answer_records ar WHERE ar.user_id=? AND ar.deleted=0 AND ar.created_at>=? AND ar.created_at<?'
+        let dSql = 'SELECT COUNT(*) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=? AND ar.created_at<?'
         const dParams = [LOCAL_USER, start, end]
         if (subjectId) {
           const ids = descendantCategoryIds(subjectId)
           if (ids.length) {
-            dSql = 'SELECT COUNT(*) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=? AND ar.created_at<? AND q.category_id IN (' + ids.map(() => '?').join(',') + ')'
+            dSql += ' AND q.category_id IN (' + ids.map(() => '?').join(',') + ')'
             dParams.push(...ids)
           } else {
             dSql = 'SELECT 0 AS n'
