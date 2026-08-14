@@ -43,7 +43,34 @@ async function saveEdit() {
     userName.value = v
     try { await tiku.setSetting('user_name', v) } catch (e) { /* 保存失败不阻塞 */ }
   }
+  // 未上传自定义头像时：用姓名首字生成头像（首汉字或英文首字母大写），改名后自动刷新
+  if (!avatar.value) {
+    const gen = genInitialAvatar(userName.value)
+    avatar.value = gen
+    try { localStorage.setItem('tiku_avatar', gen) } catch (e) { /* 存储失败忽略 */ }
+  }
   editOpen.value = false
+}
+// 首字头像：姓名首个汉字或英文首字母大写 → canvas 品牌渐变圆底白字 → dataURL（与上传头像同尺寸 112px）
+function genInitialAvatar(name) {
+  const c = document.createElement('canvas')
+  c.width = c.height = 112
+  const ctx = c.getContext('2d')
+  const g = ctx.createLinearGradient(0, 0, 112, 112)
+  g.addColorStop(0, '#5b7cfa')
+  g.addColorStop(1, '#7a5cff')
+  ctx.fillStyle = g
+  ctx.beginPath()
+  ctx.arc(56, 56, 56, 0, Math.PI * 2)
+  ctx.fill()
+  const ch = String(name || '').trim()[0] || '用'
+  const text = /[a-zA-Z]/.test(ch) ? ch.toUpperCase() : ch
+  ctx.fillStyle = '#fff'
+  ctx.font = 'bold 50px "Inter", "Noto Sans SC", "PingFang SC", sans-serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, 56, 58)
+  return c.toDataURL('image/png')
 }
 // 换头像：本地图片 → canvas 居中裁切压缩 112px → localStorage（纯本地，不同步）
 function onPickAvatar(e) {
@@ -922,10 +949,9 @@ onMounted(async () => {
         <div class="ep-panel">
           <div class="ep-title">编辑资料</div>
           <div class="ep-avatar-row">
-            <div class="ep-avatar" @click="fileInput.click()" title="点击更换头像">
+            <div class="ep-avatar">
               <img v-if="avatar" :src="avatar" alt="头像" />
               <span v-else>{{ userName.slice(0, 1) }}</span>
-              <div class="ep-avatar-hint">更换</div>
             </div>
             <div class="ep-avatar-acts">
               <button class="btn btn-sm" @click="fileInput.click()">选择图片</button>
@@ -1696,21 +1722,13 @@ onMounted(async () => {
 .ep-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
 .ep-avatar-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
 .ep-avatar {
-  width: 64px; height: 64px; border-radius: 50%; position: relative;
-  cursor: pointer; overflow: hidden; flex-shrink: 0;
+  width: 64px; height: 64px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
   background: linear-gradient(135deg, var(--brand), var(--brand2, #7a5cff));
   color: #fff; font-size: 24px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 15%, transparent);
 }
 .ep-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.ep-avatar-hint {
-  position: absolute; inset: 0;
-  background: rgba(2, 6, 16, 0.5); color: #dfe7fa;
-  font-size: 11px; display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: opacity .15s ease;
-}
-.ep-avatar:hover .ep-avatar-hint { opacity: 1; }
 .ep-avatar-acts { display: flex; flex-direction: column; gap: 8px; }
 .ep-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .ep-label { font-size: 12px; color: var(--muted); }
