@@ -10,6 +10,7 @@ import AppConfirm from './components/AppConfirm.vue'
 import AppPrompt from './components/AppPrompt.vue'
 import WelcomeGuide from './components/WelcomeGuide.vue'
 import LogoMark from './components/LogoMark.vue'
+import Icon from './components/Icon.vue'
 // 大组件按需拆包：进入对应视图/弹层才加载，首屏 bundle 瘦身（KbReader 的 Vditor/pdfjs 随 chunk 拆出）
 const Quiz = defineAsyncComponent(() => import('./components/Quiz.vue'))
 const Knowledge = defineAsyncComponent(() => import('./components/Knowledge.vue'))
@@ -148,9 +149,11 @@ function onTabClick(key) {
   if (key === 'kb') kbScope.value = 'current'
   switchTab(key)
 }
-// 子组件请求跳转（如每日任务「阅读」→ 知识库 Tab）
-function onGoto(tab) {
+// 子组件请求跳转（如每日任务「阅读」→ 知识库 Tab；我的页可携带分组定位）
+const profileSection = ref('') // Profile 页内要定位的分组（如 goals 学习目标）
+function onGoto(tab, section) {
   if (tab === 'kb') kbScope.value = 'current' // 常规跳转跟随顶部科目
+  if (tab === 'profile' && section) profileSection.value = section
   switchTab(tab)
 }
 
@@ -300,8 +303,13 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
           <span class="side-label">{{ t.label }}</span>
         </button>
       </nav>
-      <div class="side-foot">本地数据 · 离线可用</div>
-      <button class="side-cmd" title="命令面板：导航 / 搜索题目 / 快捷动作" @click="showPalette = true">⌨ 命令面板 <span class="sc-kbd">Ctrl K</span></button>
+      <div class="side-foot-row">
+        <span class="side-foot">本地数据 · 离线可用</span>
+        <button class="side-cmd-ico" title="命令面板：导航 / 搜索题目 / 快捷动作" aria-label="命令面板" @click="showPalette = true">
+          <Icon name="search" :size="14" />
+          <span class="side-cmd-tip">命令面板 <b class="sc-kbd">Ctrl K</b></span>
+        </button>
+      </div>
       <div class="sidebar-resize" title="拖动调整侧栏宽度" @mousedown="startResize"></div>
     </aside>
 
@@ -342,9 +350,11 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
               <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" @quick="onQuickStart" />
               <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" @start="onStart" @manage="showBank = true; bankSubjectId = currentSubject.id" />
               <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :scope="kbScope" :refresh-token="kbRefreshToken" @manage="showKbManager = true; kbSubjectId = currentSubject.id" />
-              <Stats v-else-if="currentTab === 'stats'" :subject="currentSubject" />
+              <Stats v-else-if="currentTab === 'stats'" :subject="currentSubject" @goto="onGoto" />
               <Profile
             v-else-if="currentTab === 'profile'"
+            :focus-section="profileSection"
+            @focus-consumed="profileSection = ''"
             @reset="currentTab = 'home'"
             @start="onStart"
             @open-bank="showBank = true; bankSubjectId = null"
@@ -450,16 +460,28 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
   transition: border-color .2s, box-shadow .2s, color .2s;
 }
 .top-search:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow-soft); }
-/* 侧栏命令面板入口（P2-8：Ctrl+K 的可见入口，新用户可发现） */
-.side-cmd {
+/* 侧栏底部：本地数据 + 命令面板图标并列，hover 浮层提示 */
+.side-foot-row {
   display: flex; align-items: center; justify-content: space-between; gap: 6px;
-  margin: 4px 12px 10px; padding: 7px 12px;
-  border: 1px dashed var(--line); border-radius: 8px;
-  background: transparent; color: var(--muted); font-size: 12px; cursor: pointer;
-  transition: all .15s;
+  padding: 10px 14px 8px;
 }
-.side-cmd:hover { border-color: var(--brand); color: var(--brand); background: var(--side-active-bg); }
-.sc-kbd { font-size: 10px; opacity: .7; border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; }
+.side-cmd-ico {
+  position: relative; flex-shrink: 0;
+  width: 26px; height: 26px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid transparent; background: transparent; color: var(--muted);
+  cursor: pointer; transition: all .15s;
+}
+.side-cmd-ico:hover { color: var(--brand); border-color: var(--line); background: var(--side-active-bg); }
+.side-cmd-tip {
+  position: absolute; right: 0; bottom: calc(100% + 8px);
+  white-space: nowrap; font-size: 11px; padding: 5px 10px; border-radius: 6px;
+  background: var(--tip-bg); color: var(--tip-text); border: 1px solid var(--line);
+  box-shadow: var(--glow-soft); opacity: 0; transform: translateY(4px);
+  pointer-events: none; transition: opacity .15s, transform .15s; z-index: 20;
+}
+.side-cmd-ico:hover .side-cmd-tip { opacity: 1; transform: translateY(0); }
+.sc-kbd { font-size: 10px; opacity: .7; border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; margin-left: 3px; font-weight: 400; }
 .tab-page { height: 100%; }
 .fade-enter-active, .fade-leave-active { transition: opacity .16s ease, transform .16s ease; }
 .fade-enter-from { opacity: 0; transform: translateY(6px); }

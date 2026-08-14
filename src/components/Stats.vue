@@ -57,6 +57,7 @@ const summary = ref({ total: 0, learned: 0, mastered: 0, streak: 0, activeDays: 
 
 // ---- 统计范围：跟随顶部科目（默认）｜总览（全部科目汇总）----
 const props = defineProps({ subject: { type: Object, default: () => ({ id: null, name: '' }) } })
+const emit = defineEmits(['goto'])
 const subjects = ref([])
 const subjectScope = ref('current') // 'current'(跟随顶部) | 'all'(总览)
 const filterSubjectId = computed(() => {
@@ -474,7 +475,8 @@ async function loadAnalysis() {
         <div class="card-title">每日任务 <span class="quest-xp">每个 +20 XP</span></div>
         <div v-if="quest.claimed" class="quest-claimed">{{ quest.claimed }} 已完成，XP 已到账</div>
         <div v-if="!quest.tasks.length" class="quest-empty">
-          未设置任务，去「我的 → 学习目标」设置每日刷题 / 复习 / 阅读目标吧
+          <span>未设置任务，去「我的 → 学习目标」设置每日刷题 / 复习 / 阅读目标吧</span>
+          <button class="quest-set" @click="emit('goto', 'profile', 'goals')">去设置 ›</button>
         </div>
         <div v-else class="quest-list">
           <div v-for="t in quest.tasks" :key="t.key" class="quest-item" :class="{ done: t.done }">
@@ -671,7 +673,14 @@ async function loadAnalysis() {
   font-size: 12px; color: var(--muted);
   border: 1px dashed var(--line); border-radius: 10px; padding: 14px;
   text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
 }
+.quest-set {
+  background: transparent; border: 1px solid var(--brand); color: var(--brand);
+  border-radius: 999px; padding: 4px 14px; font-size: 12px; cursor: pointer;
+  transition: all .15s;
+}
+.quest-set:hover { background: var(--brand-light); box-shadow: var(--glow-soft); }
 .quest-list { display: flex; flex-direction: column; gap: 8px; }
 .quest-item {
   display: flex; align-items: center; gap: 10px;

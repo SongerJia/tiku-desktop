@@ -410,7 +410,7 @@ onBeforeUnmount(() => {
 
       <!-- 今日行动台：目标进度环 + 三大行动 -->
       <div class="action-dock" @mousemove="onDockMove" @mouseleave="onDockLeave" @animationend="onDockAnimEnd">
-        <div class="dock-ring" :class="{ clickable: true, 'ring-burst': goalBurst }" @click="dailyGoal ? emit('goto', 'stats') : emit('goto', 'profile')" :title="dailyGoal ? '看学习热力图' : '设置今日目标'">
+        <div class="dock-ring" :class="{ clickable: true, 'ring-burst': goalBurst }" @click="dailyGoal ? emit('goto', 'stats') : emit('goto', 'profile', 'goals')" :title="dailyGoal ? '看学习热力图' : '设置今日目标'">
           <svg viewBox="0 0 60 60" width="88" height="88">
             <circle cx="30" cy="30" r="25" fill="none" stroke="rgba(148,163,184,0.14)" stroke-width="5"/>
             <circle cx="30" cy="30" r="25" fill="none" stroke="var(--brand)" stroke-width="5" stroke-linecap="round" class="ring-anim"
@@ -478,12 +478,12 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 考试倒计时（压缩单行小条：设了考试日显示天数，没设显示引导） -->
-      <div v-if="examLeft" class="exam-mini" @click="emit('goto', 'profile')">
+      <div v-if="examLeft" class="exam-mini" @click="emit('goto', 'profile', 'goals')">
         <span class="em-ico"><Icon name="clock" :size="13"/></span>
         <span class="em-name">{{ examLeft.over ? '考试日已过' : '目标考试日' }} · {{ examLeft.date }}</span>
         <span class="em-num" :class="{ over: examLeft.over }">{{ examLeft.over ? '已过' : examLeft.days + ' 天' }}</span>
       </div>
-      <div v-else class="exam-mini guide" @click="emit('goto', 'profile')">
+      <div v-else class="exam-mini guide" @click="emit('goto', 'profile', 'goals')">
         <span class="em-ico"><Icon name="clock" :size="13"/></span>
         <span class="em-name">设置目标考试日，首页显示倒计时</span>
         <span class="em-num">去设置 ›</span>

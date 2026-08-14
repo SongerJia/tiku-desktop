@@ -7,7 +7,7 @@ import { showToast } from '../utils/toast.js'
 import { evaluate, achLevel, ACH_SERIES, RARITY_ORDER } from '../utils/achievements.js'
 import { vTilt } from '../utils/tilt.js'
 import { computePosition, offset, flip, shift } from '@floating-ui/dom'
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { applyAppearance } from '../utils/appearance.js'
 import WrongBook from './WrongBook.vue'
@@ -17,7 +17,8 @@ import AboutModal from './AboutModal.vue'
 import BackupModal from './BackupModal.vue'
 import CategoryManager from './CategoryManager.vue'
 
-const emit = defineEmits(['reset', 'start', 'open-bank', 'open-kb-manager'])
+const props = defineProps({ focusSection: { type: String, default: '' } })
+const emit = defineEmits(['reset', 'start', 'open-bank', 'open-kb-manager', 'focus-consumed'])
 
 function forwardStart(payload) {
   emit('start', payload)
@@ -412,6 +413,20 @@ const secOpen = ref({ learn: false, goals: false, prefs: false, sync: false, dat
 function toggleSec(k) {
   secOpen.value[k] = !secOpen.value[k]
 }
+// 外部定位：首页「设置目标/考试倒计时」→ 展开学习目标分组并滚动（仿 gotoAch）
+watch(() => props.focusSection, (s) => {
+  if (!s) return
+  const map = { goals: '#sec-goals' }
+  const sel = map[s]
+  if (sel) {
+    secOpen.value.goals = true
+    nextTick(() => {
+      const el = document.querySelector(sel)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+  emit('focus-consumed')
+}, { immediate: true })
 
 onMounted(async () => {
   const [tR, fR, achR, msR] = await Promise.allSettled([
@@ -508,7 +523,7 @@ onMounted(async () => {
 
 
     <!-- 学习目标（按科目存，未设置不显示每日任务） -->
-    <div class="sec">
+    <div class="sec" id="sec-goals">
       <div class="sec-head" @click="toggleSec('goals')">
         <span class="sec-icon sec-icon-goals"><Icon name="target" :size="16" /></span>
         <span class="sec-title">学习目标</span>
