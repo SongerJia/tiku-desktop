@@ -74,12 +74,20 @@ module.exports = function kbModule(ctx) {
         else if (kind === 'chapter') { where += ' AND d.category_id=?'; params.push(subjectId) }
       }
       if (tag) { where += ' AND d.id IN (SELECT doc_id FROM kb_tags WHERE tag=?)'; params.push(tag) }
-      const nodes = sqlite.prepare(`SELECT d.id, d.title, d.type, d.folder, d.subject_id, d.category_id FROM kb_docs d WHERE ${where}`).all(...params)
-        .map(d => ({
-          id: d.id, title: d.title, type: d.type, folder: d.folder || '',
-          subjectId: d.subject_id, categoryId: d.category_id,
-          tags: sqlite.prepare('SELECT tag FROM kb_tags WHERE doc_id=?').all(d.id).map(t => t.tag)
-        }))
+      const rawNodes = sqlite.prepare(`SELECT d.id, d.title, d.type, d.folder, d.subject_id, d.category_id FROM kb_docs d WHERE ${where}`).all(...params)
+      // 节点 tags 批量取（避免每节点查询）
+      const tagMap = {}
+      if (rawNodes.length) {
+        const ph = rawNodes.map(() => '?').join(',')
+        const ids = rawNodes.map(d => d.id)
+        sqlite.prepare(`SELECT doc_id, tag FROM kb_tags WHERE doc_id IN (${ph})`).all(...ids)
+          .forEach(t => { (tagMap[t.doc_id] || (tagMap[t.doc_id] = [])).push(t.tag) })
+      }
+      const nodes = rawNodes.map(d => ({
+        id: d.id, title: d.title, type: d.type, folder: d.folder || '',
+        subjectId: d.subject_id, categoryId: d.category_id,
+        tags: tagMap[d.id] || []
+      }))
       const idSet = new Set(nodes.map(n => n.id))
       const links = sqlite.prepare('SELECT from_doc_id, to_doc_id FROM kb_doc_links').all()
         .filter(l => idSet.has(l.from_doc_id) && idSet.has(l.to_doc_id))
@@ -99,12 +107,21 @@ module.exports = function kbModule(ctx) {
           ? sqlite.prepare('SELECT * FROM kb_docs WHERE deleted=0 AND subject_id=? ORDER BY updated_at DESC').all(subjectId)
           : sqlite.prepare('SELECT * FROM kb_docs WHERE deleted=0 AND category_id=? ORDER BY updated_at DESC').all(subjectId))
         : sqlite.prepare('SELECT * FROM kb_docs WHERE deleted=0 ORDER BY updated_at DESC').all())
-      const tagStmt = sqlite.prepare('SELECT tag FROM kb_tags WHERE doc_id=? ORDER BY tag')
-      const linkStmt = sqlite.prepare('SELECT COUNT(*) AS n FROM kb_links WHERE doc_id=?')
+      // 批量取 tags/links（避免每文档 N+1 查询）
+      const tagMap = {}
+      const linkMap = {}
+      if (rows.length) {
+        const ph = rows.map(() => '?').join(',')
+        const ids = rows.map(r => r.id)
+        sqlite.prepare(`SELECT doc_id, tag FROM kb_tags WHERE doc_id IN (${ph}) ORDER BY tag`).all(...ids)
+          .forEach(t => { (tagMap[t.doc_id] || (tagMap[t.doc_id] = [])).push(t.tag) })
+        sqlite.prepare(`SELECT doc_id, COUNT(*) AS n FROM kb_links WHERE doc_id IN (${ph}) GROUP BY doc_id`).all(...ids)
+          .forEach(l => { linkMap[l.doc_id] = l.n })
+      }
       return rows.map(r => ({
         ...r,
-        tags: tagStmt.all(r.id).map(t => t.tag),
-        linkCount: linkStmt.get(r.id).n
+        tags: tagMap[r.id] || [],
+        linkCount: linkMap[r.id] || 0
       }))
     },
 
@@ -209,11 +226,18 @@ module.exports = function kbModule(ctx) {
 
     getKbLinksForDoc(docId) {
       const rows = sqlite.prepare('SELECT id, question_id, block_id, note, created_at FROM kb_links WHERE doc_id=? ORDER BY created_at DESC').all(docId)
-      const qStmt = sqlite.prepare('SELECT stem FROM questions WHERE id=? AND deleted=0')
-      return rows.map(r => {
-        const q = qStmt.get(r.question_id)
-        return { ...r, stemPreview: q ? String(q.stem || '').slice(0, 60) : '' }
-      })
+      // stem 批量取（避免逐链接查询）
+      const stemMap = {}
+      if (rows.length) {
+        const ph = rows.map(() => '?').join(',')
+        const qids = rows.map(r => r.question_id)
+        sqlite.prepare(`SELECT id, stem FROM questions WHERE id IN (${ph}) AND deleted=0`).all(...qids)
+          .forEach(q => { stemMap[q.id] = q.stem })
+      }
+      return rows.map(r => ({
+        ...r,
+        stemPreview: stemMap[r.question_id] ? String(stemMap[r.question_id]).slice(0, 60) : ''
+      }))
     },
 
     // ---- 全文搜索（LIKE，中英文子串）----

@@ -73,7 +73,7 @@ export function evaluate(metrics) {
       rarity,
       got: tier > 0,
       pct: Math.round(Math.min(1, Math.max(0, p)) * 100),
-      fmtText: metrics ? a.fmt(metrics, cur) : '',
+      fmtText: metrics ? a.fmt(metrics, next || cur) : '', // 进度显示「当前值/下一档阈值」（满档显示当前档）
       next, // 下一档阈值
       points: tier ? (ACH_RARITY[rarity] || ACH_RARITY.bronze).points : 0,
       unlockAt: getAchTs(a.key)

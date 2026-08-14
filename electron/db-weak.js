@@ -54,11 +54,16 @@ module.exports = function weakModule(ctx) {
         scope += ' AND q.category_id IN (' + ids.map(() => '?').join(',') + ')'
         params.push(...ids)
       }
+      // 一次 LEFT JOIN 聚合（替代逐题 3 子查询）：wrong_books 单行（UNIQUE）用 MAX，answer_records 多行用 SUM(CASE)
       const rows = sqlite.prepare(`SELECT q.*,
-          COALESCE((SELECT wrong_count FROM wrong_books w WHERE w.user_id=? AND w.question_id=q.id AND w.deleted=0 ORDER BY w.wrong_count DESC LIMIT 1),0) AS wc,
-          COALESCE((SELECT SUM(is_correct) FROM answer_records ar WHERE ar.user_id=? AND ar.question_id=q.id AND ar.deleted=0 AND ar.mode NOT IN ('recite','card') AND ar.self_graded=0),0) AS cor,
-          COALESCE((SELECT COUNT(*) FROM answer_records ar WHERE ar.user_id=? AND ar.question_id=q.id AND ar.deleted=0 AND ar.mode NOT IN ('recite','card') AND ar.self_graded=0),0) AS tot
-        FROM questions q WHERE ${scope}`).all(LOCAL_USER, LOCAL_USER, LOCAL_USER, ...params)
+          COALESCE(MAX(w.wrong_count), 0) AS wc,
+          COALESCE(SUM(CASE WHEN ar.mode NOT IN ('recite','card') AND ar.self_graded=0 THEN ar.is_correct ELSE 0 END), 0) AS cor,
+          COALESCE(SUM(CASE WHEN ar.mode NOT IN ('recite','card') AND ar.self_graded=0 THEN 1 ELSE 0 END), 0) AS tot
+        FROM questions q
+        LEFT JOIN wrong_books w ON w.question_id=q.id AND w.user_id=? AND w.deleted=0
+        LEFT JOIN answer_records ar ON ar.question_id=q.id AND ar.user_id=? AND ar.deleted=0
+        WHERE ${scope}
+        GROUP BY q.id`).all(LOCAL_USER, LOCAL_USER, ...params)
       const scored = rows.map(r => {
         const tot = r.tot || 0
         const rate = tot ? (r.cor || 0) / tot : 0

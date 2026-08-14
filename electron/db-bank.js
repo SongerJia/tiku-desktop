@@ -72,10 +72,10 @@ module.exports = function bankModule(ctx) {
         params.push(...ids)
       }
       if (keyword) {
-        // 扩大搜索域：题干 + 选项 + 解析 + 关键词（仍用 LIKE 子串匹配；中文分词问题 db.kbExtract 已论证）
+        // 搜索域：题干 + 解析 + 关键词（去掉 options_json——选项 JSON 含 HTML 标签易误命中；LIKE 子串匹配）
         const kw = `%${keyword}%`
-        where += ' AND (q.stem LIKE ? OR q.options_json LIKE ? OR q.analysis LIKE ? OR q.keywords_json LIKE ?)'
-        params.push(kw, kw, kw, kw)
+        where += ' AND (q.stem LIKE ? OR q.analysis LIKE ? OR q.keywords_json LIKE ?)'
+        params.push(kw, kw, kw)
       }
       if (tags && tags.length) {
         // 标签筛选：题目须带全部所选标签（AND 语义）
@@ -208,13 +208,14 @@ module.exports = function bankModule(ctx) {
     getBankStats() {
       const total = sqlite.prepare('SELECT COUNT(*) AS n FROM questions WHERE deleted=0').get().n
       const byType = sqlite.prepare('SELECT type, COUNT(*) AS n FROM questions WHERE deleted=0 GROUP BY type').all()
-      const bySubject = sqlite.prepare(
-        `SELECT s.id, s.name, COUNT(q.id) AS n FROM categories s
-         LEFT JOIN categories c ON (c.id = s.id OR c.parent_id = s.id) AND c.deleted=0
-         LEFT JOIN questions q ON q.category_id = c.id AND q.deleted=0
-         WHERE s.deleted=0 AND (s.parent_id IS NULL OR s.parent_id=0)
-         GROUP BY s.id, s.name ORDER BY s.sort, s.id`
-      ).all()
+      // 科目题数：收集科目全部子孙分类（3 级分类不漏节内题目）
+      const qCountByCat = new Map(sqlite.prepare('SELECT category_id, COUNT(*) AS n FROM questions WHERE deleted=0 GROUP BY category_id').all().map(r => [r.category_id, r.n]))
+      const subjects = sqlite.prepare('SELECT id, name, sort FROM categories WHERE deleted=0 AND (parent_id IS NULL OR parent_id=0) ORDER BY sort, id').all()
+      const bySubject = subjects.map(s => {
+        let n = 0
+        for (const id of descendantCategoryIds(s.id)) n += qCountByCat.get(id) || 0
+        return { id: s.id, name: s.name, n }
+      })
       const categories = sqlite.prepare('SELECT COUNT(*) AS n FROM categories WHERE deleted=0').get().n
       return { total, categories, byType, bySubject }
     },
