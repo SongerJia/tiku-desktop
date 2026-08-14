@@ -7,6 +7,7 @@ import UnifiedSearch from './components/UnifiedSearch.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import AppToast from './components/AppToast.vue'
 import AppConfirm from './components/AppConfirm.vue'
+import AppPrompt from './components/AppPrompt.vue'
 import WelcomeGuide from './components/WelcomeGuide.vue'
 import LogoMark from './components/LogoMark.vue'
 // 大组件按需拆包：进入对应视图/弹层才加载，首屏 bundle 瘦身（KbReader 的 Vditor/pdfjs 随 chunk 拆出）
@@ -300,6 +301,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
         </button>
       </nav>
       <div class="side-foot">本地数据 · 离线可用</div>
+      <button class="side-cmd" title="命令面板：导航 / 搜索题目 / 快捷动作" @click="showPalette = true">⌨ 命令面板 <span class="sc-kbd">Ctrl K</span></button>
       <div class="sidebar-resize" title="拖动调整侧栏宽度" @mousedown="startResize"></div>
     </aside>
 
@@ -410,6 +412,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
     <CommandPalette :show="showPalette" @close="showPalette = false" @command="onCommandPalette" />
     <AppToast />
     <AppConfirm />
+    <AppPrompt />
     <WelcomeGuide :show="showWelcome" @close="showWelcome = false" />
   </div>
 </template>
@@ -430,8 +433,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
   box-shadow: var(--glow-soft);
   transition: border-color .2s, box-shadow .2s, color .2s;
 }
-.subject-btn:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow); }
-.subject-btn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 8px var(--brand); }
+.subject-btn:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow); }.subject-btn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 8px var(--brand); }
 .subject-btn .arrow { font-size: 11px; color: var(--muted); }
 .top-search {
   margin-left: auto;
@@ -448,6 +450,16 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
   transition: border-color .2s, box-shadow .2s, color .2s;
 }
 .top-search:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow-soft); }
+/* 侧栏命令面板入口（P2-8：Ctrl+K 的可见入口，新用户可发现） */
+.side-cmd {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  margin: 4px 12px 10px; padding: 7px 12px;
+  border: 1px dashed var(--line); border-radius: 8px;
+  background: transparent; color: var(--muted); font-size: 12px; cursor: pointer;
+  transition: all .15s;
+}
+.side-cmd:hover { border-color: var(--brand); color: var(--brand); background: var(--side-active-bg); }
+.sc-kbd { font-size: 10px; opacity: .7; border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; }
 .tab-page { height: 100%; }
 .fade-enter-active, .fade-leave-active { transition: opacity .16s ease, transform .16s ease; }
 .fade-enter-from { opacity: 0; transform: translateY(6px); }

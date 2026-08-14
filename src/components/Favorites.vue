@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import EmptyState from './EmptyState.vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
+import { showPrompt } from '../utils/prompt.js'
 
 const emit = defineEmits(['start'])
 const items = ref([])
@@ -53,7 +54,7 @@ async function remove(id) {
 async function setGroup(it, val) {
   let g = val
   if (val === '__new') {
-    const name = window.prompt('新建分组名称：')
+    const name = await showPrompt({ title: '新建分组', msg: '输入新的收藏分组名称：', placeholder: '分组名' })
     if (!name || !name.trim()) return
     g = name.trim()
   }

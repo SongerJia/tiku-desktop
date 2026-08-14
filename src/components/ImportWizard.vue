@@ -2,6 +2,7 @@
 import Icon from './Icon.vue'
 import { ref, computed } from 'vue'
 import { tiku } from '../api/tiku.js'
+import { useEsc } from '../utils/useEsc.js'
 import {
   parseCsv, parseMatrix, parseJsonBank,
   buildTemplateCsv, TEMPLATE_HEADER, TYPE_LABEL
@@ -56,9 +57,10 @@ function reset() {
 }
 
 function close() {
+  reset() // 先同步清空状态，再关闭：避免 setTimeout 延迟窗口内快速重开残留上轮状态
   emit('close')
-  setTimeout(reset, 200)
 }
+useEsc(() => close())
 
 /**
  * Excel 在中文 Windows 上「另存为 CSV」默认是 GBK 而不是 UTF-8，

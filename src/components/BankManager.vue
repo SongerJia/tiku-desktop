@@ -3,8 +3,11 @@ import Icon from './Icon.vue'
 import EmptyState from './EmptyState.vue'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
+import { useEsc } from '../utils/useEsc.js'
 import { tiku } from '../api/tiku.js'
 import { bankToCsv, TYPE_LABEL } from '../utils/bankParser.js'
+import { showConfirm } from '../utils/confirm.js'
+import { showToast } from '../utils/toast.js'
 import ImportWizard from './ImportWizard.vue'
 import QuestionEditor from './QuestionEditor.vue'
 
@@ -25,9 +28,6 @@ const page = ref(1)
 const pageSize = 10
 const list = ref({ total: 0, items: [] })
 const loading = ref(false)
-const toast = ref('')
-const toastType = ref('')
-let toastTimer = null // toast/noteHint/搜索防抖统一卸载清理
 let noteHintTimer = null
 let searchTimer = null
 
@@ -42,13 +42,6 @@ const chapters = computed(() => {
   return s ? (s.children || []) : []
 })
 const subjects = computed(() => categories.value.map(c => ({ id: c.id, name: c.name })))
-
-function showToast(msg, type = '') {
-  toast.value = msg
-  toastType.value = type
-  clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value = '' }, 2200)
-}
 
 async function loadMeta() {
   const [cats, st, tags] = await Promise.all([tiku.getCategories(), tiku.getBankStats(), tiku.listTags().catch(() => [])])
@@ -111,6 +104,15 @@ async function saveNoteHere() {
 }
 function closeNote() { noteQ.value = null; noteText.value = '' }
 
+// Esc 逐层关闭：笔记 → 标签 → 编辑 → 导入 → 主面板（键盘可达性）
+useEsc(() => {
+  if (noteQ.value) { closeNote(); return }
+  if (tagQ.value) { closeTag(); return }
+  if (showEditor.value) { showEditor.value = false; return }
+  if (showImport.value) { showImport.value = false; return }
+  emit('close')
+})
+
 watch(() => props.show, (v) => {
   if (v) {
     // 入口决定初始筛选：tab 页传当前科目，我的页不传 = 全部科目
@@ -131,9 +133,8 @@ watch(keyword, () => {
   searchTimer = setTimeout(() => { page.value = 1; loadList() }, 300)
 })
 
-// 卸载清理定时器（toast/noteHint/搜索防抖），防卸载后回调
+// 卸载清理定时器（noteHint/搜索防抖），防卸载后回调
 onUnmounted(() => {
-  clearTimeout(toastTimer)
   clearTimeout(noteHintTimer)
   clearTimeout(searchTimer)
 })
@@ -306,6 +307,8 @@ async function applyBatchDiff() {
 }
 async function batchDelete() {
   if (!selCount.value) return
+  const ok = await showConfirm(`确定删除已选的 ${selCount.value} 道题？答题记录会保留。`, { title: '批量删除', danger: true })
+  if (!ok) return
   await tiku.batchDeleteQuestions([...selectedIds.value])
   showToast(`已删除 ${selCount.value} 题`)
   await refreshAll(); clearSel()
@@ -425,8 +428,6 @@ async function batchDelete() {
             <button class="mini" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页</button>
           </div>
         </div>
-
-        <div v-if="toast" class="bm-toast" :class="toastType">{{ toast }}</div>
       </div>
 
       <ImportWizard
@@ -692,23 +693,6 @@ async function batchDelete() {
 
 .pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 6px 0 2px; }
 .pg { font-size: 12px; color: var(--muted); }
-
-.bm-toast {
-  position: absolute;
-  left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
-  background: var(--toast-bg);
-  color: var(--text);
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-size: 12px;
-  border: 1px solid var(--line);
-  box-shadow: var(--glow-soft);
-  z-index: 5;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.18s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }

@@ -5,6 +5,7 @@ import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
+import { useEsc } from '../utils/useEsc.js'
 import KbReader from './KbReader.vue'
 
 const props = defineProps({ subject: { type: Object, default: () => ({ id: null, name: '' }) }, scope: { type: String, default: 'current' }, refreshToken: { type: Number, default: 0 } })
@@ -14,6 +15,7 @@ const allTags = ref([])
 const tagFilter = ref(null) // null=全部
 const keyword = ref('')
 const loading = ref(true)
+const importing = ref(false)
 const reader = ref({ show: false, doc: null })
 const editor = ref({ show: false, doc: null, tags: [], title: '', subjectId: null, categoryId: null, chapters: [] })
 // 文档编辑弹窗「所属科目」下拉的数据源
@@ -23,6 +25,8 @@ const filterSubjectId = computed(() => props.scope === 'all' ? undefined : props
 
 let debounceTimer = null
 onUnmounted(() => { if (debounceTimer) clearTimeout(debounceTimer) })
+// Esc：文档信息弹窗（kb-mask）打开时关闭它；阅读器由 KbReader 自行处理
+useEsc(() => { if (editor.value.show) editor.value.show = false })
 
 async function loadList() {
   loading.value = true
@@ -321,19 +325,25 @@ const groupedDocs = computed(() => {
 })
 
 async function onImport() {
-  const res = (await tiku.kbImportFiles(null, filterSubjectId.value)) || []
-  const ok = res.filter(r => r.ok && !r.duplicated) // duplicated 项不重复计数
-  const dup = res.filter(r => r.duplicated)
-  const failed = res.filter(r => !r.ok)
-  if (ok.length || dup.length) {
-    await loadTags()
-    await loadList()
+  if (importing.value) return
+  importing.value = true
+  try {
+    const res = (await tiku.kbImportFiles(null, filterSubjectId.value)) || []
+    const ok = res.filter(r => r.ok && !r.duplicated) // duplicated 项不重复计数
+    const dup = res.filter(r => r.duplicated)
+    const failed = res.filter(r => !r.ok)
+    if (ok.length || dup.length) {
+      await loadTags()
+      await loadList()
+    }
+    const msgs = []
+    if (ok.length) msgs.push(`导入 ${ok.length} 篇`)
+    if (dup.length) msgs.push(`已存在跳过 ${dup.length} 篇`)
+    if (failed.length) msgs.push(`失败 ${failed.length} 篇（${failed[0].error || '仅支持 md/pdf'}）`)
+    if (msgs.length) showToast(msgs.join('；'), failed.length ? 'err' : 'ok')
+  } finally {
+    importing.value = false
   }
-  const msgs = []
-  if (ok.length) msgs.push(`导入 ${ok.length} 篇`)
-  if (dup.length) msgs.push(`已存在跳过 ${dup.length} 篇`)
-  if (failed.length) msgs.push(`失败 ${failed.length} 篇（${failed[0].error || '仅支持 md/pdf'}）`)
-  if (msgs.length) showToast(msgs.join('；'), failed.length ? 'err' : 'ok')
 }
 
 async function onExport() {
@@ -533,7 +543,7 @@ function fmtTime(ts) {
     <div v-else-if="!docs.length" class="empty card">
       <p>知识库还是空的</p>
       <p class="kb-hint">把 md / pdf 文档拖进导入（点「导入文档」多选），或直接整本教材 PDF 丢进来</p>
-      <button class="btn btn-primary" @click="onImport">立即导入</button>
+      <button class="btn btn-primary" :disabled="importing" @click="onImport">{{ importing ? '导入中…' : '立即导入' }}</button>
     </div>
     <div v-else-if="!filteredDocs.length" class="empty card">没有匹配的文档</div>
     <div v-else class="kb-groups">

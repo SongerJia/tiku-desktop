@@ -705,7 +705,7 @@ function optionClass(key) {
         </div>
 
         <button v-if="reviews.length" class="btn-review" @click="showReview = true">查看逐题解析</button>
-        <button @click="onExit">返回首页</button>
+        <button class="back-home" @click="onExit">返回首页</button>
       </template>
     </div>
 
@@ -1315,6 +1315,13 @@ function optionClass(key) {
   cursor: pointer; transition: all .2s; margin-bottom: 2px;
 }
 .btn-review:hover { box-shadow: var(--glow-soft); background: var(--brand-light); }
+/* 结果页次按钮：返回首页（与主操作区分层级） */
+.back-home {
+  width: 100%; background: transparent; border: 1px solid var(--line);
+  color: var(--muted); padding: 9px 24px; border-radius: 24px; font-size: 13px;
+  cursor: pointer; transition: all .2s; margin-top: 2px;
+}
+.back-home:hover { color: var(--text); border-color: var(--brand); }
 /* 答题反馈动画 */
 .result { animation: resultIn .3s ease; }
 @keyframes resultIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }

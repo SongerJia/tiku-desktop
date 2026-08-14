@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { showConfirm } from '../utils/confirm.js'
 import { showToast } from '../utils/toast.js'
+import { useEsc } from '../utils/useEsc.js'
 
 const props = defineProps({ show: Boolean })
 const emit = defineEmits(['close'])
@@ -15,6 +16,7 @@ async function load() {
 }
 
 watch(() => props.show, v => { if (v) load() })
+useEsc(() => emit('close'))
 
 function fmtSize(n) {
   if (n < 1024) return n + ' B'

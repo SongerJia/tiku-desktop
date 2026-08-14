@@ -3,6 +3,7 @@ import Icon from './Icon.vue'
 import MedalIcon from './MedalIcon.vue'
 import CountUp from './CountUp.vue'
 import { showConfirm } from '../utils/confirm.js'
+import { showToast } from '../utils/toast.js'
 import { evaluate, achLevel, ACH_SERIES, RARITY_ORDER } from '../utils/achievements.js'
 import { vTilt } from '../utils/tilt.js'
 import { computePosition, offset, flip, shift } from '@floating-ui/dom'
@@ -45,6 +46,9 @@ async function saveEdit() {
 function onPickAvatar(e) {
   const f = e.target.files && e.target.files[0]
   if (!f) return
+  // 类型/大小校验：仅图片，≤2MB（避免超大文件卡死 canvas 压缩）
+  if (!/^image\//.test(f.type)) { showToast('请选择图片文件（jpg/png/webp/gif）', 'err'); e.target.value = ''; return }
+  if (f.size > 2 * 1024 * 1024) { showToast('图片过大，请选择 2MB 以内的图片', 'err'); e.target.value = ''; return }
   const reader = new FileReader()
   reader.onload = () => {
     const img = new Image()
@@ -58,6 +62,7 @@ function onPickAvatar(e) {
       avatar.value = c.toDataURL('image/jpeg', 0.85)
       try { localStorage.setItem('tiku_avatar', avatar.value) } catch (err) { /* 存储失败忽略 */ }
     }
+    img.onerror = () => { showToast('图片解析失败，请换一张', 'err') }
     img.src = reader.result
   }
   reader.readAsDataURL(f)
@@ -67,7 +72,6 @@ function clearAvatar() {
   avatar.value = ''
   try { localStorage.removeItem('tiku_avatar') } catch (e) {}
 }
-const toast = ref('')
 const showNotes = ref(false)
 const showWrong = ref(false) // 错题管理弹窗
 const showFav = ref(false) // 收藏管理弹窗
@@ -133,13 +137,6 @@ const showCats = ref(false)
 onMounted(async () => {
   try { ghLoad() } catch (e) { /* 同步配置读取失败不阻塞页面 */ }
 })
-
-let toastTimer = null
-function showToast(msg) {
-  toast.value = msg
-  clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => toast.value = '', 2400)
-}
 
 async function clearLocal() {
   const ok = await showConfirm('清空本地学习数据？\n将删除全部答题记录、错题本、收藏、笔记、XP、记忆卡、番茄记录、复习日志与每日一题连击，且不可恢复。\n（题库与知识库文档不受影响）')
@@ -896,8 +893,6 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div v-if="toast" class="toast">{{ toast }}</div>
-
     <NotesList :show="showNotes" @close="showNotes = false" />
     <AboutModal :show="showAbout" @close="showAbout = false" />
     <BackupModal :show="showBackup" @close="showBackup = false" />
@@ -1335,23 +1330,6 @@ onMounted(async () => {
   background: #2ecc71; box-shadow: 0 0 6px #2ecc71;
 }
 .sync-actions { display: flex; gap: 10px; margin-top: 4px; }
-
-.toast {
-  position: fixed;
-  left: 50%;
-  bottom: 90px;
-  transform: translateX(-50%);
-  background: var(--toast-bg);
-  color: var(--text);
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-size: 13px;
-  z-index: 100;
-  border: 1px solid var(--line);
-  box-shadow: var(--glow-soft);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
 
 /* 偏好设置 */
 .pref-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; font-size: 13px; }

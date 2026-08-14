@@ -4,6 +4,7 @@ import EmptyState from './EmptyState.vue'
 import { tiku } from '../api/tiku.js'
 import { printHtml } from '../utils/print.js'
 import { showToast } from '../utils/toast.js'
+import { showConfirm } from '../utils/confirm.js'
 
 const emit = defineEmits(['start'])
 const items = ref([])
@@ -84,6 +85,15 @@ async function genCard(it) {
   cardBusy.value = new Set(cardBusy.value); cardBusy.value.delete(it.question_id)
 }
 
+// 手动移除错题（软删）：不再显示、不再进复习队列；之后再次答错会自动回来
+async function removeWrong(it) {
+  const ok = await showConfirm(`确定从错题本移除这道题？\n之后再次答错会自动重新加入。`, { title: '移除错题', danger: true })
+  if (!ok) return
+  await tiku.removeWrongBook(it.question_id)
+  items.value = items.value.filter(x => x.question_id !== it.question_id)
+  showToast('已从错题本移除', 'ok')
+}
+
 const typeLabel = (t) => ({ single: '单选', multiple: '多选', judge: '判断', essay: '问答' }[t] || t)
 const answerText = (q) => (q.answer && q.answer.length) ? q.answer.join('、') : '（主观题）'
 const REASONS = ['粗心', '知识点不懂', '时间不够', '审题不清', '其他']
@@ -108,26 +118,32 @@ function escapeHtml(s) {
 }
 
 // 导出错题本 PDF（打印）：含题干/选项/答案/解析，便于纸质复盘
+const exporting = ref(false)
 async function exportWrongPdf() {
-  if (!items.value.length) return
-  const imgCache = {}
-  for (const it of items.value) {
-    if (it.images && it.images.length) {
-      const urls = await Promise.all(it.images.map(n => tiku.getImage(n)))
-      imgCache[it.question_id] = urls.filter(Boolean)
+  if (!items.value.length || exporting.value) return
+  exporting.value = true
+  try {
+    const imgCache = {}
+    for (const it of items.value) {
+      if (it.images && it.images.length) {
+        const urls = await Promise.all(it.images.map(n => tiku.getImage(n)))
+        imgCache[it.question_id] = urls.filter(Boolean)
+      }
     }
+    let body = `<h1>错题本</h1><p class="doc-sub">共 ${items.value.length} 道活跃错题</p>`
+    body += `<div class="section-title">错题与解析</div>`
+    items.value.forEach((it, i) => {
+      body += `<div class="q"><span class="q-no">${i + 1}.</span> <span class="q-stem">${escapeHtml(it.stem)}</span>`
+      if (imgCache[it.question_id] && imgCache[it.question_id].length) body += imgCache[it.question_id].map(u => `<img class="q-img" src="${u}"/>`).join('')
+      if (it.options && it.options.length) body += '<ul class="opts">' + it.options.map(o => `<li>${escapeHtml(o.key)}. ${escapeHtml(o.text)}</li>`).join('') + '</ul>'
+      body += `<div class="ans-key">答错 ${it.wrong_count} 次 · 已复习 ${it.reviewed_count} 次</div>`
+      body += `<div class="analysis">答案：${escapeHtml((it.answer || []).join('、'))}${it.analysis ? ' ｜ 解析：' + escapeHtml(it.analysis) : ''}</div>`
+      body += `</div>`
+    })
+    printHtml('错题本', body)
+  } finally {
+    exporting.value = false
   }
-  let body = `<h1>错题本</h1><p class="doc-sub">共 ${items.value.length} 道活跃错题</p>`
-  body += `<div class="section-title">错题与解析</div>`
-  items.value.forEach((it, i) => {
-    body += `<div class="q"><span class="q-no">${i + 1}.</span> <span class="q-stem">${escapeHtml(it.stem)}</span>`
-    if (imgCache[it.question_id] && imgCache[it.question_id].length) body += imgCache[it.question_id].map(u => `<img class="q-img" src="${u}"/>`).join('')
-    if (it.options && it.options.length) body += '<ul class="opts">' + it.options.map(o => `<li>${escapeHtml(o.key)}. ${escapeHtml(o.text)}</li>`).join('') + '</ul>'
-    body += `<div class="ans-key">答错 ${it.wrong_count} 次 · 已复习 ${it.reviewed_count} 次</div>`
-    body += `<div class="analysis">答案：${escapeHtml((it.answer || []).join('、'))}${it.analysis ? ' ｜ 解析：' + escapeHtml(it.analysis) : ''}</div>`
-    body += `</div>`
-  })
-  printHtml('错题本', body)
 }
 
 async function toggleSimilar(qid) {
@@ -145,7 +161,7 @@ async function toggleSimilar(qid) {
   <div>
     <div class="wb-head">
       <h2>错题本（{{ items.length }}）</h2>
-      <button v-if="items.length" class="ghost" @click="exportWrongPdf">导出错题PDF</button>
+      <button v-if="items.length" class="ghost" :disabled="exporting" @click="exportWrongPdf">{{ exporting ? '生成中…' : '导出错题PDF' }}</button>
     </div>
 
     <!-- 筛选：科目 → 章节（联动）→ 题干模糊搜索 -->
@@ -206,6 +222,7 @@ async function toggleSimilar(qid) {
         <button class="ghost" @click="toggleSimilar(it.question_id)">
           {{ expanded.has(it.question_id) ? '收起相似题' : '相似题推荐' }}
         </button>
+        <button class="ghost del" @click="removeWrong(it)">移除</button>
       </div>
 
       <div v-if="expanded.has(it.question_id)" class="similar">
@@ -256,6 +273,9 @@ button { border: none; padding: 7px 14px; border-radius: 8px; font-size: 13px; c
 .primary { background: var(--brand); color: #fff; }
 .ghost { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); color: var(--text); }
 .ghost:hover { border-color: var(--brand); color: var(--brand); }
+.ghost.del:hover { border-color: var(--bad); color: var(--bad); }
+.ghost:disabled { opacity: .5; cursor: default; }
+.ghost:disabled:hover { border-color: var(--line); color: var(--text); }
 
 .similar { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
 .sim-empty { font-size: 12px; color: var(--muted); }

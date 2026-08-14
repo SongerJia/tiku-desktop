@@ -3,6 +3,8 @@ import Icon from './Icon.vue'
 import EmptyState from './EmptyState.vue'
 import { ref, computed, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
+import { showToast } from '../utils/toast.js'
+import { useEsc } from '../utils/useEsc.js'
 
 const props = defineProps({
   show: Boolean,
@@ -11,7 +13,6 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const list = ref([])
-const toast = ref('')
 
 // 筛选：科目 → 章节（联动）→ 题干模糊搜索
 const filterSubject = ref('')
@@ -34,11 +35,6 @@ const filtered = computed(() => {
   })
 })
 
-function showToast(m) {
-  toast.value = m
-  setTimeout(() => { toast.value = '' }, 2000)
-}
-
 function fmt(ts) {
   if (!ts) return ''
   const d = new Date(ts)
@@ -52,6 +48,7 @@ async function load() {
 }
 
 watch(() => props.show, (v) => { if (v) load() })
+useEsc(() => emit('close'))
 
 async function delNote(item) {
   await tiku.saveNote({ questionId: item.question_id, content: '' })
@@ -103,8 +100,6 @@ async function delNote(item) {
             </div>
           </template>
         </div>
-
-        <div v-if="toast" class="nl-toast">{{ toast }}</div>
       </div>
     </div>
   </transition>
@@ -201,23 +196,6 @@ async function delNote(item) {
 }
 .mini:hover { color: var(--brand); border-color: var(--brand); }
 .mini.danger:hover { color: var(--bad); border-color: var(--bad); }
-
-.nl-toast {
-  position: absolute;
-  left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
-  background: var(--toast-bg);
-  color: var(--text);
-  padding: 8px 16px;
-  border-radius: 20px;
-  font-size: 12px;
-  border: 1px solid var(--line);
-  box-shadow: var(--glow-soft);
-  z-index: 5;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.18s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }

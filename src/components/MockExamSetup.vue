@@ -4,6 +4,8 @@ import EmptyState from './EmptyState.vue'
 import { ref, onMounted, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { printHtml } from '../utils/print.js'
+import { showConfirm } from '../utils/confirm.js'
+import { useEsc } from '../utils/useEsc.js'
 
 const props = defineProps({
   show: Boolean,
@@ -71,6 +73,7 @@ onMounted(async () => {
 })
 
 watch(subjectId, () => loadChapters())
+useEsc(() => emit('cancel'))
 
 function addRule() {
   rules.value.push({ type: 'single', count: 1, difficulty: '', score: '' })
@@ -110,6 +113,8 @@ function reexam(p) {
   emit('confirm', { paperId: p.id, durationMin: p.duration_minutes || 90 })
 }
 async function delPaper(p) {
+  const ok = await showConfirm(`确定删除「${p.title}」？删除后无法恢复。`, { title: '删除试卷', danger: true })
+  if (!ok) return
   await tiku.deletePaper(p.id)
   await loadPapers()
 }

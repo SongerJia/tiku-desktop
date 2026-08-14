@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
+import { useEsc } from '../utils/useEsc.js'
 import { LETTERS, splitKeywords } from '../utils/bankParser.js'
 
 const props = defineProps({
@@ -166,6 +167,7 @@ async function onPaste(e) {
 }
 
 watch(() => props.show, (v) => { if (v) loadFromProps() }, { immediate: true })
+useEsc(() => emit('close'))
 
 watch(type, (t) => {
   // 切题型时清掉不再合法的答案，避免残留脏选择

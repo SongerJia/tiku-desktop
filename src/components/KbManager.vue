@@ -121,6 +121,7 @@ import KbReader from './KbReader.vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
+import { useEsc } from '../utils/useEsc.js'
 
 const props = defineProps({
   show: Boolean,
@@ -163,6 +164,12 @@ function close() {
   reader.value = { show: false, doc: null }
   emit('close')
 }
+
+// Esc：编辑弹窗优先关，其次关主面板
+useEsc(() => {
+  if (editDoc.value) { editDoc.value = null; return }
+  close()
+})
 
 // 科目列表（parent 为空的根节点）
 const subjectOptions = computed(() => Object.values(subjects.value).filter(n => !n.parent_id))

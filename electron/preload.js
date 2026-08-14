@@ -125,6 +125,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getCardReview: (limit, subjectId) => ipcRenderer.invoke('getCardReview', limit, subjectId),
   cardsStats: (subjectId) => ipcRenderer.invoke('cardsStats', subjectId),
   setWrongReason: (questionId, reason) => ipcRenderer.invoke('setWrongReason', questionId, reason),
+  removeWrongBook: (questionId) => ipcRenderer.invoke('removeWrongBook', questionId),
   getWeeklyReport: (subjectId) => ipcRenderer.invoke('getWeeklyReport', subjectId),
   getMonthStats: () => ipcRenderer.invoke('getMonthStats'),
   getVersion: () => ipcRenderer.invoke('getVersion'),

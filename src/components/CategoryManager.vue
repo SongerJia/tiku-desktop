@@ -6,6 +6,8 @@ import { ref, onMounted, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
+import { showPrompt } from '../utils/prompt.js'
+import { useEsc } from '../utils/useEsc.js'
 
 const props = defineProps({ show: Boolean })
 const emit = defineEmits(['close'])
@@ -25,6 +27,7 @@ async function load() {
 
 onMounted(load)
 watch(() => props.show, (v) => { if (v) { load(); newSubject.value = ''; newChapter.value = ''; chapterFor.value = null } })
+useEsc(() => emit('close'))
 
 function toggle(id) {
   const s = new Set(expanded.value)
@@ -58,8 +61,8 @@ async function addChapter(subject) {
 }
 
 async function rename(node) {
-  const name = window.prompt(`重命名「${node.name}」为：`, node.name)
-  if (name == null || !name.trim() || name.trim() === node.name) return
+  const name = await showPrompt({ title: '重命名', msg: `将「${node.name}」重命名为：`, value: node.name, placeholder: '新名称' })
+  if (name == null || !name || name === node.name) return
   try {
     await tiku.renameCategory({ id: node.id, name: name.trim() })
     showToast('已重命名', 'ok')

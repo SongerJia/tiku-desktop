@@ -312,5 +312,13 @@ module.exports = function quizModule(ctx) {
     }
     return { ok: true, quality }
   },
+
+  // 手动移除错题（软删 deleted=1）：错题本列表不再显示、复习队列不再排期；
+  // 之后再次答错会由 UPSERT 的 deleted=0 复活（F-01 已兜底），不产生幽灵数据。
+  removeWrongBook(questionId) {
+    const r = sqlite.prepare('UPDATE wrong_books SET deleted=1, updated_at=? WHERE user_id=? AND question_id=? AND deleted=0')
+      .run(Date.now(), LOCAL_USER, questionId)
+    return { ok: true, removed: r.changes > 0 }
+  },
   }
 }
