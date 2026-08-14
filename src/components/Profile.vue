@@ -848,6 +848,7 @@ onMounted(async () => {
           <span class="wf-name">我的笔记</span>
           <span class="wf-desc">查看与删除全部题目笔记</span>
         </div>
+        <span v-if="metrics" class="wf-badge">{{ metrics.notesCount }} 条</span>
         <span class="wf-arrow">›</span>
       </div>
     </div>
