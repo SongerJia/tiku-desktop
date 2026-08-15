@@ -253,6 +253,11 @@ html, body, #app {
   cursor: pointer;
   transition: all .2s;
 }
+/* 次要/幽灵按钮：透明底 + 边框（全局统一，消除各组件局部重复定义） */
+.btn.ghost { background: transparent; color: var(--text); }
+.btn.ghost:hover { border-color: var(--brand); color: var(--brand); }
+/* 小号按钮 */
+.btn-sm { padding: 6px 14px; font-size: 12px; border-radius: 18px; }
 .btn:active { transform: scale(0.98); }
 .btn-primary { background: var(--brand); color: #ffffff; border-color: var(--brand); box-shadow: var(--glow); font-weight: 600; }
 .btn-primary:hover { box-shadow: 0 0 20px color-mix(in srgb, var(--brand) 55%, transparent); transform: translateY(-1px); }
@@ -341,8 +346,6 @@ button:focus:not(:focus-visible) { outline: none; }
   background-size: 200% 100%;
 }
 
-/* 按钮按压反馈（C 档） */
-.btn:active { transform: scale(0.96); }
 /* 滚动条（隐形 macOS 风格：细、半透明、hover 才加深、track 透明） */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb {

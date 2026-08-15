@@ -2,9 +2,12 @@
 import { confirmState, resolveConfirm } from '../utils/confirm.js'
 import { useBodyLock } from '../composables/useBodyLock.js'
 import { useFocusTrap } from '../composables/useFocusTrap.js'
+import { useEsc } from '../utils/useEsc.js'
 
 useBodyLock(() => confirmState.show)
 useFocusTrap(() => confirmState.show, '.cf-box')
+// Esc 关闭确认框（与其他覆盖层交互一致）
+useEsc(() => { if (confirmState.show) resolveConfirm(false) })
 </script>
 
 <template>

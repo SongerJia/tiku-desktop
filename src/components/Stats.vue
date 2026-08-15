@@ -295,12 +295,18 @@ onMounted(async () => {
   await login()
   await loadAnalysis()
   computeHeatSize()
-  heatObs = new ResizeObserver(() => computeHeatSize())
+  // ResizeObserver 回调内同步读尺寸会触发 "loop completed" 警告 → rAF 延迟打破同步循环
+  heatObs = new ResizeObserver(() => {
+    if (heatRaf) return
+    heatRaf = requestAnimationFrame(() => { heatRaf = 0; computeHeatSize() })
+  })
   if (heatWrapEl.value) heatObs.observe(heatWrapEl.value)
 })
+let heatRaf = 0
 watch(() => heatGrid.value.cols, () => { if (loggedIn.value) computeHeatSize() }) // 年份/数据变化后重算格子尺寸
 onBeforeUnmount(() => {
   if (heatObs) heatObs.disconnect()
+  if (heatRaf) cancelAnimationFrame(heatRaf)
 })
 
 // ---- 章节正确率雷达 + 练习成绩历史曲线 ----
@@ -616,7 +622,7 @@ async function loadAnalysis() {
 .kpi-label { font-size: 11px; color: var(--muted); }
 
 /* 热力图（GitHub 贡献图） */
-.heat-card { display: flex; flex-direction: column; gap: 10px; }
+.heat-card { display: flex; flex-direction: column; gap: 10px; overflow: hidden; } /* 热力图全宽超出时防页面横向滚动条 */
 .heat-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .heat-scope { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
 .heat-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); margin-left: auto; }
@@ -633,7 +639,7 @@ async function loadAnalysis() {
 .hs-item b { font-size: 16px; color: var(--text); font-variant-numeric: tabular-nums; }
 .hs-item b.hot { color: var(--warn); }
 .hs-item span { font-size: 10px; color: var(--muted); }
-.heat-main { flex: 1; min-width: 0; overflow-x: hidden; }
+.heat-main { flex: 1; min-width: 0; overflow: hidden; }
 .heat-months { position: relative; height: 16px; margin-bottom: 2px; }
 .hm-label { position: absolute; top: 0; font-size: 9px; color: var(--muted); white-space: nowrap; }
 .heat-grid { display: grid; grid-auto-flow: column; gap: 2px; }
@@ -922,5 +928,12 @@ async function loadAnalysis() {
 .rc-delta.up { color: var(--bad); }
 .rc-delta.down { color: var(--ok); }
 .rc-delta.flat { color: var(--muted); }
+
+/* 窄屏（手机/窄窗口）：热力图统计列与格子区垂直堆叠，避免挤压溢出 */
+@media (max-width: 640px) {
+  .heat-flex { flex-direction: column; }
+  .heat-stats { grid-template-columns: repeat(3, auto); }
+  .heat-main { overflow: hidden; }
+}
 
 </style>

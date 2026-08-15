@@ -83,7 +83,7 @@ function typeLabel(t) {
           @keyup.enter="search"
         />
         <button class="btn btn-primary" @click="search">搜索</button>
-        <button class="btn btn-outline manage-btn" @click="$emit('manage')" title="增删改查 / 批量导入导出题目">管理题库</button>
+        <button class="btn manage-btn" @click="$emit('manage')" title="增删改查 / 批量导入导出题目">管理题库</button>
       </div>
       <div class="chapter-filter">
         <button
@@ -141,7 +141,7 @@ function typeLabel(t) {
   margin-bottom: 12px;
 }
 .search-row .input { flex: 1; }
-.search-row .btn { border-radius: var(--radius-sm); }
+/* 与知识库工具条按钮一致：全局胶囊圆角（24px），不用小圆角 */
 .manage-btn { flex-shrink: 0; }
 
 .chapter-filter {

@@ -6,7 +6,7 @@ import { showConfirm } from '../utils/confirm.js'
 import { showToast } from '../utils/toast.js'
 import { evaluate, achLevel, ACH_SERIES, RARITY_ORDER } from '../utils/achievements.js'
 import { vTilt } from '../utils/tilt.js'
-import { computePosition, offset, flip, shift } from '@floating-ui/dom'
+import { computePosition, offset, flip, shift, autoUpdate } from '@floating-ui/dom'
 import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { applyAppearance } from '../utils/appearance.js'
@@ -41,12 +41,14 @@ function openEdit() {
 }
 async function saveEdit() {
   const v = editName.value.trim().slice(0, 20)
-  if (v && v !== userName.value) {
+  const renamed = v && v !== userName.value
+  if (renamed) {
     userName.value = v
     try { await tiku.setSetting('user_name', v) } catch (e) { /* 保存失败不阻塞 */ }
   }
-  // 未上传自定义头像时：用姓名首字生成头像（首汉字或英文首字母大写），改名后自动刷新
-  if (!avatar.value) {
+  // 未上传自定义头像时：用姓名首字生成头像（首汉字或英文首字母大写）
+  // 改名后也刷新（当前头像若是旧名首字生成，改名后应更新首字）
+  if (!avatar.value || renamed) {
     const gen = genInitialAvatar(userName.value)
     avatar.value = gen
     try { localStorage.setItem('tiku_avatar', gen) } catch (e) { /* 存储失败忽略 */ }
@@ -362,6 +364,7 @@ const medalTipAnchor = {
   })
 }
 let medalTipSeq = 0
+let medalTipCleanup = null // autoUpdate 清理函数（滚动/resize 时浮层跟随锚点）
 async function showTip(elOrE, payload) {
   const el = elOrE.currentTarget || elOrE
   const r = el.getBoundingClientRect()
@@ -372,15 +375,23 @@ async function showTip(elOrE, payload) {
   const seq = ++medalTipSeq
   await nextTick() // 等浮层渲染后定位
   if (seq !== medalTipSeq || !medalTipEl.value) return
-  const { x, y } = await computePosition(medalTipAnchor, medalTipEl.value, {
-    placement: 'top', // 默认上方，空间不足 flip 自动翻到下方
-    middleware: [offset(10), flip(), shift({ padding: 8 })]
+  if (medalTipCleanup) { medalTipCleanup(); medalTipCleanup = null }
+  // autoUpdate：页面滚动/窗口缩放时浮层自动跟随锚点（computePosition 单次定位会漂移）
+  medalTipCleanup = autoUpdate(medalTipAnchor, medalTipEl.value, async () => {
+    if (seq !== medalTipSeq || !medalTipEl.value) return
+    const { x, y } = await computePosition(medalTipAnchor, medalTipEl.value, {
+      placement: 'top', // 默认上方，空间不足 flip 自动翻到下方
+      middleware: [offset(10), flip(), shift({ padding: 8 })]
+    })
+    if (seq !== medalTipSeq || !medalTipEl.value) return
+    medalTipEl.value.style.left = x + 'px'
+    medalTipEl.value.style.top = y + 'px'
   })
-  if (seq !== medalTipSeq || !medalTipEl.value) return
-  medalTipEl.value.style.left = x + 'px'
-  medalTipEl.value.style.top = y + 'px'
 }
-function hideTip() { activeTip.value = null }
+function hideTip() {
+  activeTip.value = null
+  if (medalTipCleanup) { medalTipCleanup(); medalTipCleanup = null }
+}
 // 浮层数据：归类成就的 4 档进度（当前档/下一档阈值 + 全档位预览）
 const RAR_LABEL = { bronze: '铜', silver: '银', gold: '金', platinum: '白金' }
 function achTipPayload(a) {

@@ -33,6 +33,14 @@ export function useFocusTrap(active, panelSelector) {
 
   function release() {
     if (cleanup) { cleanup(); cleanup = null }
+    // 清理弹窗无可聚焦元素时设置的临时 tabindex（避免残留污染 DOM）
+    if (panelSelector && typeof panelSelector === 'string') {
+      const panel = document.querySelector(panelSelector)
+      if (panel && panel.getAttribute('data-trap-tabindex') === '1') {
+        panel.removeAttribute('tabindex')
+        panel.removeAttribute('data-trap-tabindex')
+      }
+    }
     if (prevFocus && prevFocus.focus && document.body.contains(prevFocus)) prevFocus.focus()
     prevFocus = null
   }
@@ -45,7 +53,7 @@ export function useFocusTrap(active, panelSelector) {
       if (panel) {
         const first = panel.querySelector(FOCUSABLE)
         if (first) first.focus()
-        else if (panel.focus) { panel.setAttribute('tabindex', '-1'); panel.focus() }
+        else if (panel.focus) { panel.setAttribute('tabindex', '-1'); panel.setAttribute('data-trap-tabindex', '1'); panel.focus() }
       }
     } else {
       release()

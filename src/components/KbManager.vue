@@ -19,6 +19,7 @@
           <!-- 操作条 -->
           <div class="km-toolbar">
             <button class="btn btn-primary sm" @click="onImport">导入文档</button>
+            <button class="btn sm" @click="onExport">导出</button>
             <span class="km-fmt">md / pdf</span>
             <span class="km-count">{{ filteredDocs.length }} / {{ docs.length }} 篇</span>
           </div>
@@ -234,6 +235,13 @@ async function onImport() {
   if (dup.length) msgs.push(`已存在跳过 ${dup.length} 篇`)
   if (failed.length) msgs.push(`失败 ${failed.length} 篇（${failed[0].error || '仅支持 md/pdf'}）`)
   if (msgs.length) showToast(msgs.join('；'), failed.length ? 'err' : 'ok')
+}
+
+// 导出：整库导出到指定目录（与原工具条「导出」按钮一致，迁入管理弹窗）
+async function onExport() {
+  const r = await tiku.kbExport()
+  if (r && r.ok) showToast(`已导出 ${r.files} 个文件 / ${r.docs} 篇文档到：${r.target}`, 'ok')
+  else if (r && !r.canceled) showToast('导出失败', 'err')
 }
 
 // 编辑：打开/关闭编辑弹窗，预填当前值

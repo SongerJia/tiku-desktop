@@ -350,12 +350,6 @@ async function onImport() {
   }
 }
 
-async function onExport() {
-  const r = await tiku.kbExport()
-  if (r && r.ok) showToast(`已导出 ${r.files} 个文件 / ${r.docs} 篇文档到：${r.target}`, 'ok')
-  else if (r && !r.canceled) showToast('导出失败', 'err')
-}
-
 function openReader(doc) {
   reader.value = { show: true, doc }
 }
@@ -446,9 +440,10 @@ function fmtTime(ts) {
           class="input"
           placeholder="搜索文档全文（中英文均可）"
           @input="onSearchInput"
+          @keyup.enter="onSearchInput"
         />
+        <button class="btn btn-primary" @click="onSearchInput">搜索</button>
         <button class="btn" :class="{ 'btn-active': viewMode === 'graph' }" @click="toggleGraph">图谱</button>
-        <button class="btn" @click="onExport">导出</button>
         <button class="btn btn-primary" @click="emit('manage')">管理文档</button>
       </div>
       <div v-if="allTags.length" class="kb-tag-row">
