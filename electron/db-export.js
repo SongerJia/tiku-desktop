@@ -94,6 +94,11 @@ module.exports = function exportModule(ctx) {
       sqlite.prepare(collect).all().forEach(r => {
         if (r.audio_url) used.add(path.basename(String(r.audio_url)))
       })
+      // 记忆卡真人发音音频也存 userData/audio（cards.audio_url 引用），不收集会被误删
+      const cardCollect = `SELECT audio_url FROM cards WHERE audio_url IS NOT NULL AND audio_url<>''${opts.includeSoftDeleted ? '' : ' AND deleted=0'}`
+      sqlite.prepare(cardCollect).all().forEach(r => {
+        if (r.audio_url) used.add(path.basename(String(r.audio_url)))
+      })
       let removed = 0, freedBytes = 0
       for (const f of files) {
         if (used.has(f)) continue

@@ -301,6 +301,11 @@ try {
   db.updateQuestion({ ...q, audioUrl: usedAudio })
   db.cleanupOrphanAudio()
   ok('cleanupOrphanAudio 保留在用音频', fs.existsSync(path.join(app.getPath('userData'), 'audio', usedAudio)))
+  // 记忆卡真人发音音频同样被 cleanupOrphanAudio 保留（此前只查 questions 会误删）
+  const cardAudio = db.saveAudio(Buffer.from('card-audio-bytes'))
+  db.addCard('音频保留测试', '背面', '词汇', null, null, '', cardAudio)
+  db.cleanupOrphanAudio()
+  ok('cleanupOrphanAudio 保留记忆卡音频', fs.existsSync(path.join(app.getPath('userData'), 'audio', cardAudio)))
   const wbFile = db.exportWrongBookMarkdown()
   ok('exportWrongBookMarkdown 生成 .md 文件', typeof wbFile === 'string' && wbFile.endsWith('.md') && fs.existsSync(wbFile))
   const ntFile = db.exportNotesMarkdown()
