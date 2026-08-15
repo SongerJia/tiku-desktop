@@ -36,10 +36,15 @@ async function restore(b) {
   const ok = await showConfirm(`用 ${fmtTime(b.mtime)} 的备份恢复？\n将覆盖当前全部本地数据（含知识库），应用会自动重启。`, { title: '恢复备份', danger: true })
   if (!ok) return
   restoring.value = true
-  const r = await tiku.restoreBackup(b.file)
-  restoring.value = false
-  if (!r.ok) { showToast('恢复失败：' + (r.error || '未知错误'), 'err'); return }
-  // 主进程会自动 relaunch；这里不再提示
+  try {
+    const r = await tiku.restoreBackup(b.file)
+    if (!r.ok) { showToast('恢复失败：' + (r.error || '未知错误'), 'err'); return }
+    // 主进程会自动 relaunch；这里不再提示
+  } catch (err) {
+    showToast('恢复失败：' + (err && err.message ? err.message : err), 'err')
+  } finally {
+    restoring.value = false
+  }
 }
 </script>
 

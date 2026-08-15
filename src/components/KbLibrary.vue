@@ -28,7 +28,11 @@ const subjects = ref([])
 const filterSubjectId = computed(() => props.scope === 'all' ? undefined : props.subject.id || undefined)
 
 let debounceTimer = null
-onUnmounted(() => { if (debounceTimer) clearTimeout(debounceTimer) })
+onUnmounted(() => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  // 拖拽中卸载的兜底：移除 window 级监听（图谱 pan 的 mousemove/mouseup）
+  if (typeof onGraphPanEnd === 'function') onGraphPanEnd()
+})
 // Esc：文档信息弹窗（kb-mask）打开时关闭它；阅读器由 KbReader 自行处理
 useEsc(() => { if (editor.value.show) editor.value.show = false })
 

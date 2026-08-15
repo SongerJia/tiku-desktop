@@ -90,13 +90,23 @@ const api = {
       const base = dbPath()
       const backups = this.listBackups() // 已按 mtime 倒序
       if (!backups.length) return false
-      // 把损坏文件改名留存（便于排查），再用最新备份覆盖
+      // 逐个尝试：跳过损坏的备份（非 SQLite 头），避免损坏备份覆盖主库（同 restoreBackup 的校验）
+      let src = null
+      for (const b of backups) {
+        const cand = path.join(app.getPath('userData'), 'backups', b.file)
+        try {
+          const head = fs.readFileSync(cand).subarray(0, 16).toString('latin1')
+          if (head.startsWith('SQLite format 3')) { src = cand; break }
+        } catch (e) { /* 读取失败跳过该备份 */ }
+      }
+      if (!src) return false
+      // 把损坏文件改名留存（便于排查），再用合法备份覆盖
       try { if (fs.existsSync(base)) fs.renameSync(base, base + '.corrupt.' + Date.now()) } catch (e) {}
       for (const ext of ['-wal', '-shm']) {
         const w = base + ext
         try { if (fs.existsSync(w)) fs.unlinkSync(w) } catch (e) {}
       }
-      fs.copyFileSync(path.join(app.getPath('userData'), 'backups', backups[0].file), base)
+      fs.copyFileSync(src, base)
       return this._tryOpen()
     } catch (e) {
       return false

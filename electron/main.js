@@ -214,6 +214,19 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
   process.exit(0)
 }
+// 渲染层安全加固（纵深防御）：拒绝外部 URL 新窗口 + 限制导航协议。
+// 打印/导出 PDF 用 window.open('', '_blank') 开空白窗口 → 空/about:blank/file:// 放行。
+app.on('web-contents-created', (e, contents) => {
+  contents.setWindowOpenHandler(({ url }) => {
+    const ok = !url || url === 'about:blank' || url.startsWith('file://')
+    return ok ? { action: 'allow' } : { action: 'deny' }
+  })
+  contents.on('will-navigate', (ev, url) => {
+    if (!url.startsWith('file://') && !url.startsWith('http://') && !url.startsWith('https://') && url !== 'about:blank') {
+      ev.preventDefault()
+    }
+  })
+})
 app.on('second-instance', () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore()
