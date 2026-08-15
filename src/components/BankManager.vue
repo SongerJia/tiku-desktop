@@ -342,12 +342,11 @@ async function batchDelete() {
           <!-- 概览 -->
           <div class="stat-row">
             <div class="stat"><b style="animation-delay: 0s">{{ stats.total }}</b><span>总题量</span></div>
-            <div class="stat"><b style="animation-delay: .06s">{{ stats.categories }}</b><span>分类数</span></div>
             <div
               v-for="(t, ti) in stats.byType"
               :key="t.type"
               class="stat"
-            ><b :style="{ animationDelay: (0.12 + ti * 0.06) + 's' }">{{ t.n }}</b><span>{{ TYPE_LABEL[t.type] || t.type }}</span></div>
+            ><b :style="{ animationDelay: (0.06 + ti * 0.06) + 's' }">{{ t.n }}</b><span>{{ TYPE_LABEL[t.type] || t.type }}</span></div>
           </div>
 
           <!-- 操作条 -->
