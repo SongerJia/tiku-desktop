@@ -44,6 +44,26 @@ module.exports = function metaModule(ctx) {
       const tx = sqlite.transaction(() => orphans.forEach(q => upd.run(rootOf(q.category_id), q.id)))
       tx()
     }
+
+    // 老备份恢复后 kb_docs/cards/materials 的科目归属可能为 NULL（importData 兜底置空）→ 一并回填
+    // kb_docs：按本地 category_id 上溯根科目（与 questions 同源）
+    const kbOrphans = sqlite.prepare('SELECT id, category_id FROM kb_docs WHERE subject_id IS NULL AND category_id IS NOT NULL AND deleted=0').all()
+    if (kbOrphans.length) {
+      const upd = sqlite.prepare('UPDATE kb_docs SET subject_id=? WHERE id=?')
+      const tx = sqlite.transaction(() => kbOrphans.forEach(r => upd.run(rootOf(r.category_id), r.id)))
+      tx()
+    }
+    // cards/materials：按 subject_cid（备份携带的 cid）映射回本地科目 id（cidMap 缺项时保持 NULL；只映射未删科目）
+    const cidMap = new Map(sqlite.prepare('SELECT client_id, id FROM categories WHERE client_id IS NOT NULL AND client_id != \'\' AND deleted=0').all().map(r => [r.client_id, r.id]))
+    const backfillBySubjectCid = (table) => {
+      const rows = sqlite.prepare(`SELECT id, subject_cid FROM ${table} WHERE subject_id IS NULL AND subject_cid IS NOT NULL AND subject_cid != ''`).all()
+      if (!rows.length) return
+      const upd = sqlite.prepare(`UPDATE ${table} SET subject_id=? WHERE id=?`)
+      const tx = sqlite.transaction(() => rows.forEach(r => { const sid = cidMap.get(r.subject_cid); if (sid != null) upd.run(sid, r.id) }))
+      tx()
+    }
+    backfillBySubjectCid('cards')
+    backfillBySubjectCid('materials')
   },
 
   ensureUser() {

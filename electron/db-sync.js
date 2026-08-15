@@ -53,6 +53,12 @@ module.exports = function syncModule(ctx) {
         kbTags: dump('kb_tags', COLS.kbTags),
         kbLinks: dump('kb_links', COLS.kbLinks),
         kbFiles,
+        // 题目标签（question_tags 无 client_id，按题目 client_id 携带；与 exportSync 的 questionTags 同构）
+        questionTags: sqlite.prepare(
+          `SELECT qt.tag AS tag, q.client_id AS question_cid
+           FROM question_tags qt JOIN questions q ON q.id=qt.question_id
+           WHERE q.deleted=0`
+        ).all(),
         xpLogs: dump('xp_logs'),
         focusSessions: dump('focus_sessions'),
         reviewLogs: dump('review_logs'), // 复习轨迹（成就/周报数据源，表无 deleted 列）
@@ -573,6 +579,23 @@ module.exports = function syncModule(ctx) {
       }
       replace('categories', data.categories, ['id', 'name', 'parent_id', 'level', 'stage', 'sort', 'client_id', 'parent_cid', 'updated_at', 'deleted'])
       replace('questions', data.questions, ['id', 'category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'audio_url', 'material_id', 'material_cid', 'client_id', 'category_cid', 'subject_id', 'updated_at', 'deleted'])
+      // question_tags：备份为完整快照 → 按题目 client_id 解析成本机 question_id，每题标签重置为备份值（删除也能还原）
+      {
+        const qCidMap = new Map((data.questions || []).map(r => [r.client_id, r.id]))
+        const qtDel = sqlite.prepare('DELETE FROM question_tags WHERE question_id=?')
+        const qtIns = sqlite.prepare('INSERT OR IGNORE INTO question_tags (question_id, tag) VALUES (?,?)')
+        const qtSeen = new Set()
+        const qtTx = sqlite.transaction(() => {
+          for (const t of data.questionTags || []) {
+            const qid = qCidMap.get(t && t.question_cid)
+            if (qid == null) continue
+            // 每题只在首条标签时删一次（一题多标签时逐条 DELETE 会只剩最后一条）
+            if (!qtSeen.has(qid)) { qtDel.run(qid); qtSeen.add(qid) }
+            qtIns.run(qid, t.tag)
+          }
+        })
+        qtTx()
+      }
       replace('answer_records', data.answerRecords, ['id', 'user_id', 'question_id', 'selected_json', 'is_correct', 'duration_ms', 'mode', 'self_graded', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])
       replace('wrong_books', data.wrongBooks, ['id', 'user_id', 'question_id', 'wrong_count', 'reviewed_count', 'ease', 'interval', 'next_review_at', 'weak_point', 'reason', 'status', 'client_id', 'question_cid', 'updated_at', 'deleted'])
       replace('favorites', data.favorites, ['id', 'user_id', 'question_id', 'fav_group', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])
@@ -580,7 +603,7 @@ module.exports = function syncModule(ctx) {
       replace('papers', data.papers, ['id', 'user_id', 'title', 'subject_id', 'duration_minutes', 'total_score', 'rules_json', 'created_at', 'client_id', 'updated_at', 'deleted'])
       replace('paper_questions', data.paperQuestions, ['id', 'paper_id', 'seq', 'question_id', 'score', 'client_id', 'question_cid', 'deleted'])
       // 知识库（老备份无 kb 字段时 replace 自动跳过；文件按需写回）
-      replace('kb_docs', data.kbDocs, ['id', 'title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'subject_id', 'subject_cid', 'category_id', 'last_page', 'created_at', 'updated_at', 'deleted', 'client_id'])
+      replace('kb_docs', data.kbDocs, ['id', 'title', 'type', 'rel_path', 'size', 'hash', 'folder', 'read_count', 'subject_id', 'subject_cid', 'category_id', 'category_cid', 'last_page', 'created_at', 'updated_at', 'deleted', 'client_id'])
       ;(data.kbBlocks || []).forEach(b => {
         b.review_at = b.review_at ?? null
         b.review_count = b.review_count ?? 0
@@ -593,6 +616,7 @@ module.exports = function syncModule(ctx) {
       replace('focus_sessions', data.focusSessions, ['id', 'minutes', 'started_at', 'created_at', 'deleted', 'client_id'])
       replace('kb_highlights', data.kbHighlights, ['id', 'doc_id', 'block_id', 'text', 'note', 'color', 'created_at', 'updated_at', 'deleted', 'client_id'])
       replace('kb_doc_links', data.kbDocLinks, ['id', 'from_doc_id', 'to_doc_id', 'note', 'created_at', 'client_id'])
+      replace('review_logs', data.reviewLogs, ['id', 'item_type', 'item_id', 'result', 'created_at', 'client_id'])
       ;(data.cards || []).forEach(c => {
         c.review_at = c.review_at ?? null
         c.review_count = c.review_count ?? 0

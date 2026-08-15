@@ -279,7 +279,11 @@ async function importData(event) {
       // 恢复头像/用户名显示状态（头像存 localStorage，settings 已随备份恢复）
       try {
         const d2 = JSON.parse(json)
-        if (d2.avatar) { localStorage.setItem('tiku_avatar', d2.avatar); avatar.value = d2.avatar }
+        if (d2.avatar) {
+          localStorage.setItem('tiku_avatar', d2.avatar); avatar.value = d2.avatar
+          // 备份 JSON 不含头像来源标记：恢复的头像一律按「上传」处理（改名不覆盖，最安全）
+          localStorage.setItem('tiku_avatar_auto', '0'); avatarAuto.value = false
+        }
         const n = await tiku.getSetting('user_name')
         if (n) userName.value = n
       } catch (err) { /* 显示状态恢复失败不影响导入 */ }
