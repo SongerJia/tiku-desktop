@@ -364,8 +364,8 @@ onBeforeUnmount(() => {
           <span class="adv-ico"><Icon name="target" :size="12"/></span>
           <span>{{ adviceText }}</span>
         </div>
-        <!-- 等级进度条（门面③）：Lv 徽章 + 渐变 XP 进度 -->
-        <div class="lv-bar" v-tilt="{ deg: 2 }">
+        <!-- 等级进度条（门面③）：Lv 徽章 + 渐变 XP 进度（不加 v-tilt：内部 blur 光点叠加 3D 透视会渲染出黑色虚影） -->
+        <div class="lv-bar">
           <span class="lv-badge">Lv.{{ lvInfo.level }}</span>
           <div class="lv-track">
             <div class="lv-fill" :style="{ width: lvInfo.pct + '%' }"></div>
