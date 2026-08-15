@@ -579,18 +579,17 @@ module.exports = function syncModule(ctx) {
       }
       replace('categories', data.categories, ['id', 'name', 'parent_id', 'level', 'stage', 'sort', 'client_id', 'parent_cid', 'updated_at', 'deleted'])
       replace('questions', data.questions, ['id', 'category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'audio_url', 'material_id', 'material_cid', 'client_id', 'category_cid', 'subject_id', 'updated_at', 'deleted'])
-      // question_tags：备份为完整快照 → 按题目 client_id 解析成本机 question_id，每题标签重置为备份值（删除也能还原）
+      // question_tags：整机恢复 = 完整快照 → 先全清再按备份插入（备份中无标签的题恢复后也无标签，
+      // 「删除全部标签」可还原；此前 qtSeen 只删「备份含标签的题」→ 无标签题本地残留）
       {
-        const qCidMap = new Map((data.questions || []).map(r => [r.client_id, r.id]))
-        const qtDel = sqlite.prepare('DELETE FROM question_tags WHERE question_id=?')
+        // 过滤 null client_id（老备份未回填的行）→ Map 无 null 键，question_cid 为 null 的标签安全跳过
+        const qCidMap = new Map((data.questions || []).filter(r => r.client_id).map(r => [r.client_id, r.id]))
         const qtIns = sqlite.prepare('INSERT OR IGNORE INTO question_tags (question_id, tag) VALUES (?,?)')
-        const qtSeen = new Set()
         const qtTx = sqlite.transaction(() => {
+          sqlite.prepare('DELETE FROM question_tags').run()
           for (const t of data.questionTags || []) {
             const qid = qCidMap.get(t && t.question_cid)
             if (qid == null) continue
-            // 每题只在首条标签时删一次（一题多标签时逐条 DELETE 会只剩最后一条）
-            if (!qtSeen.has(qid)) { qtDel.run(qid); qtSeen.add(qid) }
             qtIns.run(qid, t.tag)
           }
         })
