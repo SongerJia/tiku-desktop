@@ -12,7 +12,7 @@ export const vTilt = {
     el.style.transition = 'transform .25s cubic-bezier(.2, .7, .3, 1), box-shadow .18s ease, background .15s ease'
     if (!flat) el.style.transformStyle = 'preserve-3d'
     el.style.willChange = 'transform'
-    el.addEventListener('mousemove', (e) => {
+    const onMove = (e) => {
       const r = el.getBoundingClientRect()
       if (!r.width || !r.height) return
       const px = (e.clientX - r.left) / r.width - 0.5
@@ -23,12 +23,22 @@ export const vTilt = {
       // 重力输出：把倾斜角暴露为 CSS 变量，子元素（勋章堆等）可反向位移模拟重力
       el.style.setProperty('--tiltRx', rx)
       el.style.setProperty('--tiltRy', ry)
-    })
-    el.addEventListener('mouseleave', () => {
+    }
+    const onLeave = () => {
       el.style.transform = ''
       el.style.setProperty('--tiltRx', '0')
       el.style.setProperty('--tiltRy', '0')
-    })
-    el.addEventListener('animationend', (e) => { if (e.animationName === 'riseIn') el.style.animation = 'none' })
-  }
+    }
+    const onAnimEnd = (e) => { if (e.animationName === 'riseIn') el.style.animation = 'none' }
+    el.addEventListener('mousemove', onMove)
+    el.addEventListener('mouseleave', onLeave)
+    el.addEventListener('animationend', onAnimEnd)
+    el._tiltCleanup = () => {
+      el.removeEventListener('mousemove', onMove)
+      el.removeEventListener('mouseleave', onLeave)
+      el.removeEventListener('animationend', onAnimEnd)
+      delete el._tiltCleanup
+    }
+  },
+  unmounted(el) { if (el._tiltCleanup) el._tiltCleanup() }
 }

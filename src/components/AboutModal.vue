@@ -3,13 +3,16 @@ import Icon from './Icon.vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
 import { useFocusTrap } from '../composables/useFocusTrap.js'
 import LogoMark from './LogoMark.vue'
-import { ref, watch } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { tiku } from '../api/tiku.js'
 
 const props = defineProps({ show: Boolean })
 useBodyLock(() => props.show)
 useFocusTrap(() => props.show, '.ab-box')
 const emit = defineEmits(['close'])
+// 更新检查的临时提示超时（3~4s 恢复），组件卸载时清理防回调已卸载 ref
+let updTimer = null
+onUnmounted(() => { if (updTimer) clearTimeout(updTimer) })
 
 const info = ref({ name: '知识记忆小助手', version: '0.6.0' })
 
@@ -33,16 +36,16 @@ async function checkUpdate() {
     if (!r || !r.ok) {
       // 开发模式或不可用：引导手动下载
       updState.value = 'error'
-      setTimeout(() => { updState.value = '' }, 4000)
+      updTimer = setTimeout(() => { updState.value = '' }, 4000)
       return
     }
     // 检查已触发：结果通过系统通知反馈（update-available/downloaded/error 事件）
     // 这里只提示已开始检查；发现新版会弹通知
     updState.value = 'up-to-date' // 临时态，3s 后恢复（实际结果看通知）
-    setTimeout(() => { updState.value = '' }, 3000)
+    updTimer = setTimeout(() => { updState.value = '' }, 3000)
   } catch (e) {
     updState.value = 'error'
-    setTimeout(() => { updState.value = '' }, 4000)
+    updTimer = setTimeout(() => { updState.value = '' }, 4000)
   }
 }
 
