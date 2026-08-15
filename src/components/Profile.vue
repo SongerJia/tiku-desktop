@@ -464,7 +464,7 @@ function gotoAch() {
 }
 
 // 页面分组折叠：勋章墙默认展开，其余收起（避免平铺过长）
-const secOpen = ref({ learn: false, goals: false, prefs: false, sync: false, data: false, bank: false, kb: false, misc: false })
+const secOpen = ref({ learn: false, goals: false, prefs: false, sync: false, data: false, bank: false, kb: false, cards: false, misc: false })
 function toggleSec(k) {
   secOpen.value[k] = !secOpen.value[k]
 }
@@ -842,6 +842,28 @@ onMounted(async () => {
       </div>
     </div>
 
+    <!-- 记忆卡 -->
+    <div class="sec">
+      <div class="sec-head" @click="toggleSec('cards')">
+        <span class="sec-icon sec-icon-cards"><Icon name="bookmark" :size="16" /></span>
+        <span class="sec-title">记忆卡</span>
+        <span class="sec-arrow" :class="{ open: secOpen.cards }"><Icon name="chevron-down" :size="14" /></span>
+      </div>
+      <div v-show="secOpen.cards" class="sec-body">
+
+    <!-- 记忆卡管理（内容资产：增删改/导入/按科目章节筛选） -->
+    <div class="card">
+      <div class="card-title">记忆卡</div>
+      <div class="list-item highlight" @click="emit('open-card-manager')">
+        <span class="title">记忆卡管理</span>
+        <span class="sub">增删改 · CSV 导入 · 按科目章节筛选</span>
+        <span class="arrow">›</span>
+      </div>
+    </div>
+
+      </div>
+    </div>
+
     <!-- 数据 -->
     <div class="sec">
       <div class="sec-head" @click="toggleSec('data')">
@@ -882,10 +904,6 @@ onMounted(async () => {
         <div class="dm-item" @click="showCats = true">
           <span class="dm-ico" style="--gc: #4fd1a5; --gc-a: 79, 209, 165"><Icon name="grid" :size="15" /></span>
           <div class="dm-main"><span class="dm-name">科目管理</span><span class="dm-desc">科目与章节</span></div>
-        </div>
-        <div class="dm-item" @click="emit('open-card-manager')">
-          <span class="dm-ico" style="--gc: #7f9cf5; --gc-a: 127, 156, 245"><Icon name="bookmark" :size="15" /></span>
-          <div class="dm-main"><span class="dm-name">记忆卡管理</span><span class="dm-desc">增删改 · 导入 · 按科目章节筛选</span></div>
         </div>
         <div class="dm-item" @click="cleanupImages">
           <span class="dm-ico" style="--gc: #fb7185; --gc-a: 251, 113, 133"><Icon name="broom" :size="15" /></span>
@@ -1095,6 +1113,7 @@ onMounted(async () => {
 .sec-icon-data    { background: rgba(251, 191, 36, 0.14);  color: #fbbf24; }
 .sec-icon-bank    { background: rgba(139, 92, 246, 0.14);  color: #8b5cf6; }
 .sec-icon-kb      { background: rgba(47, 191, 143, 0.14);  color: var(--ok); }
+.sec-icon-cards   { background: rgba(99, 102, 241, 0.14);  color: #6366f1; }
 .sec-icon-misc    { background: rgba(251, 113, 133, 0.14); color: #fb7185; }
 .sec-icon-about   { background: rgba(148, 163, 184, 0.16); color: var(--muted); }
 
