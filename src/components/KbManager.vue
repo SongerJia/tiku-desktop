@@ -18,7 +18,7 @@
 
           <!-- 操作条 -->
           <div class="km-toolbar">
-            <button class="btn btn-primary btn-sm" @click="onImport">导入文档</button>
+            <button class="btn btn-primary btn-sm" @click="openImport">导入文档</button>
             <button class="btn btn-sm" @click="onExport">导出</button>
             <span class="km-fmt">md / pdf</span>
             <span class="km-count">{{ filteredDocs.length }} / {{ docs.length }} 篇</span>
@@ -70,6 +70,61 @@
 
         <!-- 阅读器（管理弹窗内打开） -->
         <KbReader :show="reader.show" :doc="reader.doc" @close="reader.show = false" />
+
+        <!-- 导入文档弹窗 -->
+        <div v-if="importStep" class="km-import-mask" @click.self="closeImport">
+          <div class="km-import">
+            <div class="ki-head">
+              <span class="ki-title">导入知识文档</span>
+              <span class="ki-close" @click="closeImport">×</span>
+            </div>
+
+            <div v-if="importStep === 'pick'" class="ki-body">
+              <div class="ki-target">
+                <span class="ki-target-label">导入到</span>
+                <span class="ki-target-val">{{ importTargetLabel }}</span>
+              </div>
+              <div class="ki-drop" @click="pickImportFiles">
+                <Icon name="download" :size="22" />
+                <div class="ki-dz-title">选择要导入的文档</div>
+                <div class="ki-dz-sub">支持 .md / .pdf，可多选；选择后预览确认</div>
+              </div>
+            </div>
+
+            <div v-else-if="importStep === 'preview'" class="ki-body">
+              <div class="ki-target">
+                <span class="ki-target-label">导入到</span>
+                <span class="ki-target-val">{{ importTargetLabel }}</span>
+              </div>
+              <div class="ki-preview">
+                <div v-for="(f, i) in importFiles" :key="i" class="ki-row">
+                  <span class="ki-ext">{{ f.ext.toUpperCase() }}</span>
+                  <span class="ki-name" :title="f.name">{{ f.name }}</span>
+                  <span class="ki-rm" @click="removeImportFile(i)">×</span>
+                </div>
+                <div class="ki-add" @click="pickImportFiles">＋ 再选文件</div>
+              </div>
+              <div class="ki-actions">
+                <button class="btn" @click="importStep = 'pick'">重新选择</button>
+                <button class="btn btn-primary" :disabled="importBusy" @click="confirmImport">{{ importBusy ? '导入中…' : '确认导入 ' + importFiles.length + ' 篇' }}</button>
+              </div>
+            </div>
+
+            <div v-else class="ki-body">
+              <div class="ki-done">
+                <div class="ki-done-ico">✓</div>
+                <div class="ki-done-text">
+                  <template v-if="importResult.ok">导入 {{ importResult.ok }} 篇</template>
+                  <template v-if="importResult.dup"> · 已存在跳过 {{ importResult.dup }} 篇</template>
+                  <template v-if="importResult.failed"> · 失败 {{ importResult.failed }} 篇</template>
+                </div>
+              </div>
+              <div class="ki-actions">
+                <button class="btn btn-primary" @click="closeImport">完成</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </transition>
@@ -170,12 +225,6 @@ function close() {
   emit('close')
 }
 
-// Esc：编辑弹窗优先关，其次关主面板
-useEsc(() => {
-  if (editDoc.value) { editDoc.value = null; return }
-  close()
-})
-
 // 科目列表（parent 为空的根节点）
 const subjectOptions = computed(() => Object.values(subjects.value).filter(n => !n.parent_id))
 // 筛选时选定科目的章节（联动下拉）
@@ -239,6 +288,73 @@ async function onImport() {
   if (failed.length) msgs.push(`失败 ${failed.length} 篇（${failed[0].error || '仅支持 md/pdf'}）`)
   if (msgs.length) showToast(msgs.join('；'), failed.length ? 'err' : 'ok')
 }
+
+// ---- 导入弹窗（参照记忆卡导入：导入到提示 + 选文件预览 + 确认）----
+const importStep = ref('')          // '' 未开 | 'pick' 选文件 | 'preview' 预览 | 'done' 完成
+const importFiles = ref([])         // [{path, name, ext}]
+const importBusy = ref(false)
+const importResult = ref(null)      // {ok, dup, failed}
+// 导入目标 = 当前筛选（章节优先，其次科目）；未筛选时 = 全部（主进程按 null 处理，文档不挂科目）
+const importTargetLabel = computed(() => {
+  const sid = Number(subjectFilter.value)
+  const cid = Number(categoryFilter.value)
+  const s = subjects.value[sid]
+  const c = subjects.value[cid]
+  if (c && c.parent_id) return (s ? s.name : '') + ' · ' + c.name
+  if (s) return s.name
+  return '全部科目（导入后按文档归属整理）'
+})
+function openImport() {
+  importStep.value = 'pick'
+  importFiles.value = []
+  importResult.value = null
+}
+async function pickImportFiles() {
+  try {
+    const files = await tiku.kbPickFiles()
+    if (!files || !files.length) return
+    importFiles.value = files
+    importStep.value = 'preview'
+  } catch (e) {
+    showToast('选择文件失败：' + (e.message || '未知错误'), 'err')
+  }
+}
+function removeImportFile(i) {
+  importFiles.value.splice(i, 1)
+  if (!importFiles.value.length) importStep.value = 'pick'
+}
+async function confirmImport() {
+  if (!importFiles.value.length) return
+  importBusy.value = true
+  try {
+    // 导入目标：章节/科目 id（与筛选一致）；未筛选传 null = 不挂科目
+    const sid = Number(subjectFilter.value) || null
+    const cid = Number(categoryFilter.value) || null
+    const target = cid || sid || null
+    const paths = importFiles.value.map(f => f.path)
+    const res = (await tiku.kbImportFiles(paths, target)) || []
+    const ok = res.filter(r => r.ok && !r.duplicated)
+    const dup = res.filter(r => r.duplicated)
+    const failed = res.filter(r => !r.ok)
+    importResult.value = { ok: ok.length, dup: dup.length, failed: failed.length }
+    importStep.value = 'done'
+    if (ok.length || dup.length) {
+      await load()
+      emit('changed')
+    }
+  } catch (e) {
+    showToast('导入失败：' + (e.message || '未知错误'), 'err')
+    importStep.value = 'preview'
+  } finally {
+    importBusy.value = false
+  }
+}
+function closeImport() { importStep.value = ''; importFiles.value = []; importResult.value = null }
+useEsc(() => {
+  if (importStep.value) { closeImport(); return }
+  if (editDoc.value) { editDoc.value = null; return }
+  close()
+})
 
 // 导出：整库导出到指定目录（与原工具条「导出」按钮一致，迁入管理弹窗）
 async function onExport() {
@@ -496,4 +612,79 @@ function fmtTime(ts) {
   text-align: center; padding: 48px 0;
   font-size: 12.5px; color: var(--muted);
 }
+
+/* 导入文档弹窗 */
+.km-import-mask {
+  position: fixed; inset: 0; z-index: 220;
+  background: var(--modal-mask);
+  backdrop-filter: blur(var(--modal-blur));
+  display: flex; align-items: center; justify-content: center;
+}
+.km-import {
+  width: 480px; max-width: 92vw;
+  background: var(--card-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), var(--glow-soft);
+  padding: 18px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.ki-head { display: flex; align-items: center; justify-content: space-between; }
+.ki-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.ki-close { font-size: 20px; color: var(--muted); cursor: pointer; line-height: 1; transition: color .15s; }
+.ki-close:hover { color: var(--brand); }
+.ki-body { display: flex; flex-direction: column; gap: 12px; }
+.ki-target {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; padding: 8px 12px;
+  background: color-mix(in srgb, var(--brand) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 25%, transparent);
+  border-radius: var(--radius-sm);
+}
+.ki-target-label { color: var(--muted); flex-shrink: 0; }
+.ki-target-val { color: var(--brand); font-weight: 500; }
+.ki-drop {
+  border: 2px dashed var(--line);
+  border-radius: var(--radius-sm);
+  padding: 26px 16px;
+  text-align: center;
+  display: flex; flex-direction: column; gap: 6px; align-items: center;
+  color: var(--brand); cursor: pointer; opacity: .85;
+  transition: border-color .2s, background .2s;
+}
+.ki-drop:hover { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 4%, transparent); opacity: 1; }
+.ki-dz-title { font-size: 13px; color: var(--text); }
+.ki-dz-sub { font-size: 11px; color: var(--muted); }
+.ki-preview {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  max-height: 220px; overflow-y: auto;
+  display: flex; flex-direction: column;
+}
+.ki-row {
+  display: flex; gap: 8px; align-items: center;
+  padding: 7px 10px; border-bottom: 1px dashed var(--line); font-size: 12px;
+}
+.ki-row:last-child { border-bottom: none; }
+.ki-ext {
+  font-size: 10px; color: var(--brand);
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+  border-radius: 4px; padding: 0 4px; flex-shrink: 0;
+}
+.ki-name { flex: 1; min-width: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ki-rm { color: var(--muted); cursor: pointer; font-size: 14px; padding: 0 4px; }
+.ki-rm:hover { color: var(--bad); }
+.ki-add {
+  padding: 8px 10px; font-size: 12px; color: var(--brand); cursor: pointer; text-align: center;
+}
+.ki-add:hover { background: color-mix(in srgb, var(--brand) 6%, transparent); }
+.ki-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.ki-done { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 0; }
+.ki-done-ico {
+  width: 42px; height: 42px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; color: var(--ok);
+  background: rgba(47, 191, 143, 0.12); border: 1px solid rgba(47, 191, 143, 0.45);
+}
+.ki-done-text { font-size: 13px; color: var(--text); }
 </style>

@@ -82,6 +82,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAchievements: () => ipcRenderer.invoke('getAchievements'),
   parseSheet: (buf) => ipcRenderer.invoke('parseSheet', buf),
   kbImportFiles: (paths, subjectId) => ipcRenderer.invoke('kbImportFiles', paths, subjectId),
+  kbPickFiles: () => ipcRenderer.invoke('kbPickFiles'),
   kbList: (subjectId) => ipcRenderer.invoke('kbList', subjectId),
   kbGet: (id) => ipcRenderer.invoke('kbGet', id),
   kbUpdate: (id, patch) => ipcRenderer.invoke('kbUpdate', id, patch),

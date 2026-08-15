@@ -47,6 +47,15 @@ const targetReady = computed(() =>
 )
 const canImport = computed(() => okRows.value.length > 0 && targetReady.value && !importing.value)
 
+// 导入到提示：有科目列按文件分配；无科目列显示目标科目或新建科目
+const targetLabel = computed(() => {
+  if (hasSubjectColumn.value) return '按文件「科目」列分配到对应科目'
+  if (newSubjectName.value.trim()) return `新建科目「${newSubjectName.value.trim()}」`
+  const s = (props.subjects || []).find(x => String(x.id) === String(targetSubjectId.value))
+  if (s) return s.name
+  return needTarget.value ? '请指定目标科目（文件无科目列）' : '全部科目'
+})
+
 function reset() {
   step.value = 1
   fileName.value = ''
@@ -211,6 +220,12 @@ function previewText(r) {
           <span class="close" @click="close">×</span>
           <span class="title">导入题目</span>
           <span class="stepper">{{ step }}/3</span>
+        </div>
+
+        <!-- 导入到：反映目标科目（有科目列=按列分配；无科目列=目标科目/新建） -->
+        <div class="iw-target">
+          <span class="iw-target-label">导入到</span>
+          <span class="iw-target-val">{{ targetLabel }}</span>
         </div>
 
         <!-- ============ 步骤 1：选文件 ============ -->
@@ -403,6 +418,16 @@ function previewText(r) {
 .iw-header .close { font-size: 22px; color: var(--muted); cursor: pointer; line-height: 1; }
 .iw-header .close:hover { color: var(--brand); }
 .iw-header .stepper { font-size: 12px; color: var(--brand); }
+
+/* 导入到提示条 */
+.iw-target {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; padding: 8px 16px;
+  background: color-mix(in srgb, var(--brand) 5%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--brand) 20%, transparent);
+}
+.iw-target-label { color: var(--muted); flex-shrink: 0; }
+.iw-target-val { color: var(--brand); font-weight: 500; }
 
 .iw-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 

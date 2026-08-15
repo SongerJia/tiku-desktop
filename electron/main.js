@@ -406,6 +406,17 @@ ipcMain.handle('kbImportFiles', async (e, paths, subjectId) => {
   }
   return importKbPaths(filePaths, subjectId)
 })
+// 知识库导入弹窗：只弹系统文件选择框返回路径，不立即导入（渲染层预览后确认再调 kbImportFiles）
+ipcMain.handle('kbPickFiles', async () => {
+  const win = BrowserWindow.getFocusedWindow()
+  const res = await dialog.showOpenDialog(win, {
+    title: '选择知识文档',
+    filters: [{ name: '知识文档', extensions: ['md', 'pdf'] }],
+    properties: ['openFile', 'multiSelections']
+  })
+  if (res.canceled || !res.filePaths.length) return []
+  return res.filePaths.map(p => ({ path: p, name: path.basename(p), ext: (path.extname(p) || '').replace('.', '').toLowerCase() }))
+})
 ipcMain.handle('kbList', (e, subjectId) => db.getKbDocs(subjectId))
 ipcMain.handle('kbGet', (e, id) => db.getKbDoc(id))
 ipcMain.handle('kbUpdate', (e, id, patch) => db.updateKbDoc(id, patch))
