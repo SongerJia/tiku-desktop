@@ -7,7 +7,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { useEsc } from '../utils/useEsc.js'
 import { tiku } from '../api/tiku.js'
-import { bankToCsv, TYPE_LABEL } from '../utils/bankParser.js'
+import { TYPE_LABEL } from '../utils/bankParser.js'
 import { showConfirm } from '../utils/confirm.js'
 import { showToast } from '../utils/toast.js'
 import ImportWizard from './ImportWizard.vue'
@@ -185,20 +185,6 @@ async function onImported(res) {
   emit('changed')
 }
 
-async function exportCsv() {
-  const rows = await tiku.exportBank(subjectId.value ? Number(subjectId.value) : null)
-  if (!rows.length) { showToast('当前范围没有题目'); return }
-  // 注意：bankToCsv() 内部已带 UTF-8 BOM，不要重复添加（双 BOM 会导致导回时表头识别失败）
-  const blob = new Blob([bankToCsv(rows)], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `题库导出-${new Date().toISOString().slice(0, 10)}.csv`
-  a.click()
-  URL.revokeObjectURL(url)
-  showToast(`已导出 ${rows.length} 题`)
-}
-
 // 导出 Excel：主进程用零依赖 xlsx-lite 生成 .xlsx，这里拿到 base64 后转 blob 下载
 async function exportExcel() {
   const rows = await tiku.exportBank(subjectId.value ? Number(subjectId.value) : null)
@@ -353,7 +339,6 @@ async function batchDelete() {
           <div class="toolbar">
             <button class="btn btn-primary sm" @click="showImport = true">批量导入</button>
             <button class="btn btn-outline sm" @click="openNew">＋ 新增题目</button>
-            <button class="btn btn-outline sm" @click="exportCsv">导出 CSV</button>
             <button class="btn btn-outline sm" @click="exportExcel">导出 Excel</button>
             <button class="btn btn-outline sm" :class="{ on: batchMode && batchAction === 'move' }" @click="batchMode ? toggleBatch() : startBatch('move')">批量移动</button>
             <button class="btn btn-outline sm" :class="{ on: batchMode && batchAction === 'tag' }" @click="batchMode ? toggleBatch() : startBatch('tag')">批量加标签</button>
