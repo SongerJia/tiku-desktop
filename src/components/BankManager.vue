@@ -259,24 +259,33 @@ function removeTagFromDraft(t) {
 }
 async function saveTags() {
   if (!tagQ.value) return
-  await tiku.setQuestionTags(tagQ.value.id, tagDraft.value)
+  const saved = tagDraft.value.slice()
+  await tiku.setQuestionTags(tagQ.value.id, saved)
   // 同步当前项显示，避免整表刷新
   const it = list.value.items.find(x => x.id === tagQ.value.id)
-  if (it) it.tags = tagDraft.value.slice()
+  if (it) it.tags = saved
   loadMeta()
   tagQ.value = null
+  showToast(saved.length ? `已保存 ${saved.length} 个标签` : '已清除全部标签', 'ok')
 }
 function closeTag() { tagQ.value = null; tagInput.value = '' }
 
 // ---- 批量操作 ----
 const batchMode = ref(false)
+const batchAction = ref('') // 'move' | 'tag' | 'diff' | 'delete'——按功能进入批量
 const selectedIds = ref(new Set())
 const batchMoveCat = ref('')
 const batchTagInput = ref('')
 const batchDiff = ref('')
 function toggleBatch() {
   batchMode.value = !batchMode.value
-  if (!batchMode.value) selectedIds.value = new Set()
+  if (!batchMode.value) { selectedIds.value = new Set(); batchAction.value = '' }
+}
+// 点击工具栏功能按钮 → 进入对应批量模式（题目左侧出现复选框）
+function startBatch(action) {
+  batchAction.value = action
+  batchMode.value = true
+  if (!selectedIds.value.size) selectedIds.value = new Set()
 }
 function toggleSelect(q) {
   const s = new Set(selectedIds.value)
@@ -347,7 +356,10 @@ async function batchDelete() {
             <button class="btn btn-outline sm" @click="openNew">＋ 新增题目</button>
             <button class="btn btn-outline sm" @click="exportCsv">导出 CSV</button>
             <button class="btn btn-outline sm" @click="exportExcel">导出 Excel</button>
-            <button class="btn btn-outline sm" :class="{ on: batchMode }" @click="toggleBatch">{{ batchMode ? '退出批量' : '批量操作' }}</button>
+            <button class="btn btn-outline sm" :class="{ on: batchMode && batchAction === 'move' }" @click="batchMode ? toggleBatch() : startBatch('move')">批量移动</button>
+            <button class="btn btn-outline sm" :class="{ on: batchMode && batchAction === 'tag' }" @click="batchMode ? toggleBatch() : startBatch('tag')">批量加标签</button>
+            <button class="btn btn-outline sm" :class="{ on: batchMode && batchAction === 'diff' }" @click="batchMode ? toggleBatch() : startBatch('diff')">批量难度</button>
+            <button class="btn btn-outline sm" :class="{ on: batchMode && batchAction === 'delete' }" @click="batchMode ? toggleBatch() : startBatch('delete')">批量删除</button>
           </div>
 
           <!-- 筛选 -->
@@ -478,10 +490,10 @@ async function batchDelete() {
       <div v-if="tagQ" class="tag-mask" @click.self="closeTag">
         <div class="tag-box">
           <div class="tag-head">
-            <span class="tag-title">标签 · {{ tagQ.category_name || '未分类' }}</span>
+            <span class="tag-title">章节 · {{ tagQ.category_name || '未分类' }}</span>
             <span class="tag-close" @click="closeTag">×</span>
           </div>
-          <div class="tag-stem">{{ tagQ.stem }}</div>
+          <div class="tag-stem"><span class="tag-stem-label">题干</span>{{ tagQ.stem }}</div>
           <div class="tag-current">
             <span v-for="t in tagDraft" :key="t" class="tag-pill" @click="removeTagFromDraft(t)">#{{ t }} <Icon name="x" :size="14"/></span>
             <span v-if="!tagDraft.length" class="tag-empty">暂无标签，输入后回车添加</span>
@@ -508,29 +520,37 @@ async function batchDelete() {
         </div>
       </div>
 
-      <!-- 批量操作条 -->
+      <!-- 批量操作条：按 batchAction 只显示当前功能 -->
       <div v-if="batchMode" class="batch-bar">
         <div class="bb-top">
           <span class="bb-count">已选 <b>{{ selCount }}</b> 题</span>
           <span class="bb-ops">
             <button class="bb-mini" @click="selectAll">全选本页</button>
             <button class="bb-mini" @click="clearSel">清空</button>
+            <button class="bb-mini" @click="toggleBatch">退出批量</button>
           </span>
         </div>
-        <div class="bb-actions">
+        <div v-if="batchAction === 'move'" class="bb-actions">
           <select v-model="batchMoveCat" class="bb-input">
             <option value="">移动至章节…</option>
             <option v-for="c in chapters" :key="c.id" :value="c.id">{{ c.name }}</option>
           </select>
           <button class="bb-btn" @click="applyBatchMove">移动</button>
-          <input v-model="batchTagInput" class="bb-input" placeholder="加标签…" @keyup.enter="applyBatchTag" />
+        </div>
+        <div v-else-if="batchAction === 'tag'" class="bb-actions">
+          <input v-model="batchTagInput" class="bb-input" placeholder="输入标签名，回车添加" @keyup.enter="applyBatchTag" />
           <button class="bb-btn" @click="applyBatchTag">打标签</button>
+        </div>
+        <div v-else-if="batchAction === 'diff'" class="bb-actions">
           <select v-model="batchDiff" class="bb-input">
             <option value="">改难度…</option>
             <option v-for="d in [1,2,3,4,5]" :key="d" :value="d">{{ d }}星</option>
           </select>
           <button class="bb-btn" @click="applyBatchDiff">改难度</button>
-          <button class="bb-btn danger" @click="batchDelete">删除</button>
+        </div>
+        <div v-else-if="batchAction === 'delete'" class="bb-actions">
+          <span class="bb-del-tip">将删除已选的 {{ selCount }} 题（答题记录保留）</span>
+          <button class="bb-btn danger" @click="batchDelete">确认删除</button>
         </div>
       </div>
     </div>
@@ -629,9 +649,10 @@ async function batchDelete() {
 
 .q-list { display: flex; flex-direction: column; gap: 10px; }
 .q-item {
+  position: relative;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 11px 12px;
+  padding: 11px 12px 11px 44px; /* 左侧留出复选框位 */
   background: color-mix(in srgb, var(--brand) 3%, transparent);
 }
 .q-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
@@ -787,7 +808,7 @@ async function batchDelete() {
 .tag-clear { font-size: 11px; color: var(--muted); background: none; border: none; cursor: pointer; text-decoration: underline; }
 
 /* 题目项标签 */
-.q-check { display: flex; align-items: center; padding-right: 4px; }
+.q-check { position: absolute; left: 12px; top: 14px; display: flex; align-items: center; }
 .q-check input { width: 18px; height: 18px; accent-color: var(--brand); }
 .q-item.sel { border-color: var(--brand); box-shadow: var(--glow-soft); }
 .q-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
@@ -796,17 +817,18 @@ async function batchDelete() {
 .tag-btn { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, transparent); }
 
 /* 单题标签编辑弹层 */
-.tag-mask { position: fixed; inset: 0; background: rgba(3,6,14,.6); z-index: 210; display: flex; align-items: center; justify-content: center; }
+.tag-mask { position: fixed; inset: 0; background: var(--modal-mask); backdrop-filter: blur(var(--modal-blur)); z-index: 210; display: flex; align-items: center; justify-content: center; }
 .tag-box { width: 520px; max-width: 92vw; background: var(--card-solid); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow), var(--glow-soft); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 .tag-head { display: flex; align-items: center; justify-content: space-between; }
 .tag-title { flex: 1; font-size: 13px; color: var(--muted); }
 .tag-close { font-size: 20px; color: var(--muted); cursor: pointer; line-height: 1; }
 .tag-close:hover { color: var(--brand); }
-.tag-stem { font-size: 13px; color: var(--text); line-height: 1.6; max-height: 96px; overflow-y: auto; padding: 8px 10px; background: rgba(5,8,15,.6); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.tag-stem { font-size: 13px; color: var(--text); line-height: 1.6; max-height: 96px; overflow-y: auto; padding: 6px 0 2px; border: none; border-bottom: 1px dashed var(--line); border-radius: 0; display: flex; gap: 6px; align-items: baseline; }
+.tag-stem-label { font-size: 11px; color: var(--muted); flex-shrink: 0; }
 .tag-current { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; align-items: center; }
 .tag-pill { font-size: 12px; color: var(--brand); border: 1px solid var(--brand); border-radius: 14px; padding: 2px 10px; cursor: pointer; background: var(--brand-light); }
 .tag-empty { font-size: 12px; color: var(--muted); }
-.tag-input { background: rgba(5,8,15,.8); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); padding: 9px 12px; font-size: 13px; outline: none; font-family: inherit; box-sizing: border-box; }
+.tag-input { background: var(--input-solid-bg); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); padding: 9px 12px; font-size: 13px; outline: none; font-family: inherit; box-sizing: border-box; }
 .tag-input:focus { border-color: var(--brand); box-shadow: var(--glow-soft); }
 .tag-sug { display: flex; flex-wrap: wrap; gap: 6px; }
 .tag-sug-chip { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 14px; padding: 2px 10px; cursor: pointer; }
@@ -817,19 +839,20 @@ async function batchDelete() {
 .tag-save:hover { background: var(--brand-light); box-shadow: var(--glow-soft); }
 
 /* 批量操作条 */
-.batch-bar { position: absolute; left: 0; right: 0; bottom: 0; background: var(--card-solid); border-top: 1px solid var(--brand); box-shadow: 0 -8px 24px rgba(0,0,0,.4); padding: 10px 16px; z-index: 6; display: flex; flex-direction: column; gap: 8px; }
+.batch-bar { position: absolute; left: 0; right: 0; bottom: 0; background: var(--card-solid); border-top: 1px solid var(--brand); box-shadow: var(--shadow); padding: 10px 16px; z-index: 6; display: flex; flex-direction: column; gap: 8px; }
 .bb-top { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
 .bb-count b { color: var(--brand); }
 .bb-ops { display: flex; gap: 8px; }
 .bb-mini { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 6px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
 .bb-mini:hover { border-color: var(--brand); color: var(--brand); }
 .bb-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.bb-input { background: rgba(5,8,15,.8); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 7px 10px; font-size: 12px; outline: none; font-family: inherit; }
+.bb-input { background: var(--input-solid-bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text); padding: 7px 10px; font-size: 12px; outline: none; font-family: inherit; }
 .bb-input:focus { border-color: var(--brand); }
-.bb-btn { background: rgba(255,255,255,.05); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 7px 12px; font-size: 12px; cursor: pointer; transition: all .15s; }
+.bb-btn { background: var(--hover-bg); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 7px 12px; font-size: 12px; cursor: pointer; transition: all .15s; }
 .bb-btn:hover { border-color: var(--brand); color: var(--brand); }
 .bb-btn.danger { color: var(--bad); border-color: rgba(255,77,109,.4); }
 .bb-btn.danger:hover { background: rgba(255,77,109,.12); }
+.bb-del-tip { font-size: 12px; color: var(--muted); }
 .btn-outline.sm.on { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
 
 /* 题库铺开（2026-08-12）：列表项 hover 渐变底 */
