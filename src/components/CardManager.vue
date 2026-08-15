@@ -12,7 +12,7 @@ import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
 import { useEsc } from '../utils/useEsc.js'
 import { detectSubjectLang } from '../utils/speech.js'
-import { decodeText } from '../utils/bankParser.js'
+import { decodeText, parseCsv } from '../utils/bankParser.js'
 
 const props = defineProps({ show: Boolean, wide: Boolean })
 useBodyLock(() => props.show)
@@ -171,27 +171,6 @@ function onDrop(e) {
     onPickFile(ev)
   }
 }
-function parseCsvText(text) {
-  const rows = []
-  let row = [], field = '', inQ = false
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    if (inQ) {
-      if (ch === '"') { if (text[i + 1] === '"') { field += '"'; i++ } else inQ = false }
-      else field += ch
-    } else if (ch === '"') inQ = true
-    else if (ch === ',') { row.push(field); field = '' }
-    else if (ch === '\n' || ch === '\r') {
-      if (ch === '\r' && text[i + 1] === '\n') i++
-      row.push(field); field = ''
-      if (row.some(c => String(c).trim())) rows.push(row)
-      row = []
-    } else field += ch
-  }
-  row.push(field)
-  if (row.some(c => String(c).trim())) rows.push(row)
-  return rows
-}
 function onPickFile(e) {
   const file = e.target.files && e.target.files[0]
   e.target.value = ''
@@ -200,7 +179,7 @@ function onPickFile(e) {
   const isExcel = ext === 'xlsx' || ext === 'xls'
   const parse = isExcel
     ? file.arrayBuffer().then(buf => tiku.parseSheet(new Uint8Array(buf)).then(rows => rows))
-    : file.arrayBuffer().then(buf => parseCsvText(decodeText(buf))) // GBK/UTF-8 编码自适应（中文 Windows Excel 另存 CSV 是 GBK）
+    : file.arrayBuffer().then(buf => parseCsv(decodeText(buf))) // GBK/UTF-8 编码自适应 + BOM/TSV 支持（共享 parseCsv）
   parse.then(rows => {
     let skipped = 0
     const parsed = []

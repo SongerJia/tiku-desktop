@@ -330,11 +330,6 @@ function stopNoise() {
   noiseSrc = null
   noiseCtx = null
 }
-function toggleNoise() {
-  noiseOn.value = !noiseOn.value
-  if (noiseOn.value) startNoise()
-  else stopNoise()
-}
 // 记忆卡复习/增删后刷新首页「到期」角标
 async function onCardsUpdated() {
   try {

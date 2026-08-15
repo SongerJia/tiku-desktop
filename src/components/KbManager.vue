@@ -272,23 +272,6 @@ async function openDoc(d) {
   reader.value = { show: true, doc: full || d }
 }
 
-// 导入（复用 KbLibrary 逻辑：null=弹选择框）
-async function onImport() {
-  const res = (await tiku.kbImportFiles(null, null)) || []
-  const ok = res.filter(r => r.ok && !r.duplicated)
-  const dup = res.filter(r => r.duplicated)
-  const failed = res.filter(r => !r.ok)
-  if (ok.length || dup.length) {
-    await load()
-    emit('changed') // 通知父级刷新主页列表（此前缺失 → 导入后主页不显示需重进）
-  }
-  const msgs = []
-  if (ok.length) msgs.push(`导入 ${ok.length} 篇`)
-  if (dup.length) msgs.push(`已存在跳过 ${dup.length} 篇`)
-  if (failed.length) msgs.push(`失败 ${failed.length} 篇（${failed[0].error || '仅支持 md/pdf'}）`)
-  if (msgs.length) showToast(msgs.join('；'), failed.length ? 'err' : 'ok')
-}
-
 // ---- 导入弹窗（参照记忆卡导入：导入到提示 + 选文件预览 + 确认）----
 const importStep = ref('')          // '' 未开 | 'pick' 选文件 | 'preview' 预览 | 'done' 完成
 const importFiles = ref([])         // [{path, name, ext}]

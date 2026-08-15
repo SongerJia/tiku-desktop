@@ -5,6 +5,7 @@ const fs = require('fs')
 const crypto = require('crypto')
 const { app } = require('electron')
 const ghRepo = require('./sync-github-repo')
+const logger = require('./logger')
 
 module.exports = function syncRunner(db) {
   const kbDir = () => path.join(app.getPath('userData'), 'kb')
@@ -133,9 +134,15 @@ module.exports = function syncRunner(db) {
 
   // 主流程
   async function sync(ghCfg) {
-    const data = await syncData(ghCfg)
-    const assets = await syncAssets(ghCfg)
-    return { ok: true, ...data, ...assets }
+    try {
+      const data = await syncData(ghCfg)
+      const assets = await syncAssets(ghCfg)
+      logger.info('sync 完成', { ...data, ...assets })
+      return { ok: true, ...data, ...assets }
+    } catch (e) {
+      logger.error('sync 失败', e && e.message ? e.message : String(e))
+      throw e
+    }
   }
 
   return { sync, scanKbFiles }

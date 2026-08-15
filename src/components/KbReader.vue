@@ -465,7 +465,7 @@ async function loadQPanel() {
 
 // 打开文档（show+doc 同时变）或双链跳转（doc 变）→ 刷新内容。合并为一个 watch：同时变化只触发一次，避免双 loadCurrent 重复初始化 Vditor/PDF
 watch(() => [props.show, props.doc && props.doc.id], ([s, did]) => {
-  if (s && did) loadCurrent().catch(e => { /* 文档加载失败：阅读区显示错误态，不抛未捕获 */ console.warn('loadCurrent', e) })
+  if (s && did) loadCurrent().catch(e => { /* 文档加载失败：阅读区显示错误态，不抛未捕获 */ })
 })
 
 let loadGen = 0 // 代际计数：快速连点切文档时，旧 loadCurrent 的异步续作（new Vditor/renderPdf）全部作废，防双实例竞争同一 DOM
