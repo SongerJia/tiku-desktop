@@ -46,6 +46,16 @@ const chapters = computed(() => {
   return s ? (s.children || []) : []
 })
 const subjects = computed(() => categories.value.map(c => ({ id: c.id, name: c.name })))
+// 当前筛选的科目/章节名称（导入弹窗「导入到」提示用）
+const currentSubjectName = computed(() => {
+  const s = categories.value.find(c => String(c.id) === String(subjectId.value))
+  return s ? s.name : ''
+})
+const currentCategoryName = computed(() => {
+  const s = categories.value.find(c => String(c.id) === String(subjectId.value))
+  const c = s ? (s.children || []).find(x => String(x.id) === String(categoryId.value)) : null
+  return c ? c.name : ''
+})
 
 async function loadMeta() {
   const [cats, st, tags] = await Promise.all([tiku.getCategories(), tiku.getBankStats(), tiku.listTags().catch(() => [])])
@@ -470,6 +480,10 @@ async function batchDelete() {
         :show="showImport"
         :wide="wide"
         :subjects="subjects"
+        :initial-subject-id="subjectId || null"
+        :initial-category-id="categoryId || null"
+        :initial-subject-name="currentSubjectName"
+        :initial-category-name="currentCategoryName"
         @close="showImport = false"
         @imported="onImported"
       />

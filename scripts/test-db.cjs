@@ -79,6 +79,20 @@ try {
   )
   ok('导入去重：重复题干计 duplicated', imp2.duplicated === 1 && imp2.inserted === 0)
 
+  // 10b) 默认章节落点：无科目列时 defaultSubjectId+defaultCategoryId 一起生效（导入到指定章节）
+  const subA0 = db.getCategories()[0]
+  const chA0 = subA0.children && subA0.children[0]
+  if (chA0) {
+    const imp3 = db.importQuestionBank(
+      [{ stem: '默认章节落点题-' + Date.now(), options: [{ key: 'A', text: 'x' }], answer: ['A'], type: 'single' }],
+      { defaultSubjectId: subA0.id, defaultCategoryId: chA0.id, duplicateMode: 'skip' }
+    )
+    const q3 = db.listQuestions({ categoryId: chA0.id }).items.find(x => String(x.stem).startsWith('默认章节落点题-'))
+    ok('导入默认章节落点：无科目列时落到 defaultCategoryId 章节', imp3.inserted === 1 && !!q3)
+  } else {
+    ok('导入默认章节落点：样例数据无章节，跳过', true)
+  }
+
   // 11) 导出结构
   const ex = JSON.parse(db.exportData())
   ok('exportData 含 questions 数组', Array.isArray(ex.questions))

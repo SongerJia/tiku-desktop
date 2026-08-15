@@ -398,19 +398,22 @@ async function downloadTemplateXlsx() {
   backdrop-filter: blur(var(--modal-blur));
   z-index: 190;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
+  padding: 20px;
 }
 .cm-panel {
   position: relative;
-  width: 100%;
-  height: 92vh;
+  width: 860px;
+  max-width: 94vw;
+  height: 84vh;
   display: flex;
   flex-direction: column;
   background: var(--card-solid);
   border: 1px solid var(--line);
-  border-radius: var(--radius) var(--radius) 0 0;
+  border-radius: var(--radius);
   box-shadow: var(--shadow), var(--glow-soft);
+  overflow: hidden;
 }
 .cm-panel { animation: cmIn .26s cubic-bezier(.2, .7, .3, 1); }
 @keyframes cmIn { from { opacity: 0; transform: translateY(18px) scale(.98); } to { opacity: 1; transform: none; } }

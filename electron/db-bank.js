@@ -7,7 +7,7 @@ module.exports = function bankModule(ctx) {
   return {
     importQuestionBank(rows, opts = {}) {
       // duplicateMode: 'skip' 跳过重复（默认）| 'update' 覆盖更新同题干 | 'all' 全部新增
-      const { defaultSubjectId = null } = opts
+      const { defaultSubjectId = null, defaultCategoryId = null } = opts
       const duplicateMode = opts.duplicateMode || (opts.skipDuplicate === false ? 'all' : 'skip')
       const now = Date.now()
       const insQ = sqlite.prepare(`INSERT INTO questions
@@ -25,7 +25,8 @@ module.exports = function bankModule(ctx) {
           let subjectId = defaultSubjectId
           if (r.subject) subjectId = this.upsertCategoryByName(r.subject, null, 1)
           if (!subjectId) { skipped++; continue }
-          const categoryId = r.chapter ? this.upsertCategoryByName(r.chapter, subjectId, 2) : subjectId
+          // 章节落点：文件有章节列用该章节；否则用指定的默认章节（题库管理带入）；再否则挂科目下
+          let categoryId = r.chapter ? this.upsertCategoryByName(r.chapter, subjectId, 2) : (defaultCategoryId || subjectId)
           // 材料题：按 科目+内容 去重建材料实体，题目引用它（material_cid 供跨设备解析）
           const mat = r.material ? this.upsertMaterial(subjectId, r.material) : null
           const dup = dupStmt.get(categoryId, r.stem)

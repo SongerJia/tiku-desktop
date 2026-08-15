@@ -13,7 +13,12 @@ import {
 const props = defineProps({
   show: Boolean,
   wide: Boolean,
-  subjects: { type: Array, default: () => [] }
+  subjects: { type: Array, default: () => [] },
+  // 从题库管理弹窗进入时带入当前筛选的科目/章节（导入默认落点 + 提示行显示）
+  initialSubjectId: { type: [Number, String], default: null },
+  initialCategoryId: { type: [Number, String], default: null },
+  initialSubjectName: { type: String, default: '' },
+  initialCategoryName: { type: String, default: '' }
 })
 useBodyLock(() => props.show)
 useFocusTrap(() => props.show, '.iw-panel')
@@ -47,10 +52,15 @@ const targetReady = computed(() =>
 )
 const canImport = computed(() => okRows.value.length > 0 && targetReady.value && !importing.value)
 
-// 导入到提示：有科目列按文件分配；无科目列显示目标科目或新建科目
+// 导入到提示：有科目列按文件分配；无科目列显示目标科目或新建科目；优先显示题库管理带入的筛选科目/章节
 const targetLabel = computed(() => {
   if (hasSubjectColumn.value) return '按文件「科目」列分配到对应科目'
   if (newSubjectName.value.trim()) return `新建科目「${newSubjectName.value.trim()}」`
+  // 题库管理带入的章节（科目·章节）
+  if (props.initialCategoryId && props.initialSubjectName && props.initialCategoryName) {
+    return `${props.initialSubjectName} · ${props.initialCategoryName}`
+  }
+  if (props.initialSubjectId && props.initialSubjectName) return props.initialSubjectName
   const s = (props.subjects || []).find(x => String(x.id) === String(targetSubjectId.value))
   if (s) return s.name
   return needTarget.value ? '请指定目标科目（文件无科目列）' : '全部科目'
@@ -181,14 +191,19 @@ async function downloadTemplateXlsx() {
 async function doImport() {
   importing.value = true
   try {
+    // 目标科目：优先用户在弹窗里选的；未选则用题库管理带入的筛选科目；都没有且填了新建科目名则新建
     let subjectId = targetSubjectId.value ? Number(targetSubjectId.value) : null
+    if (needTarget.value && !subjectId && props.initialSubjectId) subjectId = Number(props.initialSubjectId)
     if (needTarget.value && !subjectId && newSubjectName.value.trim()) {
       const r = await tiku.addCategory({ name: newSubjectName.value.trim(), parentId: null })
       subjectId = r.id
     }
+    // 目标章节：题库管理带入的筛选章节（仅当文件无科目列时作为默认落点）
+    const categoryId = needTarget.value ? (props.initialCategoryId ? Number(props.initialCategoryId) : null) : null
     const rows = okRows.value.map(r => r.data)
     const res = await tiku.importQuestionBank(rows, {
       defaultSubjectId: subjectId,
+      defaultCategoryId: categoryId,
       duplicateMode: duplicateMode.value
     })
     importResult.value = res
