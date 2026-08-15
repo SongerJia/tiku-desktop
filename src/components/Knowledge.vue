@@ -4,7 +4,7 @@ import SkeletonCards from './SkeletonCards.vue'
 import QuestionDetail from './QuestionDetail.vue'
 import { tiku } from '../api/tiku.js'
 
-const props = defineProps({ subject: Object })
+const props = defineProps({ subject: Object, refreshToken: { type: Number, default: 0 } })
 const emit = defineEmits(['start', 'manage'])
 
 const keyword = ref('')
@@ -20,6 +20,7 @@ const detailId = ref(null) // 当前查看详情的题目 id
 let alive = true // 卸载后作废在途请求结果（须在 watch/onMounted 之前声明，避免 setup 同步触发时 TDZ）
 onMounted(load)
 watch(() => props.subject.id, load) // 切科目：重载章节列表 + 题目
+watch(() => props.refreshToken, () => { if (props.refreshToken) load() }) // 题库管理弹窗变更 → 刷新（导入/增删改）
 watch(currentChapterId, fetchQuestions) // 切章节：拉该章题目
 
 async function load() {

@@ -53,6 +53,8 @@ const mock = ref({ active: false })
 const showSearch = ref(false)
 // 切回首页时的刷新计数（驱动 Home 重新加载实时数据）
 const homeRefresh = ref(0)
+// 题库管理弹窗变更计数（驱动 Knowledge 刷新列表，同 kbRefreshToken 机制）
+const bankRefreshToken = ref(0)
 // 首启欢迎引导（settings 无 seen_welcome 时显示一次）
 const showWelcome = ref(false)
 
@@ -109,6 +111,7 @@ onBeforeUnmount(() => {
 // 导入或增删题目后，科目树可能变了（自动建了新科目），重取一次当前科目
 async function onBankChanged() {
   currentSubject.value = await tiku.getCurrentSubject()
+  bankRefreshToken.value++ // 题库管理弹窗变更 → 刷新 Knowledge 题库列表
 }
 // 文档管理变更：通知知识库页刷新列表
 function onKbChanged() { kbRefreshToken.value++ }
@@ -318,7 +321,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
           <Transition name="fade" mode="out-in">
             <div :key="currentTab" class="tab-page">
               <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" @quick="onQuickStart" />
-              <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" @start="onStart" @manage="showBank = true; bankSubjectId = currentSubject.id" />
+              <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" :refresh-token="bankRefreshToken" @start="onStart" @manage="showBank = true; bankSubjectId = currentSubject.id" />
               <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :scope="kbScope" :refresh-token="kbRefreshToken" @manage="showKbManager = true; kbSubjectId = currentSubject.id" />
               <Stats v-else-if="currentTab === 'stats'" :subject="currentSubject" @goto="onGoto" />
               <Profile
