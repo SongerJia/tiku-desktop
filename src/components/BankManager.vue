@@ -447,7 +447,7 @@ async function batchDelete() {
                   class="q-img-badge"
                   title="含题干配图"
                 >图</span>
-                <button v-if="!batchMode" class="mini tag-btn" @click="openTagEditor(q)"><Icon name="tag" :size="12"/> 标签</button>
+                <button v-if="!batchMode" class="mini tag-btn" @click="openTagEditor(q)"><Icon name="tag" :size="11"/> 标签</button>
                 <span v-if="!batchMode && q.tags && q.tags.length" class="q-tags">
                   <span v-for="t in q.tags" :key="t" class="q-tag" @click="toggleTagFilter(t)">#{{ t }}</span>
                 </span>
@@ -818,7 +818,7 @@ async function batchDelete() {
 .q-tags { display: inline-flex; flex-wrap: wrap; gap: 5px; align-items: center; max-width: 46%; }
 .q-tag { font-size: 11px; color: var(--brand); border: 1px solid var(--line); border-radius: 12px; padding: 0 8px; background: color-mix(in srgb, var(--brand) 8%, transparent); cursor: pointer; white-space: nowrap; }
 .q-tag:hover { border-color: var(--brand); }
-.tag-btn { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, transparent); display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; line-height: 1.4; }
+.tag-btn { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, transparent); display: inline-flex; align-items: center; gap: 2px; padding: 1px 6px; line-height: 1.4; border-radius: 4px; }
 
 /* 单题标签编辑弹层 */
 .tag-mask { position: fixed; inset: 0; background: var(--modal-mask); backdrop-filter: blur(var(--modal-blur)); z-index: 210; display: flex; align-items: center; justify-content: center; }
