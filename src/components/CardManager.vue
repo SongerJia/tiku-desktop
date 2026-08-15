@@ -13,7 +13,7 @@ import { showConfirm } from '../utils/confirm.js'
 import { useEsc } from '../utils/useEsc.js'
 import { detectSubjectLang } from '../utils/speech.js'
 
-const props = defineProps({ show: Boolean })
+const props = defineProps({ show: Boolean, wide: Boolean })
 useBodyLock(() => props.show)
 useFocusTrap(() => props.show, '.cm-panel')
 const emit = defineEmits(['close', 'changed'])
@@ -407,8 +407,8 @@ async function downloadTemplateXlsx() {
   <!-- 添加 / 编辑记忆卡弹窗（Teleport 到 body，参照题库新增题目弹窗） -->
   <Teleport to="body">
     <transition name="fade">
-      <div v-if="formOpen" class="cf-mask" @click.self="cancelForm">
-        <div class="cf-panel">
+      <div v-if="formOpen" class="cf-mask" :class="{ 'is-wide': wide }" @click.self="cancelForm">
+        <div class="cf-panel" :class="{ 'is-wide': wide }">
           <div class="cf-head">
             <span class="cf-title">{{ form.id ? '编辑记忆卡' : '添加记忆卡' }}</span>
             <span class="cf-close" @click="cancelForm">×</span>
@@ -674,6 +674,7 @@ async function downloadTemplateXlsx() {
   backdrop-filter: blur(var(--modal-blur));
   display: flex; align-items: flex-end; justify-content: center;
 }
+.cf-mask.is-wide { align-items: center; padding: 24px; }
 .cf-panel {
   width: 100%; max-width: 560px; margin: 0 auto; max-height: 90vh;
   background: var(--card-solid);
@@ -682,6 +683,7 @@ async function downloadTemplateXlsx() {
   box-shadow: var(--shadow), var(--glow-soft);
   display: flex; flex-direction: column; overflow: hidden;
 }
+.cf-panel.is-wide { border-radius: var(--radius); max-height: 86vh; }
 .cf-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 15px 18px; border-bottom: 1px solid var(--line);

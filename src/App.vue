@@ -383,7 +383,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
 
     <KbManager :show="showKbManager" :initial-subject-id="kbSubjectId" @close="showKbManager = false" @changed="onKbChanged" />
 
-    <CardManager :show="showCardManager" @close="showCardManager = false" @changed="homeRefresh++" />
+    <CardManager :show="showCardManager" :wide="isWide" @close="showCardManager = false" @changed="homeRefresh++" />
 
     <MockExamSetup
       v-if="mock.active"
