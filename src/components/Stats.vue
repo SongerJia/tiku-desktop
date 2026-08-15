@@ -432,7 +432,7 @@ async function loadAnalysis() {
       </div>
 
       <!-- 学习热力图（GitHub 贡献图：7 行 × N 列 + 月份标签 + 年份切换 + 统计列） -->
-      <div class="card heat-card" v-tilt="{ deg: 3 }">
+      <div class="card heat-card" v-tilt="{ deg: 3, flat: true }">
         <div class="heat-head">
           <span class="card-title">学习热力图 <span class="heat-scope">（{{ subjectScope === 'all' ? '全部科目' : (props.subject.name || '全部') }}）</span></span>
           <div class="heat-legend">
@@ -479,7 +479,7 @@ async function loadAnalysis() {
       </div>
 
       <!-- 每日任务 Quest（未设置显示友好提示） -->
-      <div class="card quest-card" v-tilt="{ deg: 3 }">
+      <div class="card quest-card" v-tilt="{ deg: 3, flat: true }">
         <div class="card-title">每日任务 <span class="quest-xp">每个 +20 XP</span></div>
         <div v-if="quest.claimed" class="quest-claimed">{{ quest.claimed }} 已完成，XP 已到账</div>
         <div v-if="!quest.tasks.length" class="quest-empty">
@@ -496,7 +496,7 @@ async function loadAnalysis() {
       </div>
 
       <!-- 分析：章节正确率雷达 + 成绩历史 -->
-      <div class="card analysis-card" v-tilt="{ deg: 3 }">
+      <div class="card analysis-card" v-tilt="{ deg: 3, flat: true }">
         <div class="card-title">章节正确率雷达 <span class="card-sub">（最弱 {{ radarCats.length }} 章）</span></div>
         <svg v-if="radarCats.length" viewBox="0 0 180 176" class="radar">
           <polygon :points="gridHex(56)" fill="none" stroke="var(--line)" stroke-width="1"/>
@@ -533,7 +533,7 @@ async function loadAnalysis() {
       </div>
 
       <!-- B1 强弱章节对比 -->
-      <div v-if="bestWeak" class="card bw-card" v-tilt="{ deg: 3 }">
+      <div v-if="bestWeak" class="card bw-card" v-tilt="{ deg: 3, flat: true }">
         <div class="card-title">强弱章节对比 <span class="card-sub">（正确率最高 vs 最低）</span></div>
         <div class="bw-row">
           <div class="bw-item strong">
@@ -553,7 +553,7 @@ async function loadAnalysis() {
       </div>
 
       <!-- 错因分析：本周/全部错因分布 + 归因建议（数据来自结果页/错题本标记） -->
-      <div class="card reason-card" v-tilt="{ deg: 3 }">
+      <div class="card reason-card" v-tilt="{ deg: 3, flat: true }">
         <div class="rc-head">
           <span class="card-title">错因分析 <span class="card-sub">（丢分习惯洞察）</span></span>
           <div class="rc-scope">

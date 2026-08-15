@@ -364,8 +364,8 @@ onBeforeUnmount(() => {
           <span class="adv-ico"><Icon name="target" :size="12"/></span>
           <span>{{ adviceText }}</span>
         </div>
-        <!-- 等级进度条（门面③）：Lv 徽章 + 渐变 XP 进度 -->
-        <div class="lv-bar" v-tilt="{ deg: 2 }">
+        <!-- 等级进度条（门面③）：Lv 徽章 + 渐变 XP 进度（flat：内部 blur 光点 + 3D 透视组合易出残影） -->
+        <div class="lv-bar" v-tilt="{ deg: 2, flat: true }">
           <span class="lv-badge">Lv.{{ lvInfo.level }}</span>
           <div class="lv-track">
             <div class="lv-fill" :style="{ width: lvInfo.pct + '%' }"></div>
@@ -399,7 +399,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 复习到期横幅（有到期才显示；H14：到期多时红色紧迫） -->
-      <div v-else-if="dueReviews > 0" class="review-banner" :class="{ urgent: dueReviews > 20 }" v-tilt @click="startSmartReview">
+      <div v-else-if="dueReviews > 0" class="review-banner" :class="{ urgent: dueReviews > 20 }" v-tilt="{ flat: true }" @click="startSmartReview">
         <span class="rb-ico"><Icon name="clock" :size="15"/></span>
         <div class="rb-info">
           <div class="rb-title">{{ dueReviews }} 道错题已到复习期</div>
@@ -451,7 +451,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- KPI 数据条 -->
-      <div class="kpi-strip" v-tilt>
+      <div class="kpi-strip" v-tilt="{ flat: true }">
         <div class="kpi-item">
           <span class="kpi-num"><CountUp :value="summary.streak" /></span>
           <span class="kpi-label">连续学习</span>
@@ -497,7 +497,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 番茄专注（单行） -->
-      <div class="card focus-bar" v-tilt>
+      <div class="card focus-bar" v-tilt="{ flat: true }">
         <span class="fb-ico"><Icon name="clock" :size="16"/></span>
         <div class="fb-info">
           <span class="fb-title">番茄专注</span>
@@ -550,7 +550,7 @@ onBeforeUnmount(() => {
       </div>
 
       <!-- 薄弱点（沉底：不占首屏，有数据才显示） -->
-      <div v-if="weakPoints.length || weakAccuracy.length" class="card weak-card" v-tilt>
+      <div v-if="weakPoints.length || weakAccuracy.length" class="card weak-card" v-tilt="{ flat: true }">
         <div class="card-title"><Icon name="info" :size="14"/> 待攻克薄弱点</div>
         <div v-if="weakPoints.length" class="weak-list">
           <div v-for="w in weakPoints" :key="w.id" class="weak-item" @click="emit('goto', 'bank')">
@@ -643,8 +643,8 @@ onBeforeUnmount(() => {
 .rb-sub { font-size: 12px; color: var(--muted); }
 .rb-btn { flex-shrink: 0; background: var(--warn); color: #1a160e; border-radius: 9px; padding: 7px 14px; font-size: 13px; font-weight: 600; }
 
-/* 今日行动台：目标进度环 + 三大行动 */
-.action-dock { display: flex; gap: 14px; transition: transform .25s cubic-bezier(.2, .7, .3, 1); transform-style: preserve-3d; will-change: transform; }
+/* 今日行动台：目标进度环 + 三大行动（不用 preserve-3d：3D 上下文会让内部可点击按钮命中偏移） */
+.action-dock { display: flex; gap: 14px; transition: transform .25s cubic-bezier(.2, .7, .3, 1); will-change: transform; }
 .dock-ring {
   flex: 0 0 108px; min-width: 108px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
