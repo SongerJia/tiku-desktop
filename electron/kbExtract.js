@@ -52,7 +52,8 @@ async function extractPdf(filePath) {
       data,
       disableWorker: true,
       isEvalSupported: false,
-      useSystemFonts: true
+      useSystemFonts: true,
+      verbosity: 0 // 抑制字体解析警告（如 "Not enough parameters for hstem" 刷屏）；0=ERRORS
     })
     const doc = await task.promise
     const blocks = []

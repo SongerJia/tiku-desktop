@@ -69,6 +69,7 @@ async function saveCard() {
   else await tiku.addCard(f, b, form.value.category.trim(), sid)
   startAdd()
   await load()
+  emit('updated') // 增改卡后通知首页刷新「记忆卡到期」角标
 }
 
 async function removeCard(c) {
@@ -76,6 +77,7 @@ async function removeCard(c) {
   if (!ok) return
   await tiku.deleteCard(c.id)
   await load()
+  emit('updated') // 删卡后同样通知（此前只在复习完成时发）
 }
 
 // ---- CSV 批量导入（每行 front,back[,category]，支持引号包裹）----

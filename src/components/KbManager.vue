@@ -229,7 +229,10 @@ async function onImport() {
   const ok = res.filter(r => r.ok && !r.duplicated)
   const dup = res.filter(r => r.duplicated)
   const failed = res.filter(r => !r.ok)
-  if (ok.length || dup.length) await load()
+  if (ok.length || dup.length) {
+    await load()
+    emit('changed') // 通知父级刷新主页列表（此前缺失 → 导入后主页不显示需重进）
+  }
   const msgs = []
   if (ok.length) msgs.push(`导入 ${ok.length} 篇`)
   if (dup.length) msgs.push(`已存在跳过 ${dup.length} 篇`)
