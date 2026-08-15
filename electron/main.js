@@ -601,6 +601,17 @@ ipcMain.handle('exportExcelTemplate', () => {
   return Buffer.from(buf).toString('base64')
 })
 
+// 记忆卡 Excel 导入模板（front/back/category 三列 + 示例行）
+ipcMain.handle('exportCardTemplate', () => {
+  const buf = writeXlsx([
+    ['正面', '背面', '分类'],
+    ['apple', 'n. 苹果；苹果树', '词汇'],
+    ['abandon', 'v. 放弃；抛弃', '词汇'],
+    ['りんご', '苹果', '単語']
+  ], { sheetName: '记忆卡导入模板' })
+  return Buffer.from(buf).toString('base64')
+})
+
 // ---- GitHub 仓库同步（唯一后端：数据快照 + 知识库文档 + 题目图片）----
 ipcMain.handle('ghGetConfig', () => ({
   hasToken: !!loadGhToken(), // token 明文不下发渲染层

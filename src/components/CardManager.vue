@@ -119,12 +119,22 @@ async function removeCard(c) {
   } catch (e) { showToast('删除失败：' + (e.message || '未知错误'), 'err') }
 }
 
-// ---- CSV 导入（参照题库导入的预览-确认流程，简化版）----
+// ---- CSV/Excel 导入（参照题库导入的预览-确认流程，简化版）----
 const importStep = ref('')      // '' 未开 | 'pick' 选文件 | 'preview' 预览 | 'done' 完成
 const importRows = ref([])      // [{front, back, category}]
 const importFile = ref('')
 const importSkipped = ref(0)
 const importing = ref(false)
+const dragOver = ref(false)
+function onDrop(e) {
+  dragOver.value = false
+  const f = e.dataTransfer.files && e.dataTransfer.files[0]
+  if (f) {
+    // 复用文件选择逻辑：构造事件对象
+    const ev = { target: { files: [f], value: '' } }
+    onPickFile(ev)
+  }
+}
 function parseCsvText(text) {
   const rows = []
   let row = [], field = '', inQ = false
@@ -146,15 +156,19 @@ function parseCsvText(text) {
   if (row.some(c => String(c).trim())) rows.push(row)
   return rows
 }
-function onPickCsv(e) {
+function onPickFile(e) {
   const file = e.target.files && e.target.files[0]
   e.target.value = ''
   if (!file) return
-  file.text().then(text => {
-    const rows = parseCsvText(text)
+  const ext = (file.name.split('.').pop() || '').toLowerCase()
+  const isExcel = ext === 'xlsx' || ext === 'xls'
+  const parse = isExcel
+    ? file.arrayBuffer().then(buf => tiku.parseSheet(new Uint8Array(buf)).then(rows => rows))
+    : file.text().then(text => parseCsvText(text))
+  parse.then(rows => {
     let skipped = 0
     const parsed = []
-    rows.forEach(r => {
+    ;(rows || []).forEach(r => {
       const front = String(r[0] || '').trim()
       const back = String(r[1] || '').trim()
       if (!front || !back) { skipped++; return }
@@ -164,6 +178,8 @@ function onPickCsv(e) {
     importSkipped.value = skipped
     importFile.value = file.name
     importStep.value = 'preview'
+  }).catch(err => {
+    showToast('解析失败：' + (err.message || String(err)), 'err')
   })
 }
 async function doImport() {
@@ -186,14 +202,30 @@ async function doImport() {
   }
 }
 function closeImport() { importStep.value = ''; importRows.value = []; importFile.value = ''; importSkipped.value = 0 }
-function downloadTemplate() {
-  const blob = new Blob(['\ufeff正面,背面,分类\napple,n. 苹果；苹果树,词汇\nabandon,v. 放弃；抛弃,词汇'], { type: 'text/csv;charset=utf-8' })
+function downloadTemplateCsv() {
+  const blob = new Blob(['\ufeff正面,背面,分类\napple,n. 苹果；苹果树,词汇\nabandon,v. 放弃；抛弃,词汇\nりんご,苹果,単語'], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
   a.download = '记忆卡导入模板.csv'
   a.click()
   URL.revokeObjectURL(url)
+}
+async function downloadTemplateXlsx() {
+  try {
+    const base64 = await tiku.exportCardTemplate()
+    if (!base64) throw new Error('模板生成失败')
+    const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
+    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = '记忆卡导入模板.xlsx'
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    showToast('Excel 模板生成失败：' + (err.message || String(err)), 'err')
+  }
 }
 </script>
 
@@ -203,7 +235,7 @@ function downloadTemplate() {
       <div class="cm-panel">
         <div class="cm-header">
           <span class="close" @click="emit('close')">×</span>
-          <span class="title">记忆卡管理</span>
+          <span class="title"><span class="hd-ico"><Icon name="bookmark" :size="16" /></span>记忆卡管理</span>
           <span class="count">{{ stats.total }} 张 · {{ stats.due }} 到期</span>
         </div>
 
@@ -218,8 +250,7 @@ function downloadTemplate() {
           <!-- 工具栏 -->
           <div class="toolbar">
             <button class="btn btn-primary sm" @click="startAdd">＋ 添加卡片</button>
-            <button class="btn btn-outline sm" @click="importStep = 'pick'">导入 CSV</button>
-            <button class="btn btn-outline sm" @click="downloadTemplate">下载模板</button>
+            <button class="btn btn-outline sm" @click="importStep = 'pick'">导入记忆卡</button>
           </div>
 
           <!-- 筛选：科目 → 章节 -->
@@ -264,10 +295,11 @@ function downloadTemplate() {
 
           <div v-else class="card-list">
             <div v-for="c in cards" :key="c.id" class="card-item">
-              <div class="card-main">
-                <div class="card-front">{{ c.front }}</div>
-                <div class="card-back">{{ c.back }}</div>
-              </div>
+            <div class="card-main">
+              <div class="card-front">{{ c.front }}</div>
+              <div class="card-back">{{ c.back }}</div>
+            </div>
+            <div class="card-side">
               <div class="card-meta">
                 <span class="mem-badge" :class="cardBadge(c).cls">{{ cardBadge(c).text }}</span>
                 <span v-if="c.source_question_id" class="cat-badge src">来自题目</span>
@@ -286,11 +318,12 @@ function downloadTemplate() {
                 <button class="act del" @click="removeCard(c)">删除</button>
               </div>
             </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- CSV 导入弹层 -->
+      <!-- CSV/Excel 导入弹层 -->
       <div v-if="importStep" class="cm-import-mask" @click.self="closeImport">
         <div class="cm-import">
           <div class="ci-head">
@@ -299,22 +332,36 @@ function downloadTemplate() {
           </div>
 
           <div v-if="importStep === 'pick'" class="ci-body">
-            <div class="dropzone">
-              <div class="dz-title">选择 CSV 文件（每行：正面,背面,分类）</div>
-              <div class="dz-sub">导入到{{ subjectId ? '当前筛选科目' : '全部科目' }}{{ categoryId ? '·' + (chapters.find(c => String(c.id) === String(categoryId)) || {}).name : '' }}</div>
+            <div class="ci-target">
+              <span class="ci-target-label">导入到</span>
+              <span class="ci-target-val">{{ subjectId ? (subjects.find(s => String(s.id) === String(subjectId)) || {}).name || '当前科目' : '全部科目' }}{{ categoryId ? ' · ' + ((chapters.find(c => String(c.id) === String(categoryId)) || {}).name || '') : '' }}</span>
+            </div>
+            <div class="dropzone" @dragover.prevent="dragOver = true" @dragleave.prevent="dragOver = false" @drop.prevent="onDrop">
+              <div class="dz-ico"><Icon name="download" :size="22" /></div>
+              <div class="dz-title">把文件拖到这里，或点击选择</div>
+              <div class="dz-sub">支持 .xlsx / .xls / .csv，每行：正面, 背面, 分类</div>
               <label class="btn btn-primary dz-btn">
                 选择文件
-                <input type="file" accept=".csv,.txt" hidden @change="onPickCsv" />
+                <input type="file" accept=".xlsx,.xls,.csv,.txt" hidden @change="onPickFile" />
               </label>
-              <button class="btn btn-outline sm" @click="downloadTemplate">下载模板</button>
             </div>
-            <div class="ci-tip">模板格式：正面,背面,分类（如 apple,n. 苹果,词汇）。分类列可留空。</div>
+            <div class="ci-guide">
+              <div class="ci-guide-head">
+                <span>模板下载</span>
+                <div class="ci-guide-actions">
+                  <button class="btn btn-outline sm" @click="downloadTemplateCsv">CSV 模板</button>
+                  <button class="btn btn-outline sm" @click="downloadTemplateXlsx">Excel 模板</button>
+                </div>
+              </div>
+              <div class="ci-tip">第一列正面（单词/问题）、第二列背面（释义/答案）、第三列分类（可留空）。</div>
+            </div>
           </div>
 
           <div v-else-if="importStep === 'preview'" class="ci-body">
             <div class="ci-preview-head">
-              <span>解析完成：{{ importRows.length }} 行可导入</span>
-              <span v-if="importSkipped" class="ci-skip">跳过 {{ importSkipped }} 行（正面或背面为空）</span>
+              <span class="ci-file">{{ importFile }}</span>
+              <span class="ci-summary">{{ importRows.length }} 行可导入</span>
+              <span v-if="importSkipped" class="ci-skip">跳过 {{ importSkipped }} 行</span>
             </div>
             <div class="ci-preview">
               <div v-for="(r, i) in importRows.slice(0, 8)" :key="i" class="ci-row">
@@ -376,7 +423,8 @@ function downloadTemplate() {
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
-.cm-header .title { flex: 1; font-size: 16px; font-weight: 700; color: var(--text); }
+.cm-header .title { flex: 1; font-size: 16px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.cm-header .title .hd-ico { color: var(--brand); display: inline-flex; }
 .cm-header .close { font-size: 22px; color: var(--muted); cursor: pointer; line-height: 1; }
 .cm-header .close:hover { color: var(--brand); }
 .cm-header .count { font-size: 12px; color: var(--brand); }
@@ -391,10 +439,17 @@ function downloadTemplate() {
   padding: 9px 6px;
   text-align: center;
   background: color-mix(in srgb, var(--brand) 4%, transparent);
+  transition: border-color .15s ease, transform .15s ease;
 }
-.stat b { display: block; font-size: 17px; color: var(--brand); }
-.stat.due b { color: var(--warn-soft); }
-.stat.ok b { color: var(--ok); }
+.stat:hover { border-color: var(--brand); transform: translateY(-1px); }
+.stat b {
+  display: block; font-size: 17px;
+  background: var(--num-grad);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+.stat.due b { -webkit-text-fill-color: var(--warn-soft); color: var(--warn-soft); background: none; }
+.stat.ok b { -webkit-text-fill-color: var(--ok); color: var(--ok); background: none; }
 .stat span { font-size: 11px; color: var(--muted); }
 
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -434,17 +489,18 @@ function downloadTemplate() {
 .card-item {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 11px 12px;
+  padding: 12px 14px;
   background: color-mix(in srgb, var(--brand) 3%, transparent);
   display: flex;
-  gap: 12px;
+  gap: 14px;
   align-items: flex-start;
 }
-.card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.card-front { font-size: 14px; font-weight: 600; color: var(--text); word-break: break-word; }
-.card-back { font-size: 13px; color: var(--muted); word-break: break-word; }
-.card-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; max-width: 220px; }
-.card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.card-front { font-size: 15px; font-weight: 600; color: var(--text); word-break: break-word; }
+.card-back { font-size: 13px; color: var(--muted); word-break: break-word; line-height: 1.5; }
+.card-side { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; align-items: flex-end; }
+.card-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 200px; }
+.card-actions { display: flex; gap: 6px; }
 .act {
   border: 1px solid var(--line); background: transparent; color: var(--muted);
   border-radius: 6px; padding: 3px 10px; font-size: 12px; cursor: pointer; transition: all .15s;
@@ -465,7 +521,7 @@ function downloadTemplate() {
 .state { font-size: 11px; color: var(--muted); }
 .state.due { color: var(--warn-soft); }
 
-/* CSV 导入弹层 */
+/* CSV/Excel 导入弹层 */
 .cm-import-mask {
   position: fixed; inset: 0; z-index: 220;
   background: var(--modal-mask);
@@ -473,31 +529,53 @@ function downloadTemplate() {
   display: flex; align-items: center; justify-content: center;
 }
 .cm-import {
-  width: 480px; max-width: 92vw;
+  width: 500px; max-width: 92vw;
   background: var(--card-solid);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow), var(--glow-soft);
-  padding: 16px;
-  display: flex; flex-direction: column; gap: 12px;
+  padding: 18px;
+  display: flex; flex-direction: column; gap: 14px;
 }
 .ci-head { display: flex; align-items: center; justify-content: space-between; }
-.ci-title { font-size: 14px; font-weight: 500; color: var(--text); }
-.ci-close { font-size: 20px; color: var(--muted); cursor: pointer; line-height: 1; }
+.ci-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.ci-close { font-size: 20px; color: var(--muted); cursor: pointer; line-height: 1; transition: color .15s; }
 .ci-close:hover { color: var(--brand); }
-.ci-body { display: flex; flex-direction: column; gap: 10px; }
+.ci-body { display: flex; flex-direction: column; gap: 12px; }
+.ci-target {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; padding: 8px 12px;
+  background: color-mix(in srgb, var(--brand) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 25%, transparent);
+  border-radius: var(--radius-sm);
+}
+.ci-target-label { color: var(--muted); flex-shrink: 0; }
+.ci-target-val { color: var(--brand); font-weight: 500; }
 .dropzone {
   border: 2px dashed var(--line);
   border-radius: var(--radius-sm);
-  padding: 22px 16px;
+  padding: 26px 16px;
   text-align: center;
-  display: flex; flex-direction: column; gap: 8px; align-items: center;
+  display: flex; flex-direction: column; gap: 6px; align-items: center;
+  transition: border-color .2s, background .2s;
 }
+.dropzone.over, .dropzone:hover { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 4%, transparent); }
+.dz-ico { color: var(--brand); opacity: .7; margin-bottom: 2px; }
 .dz-title { font-size: 13px; color: var(--text); }
 .dz-sub { font-size: 11px; color: var(--muted); }
-.dz-btn { margin-top: 4px; }
+.dz-btn { margin-top: 6px; }
+.ci-guide {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.ci-guide-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text); }
+.ci-guide-actions { display: flex; gap: 6px; }
 .ci-tip { font-size: 11px; color: var(--muted); line-height: 1.6; }
-.ci-preview-head { display: flex; gap: 8px; font-size: 12px; color: var(--text); }
+.ci-preview-head { display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--text); flex-wrap: wrap; }
+.ci-file { color: var(--brand); font-weight: 500; word-break: break-all; }
+.ci-summary { color: var(--text); }
 .ci-skip { color: var(--warn-soft); }
 .ci-preview {
   border: 1px solid var(--line);

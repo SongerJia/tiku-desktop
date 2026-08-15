@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportBank: (subjectId) => ipcRenderer.invoke('exportBank', subjectId),
   exportExcel: (subjectId) => ipcRenderer.invoke('exportExcel', subjectId),
   exportExcelTemplate: () => ipcRenderer.invoke('exportExcelTemplate'),
+  exportCardTemplate: () => ipcRenderer.invoke('exportCardTemplate'),
   addCategory: (payload) => ipcRenderer.invoke('addCategory', payload),
   renameCategory: (payload) => ipcRenderer.invoke('renameCategory', payload),
   deleteCategory: (id) => ipcRenderer.invoke('deleteCategory', id),
