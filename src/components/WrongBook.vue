@@ -81,14 +81,19 @@ async function genCard(it) {
   if (cardBusy.value.has(it.question_id)) return
   cardBusy.value = new Set(cardBusy.value).add(it.question_id)
   try {
-    // 科目名 → 语言（英语/日语显示音标音频）
+    // 科目名 → 语言（英语/日语显示音标音频）；章节名 → 卡片分类
     let subjName = ''
+    let catName = ''
     try {
       const cats = await tiku.getCategories()
       const s = (cats || []).find(c => String(c.id) === String(it.subject_id))
-      if (s) subjName = s.name
+      if (s) {
+        subjName = s.name
+        const ch = (s.children || []).find(c => String(c.id) === String(it.category_id))
+        if (ch) catName = ch.name
+      }
     } catch (e) {}
-    cardSup.value = { it, lang: detectSubjectLang(subjName) || '' }
+    cardSup.value = { it: { ...it, cat: catName }, lang: detectSubjectLang(subjName) || '' }
   } catch (e) { showToast('打开失败：' + (e.message || '未知错误'), 'err') }
   finally {
     cardBusy.value = new Set(cardBusy.value); cardBusy.value.delete(it.question_id)

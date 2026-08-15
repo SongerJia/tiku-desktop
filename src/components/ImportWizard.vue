@@ -56,13 +56,14 @@ const canImport = computed(() => okRows.value.length > 0 && targetReady.value &&
 const targetLabel = computed(() => {
   if (hasSubjectColumn.value) return '按文件「科目」列分配到对应科目'
   if (newSubjectName.value.trim()) return `新建科目「${newSubjectName.value.trim()}」`
+  // 弹窗内显式选的目标科目优先（用户改选后不再显示带入的科目/章节）
+  const sel = (props.subjects || []).find(x => String(x.id) === String(targetSubjectId.value))
+  if (sel) return sel.name
   // 题库管理带入的章节（科目·章节）
   if (props.initialCategoryId && props.initialSubjectName && props.initialCategoryName) {
     return `${props.initialSubjectName} · ${props.initialCategoryName}`
   }
   if (props.initialSubjectId && props.initialSubjectName) return props.initialSubjectName
-  const s = (props.subjects || []).find(x => String(x.id) === String(targetSubjectId.value))
-  if (s) return s.name
   return needTarget.value ? '请指定目标科目（文件无科目列）' : '全部科目'
 })
 
@@ -198,8 +199,10 @@ async function doImport() {
       const r = await tiku.addCategory({ name: newSubjectName.value.trim(), parentId: null })
       subjectId = r.id
     }
-    // 目标章节：题库管理带入的筛选章节（仅当文件无科目列时作为默认落点）
-    const categoryId = needTarget.value ? (props.initialCategoryId ? Number(props.initialCategoryId) : null) : null
+    // 目标章节：仅当沿用题库管理带入的科目（用户未在弹窗内改选）时才带章节，避免章节与所选科目不匹配
+    const categoryId = needTarget.value && !targetSubjectId.value
+      ? (props.initialCategoryId ? Number(props.initialCategoryId) : null)
+      : null
     const rows = okRows.value.map(r => r.data)
     const res = await tiku.importQuestionBank(rows, {
       defaultSubjectId: subjectId,

@@ -85,12 +85,12 @@
     </div>
     </div>
 
-    <!-- 转卡补充表单 -->
+    <!-- 转卡补充表单（front 截断与 addCardFromQuestion 一致，category 用章节名，保证同题各入口查重一致） -->
     <CardSupplement
       :show="cardSupplement"
-      :front="info.question.stem || ''"
+      :front="(info.question.stem || '').slice(0, 80)"
       :back="answerText || info.question.analysis || ''"
-      :category="pathText"
+      :category="chapterName"
       :source-question-id="props.questionId"
       :lang="cardLang"
       @close="cardSupplement = false"
@@ -144,6 +144,8 @@ const answerText = computed(() => {
 })
 const s = computed(() => info.value.status || {})
 const pathText = computed(() => (info.value.question.categoryPath || []).join(' › '))
+// 转卡分类：取路径最后一段（章节名；无章节则科目名），与 addCardFromQuestion 的 category 一致
+const chapterName = computed(() => (info.value.question.categoryPath || []).slice(-1)[0] || '')
 // 科目语言：从路径首段（科目名）识别，英语/日语才显示音标/音频
 const subjectName = computed(() => (info.value.question.categoryPath || [])[0] || '')
 

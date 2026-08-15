@@ -534,6 +534,10 @@ try {
   const smCard = db.listCards().find(c => c.front === 'uniqueWord-smart')
   ok('addCardSmart 新建带音标/音频', !!smNew.ok && !smNew.duplicate && smCard && smCard.phonetic === '/juːˈniːk/' && smCard.audio_url === 'a.mp3')
   ok('addCardSmart 内容查重关联出处', smDup.matched === true && smDup.cardId === smNew.cardId && smCard.source_doc_id === 999)
+  // updateCard 显式传回原增强字段不丢失（首页行内编辑传回 categoryId/phonetic/audio 的防回归）
+  db.updateCard(smNew.cardId, 'uniqueWord-smart', '新释义', '词汇', null, smCard.category_id, smCard.phonetic, smCard.audio_url)
+  const smAfter = db.listCards().find(c => c.front === 'uniqueWord-smart')
+  ok('updateCard 传回增强字段不丢失', smAfter.phonetic === '/juːˈniːk/' && smAfter.audio_url === 'a.mp3')
   db.deleteCategory(subA.id) // 级联清理（含错题残留无碍后续）
 
   // 空科目边界：新建科目无章节时拉题应返回空（防止 IN() SQL 报错）

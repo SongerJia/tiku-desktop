@@ -82,21 +82,25 @@ async function load() {
   loading.value = false
 }
 
-function startAdd() { form.value = { id: null, front: '', back: '', category: '', subjectId: null } }
+function startAdd() { form.value = { id: null, front: '', back: '', category: '', subjectId: null, categoryId: null, phonetic: '', audioName: '' } }
 
 function editCard(c) {
-  form.value = { id: c.id, front: c.front, back: c.back, category: c.category || '', subjectId: c.subject_id ?? null }
+  form.value = {
+    id: c.id, front: c.front, back: c.back, category: c.category || '',
+    subjectId: c.subject_id ?? null, categoryId: c.category_id ?? null,
+    phonetic: c.phonetic || '', audioName: c.audio_url || ''
+  }
 }
-function cancelEdit() { form.value = { id: null, front: '', back: '', category: '', subjectId: null } }
+function cancelEdit() { form.value = { id: null, front: '', back: '', category: '', subjectId: null, categoryId: null, phonetic: '', audioName: '' } }
 
 async function saveCard() {
   const f = form.value.front.trim()
   const b = form.value.back.trim()
   if (!f || !b) { showToast('正面和背面都不能为空'); return }
   if (!form.value.id) return // 首页只做编辑，新建走管理弹窗
-  // 编辑保留原科目归属
+  // 编辑保留原归属与音标/音频（不传会清空 category_id/phonetic/audio_url）
   const sid = form.value.subjectId ?? props.subject.id
-  await tiku.updateCard(form.value.id, f, b, form.value.category.trim(), sid)
+  await tiku.updateCard(form.value.id, f, b, form.value.category.trim(), sid, form.value.categoryId, form.value.phonetic, form.value.audioName)
   cancelEdit()
   await load()
   emit('updated') // 增改卡后通知首页刷新「记忆卡到期」角标

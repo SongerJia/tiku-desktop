@@ -71,21 +71,28 @@ watch(audioUrl, async (v) => {
   try { audioSrc.value = await tiku.getAudioUrl(v) } catch (e) { audioSrc.value = '' }
 }, { immediate: true })
 
+// 换科目清空章节（防跨科目挂错）；编辑回填时跳过（splitCategoryId 内设置）
+let suppressCatWatch = false
+watch(subjectSel, () => {
+  if (suppressCatWatch) return
+  chapterSel.value = ''
+})
+
 // 由分类 id（科目或章节）反推：科目下拉 + 章节下拉的选中值
 function splitCategoryId(cid) {
+  suppressCatWatch = true
   subjectSel.value = ''
   chapterSel.value = ''
-  if (!cid) return
+  if (!cid) { suppressCatWatch = false; return }
   const n = Number(cid)
   const s = (props.categories || []).find(c => Number(c.id) === n)
-  if (s) { subjectSel.value = String(s.id); return }
+  if (s) { subjectSel.value = String(s.id); suppressCatWatch = false; return }
   for (const c of props.categories || []) {
     const ch = (c.children || []).find(x => Number(x.id) === n)
-    if (ch) { subjectSel.value = String(c.id); chapterSel.value = String(ch.id); return }
+    if (ch) { subjectSel.value = String(c.id); chapterSel.value = String(ch.id); break }
   }
+  suppressCatWatch = false
 }
-// 换科目清空章节（防跨科目挂错）
-watch(subjectSel, () => { chapterSel.value = '' })
 
 function loadFromProps() {
   error.value = ''
