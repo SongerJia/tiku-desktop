@@ -20,7 +20,29 @@ const subjLang = computed(() => detectSubjectLang(props.subject && props.subject
 // 复习时翻到正面自动发音（会话内记忆到 localStorage）
 const autoSpeak = ref(localStorage.getItem('card_autospeak') !== '0')
 function toggleAutoSpeak() { localStorage.setItem('card_autospeak', autoSpeak.value ? '1' : '0') }
-function speak(text) { if (subjLang.value && text) speakText(text, 1, subjLang.value) }
+// 发音：优先真人音频（本地文件名 → dataURL），无音频才 TTS
+const curAudioUrl = ref('')
+async function ensureAudio() {
+  const au = cur.value && cur.value.audio_url
+  if (!au) { curAudioUrl.value = ''; return }
+  if (/^https?:\/\//.test(au) || au.startsWith('file://')) { curAudioUrl.value = au; return }
+  try { curAudioUrl.value = await tiku.getAudioUrl(au) } catch (e) { curAudioUrl.value = '' }
+}
+async function speakCur() {
+  if (!cur.value) return
+  // 有真人音频 → 播音频
+  if (cur.value.audio_url) {
+    await ensureAudio()
+    if (curAudioUrl.value) {
+      const el = audioEl.value
+      if (el) { el.currentTime = 0; el.play().catch(() => {}) }
+      return
+    }
+  }
+  // 无音频 → TTS 朗读（按科目语言）
+  if (subjLang.value) speakText(cur.value.front, 1, subjLang.value)
+}
+const audioEl = ref(null)
 
 const cards = ref([])
 const stats = ref({ total: 0, due: 0 })
@@ -98,14 +120,14 @@ async function startReview() {
   rDone.value = 0
   flipped.value = false
   mode.value = 'review'
-  // 翻到正面自动发音（仅语言类科目；首卡立即读）
-  if (autoSpeak.value && subjLang.value && cur.value) speak(cur.value.front)
+  // 翻到正面自动发音（仅语言类科目；首卡立即读，真人音频优先）
+  if (autoSpeak.value && subjLang.value && cur.value) speakCur()
 }
 
 // 翻面：翻回正面时若开启自动发音则朗读正面
 function flipCard() {
   flipped.value = !flipped.value
-  if (!flipped.value && autoSpeak.value && subjLang.value && cur.value) speak(cur.value.front)
+  if (!flipped.value && autoSpeak.value && subjLang.value && cur.value) speakCur()
 }
 
 const cur = computed(() => reviewItems.value[rIdx.value] || null)
@@ -126,7 +148,7 @@ async function mark(felt) {
   } else {
     rIdx.value++
     // 下一张卡自动朗读正面（仅语言类科目 + 开启自动发音）
-    if (autoSpeak.value && subjLang.value && cur.value) speak(cur.value.front)
+    if (autoSpeak.value && subjLang.value && cur.value) speakCur()
   }
 }
 
@@ -215,18 +237,21 @@ watch(scope, () => { if (props.show) load() })
       <!-- 复习模式 -->
       <div v-else class="body review-body">
         <div class="rv-progress">第 {{ rIdx + 1 }} / {{ reviewItems.length }} 张 · 已完成 {{ rDone }} 张</div>
+        <!-- 真人发音音频（有 audio_url 的卡，隐藏播放器供 speakCur 调用） -->
+        <audio v-if="curAudioUrl" :src="curAudioUrl" ref="audioEl" style="display:none" preload="auto"></audio>
         <div class="card" :class="{ flipped }" @click="flipCard">
           <div class="face front">
             <span class="face-label">正面</span>
             <span class="face-text">{{ cur.front }}</span>
+            <span v-if="cur.phonetic" class="face-phonetic">{{ cur.phonetic }}</span>
             <span class="face-hint">点击卡片翻面</span>
-            <button v-if="subjLang" class="speak-btn" title="朗读正面" @click.stop="speak(cur.front)"><Icon name="volume" :size="14" /></button>
+            <button v-if="subjLang" class="speak-btn" title="朗读正面" @click.stop="speakCur()"><Icon name="volume" :size="14" /></button>
           </div>
           <div class="face back">
             <span class="face-label">背面</span>
             <span class="face-text">{{ cur.back }}</span>
             <span class="face-hint">还记得吗？</span>
-            <button v-if="subjLang" class="speak-btn" title="朗读背面" @click.stop="speak(cur.back)"><Icon name="volume" :size="14" /></button>
+            <button v-if="subjLang" class="speak-btn" title="朗读背面" @click.stop="speakText(cur.back, 1, subjLang)"><Icon name="volume" :size="14" /></button>
           </div>
         </div>
         <label v-if="subjLang" class="autospeak" title="翻到正面时自动朗读">
@@ -343,6 +368,7 @@ watch(scope, () => { if (props.show) load() })
 .face { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 20px; text-align: center; position: relative; }
 .face-label { font-size: 11px; color: var(--muted); letter-spacing: 2px; }
 .face-text { font-size: 22px; font-weight: 700; color: var(--text); word-break: break-word; }
+.face-phonetic { font-size: 14px; color: var(--muted); font-family: var(--font-mono); }
 .face-hint { font-size: 11px; color: var(--muted); opacity: .7; }
 /* 翻转：默认显示正面，flipped 时切背面（隐藏另一面避免两按钮重叠） */
 .card.flipped .face.front { display: none; }

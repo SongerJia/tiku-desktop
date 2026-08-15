@@ -4,10 +4,10 @@ module.exports = function cardsModule(ctx) {
   const { sqlite, uuid } = ctx
 
   return {
-    addCard(front, back, category, subjectId = null, categoryId = null) {
+    addCard(front, back, category, subjectId = null, categoryId = null, phonetic = '', audioUrl = '') {
       const now = Date.now()
-      sqlite.prepare('INSERT INTO cards (front, back, category, subject_id, category_id, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,0,?)')
-        .run(String(front || '').trim(), String(back || '').trim(), String(category || '').trim(), subjectId || null, categoryId || null, now, now, uuid())
+      sqlite.prepare('INSERT INTO cards (front, back, category, subject_id, category_id, phonetic, audio_url, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,?,?,0,?)')
+        .run(String(front || '').trim(), String(back || '').trim(), String(category || '').trim(), subjectId || null, categoryId || null, String(phonetic || '').trim(), String(audioUrl || '').trim(), now, now, uuid())
       this.logXp(2, 'card', 'new')
       return { ok: true }
     },
@@ -29,15 +29,6 @@ module.exports = function cardsModule(ctx) {
     addCardFromQuestion(questionId) {
       const q = this.getQuestionById(Number(questionId))
       if (!q) return { ok: false, error: '题目不存在' }
-      const dup = sqlite.prepare('SELECT id FROM cards WHERE source_question_id=? AND deleted=0').get(q.id)
-      if (dup) return { ok: true, duplicate: true, cardId: dup.id }
-      // 软删卡复活：删卡后再生成复用原卡（不 INSERT 新行 → 杜绝同题双卡；source_question_id 无 UNIQUE 兜底）
-      const now = Date.now()
-      const tomb = sqlite.prepare('SELECT id FROM cards WHERE source_question_id=? AND deleted=1 ORDER BY id DESC LIMIT 1').get(q.id)
-      if (tomb) {
-        sqlite.prepare('UPDATE cards SET deleted=0, updated_at=? WHERE id=?').run(now, tomb.id)
-        return { ok: true, duplicate: true, cardId: tomb.id }
-      }
       const front = String(q.stem || '').trim().slice(0, 80)
       if (!front) return { ok: false, error: '题干为空' }
       const ans = Array.isArray(q.answer) && q.answer.length ? '【答案】' + q.answer.join('、') : ''
@@ -49,12 +40,80 @@ module.exports = function cardsModule(ctx) {
         if (c) category = c.name
       }
       const subjectId = q.category_id ? this._rootSubjectOf(q.category_id) : null
-      // 继承题目章节（卡片与题目同维度：管理弹窗按 科目→章节 筛选时单词卡归属正确）
       const categoryId = q.category_id || null
-      sqlite.prepare('INSERT INTO cards (front, back, category, subject_id, category_id, source_question_id, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,?,0,?)')
-        .run(front, back, category, subjectId, categoryId, q.id, now, now, uuid())
+      // 智能关联：同题已有卡 → 复用；否则按正面内容查重 → 有则关联题目出处（不新建），无则新建
+      return this.addCardSmart({
+        front, back, category, subjectId, categoryId,
+        sourceQuestionId: q.id,
+        sourceQuestionStem: String(q.stem || '').trim()
+      })
+    },
+
+    // 智能转卡核心：按内容查重 → 已存在则关联出处（source_question_id/source_doc_id），不存在则新建。
+    // opts: { front, back, category, subjectId, categoryId, phonetic, audioUrl, sourceQuestionId, sourceQuestionStem, sourceDocId, sourceDocTitle }
+    // 返回 { ok, duplicate, cardId, matched: true } —— matched=true 表示命中已有卡（前端提示"已关联"）
+    addCardSmart(opts = {}) {
+      const now = Date.now()
+      const front = String(opts.front || '').trim()
+      if (!front) return { ok: false, error: '正面内容为空' }
+      // 1) 同源去重（题目）：同一道题只允许一张卡
+      if (opts.sourceQuestionId) {
+        const dup = sqlite.prepare('SELECT id FROM cards WHERE source_question_id=? AND deleted=0').get(opts.sourceQuestionId)
+        if (dup) return { ok: true, duplicate: true, cardId: dup.id, matched: true }
+        // 软删复活
+        const tomb = sqlite.prepare('SELECT id FROM cards WHERE source_question_id=? AND deleted=1 ORDER BY id DESC LIMIT 1').get(opts.sourceQuestionId)
+        if (tomb) {
+          sqlite.prepare('UPDATE cards SET deleted=0, updated_at=? WHERE id=?').run(now, tomb.id)
+          return { ok: true, duplicate: true, cardId: tomb.id, matched: true }
+        }
+      }
+      // 2) 内容查重（front 完全相等）：已有同内容的卡 → 关联出处（题目或文档），不新建
+      const byFront = sqlite.prepare('SELECT id FROM cards WHERE front=? AND deleted=0 ORDER BY id ASC LIMIT 1').get(front)
+      if (byFront) {
+        const sets = []
+        const params = []
+        if (opts.sourceQuestionId) { sets.push('source_question_id=?'); params.push(opts.sourceQuestionId) }
+        if (opts.sourceDocId) { sets.push('source_doc_id=?'); params.push(opts.sourceDocId) }
+        if (sets.length) {
+          params.push(now, byFront.id)
+          sqlite.prepare(`UPDATE cards SET ${sets.join(',')}, updated_at=? WHERE id=?`).run(...params)
+        }
+        return { ok: true, duplicate: true, cardId: byFront.id, matched: true }
+      }
+      // 3) 新建
+      const category = String(opts.category || '').trim()
+      const phonetic = String(opts.phonetic || '').trim()
+      const audioUrl = String(opts.audioUrl || '').trim()
+      const back = String(opts.back || '').trim() || '（自行补充）'
+      const info = sqlite.prepare(`INSERT INTO cards
+        (front, back, category, subject_id, category_id, phonetic, audio_url, source_question_id, source_doc_id, created_at, updated_at, deleted, client_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?)`)
+        .run(front, back, category, opts.subjectId || null, opts.categoryId || null, phonetic, audioUrl,
+          opts.sourceQuestionId || null, opts.sourceDocId || null, now, now, uuid())
       this.logXp(2, 'card', 'new')
-      return { ok: true, duplicate: false, cardId: sqlite.prepare('SELECT last_insert_rowid() AS id').get().id }
+      return { ok: true, duplicate: false, cardId: info.lastInsertRowid, matched: false }
+    },
+
+    // 从文档高亮转卡（E-2）：正面=高亮文本，背面=原文+文档标题；内容查重→关联文档出处或新建
+    addCardFromHighlight(highlightId, extra = {}) {
+      const h = sqlite.prepare('SELECT * FROM kb_highlights WHERE id=? AND deleted=0').get(highlightId)
+      if (!h) return { ok: false, error: '高亮不存在' }
+      const text = String(h.text || '').trim()
+      if (!text) return { ok: false, error: '高亮内容为空' }
+      const doc = sqlite.prepare('SELECT title, subject_id FROM kb_docs WHERE id=?').get(h.doc_id)
+      const title = (doc && doc.title) || '知识库'
+      const front = text.slice(0, 80)
+      const back = ['【原文】' + text, '【来源】' + title].join('\n')
+      return this.addCardSmart({
+        front,
+        back,
+        category: title,
+        subjectId: (doc && doc.subject_id) || null,
+        phonetic: extra.phonetic || '',
+        audioUrl: extra.audioUrl || '',
+        sourceDocId: h.doc_id,
+        sourceDocTitle: title
+      })
     },
 
     // 记忆卡列表：支持 科目 / 章节 维度筛选（管理弹窗与首页共用）；返回章节名供展示
@@ -71,9 +130,9 @@ module.exports = function cardsModule(ctx) {
       ).all(dueNow, ...params)
     },
 
-    updateCard(id, front, back, category, subjectId, categoryId) {
-      sqlite.prepare('UPDATE cards SET front=?, back=?, category=?, subject_id=?, category_id=?, updated_at=? WHERE id=? AND deleted=0')
-        .run(String(front || '').trim(), String(back || '').trim(), String(category || '').trim(), subjectId ?? null, categoryId ?? null, Date.now(), id)
+    updateCard(id, front, back, category, subjectId, categoryId, phonetic, audioUrl) {
+      sqlite.prepare('UPDATE cards SET front=?, back=?, category=?, subject_id=?, category_id=?, phonetic=?, audio_url=?, updated_at=? WHERE id=? AND deleted=0')
+        .run(String(front || '').trim(), String(back || '').trim(), String(category || '').trim(), subjectId ?? null, categoryId ?? null, String(phonetic || '').trim(), String(audioUrl || '').trim(), Date.now(), id)
       return { ok: true }
     },
 
@@ -109,7 +168,7 @@ module.exports = function cardsModule(ctx) {
             `SELECT * FROM cards WHERE deleted=0 AND review_count=0${where} ORDER BY RANDOM() LIMIT ?`
           ).all(...params, limit - due.length))
         : due
-      return pool.map(c => ({ id: c.id, front: c.front, back: c.back, category: c.category }))
+      return pool.map(c => ({ id: c.id, front: c.front, back: c.back, category: c.category, phonetic: c.phonetic || '', audio_url: c.audio_url || '' }))
     },
 
     cardsStats({ subjectId, categoryId } = {}) {

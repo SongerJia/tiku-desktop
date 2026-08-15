@@ -5,6 +5,8 @@ import { tiku } from '../api/tiku.js'
 import { printHtml } from '../utils/print.js'
 import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
+import { detectSubjectLang } from '../utils/speech.js'
+import CardSupplement from './CardSupplement.vue'
 
 const emit = defineEmits(['start'])
 const items = ref([])
@@ -72,17 +74,25 @@ async function loadReviewCurve() {
   try { reviewCurve.value = await tiku.getReviewCurve(30) } catch (e) { reviewCurve.value = { dist: [], items: [] } }
 }
 
-// 一键生成记忆卡（方向 10）
+// 一键生成记忆卡（方向 10）：弹补充表单（内部查重→关联或新建）
 const cardBusy = ref(new Set())
+const cardSup = ref(null)    // { it, lang }
 async function genCard(it) {
   if (cardBusy.value.has(it.question_id)) return
   cardBusy.value = new Set(cardBusy.value).add(it.question_id)
   try {
-    const r = await tiku.addCardFromQuestion(it.question_id)
-    if (r.ok) showToast(r.duplicate ? '该题已有记忆卡（未重复生成）' : '已生成记忆卡，可在「卡片记忆」复习', 'ok')
-    else showToast('生成失败：' + (r.error || '未知错误'), 'err')
-  } catch (e) { showToast('生成失败：' + (e.message || '未知错误'), 'err') }
-  cardBusy.value = new Set(cardBusy.value); cardBusy.value.delete(it.question_id)
+    // 科目名 → 语言（英语/日语显示音标音频）
+    let subjName = ''
+    try {
+      const cats = await tiku.getCategories()
+      const s = (cats || []).find(c => String(c.id) === String(it.subject_id))
+      if (s) subjName = s.name
+    } catch (e) {}
+    cardSup.value = { it, lang: detectSubjectLang(subjName) || '' }
+  } catch (e) { showToast('打开失败：' + (e.message || '未知错误'), 'err') }
+  finally {
+    cardBusy.value = new Set(cardBusy.value); cardBusy.value.delete(it.question_id)
+  }
 }
 
 // 手动移除错题（软删）：不再显示、不再进复习队列；之后再次答错会自动回来
@@ -236,6 +246,21 @@ async function toggleSimilar(qid) {
       </div>
     </div>
   </div>
+
+  <!-- 转卡补充表单 -->
+  <CardSupplement
+    v-if="cardSup"
+    :show="true"
+    :front="cardSup.it.stem || ''"
+    :back="(cardSup.it.analysis ? '【解析】' + cardSup.it.analysis : '') || (answerText(cardSup.it) || '')"
+    :category="cardSup.it.cat || ''"
+    :subject-id="cardSup.it.subject_id || null"
+    :category-id="cardSup.it.category_id || null"
+    :source-question-id="cardSup.it.question_id"
+    :lang="cardSup.lang"
+    @close="cardSup = null"
+    @created="cardSup = null; load()"
+  />
 </template>
 
 <style scoped>

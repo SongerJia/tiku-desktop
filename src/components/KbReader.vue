@@ -9,6 +9,8 @@ import { showToast } from '../utils/toast.js'
 import { celebrate } from '../utils/celebrate.js'
 import { useEsc } from '../utils/useEsc.js'
 import SimpleQuestion from './SimpleQuestion.vue'
+import CardSupplement from './CardSupplement.vue'
+import { detectSubjectLang } from '../utils/speech.js'
 
 const props = defineProps({ show: Boolean, doc: Object })
 useBodyLock(() => props.show)
@@ -408,16 +410,26 @@ async function removeHl(id) {
   await loadHlAndLinks()
 }
 
-// 高亮 → 记忆卡（E-2）：正面=高亮文本，背面=原文+文档标题
+// 高亮 → 记忆卡（E-2）：正面=高亮文本，背面=原文+文档标题；弹补充表单（音标/释义/音频，语言科目）
 let hlCardBusy = null
+const hlCard = ref(null)     // { highlight, doc }
+const hlCardLang = ref('')
 async function hlToCard(h) {
   if (hlCardBusy === h.id) return
   hlCardBusy = h.id
   try {
-    const r = await tiku.addCardFromHighlight(h.id)
-    if (r.ok) showToast(r.duplicate ? '该高亮已生成过记忆卡' : '已生成记忆卡，可在「记忆卡」复习', 'ok')
-    else showToast('生成失败：' + (r.error || '未知错误'), 'err')
-  } catch (e) { showToast('生成失败：' + (e.message || e), 'err') }
+    // 查科目名判断语言（英语/日语显示音标音频）
+    let subjName = ''
+    if (props.doc && props.doc.subject_id) {
+      try {
+        const cats = await tiku.getCategories()
+        const s = (cats || []).find(c => String(c.id) === String(props.doc.subject_id))
+        if (s) subjName = s.name
+      } catch (e) {}
+    }
+    hlCardLang.value = detectSubjectLang(subjName) || ''
+    hlCard.value = { highlight: h, doc: props.doc }
+  } catch (e) { /* 打开失败忽略 */ }
   finally { hlCardBusy = null }
 }
 
@@ -761,6 +773,20 @@ useEsc(() => onClose()) // Esc 关闭走 onClose：先保存 MD 改动/PDF 页�
     </div>
 
     <SimpleQuestion :show="sq.show" :q="sq.q" @close="sq.show = false" />
+
+    <!-- 高亮转卡补充表单 -->
+    <CardSupplement
+      v-if="hlCard"
+      :show="true"
+      :front="(hlCard.highlight.text || '').slice(0, 80)"
+      :back="'【原文】' + (hlCard.highlight.text || '') + '\n【来源】' + ((hlCard.doc && hlCard.doc.title) || '知识库')"
+      :category="(hlCard.doc && hlCard.doc.title) || '知识库'"
+      :subject-id="(hlCard.doc && hlCard.doc.subject_id) || null"
+      :source-doc-id="hlCard.doc ? hlCard.doc.id : null"
+      :lang="hlCardLang"
+      @close="hlCard = null"
+      @created="hlCard = null; loadHlAndLinks()"
+    />
   </div>
   </Teleport>
 </template>

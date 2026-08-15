@@ -527,6 +527,13 @@ try {
   const catCards = db.listCards({ categoryId: subACh.id })
   ok('listCards 按章节过滤', catCards.some(c => c.front === '章节卡正面' && c.category_name))
   ok('listCards 返回章节名', catCards.every(c => !c.category_id || c.category_name))
+
+  // 智能转卡：内容查重 → 关联出处（不新建）；补充字段（音标/音频）保存
+  const smNew = db.addCardSmart({ front: 'uniqueWord-smart', back: '释义', category: '词汇', phonetic: '/juːˈniːk/', audioUrl: 'a.mp3' })
+  const smDup = db.addCardSmart({ front: 'uniqueWord-smart', back: '再次转卡', sourceDocId: 999 })
+  const smCard = db.listCards().find(c => c.front === 'uniqueWord-smart')
+  ok('addCardSmart 新建带音标/音频', !!smNew.ok && !smNew.duplicate && smCard && smCard.phonetic === '/juːˈniːk/' && smCard.audio_url === 'a.mp3')
+  ok('addCardSmart 内容查重关联出处', smDup.matched === true && smDup.cardId === smNew.cardId && smCard.source_doc_id === 999)
   db.deleteCategory(subA.id) // 级联清理（含错题残留无碍后续）
 
   // 空科目边界：新建科目无章节时拉题应返回空（防止 IN() SQL 报错）

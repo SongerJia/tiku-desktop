@@ -340,6 +340,10 @@ module.exports = function schemaModule(ctx) {
     addColumn('cards', 'subject_id', 'subject_id INTEGER')
     // 记忆卡章节归属：管理弹窗按 科目→章节 维度筛选（与题目同维度，单词卡按章节组织）
     addColumn('cards', 'category_id', 'category_id INTEGER')
+    // 单词卡增强：音标 / 真人发音音频 / 文档来源（从文档高亮转卡时记录出处，配合 source_question_id）
+    addColumn('cards', 'phonetic', "phonetic TEXT DEFAULT ''")
+    addColumn('cards', 'audio_url', "audio_url TEXT DEFAULT ''")
+    addColumn('cards', 'source_doc_id', 'source_doc_id INTEGER')
     // 收藏分组（方向 9：收藏面板按组浏览/标记；fav_group 避开 SQL 关键字 group）
     addColumn('favorites', 'fav_group', "fav_group TEXT DEFAULT ''")
     // 知识库科目关联（第二批：知识库按科目归类，切换科目维度时文档跟随）

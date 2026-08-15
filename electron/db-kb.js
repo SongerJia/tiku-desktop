@@ -171,25 +171,6 @@ module.exports = function kbModule(ctx) {
       return { ok: true }
     },
 
-    // 高亮 → 记忆卡（E-2）：正面=高亮文本（截断 80），背面=原文+文档标题，卡组=文档标题；front 相同视为重复
-    addCardFromHighlight(highlightId) {
-      const h = sqlite.prepare('SELECT * FROM kb_highlights WHERE id=? AND deleted=0').get(highlightId)
-      if (!h) return { ok: false, error: '高亮不存在' }
-      const text = String(h.text || '').trim()
-      if (!text) return { ok: false, error: '高亮内容为空' }
-      const doc = sqlite.prepare('SELECT title, subject_id FROM kb_docs WHERE id=?').get(h.doc_id)
-      const title = (doc && doc.title) || '知识库'
-      const front = text.slice(0, 80)
-      const dup = sqlite.prepare('SELECT id FROM cards WHERE front=? AND deleted=0').get(front)
-      if (dup) return { ok: true, duplicate: true, cardId: dup.id }
-      const back = ['【原文】' + text, '【来源】' + title].join('\n')
-      const now = Date.now()
-      const info = sqlite.prepare('INSERT INTO cards (front, back, category, subject_id, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,0,?)')
-        .run(front, back, title, (doc && doc.subject_id) || null, now, now, uuid())
-      try { this.logXp(2, 'card', 'highlight') } catch (e) { /* XP 失败不影响转卡 */ }
-      return { ok: true, duplicate: false, cardId: info.lastInsertRowid }
-    },
-
     setKbTags(docId, tags = []) {
       const tx = sqlite.transaction(() => {
         sqlite.prepare('DELETE FROM kb_tags WHERE doc_id=?').run(docId)

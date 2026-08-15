@@ -84,6 +84,18 @@
       </div>
     </div>
     </div>
+
+    <!-- 转卡补充表单 -->
+    <CardSupplement
+      :show="cardSupplement"
+      :front="info.question.stem || ''"
+      :back="answerText || info.question.analysis || ''"
+      :category="pathText"
+      :source-question-id="props.questionId"
+      :lang="cardLang"
+      @close="cardSupplement = false"
+      @created="onCardCreated"
+    />
   </Teleport>
 </template>
 
@@ -93,6 +105,8 @@ import { useBodyLock } from '../composables/useBodyLock.js'
 import { useFocusTrap } from '../composables/useFocusTrap.js'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
+import { detectSubjectLang } from '../utils/speech.js'
+import CardSupplement from './CardSupplement.vue'
 
 const props = defineProps({
   show: Boolean,
@@ -108,6 +122,9 @@ const info = ref({ question: { type: '', stem: '', options_json: '', answer_json
 const revealed = ref(false)
 const reasonOpen = ref(false)
 const cardBusy = ref(false)
+// 转卡补充表单（音标/释义/音频）：仅语言科目显示音标音频，技术类只确认背面向容
+const cardSupplement = ref(false)
+const cardLang = ref('')
 
 const options = computed(() => {
   try { return JSON.parse(info.value.question.options_json || '[]') } catch (e) { return [] }
@@ -127,6 +144,8 @@ const answerText = computed(() => {
 })
 const s = computed(() => info.value.status || {})
 const pathText = computed(() => (info.value.question.categoryPath || []).join(' › '))
+// 科目语言：从路径首段（科目名）识别，英语/日语才显示音标/音频
+const subjectName = computed(() => (info.value.question.categoryPath || [])[0] || '')
 
 const fmtDate = (ts) => {
   if (!ts) return ''
@@ -155,15 +174,12 @@ async function toggleFav() {
 
 async function toCard() {
   if (cardBusy.value) return
-  cardBusy.value = true
-  const r = await tiku.addCardFromQuestion(info.value.question.id)
-  cardBusy.value = false
-  if (r && r.ok) {
-    if (!r.duplicate) info.value.status.hasCard = true
-    showToast(r.duplicate ? '已存在同题记忆卡' : '已生成记忆卡', 'ok')
-  } else {
-    showToast('生成失败', 'err')
-  }
+  // 打开补充表单：内部先查重（同内容已有关联 → 提示；无 → 补充音标/释义/音频后新建）
+  cardLang.value = detectSubjectLang(subjectName.value) || ''
+  cardSupplement.value = true
+}
+function onCardCreated() {
+  info.value.status.hasCard = true
 }
 
 async function markReason(r) {

@@ -11,6 +11,7 @@ import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
 import { useEsc } from '../utils/useEsc.js'
+import { detectSubjectLang } from '../utils/speech.js'
 
 const props = defineProps({ show: Boolean })
 useBodyLock(() => props.show)
@@ -78,17 +79,43 @@ function fmtDate(t) {
 }
 
 // ---- 添加 / 编辑（行内展开表单）----
-const form = ref({ id: null, front: '', back: '', category: '', subjectId: null, categoryId: null })
+const form = ref({ id: null, front: '', back: '', category: '', subjectId: null, categoryId: null, phonetic: '', audioName: '' })
 const formOpen = ref(false)
+// 表单当前科目的语言（英语/日语 → 显示音标与音频；技术类不显示）
+const formLang = computed(() => {
+  const s = categories.value.find(c => String(c.id) === String(form.value.subjectId))
+  return detectSubjectLang(s ? s.name : '') || ''
+})
+// 音频预览 dataURL（本地文件名 → getAudioUrl）
+const formAudioSrc = ref('')
+watch(() => form.value.audioName, async (v) => {
+  if (!v) { formAudioSrc.value = ''; return }
+  if (/^https?:\/\//.test(v) || v.startsWith('file://')) { formAudioSrc.value = v; return }
+  try { formAudioSrc.value = await tiku.getAudioUrl(v) } catch (e) { formAudioSrc.value = '' }
+})
+function onPickAudio(e) {
+  const file = e.target.files && e.target.files[0]
+  e.target.value = ''
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = async () => {
+    try {
+      form.value.audioName = await tiku.saveAudio(reader.result)
+    } catch (err) {
+      showToast('音频保存失败：' + (err.message || String(err)), 'err')
+    }
+  }
+  reader.readAsArrayBuffer(file)
+}
 function startAdd() {
-  form.value = { id: null, front: '', back: '', category: '', subjectId: subjectId.value ? Number(subjectId.value) : null, categoryId: categoryId.value ? Number(categoryId.value) : null }
+  form.value = { id: null, front: '', back: '', category: '', subjectId: subjectId.value ? Number(subjectId.value) : null, categoryId: categoryId.value ? Number(categoryId.value) : null, phonetic: '', audioName: '' }
   formOpen.value = true
 }
 function editCard(c) {
-  form.value = { id: c.id, front: c.front, back: c.back, category: c.category || '', subjectId: c.subject_id ?? null, categoryId: c.category_id ?? null }
+  form.value = { id: c.id, front: c.front, back: c.back, category: c.category || '', subjectId: c.subject_id ?? null, categoryId: c.category_id ?? null, phonetic: c.phonetic || '', audioName: c.audio_url || '' }
   formOpen.value = true
 }
-function cancelForm() { formOpen.value = false; form.value = { id: null, front: '', back: '', category: '', subjectId: null, categoryId: null } }
+function cancelForm() { formOpen.value = false; form.value = { id: null, front: '', back: '', category: '', subjectId: null, categoryId: null, phonetic: '', audioName: '' } }
 // 表单换科目时清掉不属于该科目的章节选择（防跨科目挂错章节）
 watch(() => form.value.subjectId, (v) => {
   if (form.value.categoryId && !chaptersFor(v).some(c => String(c.id) === String(form.value.categoryId))) {
@@ -100,8 +127,8 @@ async function saveCard() {
   const b = form.value.back.trim()
   if (!f || !b) { showToast('正面和背面都不能为空'); return }
   try {
-    if (form.value.id) await tiku.updateCard(form.value.id, f, b, form.value.category.trim(), form.value.subjectId, form.value.categoryId)
-    else await tiku.addCard(f, b, form.value.category.trim(), form.value.subjectId, form.value.categoryId)
+    if (form.value.id) await tiku.updateCard(form.value.id, f, b, form.value.category.trim(), form.value.subjectId, form.value.categoryId, form.value.phonetic, form.value.audioName)
+    else await tiku.addCard(f, b, form.value.category.trim(), form.value.subjectId, form.value.categoryId, form.value.phonetic, form.value.audioName)
     showToast(form.value.id ? '已保存修改' : '已添加卡片', 'ok')
     cancelForm()
     await refreshAll()
@@ -272,6 +299,18 @@ async function downloadTemplateXlsx() {
               <input v-model="form.front" class="input" placeholder="正面（单词 / 问题）" @keyup.enter="saveCard" />
               <input v-model="form.back" class="input" placeholder="背面（释义 / 答案）" @keyup.enter="saveCard" />
             </div>
+            <div v-if="formLang" class="form-grid">
+              <input v-model="form.phonetic" class="input" :placeholder="formLang === 'ja-JP' ? '音标 / 假名标注' : '音标（如 /əˈbændən/）'" />
+            </div>
+            <div v-if="formLang" class="form-grid">
+              <label class="input audio-pick">
+                发音音频
+                <input type="file" accept="audio/*" hidden @change="onPickAudio" />
+              </label>
+              <span v-if="form.audioName" class="audio-name">{{ form.audioName }}</span>
+              <button v-if="form.audioName" class="audio-rm" @click="form.audioName = ''">×</button>
+            </div>
+            <audio v-if="formAudioSrc" :src="formAudioSrc" controls preload="none" class="audio-preview"></audio>
             <div class="form-grid">
               <select v-model.number="form.subjectId" class="input">
                 <option :value="null">未选科目</option>
@@ -297,12 +336,15 @@ async function downloadTemplateXlsx() {
             <div v-for="c in cards" :key="c.id" class="card-item">
             <div class="card-main">
               <div class="card-front">{{ c.front }}</div>
+              <div v-if="c.phonetic" class="card-phonetic">{{ c.phonetic }}</div>
               <div class="card-back">{{ c.back }}</div>
             </div>
             <div class="card-side">
               <div class="card-meta">
                 <span class="mem-badge" :class="cardBadge(c).cls">{{ cardBadge(c).text }}</span>
                 <span v-if="c.source_question_id" class="cat-badge src">来自题目</span>
+                <span v-if="c.source_doc_id" class="cat-badge doc">来自文档</span>
+                <span v-if="c.audio_url" class="cat-badge aud">有音频</span>
                 <span v-if="c.category_name" class="cat-badge">{{ c.category_name }}</span>
                 <span v-else-if="c.category" class="cat-badge">{{ c.category }}</span>
                 <span v-if="!c.subject_id" class="cat-badge uncat">未分类</span>
@@ -500,6 +542,7 @@ async function downloadTemplateXlsx() {
 }
 .card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .card-front { font-size: 15px; font-weight: 600; color: var(--text); word-break: break-word; }
+.card-phonetic { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
 .card-back { font-size: 13px; color: var(--muted); word-break: break-word; line-height: 1.5; }
 .card-side { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; align-items: flex-end; }
 .card-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 200px; }
@@ -520,9 +563,19 @@ async function downloadTemplateXlsx() {
 .mem-badge.new { background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.35); color: var(--muted); }
 .cat-badge { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 8px; }
 .cat-badge.src { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, transparent); }
+.cat-badge.doc { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+.cat-badge.aud { color: var(--warn-soft); border-color: color-mix(in srgb, var(--warn-soft) 40%, transparent); }
 .cat-badge.uncat { color: var(--warn-soft); }
 .state { font-size: 11px; color: var(--muted); }
 .state.due { color: var(--warn-soft); }
+
+/* 表单音频选择 */
+.audio-pick { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--muted); flex: 0 0 auto; }
+.audio-pick:hover { border-color: var(--brand); color: var(--brand); }
+.audio-name { font-size: 12px; color: var(--muted); word-break: break-all; }
+.audio-rm { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 0 4px; }
+.audio-rm:hover { color: var(--bad); }
+.audio-preview { width: 100%; height: 36px; }
 
 /* CSV/Excel 导入弹层 */
 .cm-import-mask {
