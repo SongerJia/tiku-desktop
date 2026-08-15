@@ -514,8 +514,8 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- 更多功能（不加 v-tilt：preserve-3d 上下文会让 grid 子格 hover 命中偏移，右侧捕捉不到鼠标） -->
-      <div class="card more-card">
+      <!-- 更多功能（v-tilt flat：保留倾斜特效但不开 preserve-3d，grid 子格 hover 命中不偏移） -->
+      <div class="card more-card" v-tilt="{ flat: true }">
         <div class="card-title">更多功能</div>
         <div class="more-grid">
           <div class="more-item" @click="emit('start', { mode: 'wrong' })">
