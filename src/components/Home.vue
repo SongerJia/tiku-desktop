@@ -792,9 +792,16 @@ onBeforeUnmount(() => {
 /* 目标进度环：从空环填充到目标值 */
 .ring-anim { transition: stroke-dashoffset 1s cubic-bezier(.3, .7, .3, 1); }
 
-/* 更多宫格：hover 抬升 + 亮底 */
-.more-item { transition: transform .15s ease, background .15s ease, box-shadow .15s ease; }
-.more-item:hover { transform: translateY(-2px); background: color-mix(in srgb, var(--brand) 8%, transparent); box-shadow: var(--glow-soft); }
+/* 更多宫格：hover 抬升 + 亮底（整格响应，文字/图标/计数同步反馈，避免只有图标左侧在动） */
+.more-item { transition: transform .15s ease, background .15s ease, box-shadow .15s ease, border-color .15s ease; }
+.more-item:hover {
+  transform: translateY(-2px);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+  border-color: color-mix(in srgb, var(--brand) 55%, transparent);
+  box-shadow: var(--glow-soft);
+}
+.more-item:hover .mi-main { color: var(--brand); }
+.more-item:hover .mi-count { color: var(--brand-soft); }
 
 /* ===== 首页审查精修（2026-08-12）：hover 质感统一 + 图标对齐 ===== */
 /* 进度环卡：无论是否可点，统一 hover 抬升亮边 */
