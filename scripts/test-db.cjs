@@ -314,9 +314,17 @@ try {
   // cards 表参与合并（修复：此前漏合并导致跨端闪卡丢失）
   const mCards = db.mergeRemote(JSON.stringify(db.exportSync()))
   ok('mergeRemote 合并 cards 表', mCards.cards >= 1)
-  // M1 回归：合并后 questions 快照仍含 subject_id 且等于本地科目根（远端自增 id 不会覆盖）
+  // M1 回归：合并后 questions 的 subject_id 应等于 category 树根科目（远端自增 id 不会覆盖）
   const mSyncQ = JSON.parse(db.exportSync()).questions
-  ok('mergeRemote 后 subject_id 保留', mSyncQ.every(x => 'subject_id' in x))
+  {
+    // 平铺 getCategories 树建 parentOf → rootOf（parent_id 0/null 为根，与 db-meta 一致）
+    const flat = []
+    const walkCats = (arr, pid) => { arr.forEach(c => { flat.push([c.id, pid]); if (c.children) walkCats(c.children, c.id) }) }
+    walkCats(db.getCategories(), null)
+    const pOf = new Map(flat)
+    const rootOf = (id) => { let cur = id, seen = new Set(); while (pOf.has(cur) && pOf.get(cur) > 0 && !seen.has(cur)) { seen.add(cur); cur = pOf.get(cur) } return cur }
+    ok('mergeRemote 后 subject_id 等于科目根', mSyncQ.every(x => x.category_id == null ? x.subject_id == null : x.subject_id === rootOf(x.category_id)))
+  }
   // recite 背题模式：只进错题本，不写答题记录（不污染统计）
   const reciteQ = db.getWrongBook()[0]
   if (reciteQ) {
@@ -355,6 +363,9 @@ try {
   // H2 回归：importData 列清单必须含 subject_id（此前漏列 → INSERT OR REPLACE 后置 NULL）
   const impQ = db.getQuestionById(q.id)
   ok('importData 后 subject_id 保留', impQ && (impQ.category_id == null ? impQ.subject_id == null : impQ.subject_id != null))
+  // 标签备份恢复：一题多标签完整保留（qtSeen 守卫——逐条 DELETE 会只剩最后一条）
+  const impTags = db.getQuestionTags(q.id)
+  ok('importData 后题目标签完整保留', Array.isArray(impTags) && impTags.length === 2 && impTags.every(t => ['标签A', '标签B'].includes(t)))
   const syncImgName = db.saveImage(Buffer.from('sync-img-bytes'))
   db.updateQuestion({ ...q, images: [syncImgName] })
   const imgs = db.exportImageFiles(0)

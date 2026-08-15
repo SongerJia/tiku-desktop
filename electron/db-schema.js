@@ -271,6 +271,8 @@ module.exports = function schemaModule(ctx) {
       CREATE INDEX IF NOT EXISTS idx_cat_parent ON categories(parent_id);
       CREATE INDEX IF NOT EXISTS idx_wb_user_status ON wrong_books(user_id, status, next_review_at);
       CREATE INDEX IF NOT EXISTS idx_fav_user ON favorites(user_id, question_id);
+      -- 复习抽卡/到期统计按 review_at 过滤排序（getCardReview/cardsStats 高频）
+      CREATE INDEX IF NOT EXISTS idx_cards_review ON cards(review_at);
       CREATE INDEX IF NOT EXISTS idx_ar_user_q ON answer_records(user_id, question_id);
       CREATE INDEX IF NOT EXISTS idx_ar_user_created ON answer_records(user_id, created_at); -- 按日/月统计、最近记录（answer_records 增长最快，缺时间索引会全扫）
       CREATE INDEX IF NOT EXISTS idx_notes_user_q ON notes(user_id, question_id); -- 笔记高频查询（答题页每切一题 getNote）
@@ -344,6 +346,10 @@ module.exports = function schemaModule(ctx) {
     addColumn('cards', 'subject_cid', 'subject_cid TEXT')
     addColumn('materials', 'subject_cid', 'subject_cid TEXT')
     addColumn('kb_docs', 'subject_cid', 'subject_cid TEXT')
+    // kb_docs 的 subject_id/category_id 是迁移期才加的列 → 索引必须在此（addColumn 之后）创建，
+    // 不能放 initSchema 索引区（建表时列不存在会崩）
+    sqlite.exec('CREATE INDEX IF NOT EXISTS idx_kb_docs_subject ON kb_docs(subject_id)')
+    sqlite.exec('CREATE INDEX IF NOT EXISTS idx_kb_docs_cat ON kb_docs(category_id)')
   },
   }
 }
