@@ -27,7 +27,6 @@ const analysis = ref('')
 const keywords = ref('')          // 问答题采分点（；/换行/逗号分隔）
 const difficulty = ref(3)
 const source = ref('手动录入')
-const categoryId = ref('')
 const error = ref('')
 const saving = ref(false)
 // 题干配图：文件名数组（原文件存 userData/images，库里只存文件名）
@@ -50,22 +49,21 @@ const isEdit = computed(() => !!(props.question && props.question.id))
 const isJudge = computed(() => type.value === 'judge')
 const isEssay = computed(() => type.value === 'essay')
 
-// 语言科目判定（科目名约定）：从分类树向上找到科目 → 科目名含 英语/English/雅思 等 → 显示听力音频
+// 语言科目判定（科目名约定）：科目下拉选择 → 科目名含 英语/English/雅思 等 → 显示听力音频
+const subjectSel = ref('')
+const chapterSel = ref('')
+const subjectOptions = computed(() => (props.categories || []).map(c => ({ id: c.id, name: c.name })))
+const chapterOptions = computed(() => {
+  const s = (props.categories || []).find(c => String(c.id) === String(subjectSel.value))
+  return (s && s.children) || []
+})
 const curSubjectName = computed(() => {
-  const cid = Number(categoryId.value)
-  if (!cid) return ''
-  const walk = (nodes) => {
-    for (const n of nodes || []) {
-      if (Number(n.id) === cid) return n.name
-      if (n.children) {
-        if ((n.children || []).some(c => Number(c.id) === cid)) return n.name
-      }
-    }
-    return ''
-  }
-  return walk(props.categories)
+  const s = (props.categories || []).find(c => String(c.id) === String(subjectSel.value))
+  return s ? s.name : ''
 })
 const isLangSubject = computed(() => !!detectSubjectLang(curSubjectName.value))
+// 保存用的归属：章节优先（题目必须挂具体节点，选了章节用章节，否则用科目）
+const saveCategoryId = computed(() => (chapterSel.value ? Number(chapterSel.value) : (subjectSel.value ? Number(subjectSel.value) : 0)))
 
 // 音频：若 audioUrl 是本地文件名（非 http/file），转成可播放的 dataURL
 watch(audioUrl, async (v) => {
@@ -73,15 +71,21 @@ watch(audioUrl, async (v) => {
   try { audioSrc.value = await tiku.getAudioUrl(v) } catch (e) { audioSrc.value = '' }
 }, { immediate: true })
 
-// 分类拍平成「科目 / 章节」，题目只能挂在具体节点上
-const flatCategories = computed(() => {
-  const out = []
-  ;(props.categories || []).forEach(s => {
-    out.push({ id: s.id, label: s.name, isSubject: true })
-    ;(s.children || []).forEach(c => out.push({ id: c.id, label: '　└ ' + c.name, isSubject: false }))
-  })
-  return out
-})
+// 由分类 id（科目或章节）反推：科目下拉 + 章节下拉的选中值
+function splitCategoryId(cid) {
+  subjectSel.value = ''
+  chapterSel.value = ''
+  if (!cid) return
+  const n = Number(cid)
+  const s = (props.categories || []).find(c => Number(c.id) === n)
+  if (s) { subjectSel.value = String(s.id); return }
+  for (const c of props.categories || []) {
+    const ch = (c.children || []).find(x => Number(x.id) === n)
+    if (ch) { subjectSel.value = String(c.id); chapterSel.value = String(ch.id); return }
+  }
+}
+// 换科目清空章节（防跨科目挂错）
+watch(subjectSel, () => { chapterSel.value = '' })
 
 function loadFromProps() {
   error.value = ''
@@ -97,7 +101,7 @@ function loadFromProps() {
     keywords.value = (q.keywords || []).join('；')
     difficulty.value = q.difficulty || 3
     source.value = q.source || '手动录入'
-    categoryId.value = q.category_id || ''
+    splitCategoryId(q.category_id)
     images.value = (q.images || []).slice()
     audioUrl.value = q.audio_url || ''
   } else {
@@ -109,7 +113,7 @@ function loadFromProps() {
     keywords.value = ''
     difficulty.value = 3
     source.value = '手动录入'
-    categoryId.value = props.defaultCategoryId || ''
+    splitCategoryId(props.defaultCategoryId)
     images.value = []
     audioUrl.value = ''
   }
@@ -224,7 +228,7 @@ function toggleAnswer(key) {
 }
 
 function validate() {
-  if (!categoryId.value) return '请选择所属科目/章节'
+  if (!saveCategoryId.value) return '请选择所属科目'
   if (!stem.value.trim()) return '题干不能为空'
   if (isJudge.value) {
     if (!answer.value.length) return '请选择判断题答案（对 / 错）'
@@ -252,7 +256,7 @@ async function save() {
     const isEssayQ = isEssay.value
     const payload = {
       id: props.question && props.question.id,
-      categoryId: Number(categoryId.value),
+      categoryId: saveCategoryId.value,
       type: type.value,
       stem: stem.value.trim(),
       options: isEssayQ || isJudge.value
@@ -290,10 +294,16 @@ async function save() {
         <div class="qe-body" @paste="onPaste">
           <div class="field">
             <label>所属科目 / 章节</label>
-            <select v-model="categoryId" class="input">
-              <option value="">请选择…</option>
-              <option v-for="c in flatCategories" :key="c.id" :value="c.id">{{ c.label }}</option>
-            </select>
+            <div class="cat-row">
+              <select v-model="subjectSel" class="input">
+                <option value="">选择科目…</option>
+                <option v-for="s in subjectOptions" :key="s.id" :value="String(s.id)">{{ s.name }}</option>
+              </select>
+              <select v-model="chapterSel" class="input" :disabled="!chapterOptions.length">
+                <option value="">章节（可空）</option>
+                <option v-for="c in chapterOptions" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
+              </select>
+            </div>
           </div>
 
           <div class="field">
@@ -454,6 +464,8 @@ async function save() {
 .qe-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field > label, .label-row > label { font-size: 12px; color: var(--muted); }
+.cat-row { display: flex; gap: 8px; }
+.cat-row .input { flex: 1; min-width: 0; }
 .label-row { display: flex; align-items: center; justify-content: space-between; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 

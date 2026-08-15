@@ -410,8 +410,8 @@ async function downloadTemplateXlsx() {
       <div v-if="formOpen" class="cf-mask" :class="{ 'is-wide': wide }" @click.self="cancelForm">
         <div class="cf-panel" :class="{ 'is-wide': wide }">
           <div class="cf-head">
-            <span class="cf-title">{{ form.id ? '编辑记忆卡' : '添加记忆卡' }}</span>
             <span class="cf-close" @click="cancelForm">×</span>
+            <span class="cf-title">{{ form.id ? '编辑记忆卡' : '添加记忆卡' }}</span>
           </div>
           <div class="cf-body">
             <div class="cf-row">
@@ -685,10 +685,10 @@ async function downloadTemplateXlsx() {
 }
 .cf-panel.is-wide { border-radius: var(--radius); max-height: 86vh; }
 .cf-head {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; gap: 10px;
   padding: 15px 18px; border-bottom: 1px solid var(--line);
 }
-.cf-title { font-size: 16px; font-weight: 700; color: var(--text); }
+.cf-title { flex: 1; font-size: 16px; font-weight: 700; color: var(--text); }
 .cf-close { font-size: 22px; color: var(--muted); cursor: pointer; line-height: 1; }
 .cf-close:hover { color: var(--brand); }
 .cf-body { padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
