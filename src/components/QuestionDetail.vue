@@ -115,7 +115,13 @@ const options = computed(() => {
 const answerText = computed(() => {
   try {
     const a = JSON.parse(info.value.question.answer_json || '[]')
-    if (Array.isArray(a)) return a.map(x => String.fromCharCode(65 + Number(x))).join('、')
+    if (Array.isArray(a)) {
+      // answer_json 存字母 key（如 ['A','B']，判断题 ['对']）；老数据可能是数字下标 → 兼容转换
+      return a.map(x => {
+        const n = Number(x)
+        return Number.isInteger(n) && String(x).trim() !== '' ? String.fromCharCode(65 + n) : String(x)
+      }).join('、')
+    }
     return String(a)
   } catch (e) { return '' }
 })
