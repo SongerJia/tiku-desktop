@@ -18,7 +18,7 @@
   --radius: 14px;
   --radius-sm: 10px;
   --shadow: 0 10px 32px rgba(0, 0, 0, 0.42);          /* 卡片 rest */
-  --shadow-hover: 0 14px 40px rgba(0, 0, 0, 0.55);    /* 卡片 hover 抬起 */
+  --shadow-hover: 0 14px 38px rgba(0, 0, 0, 0.45);    /* 卡片 hover 抬起 */
   --safe-bottom: 20px;
   /* 弹层遮罩：深色主题深色毛玻璃；浅色主题浅色毛玻璃（由 [data-theme] 覆盖） */
   --modal-mask: rgba(2, 12, 24, 0.82);
@@ -395,6 +395,7 @@ button:focus:not(:focus-visible) { outline: none; }
   --glow: 0 0 14px rgba(61, 91, 217, 0.24);
   --glow-soft: 0 0 10px rgba(61, 91, 217, 0.14);
   --shadow: 0 8px 30px rgba(20, 40, 70, 0.12);
+  --shadow-hover: 0 12px 32px rgba(20, 40, 70, 0.18);   /* 浅色卡片 hover 抬起（深色值会过重发黑） */
   /* 浅色主题：侧栏/顶栏用白底玻璃，active 用品牌蓝低饱和 */
   --sidebar-bg: rgba(255, 255, 255, 0.92);
   --topbar-bg: rgba(255, 255, 255, 0.78);
@@ -445,6 +446,7 @@ button:focus:not(:focus-visible) { outline: none; }
   --glow: 0 0 14px rgba(58, 125, 90, 0.2);
   --glow-soft: 0 0 10px rgba(58, 125, 90, 0.12);
   --shadow: 0 8px 28px rgba(30, 60, 45, 0.1);
+  --shadow-hover: 0 12px 30px rgba(30, 60, 45, 0.16);   /* 护眼卡片 hover 抬起（避免纯黑影） */
   --sidebar-bg: rgba(242, 247, 239, 0.92);
   --topbar-bg: rgba(242, 247, 239, 0.78);
   --side-active-bg: rgba(58, 125, 90, 0.15);
