@@ -9,7 +9,7 @@ import { vTilt } from '../utils/tilt.js' // 统一 3D 倾斜指令（2026-08-14 
 import CardsPanel from './CardsPanel.vue'
 
 const props = defineProps({ subject: Object, refreshKey: { default: 0 } })
-const emit = defineEmits(['start', 'start-mock', 'goto', 'daily', 'quick'])
+const emit = defineEmits(['start', 'start-mock', 'goto', 'daily', 'quick', 'manage-cards'])
 
 const summary = ref({ total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0, accuracy: 0, weekAccuracy: 0, weekDelta: 0, streak: 0 })
 const dailyGoal = ref(0)
@@ -163,7 +163,7 @@ async function load() {
     tiku.getSummary(sid),
     tiku.getSetting(sid ? `daily_goal_${sid}` : 'daily_goal'),
     tiku.focusStats(),
-    tiku.cardsStats(sid),
+    tiku.cardsStats({ subjectId: sid }),
     tiku.getWeakPoints(5, sid),
     tiku.getCategoryAccuracy(sid),
     tiku.getDailyPuzzle(sid),
@@ -338,7 +338,7 @@ function toggleNoise() {
 // 记忆卡复习/增删后刷新首页「到期」角标
 async function onCardsUpdated() {
   try {
-    const r = await tiku.cardsStats(props.subject.id)
+    const r = await tiku.cardsStats({ subjectId: props.subject.id })
     if (r) cardStats.value = r
   } catch (e) { /* 忽略 */ }
 }
@@ -569,7 +569,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <CardsPanel :show="cardsOpen" :subject="props.subject" @close="cardsOpen = false" @updated="onCardsUpdated" />
+      <CardsPanel :show="cardsOpen" :subject="props.subject" @close="cardsOpen = false" @updated="onCardsUpdated" @manage="cardsOpen = false; emit('manage-cards')" />
     </template>
   </div>
 </template>

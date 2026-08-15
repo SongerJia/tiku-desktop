@@ -20,7 +20,7 @@ import BackupModal from './BackupModal.vue'
 import CategoryManager from './CategoryManager.vue'
 
 const props = defineProps({ focusSection: { type: String, default: '' } })
-const emit = defineEmits(['reset', 'start', 'open-bank', 'open-kb-manager', 'focus-consumed'])
+const emit = defineEmits(['reset', 'start', 'open-bank', 'open-kb-manager', 'focus-consumed', 'open-card-manager'])
 
 function forwardStart(payload) {
   emit('start', payload)
@@ -882,6 +882,10 @@ onMounted(async () => {
         <div class="dm-item" @click="showCats = true">
           <span class="dm-ico" style="--gc: #4fd1a5; --gc-a: 79, 209, 165"><Icon name="grid" :size="15" /></span>
           <div class="dm-main"><span class="dm-name">科目管理</span><span class="dm-desc">科目与章节</span></div>
+        </div>
+        <div class="dm-item" @click="emit('open-card-manager')">
+          <span class="dm-ico" style="--gc: #7f9cf5; --gc-a: 127, 156, 245"><Icon name="bookmark" :size="15" /></span>
+          <div class="dm-main"><span class="dm-name">记忆卡管理</span><span class="dm-desc">增删改 · 导入 · 按科目章节筛选</span></div>
         </div>
         <div class="dm-item" @click="cleanupImages">
           <span class="dm-ico" style="--gc: #fb7185; --gc-a: 251, 113, 133"><Icon name="broom" :size="15" /></span>

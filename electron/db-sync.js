@@ -278,7 +278,7 @@ module.exports = function syncModule(ctx) {
         // 反馈层（批次功能新增，全部 LWW）
         { table: 'xp_logs', cols: ['user_id', 'xp', 'source', 'note', 'created_at', 'deleted', 'client_id'] },
         { table: 'focus_sessions', cols: ['minutes', 'started_at', 'created_at', 'deleted', 'client_id'] },
-        { table: 'cards', cols: ['front', 'back', 'category', 'subject_id', 'subject_cid', 'source_question_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'] },
+        { table: 'cards', cols: ['front', 'back', 'category', 'subject_id', 'subject_cid', 'category_id', 'source_question_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'] },
         { table: 'materials', cols: ['title', 'content', 'subject_id', 'subject_cid', 'created_at', 'updated_at', 'deleted', 'client_id'] },
         { table: 'kb_highlights', cols: ['doc_id', 'block_id', 'text', 'note', 'color', 'created_at', 'updated_at', 'deleted', 'client_id'] },
         { table: 'kb_doc_links', cols: ['from_doc_id', 'to_doc_id', 'note', 'created_at', 'client_id'], orIgnore: true },
@@ -621,7 +621,7 @@ module.exports = function syncModule(ctx) {
         c.review_count = c.review_count ?? 0
         c.review_lapses = c.review_lapses ?? 0
       })
-      replace('cards', data.cards, ['id', 'front', 'back', 'category', 'subject_id', 'subject_cid', 'source_question_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'])
+      replace('cards', data.cards, ['id', 'front', 'back', 'category', 'subject_id', 'subject_cid', 'category_id', 'source_question_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'])
       replace('materials', data.materials, ['id', 'title', 'content', 'subject_id', 'subject_cid', 'created_at', 'updated_at', 'deleted', 'client_id'])
       this.restoreKbFiles(data.kbFiles)
       // 偏好设置（用户名/每日目标/主题/字号/同步配置等）随备份恢复，INSERT OR REPLACE by key

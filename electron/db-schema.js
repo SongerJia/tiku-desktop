@@ -338,6 +338,8 @@ module.exports = function schemaModule(ctx) {
     addColumn('cards', 'source_question_id', 'source_question_id INTEGER')
     // 记忆卡科目归属（内容闭环跟科目走：切科目只看该科目卡；错题生成卡自动继承题目科目）
     addColumn('cards', 'subject_id', 'subject_id INTEGER')
+    // 记忆卡章节归属：管理弹窗按 科目→章节 维度筛选（与题目同维度，单词卡按章节组织）
+    addColumn('cards', 'category_id', 'category_id INTEGER')
     // 收藏分组（方向 9：收藏面板按组浏览/标记；fav_group 避开 SQL 关键字 group）
     addColumn('favorites', 'fav_group', "fav_group TEXT DEFAULT ''")
     // 知识库科目关联（第二批：知识库按科目归类，切换科目维度时文档跟随）

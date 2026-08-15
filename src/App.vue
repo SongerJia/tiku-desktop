@@ -18,6 +18,7 @@ const Profile = defineAsyncComponent(() => import('./components/Profile.vue'))
 const PracticeSetup = defineAsyncComponent(() => import('./components/PracticeSetup.vue'))
 const BankManager = defineAsyncComponent(() => import('./components/BankManager.vue'))
 const KbManager = defineAsyncComponent(() => import('./components/KbManager.vue'))
+const CardManager = defineAsyncComponent(() => import('./components/CardManager.vue'))
 const MockExamSetup = defineAsyncComponent(() => import('./components/MockExamSetup.vue'))
 import { tiku } from './api/tiku.js'
 import { useResponsive } from './composables/useResponsive.js'
@@ -45,6 +46,7 @@ const showBank = ref(false)
 const bankSubjectId = ref(null) // 入口初始科目：tab 页=当前科目，我的页=null 全部
 // 文档管理（知识库：搜索/重命名/移动/删除/导入）
 const showKbManager = ref(false)
+const showCardManager = ref(false)
 const kbSubjectId = ref(null) // 同上：tab 页=当前科目，我的页=null 全部
 const kbRefreshToken = ref(0)
 // 模拟卷组卷 / 我的试卷
@@ -320,7 +322,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
         <template v-else>
           <Transition name="fade" mode="out-in">
             <div :key="currentTab" class="tab-page">
-              <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" @quick="onQuickStart" />
+              <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" @quick="onQuickStart" @manage-cards="showCardManager = true" />
               <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" :refresh-token="bankRefreshToken" @start="onStart" @manage="showBank = true; bankSubjectId = currentSubject.id" />
               <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :scope="kbScope" :refresh-token="kbRefreshToken" @manage="showKbManager = true; kbSubjectId = currentSubject.id" />
               <Stats v-else-if="currentTab === 'stats'" :subject="currentSubject" @goto="onGoto" />
@@ -332,6 +334,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
             @start="onStart"
             @open-bank="showBank = true; bankSubjectId = null"
             @open-kb-manager="showKbManager = true; kbSubjectId = null"
+            @open-card-manager="showCardManager = true"
           />
             </div>
           </Transition>
@@ -379,6 +382,8 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
     />
 
     <KbManager :show="showKbManager" :initial-subject-id="kbSubjectId" @close="showKbManager = false" @changed="onKbChanged" />
+
+    <CardManager :show="showCardManager" @close="showCardManager = false" @changed="homeRefresh++" />
 
     <MockExamSetup
       v-if="mock.active"

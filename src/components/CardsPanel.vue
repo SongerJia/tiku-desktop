@@ -13,7 +13,7 @@ import { speakText, detectSubjectLang } from '../utils/speech.js'
 const props = defineProps({ show: Boolean, subject: { type: Object, default: () => ({ id: null, name: '' }) } })
 useBodyLock(() => props.show)
 useFocusTrap(() => props.show, '.mask > .panel')
-const emit = defineEmits(['close', 'updated'])
+const emit = defineEmits(['close', 'updated', 'manage'])
 
 // 发音：按科目名识别语言（英语→en-US，日语→ja-JP，其他科目不显示发音）
 const subjLang = computed(() => detectSubjectLang(props.subject && props.subject.name))
@@ -53,7 +53,7 @@ function cardBadge(c) {
 async function load() {
   loading.value = true
   try {
-    const [list, s] = await Promise.all([tiku.listCards(filterSubjectId.value), tiku.cardsStats(filterSubjectId.value)])
+    const [list, s] = await Promise.all([tiku.listCards({ subjectId: filterSubjectId.value }), tiku.cardsStats({ subjectId: filterSubjectId.value })])
     cards.value = list
     stats.value = s
   } catch (e) { /* 加载失败不转圈 */ }
@@ -64,18 +64,18 @@ function startAdd() { form.value = { id: null, front: '', back: '', category: ''
 
 function editCard(c) {
   form.value = { id: c.id, front: c.front, back: c.back, category: c.category || '', subjectId: c.subject_id ?? null }
-  window.scrollTo && window.scrollTo({ top: 0, behavior: 'smooth' })
 }
+function cancelEdit() { form.value = { id: null, front: '', back: '', category: '', subjectId: null } }
 
 async function saveCard() {
   const f = form.value.front.trim()
   const b = form.value.back.trim()
   if (!f || !b) { showToast('正面和背面都不能为空'); return }
-  // 编辑保留原科目归属，新建归当前科目
-  const sid = form.value.id ? form.value.subjectId : props.subject.id
-  if (form.value.id) await tiku.updateCard(form.value.id, f, b, form.value.category.trim(), sid)
-  else await tiku.addCard(f, b, form.value.category.trim(), sid)
-  startAdd()
+  if (!form.value.id) return // 首页只做编辑，新建走管理弹窗
+  // 编辑保留原科目归属
+  const sid = form.value.subjectId ?? props.subject.id
+  await tiku.updateCard(form.value.id, f, b, form.value.category.trim(), sid)
+  cancelEdit()
   await load()
   emit('updated') // 增改卡后通知首页刷新「记忆卡到期」角标
 }
@@ -86,44 +86,6 @@ async function removeCard(c) {
   await tiku.deleteCard(c.id)
   await load()
   emit('updated') // 删卡后同样通知（此前只在复习完成时发）
-}
-
-// ---- CSV 批量导入（每行 front,back[,category]，支持引号包裹）----
-const csvInput = ref(null)
-function parseCsv(text) {
-  const rows = []
-  let row = [], field = '', inQ = false
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    if (inQ) {
-      if (ch === '"') { if (text[i + 1] === '"') { field += '"'; i++ } else inQ = false }
-      else field += ch
-    } else if (ch === '"') inQ = true
-    else if (ch === ',') { row.push(field); field = '' }
-    else if (ch === '\n' || ch === '\r') {
-      if (ch === '\r' && text[i + 1] === '\n') i++
-      row.push(field); field = ''
-      if (row.some(c => String(c).trim())) rows.push(row)
-      row = []
-    } else field += ch
-  }
-  row.push(field)
-  if (row.some(c => String(c).trim())) rows.push(row)
-  return rows
-}
-async function onPickCsv(e) {
-  const file = e.target.files && e.target.files[0]
-  e.target.value = ''
-  if (!file) return
-  const rows = parseCsv(await file.text())
-  let n = 0, skipped = 0
-  for (const r of rows) {
-    if (r.length < 2 || !String(r[0]).trim() || !String(r[1]).trim()) { skipped++; continue }
-    await tiku.addCard(String(r[0]).trim(), String(r[1]).trim(), String(r[2] || '').trim(), props.subject.id)
-    n++
-  }
-  showToast(n ? `CSV 导入完成：新增 ${n} 张卡片${skipped ? '，跳过 ' + skipped + ' 行' : ''}` : '未导入任何卡片，请检查 CSV 格式（front,back,category）', n ? 'ok' : 'err')
-  await load()
 }
 
 // ---- 复习模式 ----
@@ -209,18 +171,12 @@ watch(scope, () => { if (props.show) load() })
 
       <!-- 列表模式 -->
       <div v-if="mode === 'list'" class="body">
-        <!-- 添加/编辑表单 -->
-        <div class="add-form">
-          <input v-model="form.front" class="input" placeholder="正面（问题 / 考点）" @keyup.enter="saveCard" />
-          <input v-model="form.back" class="input" placeholder="背面（答案 / 解析）" @keyup.enter="saveCard" />
-          <input v-model="form.category" class="input cat-input" placeholder="分类（如：施工许可）" @keyup.enter="saveCard" />
-          <button class="btn btn-primary" @click="saveCard">{{ form.id ? '保存修改' : '添加卡片' }}</button>
-          <button v-if="form.id" class="btn" @click="startAdd">取消编辑</button>
-          <button class="btn" @click="csvInput && csvInput.click()">导入 CSV</button>
-          <input ref="csvInput" type="file" accept=".csv,.txt" style="display:none" @change="onPickCsv" />
+        <!-- 添加/导入已移到「我的 → 记忆卡管理」，此处只做复习与浏览 -->
+        <div class="manage-hint" @click="emit('manage')">
+          <Icon name="bookmark" :size="13" /> 添加 / 批量导入请到「我的 → 记忆卡管理」
         </div>
 
-        <EmptyState v-if="!cards.length" icon="bookmark" text="还没有卡片" sub="在上方输入「问题 + 答案」即可开始，也可从错题/题目一键生成；复习按遗忘曲线自动安排（记住 3 天再见 / 忘记明天再来）" />
+        <EmptyState v-if="!cards.length" icon="bookmark" text="还没有卡片" sub="到「我的 → 记忆卡管理」添加或批量导入；也可从错题/题目一键生成；复习按遗忘曲线自动安排（记住 3 天再见 / 忘记明天再来）" />
 
         <div v-else class="card-list">
           <div v-for="c in cards" :key="c.id" class="card-item">
@@ -232,7 +188,8 @@ watch(scope, () => { if (props.show) load() })
               <span class="mem-badge" :class="cardBadge(c).cls">{{ cardBadge(c).text }}</span>
               <span v-if="!c.subject_id && isAll" class="cat-badge uncat">未分类</span>
               <span v-if="c.source_question_id" class="cat-badge src">来自题目</span>
-              <span v-if="c.category" class="cat-badge">{{ c.category }}</span>
+              <span v-if="c.category_name" class="cat-badge">{{ c.category_name }}</span>
+              <span v-else-if="c.category" class="cat-badge">{{ c.category }}</span>
               <span class="state" :class="{ due: c.due }">
                 {{ c.due ? '待复习' : (c.review_count ? '已安排' : '新卡') }}{{ c.review_count ? ' · 记过 ' + c.review_count + ' 次' : '' }}{{ c.lapses ? ' · 忘过 ' + c.lapses + ' 次' : '' }}
               </span>
@@ -240,6 +197,16 @@ watch(scope, () => { if (props.show) load() })
             <div class="card-actions">
               <button class="act" @click="editCard(c)">编辑</button>
               <button class="act del" @click="removeCard(c)">删除</button>
+            </div>
+            <!-- 行内编辑表单 -->
+            <div v-if="form.id === c.id" class="inline-form" @click.stop>
+              <input v-model="form.front" class="input" placeholder="正面（问题 / 考点）" @keyup.enter="saveCard" />
+              <input v-model="form.back" class="input" placeholder="背面（答案 / 解析）" @keyup.enter="saveCard" />
+              <input v-model="form.category" class="input cat-input" placeholder="分类（如：施工许可）" @keyup.enter="saveCard" />
+              <div class="inline-actions">
+                <button class="btn btn-primary sm" @click="saveCard">保存</button>
+                <button class="btn sm" @click="cancelEdit">取消</button>
+              </div>
             </div>
           </div>
         </div>
@@ -311,6 +278,7 @@ watch(scope, () => { if (props.show) load() })
   display: flex; align-items: center; gap: 12px;
   border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
   transition: border-color .15s;
+  flex-wrap: wrap;
 }
 .card-item:hover { border-color: color-mix(in srgb, var(--brand) 35%, transparent); }
 .card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -325,6 +293,25 @@ watch(scope, () => { if (props.show) load() })
 .mem-badge.new { background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(148, 163, 184, 0.35); color: var(--muted); }
 .cat-badge { font-size: 10px; color: var(--brand); border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent); border-radius: 5px; padding: 0 6px; font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif; }
 .cat-badge.uncat { color: var(--muted); border-color: var(--line); }
+/* 管理入口提示（添加/导入已移到我的页） */
+.manage-hint {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--brand);
+  border: 1px dashed color-mix(in srgb, var(--brand) 45%, transparent);
+  border-radius: 8px; padding: 8px 12px; cursor: pointer; user-select: none;
+  background: color-mix(in srgb, var(--brand) 4%, transparent);
+  transition: all .15s;
+}
+.manage-hint:hover { background: color-mix(in srgb, var(--brand) 10%, transparent); }
+/* 行内编辑表单 */
+.inline-form {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-top: 8px; padding-top: 8px;
+  border-top: 1px dashed var(--line);
+  width: 100%;
+}
+.inline-form .input { padding: 6px 10px; font-size: 12px; }
+.inline-actions { display: flex; gap: 8px; }
 /* 记忆卡范围角标（点击切换全部/当前科目） */
 .card-scope {
   display: inline-flex; align-items: center; gap: 4px;

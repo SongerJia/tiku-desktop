@@ -502,12 +502,17 @@ try {
   // 赛季统计（当月计数）
   const ms = db.getMonthStats()
   ok('getMonthStats 当月计数正常', ms.answered >= 1 && typeof ms.monthActive === 'number' && typeof ms.focusMin === 'number' && typeof ms.cardsAdded === 'number')
-  // 记忆卡按科目：题目生成卡自动继承科目 + listCards 过滤
+  // 记忆卡按科目/章节：题目生成卡自动继承科目+章节 + listCards 过滤
   const cgA = db.addCardFromQuestion(qA.id)
-  const subjCardsA = db.listCards(subA.id)
-  const subjCardsOther = db.listCards(cats[0].id)
+  const subjCardsA = db.listCards({ subjectId: subA.id })
+  const subjCardsOther = db.listCards({ subjectId: cats[0].id })
   ok('addCardFromQuestion 自动继承题目科目', !!cgA.ok && subjCardsA.some(c => c.source_question_id === qA.id) && subjCardsOther.every(c => c.source_question_id !== qA.id))
-  ok('cardsStats(subjectId) 按科目统计', db.cardsStats(subA.id).total >= 1)
+  ok('cardsStats(subjectId) 按科目统计', db.cardsStats({ subjectId: subA.id }).total >= 1)
+  // 章节维度：listCards 按 categoryId 过滤 + 返回章节名（subACh 是 qA 所在章节）
+  db.addCard('章节卡正面', '章节卡背面', '卡组X', subA.id, subACh.id)
+  const catCards = db.listCards({ categoryId: subACh.id })
+  ok('listCards 按章节过滤', catCards.some(c => c.front === '章节卡正面' && c.category_name))
+  ok('listCards 返回章节名', catCards.every(c => !c.category_id || c.category_name))
   db.deleteCategory(subA.id) // 级联清理（含错题残留无碍后续）
 
   // 空科目边界：新建科目无章节时拉题应返回空（防止 IN() SQL 报错）
