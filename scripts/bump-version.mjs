@@ -1,5 +1,5 @@
 // 版本号提升：npm run bump <patch|minor|major>
-// 自动：①package.json version 递增 ②README 第 5 行"当前版本：**vX.Y.Z**"同步 ③git commit
+// 自动：①package.json version 递增 ②README 第 5 行"当前版本：**vX.Y.Z**"同步（git commit 需手动，见脚本末尾提示）
 // 用法：node scripts/bump-version.mjs patch|minor|major
 import fs from 'node:fs'
 

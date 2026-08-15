@@ -18,8 +18,8 @@
 
           <!-- 操作条 -->
           <div class="km-toolbar">
-            <button class="btn btn-primary sm" @click="onImport">导入文档</button>
-            <button class="btn sm" @click="onExport">导出</button>
+            <button class="btn btn-primary btn-sm" @click="onImport">导入文档</button>
+            <button class="btn btn-sm" @click="onExport">导出</button>
             <span class="km-fmt">md / pdf</span>
             <span class="km-count">{{ filteredDocs.length }} / {{ docs.length }} 篇</span>
           </div>
@@ -87,7 +87,7 @@
             <div class="km-edit-row">
               <span class="km-edit-label">文档</span>
               <span class="km-edoc" :title="editDoc.title">{{ editDoc.title }}</span>
-              <button class="btn sm" @click="openFromEdit">阅读全文</button>
+              <button class="btn btn-sm" @click="openFromEdit">阅读全文</button>
             </div>
             <div class="km-edit-row">
               <span class="km-edit-label">重命名</span>

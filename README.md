@@ -105,7 +105,7 @@
 | **科目维度全闭环** | 题库/错题/收藏/复习/每日一题/薄弱点/知识库/记忆卡**全部跟随科目**（切顶部科目即切换范围），激励（XP/连击/成就/习惯）全局 | ✅ 完成 | 各模块传 `subjectId` 过滤；知识库按科目、记忆卡按科目（错题生成卡自动继承题目科目） |
 | **赛季系统** | 每月一赛季：6 项挑战（刷题/复习/专注/打卡/记忆卡/全勤）目标逐季递增 + 赛季成就存档 | ✅ 完成 | `achievements.js` currentSeason/evaluateSeason/syncSeasonArchive + Profile 赛季区块 |
 | **安装版数据隔离** | 打包版用独立 userData 目录（`知识记忆小助手-正式版`），安装版首次打开干净空库，不带开发机测试数据 | ✅ 完成 | main.js `app.isPackaged` 时 setPath 独立目录 |
-| **发布流程** | `npm run bump patch/minor/major`（升版本号+同步 README+提交）→ `npm run release`（防呆查重+打包+上传 GitHub Releases）→ 已装用户自动更新 | ✅ 完成 | `scripts/bump-version.mjs` + `scripts/check-release-version.mjs` + electron-updater 全链路通知 |
+| **发布流程** | `npm run bump patch/minor/major`（升版本号+同步 README，提交需手动）→ `npm run release`（防呆查重+打包+上传 GitHub Releases）→ 已装用户自动更新 | ✅ 完成 | `scripts/bump-version.mjs` + `scripts/check-release-version.mjs` + electron-updater 全链路通知 |
 | **Android APK** | Capacitor 打包移动端 | ⏳ 未开始 | Phase 3 |
 
 > 「我的笔记」入口已从占位升级为真实功能（展示/删除全部笔记）；原「默写记录」「我的反馈」两个纯占位入口已移除。

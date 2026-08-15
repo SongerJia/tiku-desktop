@@ -162,8 +162,10 @@ function computeHeatSize() {
   const wrap = heatWrapEl.value
   if (!wrap) return
   const avail = wrap.clientWidth
+  // 窄屏（≤640px 媒体查询）下统计列与格子区垂直堆叠：统计列不再与格子区并排，宽度不能从可用宽中扣除
+  const isNarrow = window.innerWidth <= 640
   const statsEl = wrap.querySelector('.heat-stats')
-  const statsW = statsEl ? statsEl.offsetWidth + 16 : 0 // 统计列宽 + 列间距
+  const statsW = (!isNarrow && statsEl) ? statsEl.offsetWidth + 16 : 0 // 统计列宽 + 列间距
   const cols = Math.max(1, heatGrid.value.cols || 53)
   const cell = Math.floor((avail - statsW - (cols - 1) * HEAT_GAP - 4) / cols)
   heatCellSize.value = Math.max(8, Math.min(20, cell))
@@ -622,7 +624,7 @@ async function loadAnalysis() {
 .kpi-label { font-size: 11px; color: var(--muted); }
 
 /* 热力图（GitHub 贡献图） */
-.heat-card { display: flex; flex-direction: column; gap: 10px; overflow: hidden; } /* 热力图全宽超出时防页面横向滚动条 */
+.heat-card { display: flex; flex-direction: column; gap: 10px; overflow-x: clip; overflow-y: visible; } /* 横向裁剪防页面滚动条；纵向 visible 不裁右上光斑与 hover 流光 */
 .heat-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .heat-scope { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
 .heat-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); margin-left: auto; }
@@ -790,7 +792,7 @@ async function loadAnalysis() {
 
 /* 热力图卡：右上装饰光斑（与流光 ::after 不冲突） */
 .heat-card::before {
-  content: ''; position: absolute; top: -60px; right: -48px;
+  content: ''; position: absolute; top: -60px; right: -8px;
   width: 170px; height: 170px; border-radius: 50%;
   background: radial-gradient(circle, color-mix(in srgb, var(--brand) 9%, transparent), transparent 62%);
   pointer-events: none;
