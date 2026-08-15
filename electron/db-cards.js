@@ -1,13 +1,21 @@
 // 卡片记忆 + 材料题模块。
 // 从 db.js 拆出（拆分渐进一步）：ctx 注入 sqlite/uuid；this 互调（logXp）合并后指向 api。
 module.exports = function cardsModule(ctx) {
-  const { sqlite, uuid } = ctx
+  const { sqlite, uuid, categoryCid } = ctx
 
   return {
+    // 分类 client_id（跨端归属引用；不存在的分类返回 null）
+    _cidOfCategory(id) {
+      try { return categoryCid(id) } catch (e) { return null }
+    },
+
     addCard(front, back, category, subjectId = null, categoryId = null, phonetic = '', audioUrl = '') {
       const now = Date.now()
-      sqlite.prepare('INSERT INTO cards (front, back, category, subject_id, category_id, phonetic, audio_url, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,?,?,0,?)')
-        .run(String(front || '').trim(), String(back || '').trim(), String(category || '').trim(), subjectId || null, categoryId || null, String(phonetic || '').trim(), String(audioUrl || '').trim(), now, now, uuid())
+      sqlite.prepare('INSERT INTO cards (front, back, category, subject_id, subject_cid, category_id, category_cid, phonetic, audio_url, created_at, updated_at, deleted, client_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?)')
+        .run(String(front || '').trim(), String(back || '').trim(), String(category || '').trim(),
+          subjectId || null, subjectId ? this._cidOfCategory(subjectId) : null,
+          categoryId || null, categoryId ? this._cidOfCategory(categoryId) : null,
+          String(phonetic || '').trim(), String(audioUrl || '').trim(), now, now, uuid())
       this.logXp(2, 'card', 'new')
       return { ok: true }
     },
@@ -85,9 +93,12 @@ module.exports = function cardsModule(ctx) {
       const audioUrl = String(opts.audioUrl || '').trim()
       const back = String(opts.back || '').trim() || '（自行补充）'
       const info = sqlite.prepare(`INSERT INTO cards
-        (front, back, category, subject_id, category_id, phonetic, audio_url, source_question_id, source_doc_id, created_at, updated_at, deleted, client_id)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?)`)
-        .run(front, back, category, opts.subjectId || null, opts.categoryId || null, phonetic, audioUrl,
+        (front, back, category, subject_id, subject_cid, category_id, category_cid, phonetic, audio_url, source_question_id, source_doc_id, created_at, updated_at, deleted, client_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)`)
+        .run(front, back, category,
+          opts.subjectId || null, opts.subjectId ? this._cidOfCategory(opts.subjectId) : null,
+          opts.categoryId || null, opts.categoryId ? this._cidOfCategory(opts.categoryId) : null,
+          phonetic, audioUrl,
           opts.sourceQuestionId || null, opts.sourceDocId || null, now, now, uuid())
       this.logXp(2, 'card', 'new')
       return { ok: true, duplicate: false, cardId: info.lastInsertRowid, matched: false }
@@ -129,8 +140,11 @@ module.exports = function cardsModule(ctx) {
     },
 
     updateCard(id, front, back, category, subjectId, categoryId, phonetic, audioUrl) {
-      sqlite.prepare('UPDATE cards SET front=?, back=?, category=?, subject_id=?, category_id=?, phonetic=?, audio_url=?, updated_at=? WHERE id=? AND deleted=0')
-        .run(String(front || '').trim(), String(back || '').trim(), String(category || '').trim(), subjectId ?? null, categoryId ?? null, String(phonetic || '').trim(), String(audioUrl || '').trim(), Date.now(), id)
+      sqlite.prepare('UPDATE cards SET front=?, back=?, category=?, subject_id=?, subject_cid=?, category_id=?, category_cid=?, phonetic=?, audio_url=?, updated_at=? WHERE id=? AND deleted=0')
+        .run(String(front || '').trim(), String(back || '').trim(), String(category || '').trim(),
+          subjectId ?? null, subjectId ? this._cidOfCategory(subjectId) : null,
+          categoryId ?? null, categoryId ? this._cidOfCategory(categoryId) : null,
+          String(phonetic || '').trim(), String(audioUrl || '').trim(), Date.now(), id)
       return { ok: true }
     },
 
@@ -149,6 +163,11 @@ module.exports = function cardsModule(ctx) {
       sqlite.prepare('UPDATE cards SET review_at=?, review_count=?, review_lapses=review_lapses+?, updated_at=? WHERE id=?')
         .run(now + interval * 86400000, n, felt ? 0 : 1, now, cardId)
       if (felt) this.logXp(5, 'card', 'review')
+      // 复习日志（周报/月报统计复习数；此前缺失导致统计恒 0）
+      try {
+        sqlite.prepare('INSERT INTO review_logs (item_type, item_id, result, created_at, client_id) VALUES (?,?,?,?,?)')
+          .run('card', cardId, felt ? 1 : 0, now, uuid())
+      } catch (e) { /* 日志失败不影响评级 */ }
       return { ok: true }
     },
 

@@ -15,7 +15,7 @@ module.exports = {
     kbBlocks: ['id', 'doc_id', 'seq', 'heading', 'content', 'char_start', 'char_end', 'review_at', 'review_count', 'review_lapses'],
     kbTags: ['doc_id', 'tag'],
     kbLinks: ['id', 'doc_id', 'block_id', 'question_id', 'note', 'created_at'],
-    cards: ['id', 'front', 'back', 'category', 'subject_id', 'subject_cid', 'category_id', 'phonetic', 'audio_url', 'source_question_id', 'source_doc_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'],
+    cards: ['id', 'front', 'back', 'category', 'subject_id', 'subject_cid', 'category_id', 'category_cid', 'phonetic', 'audio_url', 'source_question_id', 'source_doc_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'],
     materials: ['id', 'title', 'content', 'subject_id', 'subject_cid', 'created_at', 'updated_at', 'deleted', 'client_id'],
     reviewLogs: ['id', 'item_type', 'item_id', 'result', 'created_at', 'client_id']
   }

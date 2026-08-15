@@ -68,7 +68,11 @@ module.exports = function syncModule(ctx) {
         settings: dump('settings').filter(r => !SESSION_SETTING_KEYS.includes(r.key)),
         avatar: avatar || null, // 头像 base64（渲染层 localStorage 传入，主进程读不到本地存储）
         cards: sqlite.prepare(
-          `SELECT c.*, cs.client_id AS subject_cid FROM cards c LEFT JOIN categories cs ON cs.id = c.subject_id WHERE c.deleted=0`
+          `SELECT c.*, cs.client_id AS subject_cid, cc.client_id AS category_cid
+           FROM cards c
+           LEFT JOIN categories cs ON cs.id = c.subject_id
+           LEFT JOIN categories cc ON cc.id = c.category_id
+           WHERE c.deleted=0`
         ).all(),
         materials: sqlite.prepare(
           `SELECT m.*, cs.client_id AS subject_cid FROM materials m LEFT JOIN categories cs ON cs.id = m.subject_id WHERE m.deleted=0`
@@ -207,7 +211,11 @@ module.exports = function syncModule(ctx) {
         focusSessions: dump('focus_sessions'),
         reviewLogs: dump('review_logs'), // 复习轨迹（成就/周报数据源，表无 deleted 列）
         cards: sqlite.prepare(
-          `SELECT c.*, cs.client_id AS subject_cid FROM cards c LEFT JOIN categories cs ON cs.id = c.subject_id WHERE c.deleted=0`
+          `SELECT c.*, cs.client_id AS subject_cid, cc.client_id AS category_cid
+           FROM cards c
+           LEFT JOIN categories cs ON cs.id = c.subject_id
+           LEFT JOIN categories cc ON cc.id = c.category_id
+           WHERE c.deleted=0`
         ).all(),
         materials: sqlite.prepare(
           `SELECT m.*, cs.client_id AS subject_cid FROM materials m LEFT JOIN categories cs ON cs.id = m.subject_id WHERE m.deleted=0`
@@ -278,7 +286,7 @@ module.exports = function syncModule(ctx) {
         // 反馈层（批次功能新增，全部 LWW）
         { table: 'xp_logs', cols: ['user_id', 'xp', 'source', 'note', 'created_at', 'deleted', 'client_id'] },
         { table: 'focus_sessions', cols: ['minutes', 'started_at', 'created_at', 'deleted', 'client_id'] },
-        { table: 'cards', cols: ['front', 'back', 'category', 'subject_id', 'subject_cid', 'category_id', 'phonetic', 'audio_url', 'source_question_id', 'source_doc_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'] },
+        { table: 'cards', cols: ['front', 'back', 'category', 'subject_id', 'subject_cid', 'category_id', 'category_cid', 'phonetic', 'audio_url', 'source_question_id', 'source_doc_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'] },
         { table: 'materials', cols: ['title', 'content', 'subject_id', 'subject_cid', 'created_at', 'updated_at', 'deleted', 'client_id'] },
         { table: 'kb_highlights', cols: ['doc_id', 'block_id', 'text', 'note', 'color', 'created_at', 'updated_at', 'deleted', 'client_id'] },
         { table: 'kb_doc_links', cols: ['from_doc_id', 'to_doc_id', 'note', 'created_at', 'client_id'], orIgnore: true },
@@ -486,9 +494,10 @@ module.exports = function syncModule(ctx) {
         const xpN = mergeSimple(9, 'xpLogs')
         const fsN = mergeSimple(10, 'focusSessions')
         const rvN = mergeSimple(15, 'reviewLogs') // 复习轨迹（2026-08-14 补：成就/周报数据源随同步迁移）
-        // cards：改手动合并（mergeSimple 无法做 subject 外键映射）——科目归属按 cid 重映射
+        // cards：改手动合并（mergeSimple 无法做 subject 外键映射）——科目+章节归属按 cid 重映射
         const cdMerged = lwwMerge(readAll('cards'), remote.cards || [])
         applyFk(cdMerged, 'subject_cid', 'subject_id', catCidToId)
+        applyFk(cdMerged, 'category_cid', 'category_id', catCidToId)
         const cdUp = makeUpsert('cards', cfg[11].cols)
         cdMerged.forEach(r => cdUp(r))
         const cdN = cdMerged.length
@@ -621,7 +630,7 @@ module.exports = function syncModule(ctx) {
         c.review_count = c.review_count ?? 0
         c.review_lapses = c.review_lapses ?? 0
       })
-      replace('cards', data.cards, ['id', 'front', 'back', 'category', 'subject_id', 'subject_cid', 'category_id', 'phonetic', 'audio_url', 'source_question_id', 'source_doc_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'])
+      replace('cards', data.cards, ['id', 'front', 'back', 'category', 'subject_id', 'subject_cid', 'category_id', 'category_cid', 'phonetic', 'audio_url', 'source_question_id', 'source_doc_id', 'review_at', 'review_count', 'review_lapses', 'created_at', 'updated_at', 'deleted', 'client_id'])
       replace('materials', data.materials, ['id', 'title', 'content', 'subject_id', 'subject_cid', 'created_at', 'updated_at', 'deleted', 'client_id'])
       this.restoreKbFiles(data.kbFiles)
       // 偏好设置（用户名/每日目标/主题/字号/同步配置等）随备份恢复，INSERT OR REPLACE by key

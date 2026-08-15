@@ -12,7 +12,10 @@ module.exports = function metaModule(ctx) {
       const tx = sqlite.transaction(() => rows.forEach(r => upd.run(uuid(), r.id)))
       tx()
     }
-    ;['users', 'categories', 'questions', 'answer_records', 'wrong_books', 'favorites', 'notes', 'papers'].forEach(setCid)
+    // 全部有 client_id 列的表（含后新增的反馈层/卡片/知识库等——漏填会导致老库升级后同步按 cid 合并失败）
+    ;['users', 'categories', 'questions', 'answer_records', 'wrong_books', 'favorites', 'notes', 'papers',
+      'paper_questions', 'kb_docs', 'xp_logs', 'habits', 'habit_checks', 'review_logs', 'focus_sessions',
+      'cards', 'materials', 'kb_highlights', 'kb_doc_links'].forEach(setCid)
 
     const fix = (table, fkCol, refTable, refCol) =>
       sqlite.prepare(`UPDATE ${table} SET ${fkCol}=(SELECT client_id FROM ${refTable} r WHERE r.id=${table}.${refCol})

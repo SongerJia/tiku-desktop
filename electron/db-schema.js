@@ -353,6 +353,8 @@ module.exports = function schemaModule(ctx) {
     addColumn('kb_docs', 'category_cid', 'category_cid TEXT') // 跨端章节归属：merge 时按 cid 重映射
     // 跨端科目归属：cards/materials/kb_docs 的 subject_id 是本地自增 id，远端同步会挂错科目 → 加 subject_cid 列，merge 按 cid 重映射
     addColumn('cards', 'subject_cid', 'subject_cid TEXT')
+    // 跨端章节归属：cards 的 category_id 同样需 cid 重映射（否则跨设备同步章节挂错，与 subject_cid 同款）
+    addColumn('cards', 'category_cid', 'category_cid TEXT')
     addColumn('materials', 'subject_cid', 'subject_cid TEXT')
     addColumn('kb_docs', 'subject_cid', 'subject_cid TEXT')
     // kb_docs 的 subject_id/category_id 是迁移期才加的列 → 索引必须在此（addColumn 之后）创建，

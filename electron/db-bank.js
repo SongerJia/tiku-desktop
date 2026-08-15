@@ -346,7 +346,8 @@ module.exports = function bankModule(ctx) {
         // 科目/章节删除后关联内容不随之删除，但归属清空（内容保留可继续用，避免孤儿不可达）
         // kb_docs.subject_id 存科目根 id、category_id 存章节 id；cards/materials/papers 只有 subject_id
         sqlite.prepare(`UPDATE kb_docs SET subject_id=NULL, category_id=NULL, updated_at=? WHERE subject_id IN (${ph}) OR category_id IN (${ph})`).run(now, ...ids, ...ids)
-        sqlite.prepare(`UPDATE cards SET subject_id=NULL, updated_at=? WHERE subject_id IN (${ph})`).run(now, ...ids)
+        // cards 同 kb_docs：科目+章节归属都清（此前只清 subject_id，删章节后 category_id 残留）
+        sqlite.prepare(`UPDATE cards SET subject_id=NULL, category_id=NULL, updated_at=? WHERE subject_id IN (${ph}) OR category_id IN (${ph})`).run(now, ...ids, ...ids)
         sqlite.prepare(`UPDATE materials SET subject_id=NULL, updated_at=? WHERE subject_id IN (${ph})`).run(now, ...ids)
         sqlite.prepare(`UPDATE papers SET subject_id=NULL, updated_at=? WHERE subject_id IN (${ph})`).run(now, ...ids)
       })

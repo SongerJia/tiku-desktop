@@ -538,6 +538,17 @@ try {
   db.updateCard(smNew.cardId, 'uniqueWord-smart', '新释义', '词汇', null, smCard.category_id, smCard.phonetic, smCard.audio_url)
   const smAfter = db.listCards().find(c => c.front === 'uniqueWord-smart')
   ok('updateCard 传回增强字段不丢失', smAfter.phonetic === '/juːˈniːk/' && smAfter.audio_url === 'a.mp3')
+  // 跨端章节归属：addCard 带章节时 category_cid 落库（从分类树 children 找章节的 client_id）
+  const cc = db.addCard('章节cid卡', '背面', '词汇', subA.id, subACh.id)
+  const ccCard = db.listCards({ categoryId: subACh.id }).find(c => c.front === '章节cid卡')
+  const subjRoot = db.getCategories().find(c => c.id === subA.id)
+  const chNode = subjRoot && (subjRoot.children || []).find(c => c.id === subACh.id)
+  ok('addCard 写入 category_cid', !!ccCard && !!ccCard.category_cid && chNode && ccCard.category_cid === chNode.client_id)
+  // 复习日志：rateCard 后 review_logs 有记录（周报/月报统计复习数数据源，此前缺失恒 0）
+  const msBefore = db.getMonthStats().reviewed
+  db.rateCard(ccCard.id, 1)
+  const msAfter = db.getMonthStats().reviewed
+  ok('rateCard 写入 review_logs', msAfter === msBefore + 1)
   db.deleteCategory(subA.id) // 级联清理（含错题残留无碍后续）
 
   // 空科目边界：新建科目无章节时拉题应返回空（防止 IN() SQL 报错）

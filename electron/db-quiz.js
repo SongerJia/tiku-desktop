@@ -310,6 +310,11 @@ module.exports = function quizModule(ctx) {
       sqlite.prepare('UPDATE wrong_books SET reviewed_count=?, status=?, next_review_at=?, ease=?, interval=?, deleted=0, updated_at=? WHERE id=?')
         .run(rc, graduated ? 'mastered' : 'wrong', sched.next, sched.ease, sched.interval, now, wb.id)
     }
+    // 复习日志（周报/月报统计复习数；此前缺失导致统计恒 0）
+    try {
+      sqlite.prepare('INSERT INTO review_logs (item_type, item_id, result, created_at, client_id) VALUES (?,?,?,?,?)')
+        .run('wrong', questionId, quality, now, uuid())
+    } catch (e) { /* 日志失败不影响评级 */ }
     return { ok: true, quality }
   },
 
