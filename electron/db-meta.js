@@ -23,6 +23,26 @@ module.exports = function metaModule(ctx) {
     fix('favorites', 'question_cid', 'questions', 'question_id')
     fix('notes', 'question_cid', 'questions', 'question_id')
     fix('categories', 'parent_cid', 'categories', 'parent_id')
+
+    // 科目归属回填：questions.subject_id 由 category 树向上推导到根科目（老库升级后列是 NULL，需补）
+    // 幂等：只处理 IS NULL 的行；写入路径（导入/录题/移题）已同步维护该列
+    const catRows = sqlite.prepare('SELECT id, parent_id FROM categories').all()
+    const parentOf = new Map(catRows.map(r => [r.id, r.parent_id]))
+    const rootOf = (id) => {
+      let cur = id
+      const seen = new Set()
+      while (parentOf.has(cur) && parentOf.get(cur) != null && !seen.has(cur)) {
+        seen.add(cur)
+        cur = parentOf.get(cur)
+      }
+      return cur
+    }
+    const orphans = sqlite.prepare('SELECT id, category_id FROM questions WHERE subject_id IS NULL AND category_id IS NOT NULL').all()
+    if (orphans.length) {
+      const upd = sqlite.prepare('UPDATE questions SET subject_id=? WHERE id=?')
+      const tx = sqlite.transaction(() => orphans.forEach(q => upd.run(rootOf(q.category_id), q.id)))
+      tx()
+    }
   },
 
   ensureUser() {

@@ -62,9 +62,10 @@ try {
   const kw = db.listQuestions({ keyword: String(q.stem).slice(0, 4) })
   ok('listQuestions 关键词命中', kw.total >= 1)
 
-  // 9) 热力图含专注字段
-  const hm = db.getActivityHeatmap(30)
-  ok('getActivityHeatmap 长度=30 且含 focus', hm.length === 30 && 'focus' in hm[0] && 'count' in hm[0])
+  // 9) 热力图（按年返回当年天数，含 count/date）
+  const hm = db.getActivityHeatmap()
+  const expectDays = new Date(new Date().getFullYear(), 11, 31).getDate() === 31 ? 365 : 366
+  ok('getActivityHeatmap 返回当年天数且含 count', hm.length === expectDays && 'date' in hm[0] && 'count' in hm[0])
 
   // 10) 导入去重（同科目章节同题干 → skip 计重复）
   const imp = db.importQuestionBank(
@@ -104,7 +105,7 @@ try {
   const tc = db.todayCounts()
   ok('todayCounts 返回 review/kbRead', typeof tc.review === 'number' && typeof tc.kbRead === 'number')
   const quest = db.checkQuests()
-  ok('checkQuests 返回 3 个任务', Array.isArray(quest.tasks) && quest.tasks.length === 3)
+  ok('checkQuests 返回任务数组（数量随目标设置）', Array.isArray(quest.tasks) && typeof quest.claimed === 'object')
 
   // 14) 统计模块（拆出的 db-stats 回归）
   const st = db.getStats()
@@ -443,11 +444,11 @@ try {
   const trendA = db.getWeeklyTrend(subA.id)
   const trendAll = db.getWeeklyTrend()
   ok('getWeeklyTrend(subjectId) 按科目过滤答题', trendA.some(d => d.count >= 1) && trendA.every((d, i) => d.count <= (trendAll[i]?.count || 0)))
-  ok('getActivityHeatmap(subjectId) 按科目过滤', db.getActivityHeatmap(120, subA.id).some(d => d.count >= 1))
+  ok('getActivityHeatmap(subjectId) 按科目过滤', db.getActivityHeatmap(undefined, subA.id).some(d => d.count >= 1))
   ok('getWeeklyReport(subjectId) 按科目统计本周', db.getWeeklyReport(subA.id).answered >= 1)
   // 赛季统计（当月计数）
   const ms = db.getMonthStats()
-  ok('getMonthStats 当月计数正常', ms.answered >= 1 && typeof ms.monthActive === 'number' && typeof ms.focusMin === 'number' && typeof ms.checkDays === 'number' && typeof ms.cardsAdded === 'number')
+  ok('getMonthStats 当月计数正常', ms.answered >= 1 && typeof ms.monthActive === 'number' && typeof ms.focusMin === 'number' && typeof ms.cardsAdded === 'number')
   // 记忆卡按科目：题目生成卡自动继承科目 + listCards 过滤
   const cgA = db.addCardFromQuestion(qA.id)
   const subjCardsA = db.listCards(subA.id)

@@ -391,6 +391,14 @@ module.exports = function kbModule(ctx) {
       return { docs, blocks, links, tags, readCount, unread, folders }
     },
 
+    // 文件夹列表（按分组统计数量，供知识库 Tab 文件夹分组展示）
+    getKbFolders() {
+      const rows = sqlite.prepare(
+        "SELECT folder, COUNT(*) AS n FROM kb_docs WHERE deleted=0 GROUP BY folder ORDER BY folder"
+      ).all()
+      return rows.map(r => ({ folder: r.folder || '未分类', n: r.n }))
+    },
+
     // 移动文档到文件夹（folder 为空串=未分类）
     moveKbDoc(id, folder) {
       sqlite.prepare('UPDATE kb_docs SET folder=?, updated_at=? WHERE id=? AND deleted=0')

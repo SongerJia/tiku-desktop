@@ -4,7 +4,7 @@
 module.exports = {
   EXPORT_COLS: {
     categories: ['id', 'name', 'parent_id', 'level', 'stage', 'sort', 'client_id', 'parent_cid', 'updated_at', 'deleted'],
-    questions: ['id', 'category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'audio_url', 'material_id', 'material_cid', 'client_id', 'category_cid', 'updated_at', 'deleted'],
+    questions: ['id', 'category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'audio_url', 'material_id', 'material_cid', 'client_id', 'category_cid', 'subject_id', 'updated_at', 'deleted'],
     answerRecords: ['id', 'user_id', 'question_id', 'selected_json', 'is_correct', 'duration_ms', 'mode', 'self_graded', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'],
     wrongBooks: ['id', 'user_id', 'question_id', 'wrong_count', 'reviewed_count', 'ease', 'interval', 'next_review_at', 'weak_point', 'reason', 'status', 'client_id', 'question_cid', 'updated_at', 'deleted'],
     favorites: ['id', 'user_id', 'question_id', 'fav_group', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'],

@@ -227,6 +227,7 @@ module.exports = function statsModule(ctx) {
         const today = new Date(); today.setHours(0, 0, 0, 0)
         end = today
         start = new Date(today.getTime() - 364 * 86400000)
+        end = new Date(today.getTime() + 86400000) // 含今天：区间 [today-364, today+1)，共 365 天
       } else {
         start = new Date(y, 0, 1)
         end = new Date(y, 11, 31)

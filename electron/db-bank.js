@@ -11,10 +11,10 @@ module.exports = function bankModule(ctx) {
       const duplicateMode = opts.duplicateMode || (opts.skipDuplicate === false ? 'all' : 'skip')
       const now = Date.now()
       const insQ = sqlite.prepare(`INSERT INTO questions
-        (category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,images_json,audio_url,material_id,material_cid,updated_at,client_id,category_cid)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        (category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,images_json,audio_url,material_id,material_cid,updated_at,client_id,category_cid,subject_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       const dupStmt = sqlite.prepare('SELECT id FROM questions WHERE category_id=? AND stem=? AND deleted=0')
-      const updQ = sqlite.prepare(`UPDATE questions SET type=?,options_json=?,answer_json=?,keywords_json=?,analysis=?,difficulty=?,source=?,audio_url=?,images_json=?,material_id=?,material_cid=?,category_cid=?,updated_at=? WHERE id=?`)
+      const updQ = sqlite.prepare(`UPDATE questions SET type=?,options_json=?,answer_json=?,keywords_json=?,analysis=?,difficulty=?,source=?,audio_url=?,images_json=?,material_id=?,material_cid=?,category_cid=?,subject_id=?,updated_at=? WHERE id=?`)
       let inserted = 0
       let duplicated = 0
       let updated = 0
@@ -36,7 +36,7 @@ module.exports = function bankModule(ctx) {
                 r.type, JSON.stringify(r.options || []), JSON.stringify(r.answer || []),
                 JSON.stringify(r.keywords || []), r.analysis || '', r.difficulty || 3,
                 r.source || '导入', r.audio || '', JSON.stringify(r.images || []),
-                mat ? mat.id : null, r.material_cid || null, r.category_cid || null, now, dup.id
+                mat ? mat.id : null, r.material_cid || null, r.category_cid || null, subjectId, now, dup.id
               )
               updated++
               continue
@@ -49,7 +49,7 @@ module.exports = function bankModule(ctx) {
             r.analysis || '', r.difficulty || 3, r.source || '导入',
             JSON.stringify(r.images || []), r.audio || '',
             mat ? mat.id : null, mat ? mat.cid : null, now,
-            uuid(), categoryCid(categoryId)
+            uuid(), categoryCid(categoryId), subjectId
           )
           inserted++
           touched.add(subjectId)
@@ -117,25 +117,50 @@ module.exports = function bankModule(ctx) {
     },
 
     addQuestion(q) {
+      // 手动录题：科目归属 = 章节所属的根科目（category 树向上）
+      const subjectId = (() => {
+        if (q.categoryId == null) return null
+        let cur = Number(q.categoryId)
+        const seen = new Set()
+        const rows = sqlite.prepare('SELECT id, parent_id FROM categories').all()
+        const parentOf = new Map(rows.map(r => [r.id, r.parent_id]))
+        while (parentOf.has(cur) && parentOf.get(cur) != null && !seen.has(cur)) {
+          seen.add(cur)
+          cur = parentOf.get(cur)
+        }
+        return cur
+      })()
       const info = sqlite.prepare(`INSERT INTO questions
-        (category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,images_json,audio_url,updated_at,client_id,category_cid)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        (category_id,type,stem,options_json,answer_json,keywords_json,analysis,difficulty,source,images_json,audio_url,updated_at,client_id,category_cid,subject_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
         .run(q.categoryId, q.type, q.stem, JSON.stringify(q.options || []),
           JSON.stringify(q.answer || []), JSON.stringify(q.keywords || []),
           q.analysis || '', q.difficulty || 3,
           q.source || '手动录入', JSON.stringify(q.images || []),
-          q.audioUrl || '', Date.now(), uuid(), categoryCid(q.categoryId))
+          q.audioUrl || '', Date.now(), uuid(), categoryCid(q.categoryId), subjectId)
       return { ok: true, id: info.lastInsertRowid }
     },
 
     updateQuestion(q) {
+      const subjectId = (() => {
+        if (q.categoryId == null) return null
+        let cur = Number(q.categoryId)
+        const seen = new Set()
+        const rows = sqlite.prepare('SELECT id, parent_id FROM categories').all()
+        const parentOf = new Map(rows.map(r => [r.id, r.parent_id]))
+        while (parentOf.has(cur) && parentOf.get(cur) != null && !seen.has(cur)) {
+          seen.add(cur)
+          cur = parentOf.get(cur)
+        }
+        return cur
+      })()
       sqlite.prepare(`UPDATE questions SET category_id=?,type=?,stem=?,options_json=?,
-        answer_json=?,keywords_json=?,analysis=?,difficulty=?,source=?,images_json=?,audio_url=?,updated_at=?,category_cid=? WHERE id=?`)
+        answer_json=?,keywords_json=?,analysis=?,difficulty=?,source=?,images_json=?,audio_url=?,updated_at=?,category_cid=?,subject_id=? WHERE id=?`)
         .run(q.categoryId, q.type, q.stem, JSON.stringify(q.options || []),
           JSON.stringify(q.answer || []), JSON.stringify(q.keywords || []),
           q.analysis || '', q.difficulty || 3,
           q.source || '手动录入', JSON.stringify(q.images || []),
-          q.audioUrl || '', Date.now(), categoryCid(q.categoryId), q.id)
+          q.audioUrl || '', Date.now(), categoryCid(q.categoryId), subjectId, q.id)
       return { ok: true }
     },
 
@@ -337,8 +362,21 @@ module.exports = function bankModule(ctx) {
       const tx = sqlite.transaction(() => {
         for (const id of list) {
           if (patch.categoryId != null) {
-            sqlite.prepare('UPDATE questions SET category_id=?, category_cid=?, updated_at=? WHERE id=?')
-              .run(Number(patch.categoryId), categoryCid(Number(patch.categoryId)), now, id)
+            // 批量移题：科目归属联动更新（新章节的根科目）
+            let newSubject = null
+            if (patch.categoryId != null) {
+              let cur = Number(patch.categoryId)
+              const seen = new Set()
+              const rows = sqlite.prepare('SELECT id, parent_id FROM categories').all()
+              const parentOf = new Map(rows.map(r => [r.id, r.parent_id]))
+              while (parentOf.has(cur) && parentOf.get(cur) != null && !seen.has(cur)) {
+                seen.add(cur)
+                cur = parentOf.get(cur)
+              }
+              newSubject = cur
+            }
+            sqlite.prepare('UPDATE questions SET category_id=?, category_cid=?, subject_id=?, updated_at=? WHERE id=?')
+              .run(Number(patch.categoryId), categoryCid(Number(patch.categoryId)), newSubject, now, id)
           }
           if (patch.difficulty != null) {
             sqlite.prepare('UPDATE questions SET difficulty=?, updated_at=? WHERE id=?')

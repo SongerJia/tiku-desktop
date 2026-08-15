@@ -261,7 +261,7 @@ module.exports = function syncModule(ctx) {
       // 各表写入列（client_id 是身份键，不参与 UPDATE 覆盖）
       const cfg = [
         { table: 'categories', cols: ['name', 'parent_id', 'level', 'stage', 'sort', 'client_id', 'parent_cid', 'updated_at', 'deleted'] },
-        { table: 'questions', cols: ['category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'audio_url', 'material_id', 'material_cid', 'client_id', 'category_cid', 'updated_at', 'deleted'] },
+        { table: 'questions', cols: ['category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'audio_url', 'material_id', 'material_cid', 'client_id', 'category_cid', 'subject_id', 'updated_at', 'deleted'] },
         { table: 'answer_records', cols: ['user_id', 'question_id', 'selected_json', 'is_correct', 'duration_ms', 'mode', 'self_graded', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
         { table: 'wrong_books', cols: ['user_id', 'question_id', 'wrong_count', 'reviewed_count', 'ease', 'interval', 'next_review_at', 'weak_point', 'reason', 'status', 'client_id', 'question_cid', 'updated_at', 'deleted'] },
         { table: 'favorites', cols: ['user_id', 'question_id', 'fav_group', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'] },

@@ -40,7 +40,8 @@ module.exports = function schemaModule(ctx) {
         updated_at INTEGER,
         deleted INTEGER DEFAULT 0,
         client_id TEXT,
-        category_cid TEXT
+        category_cid TEXT,
+        subject_id INTEGER
       );
       CREATE TABLE IF NOT EXISTS answer_records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -304,6 +305,8 @@ module.exports = function schemaModule(ctx) {
     // 材料题：questions 挂材料（materials 表），material_cid 用于跨设备引用解析
     addColumn('questions', 'material_id', 'material_id INTEGER')
     addColumn('questions', 'material_cid', 'material_cid TEXT')
+    // 科目归属：错题/收藏/笔记页按科目过滤依赖（category 树推导回填，见 backfillClientIds）
+    addColumn('questions', 'subject_id', 'subject_id INTEGER')
     sqlite.exec('CREATE INDEX IF NOT EXISTS idx_q_material ON questions(material_id)') // 依赖上面加列，必须在 migrate 阶段建
     addColumn('answer_records', 'client_id', 'client_id TEXT')
     addColumn('answer_records', 'question_cid', 'question_cid TEXT')

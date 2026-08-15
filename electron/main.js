@@ -147,10 +147,18 @@ function createWindow() {
     if (saved && Number(saved.width) >= 760 && Number(saved.height) >= 600) {
       w = saved.width
       h = saved.height
-      // 位置记忆：x/y 为有效数字才恢复（null = 系统默认居中）
+      // 位置记忆：x/y 为有效数字才恢复（null = 系统默认居中）；需在当前任一显示器可视范围内（防副屏断开后窗口在屏幕外不可见）
       if (Number.isFinite(Number(saved.x)) && Number.isFinite(Number(saved.y))) {
-        x = Math.round(saved.x)
-        y = Math.round(saved.y)
+        const displays = require('electron').screen.getAllDisplays()
+        const onScreen = displays.some(d => {
+          const { x: dx, y: dy, width: dw, height: dh } = d.bounds
+          // 窗口左上角至少有一小部分落在某显示器内（允许 100px 边缘吸附）
+          return saved.x >= dx - 100 && saved.x < dx + dw && saved.y >= dy - 100 && saved.y < dy + dh
+        })
+        if (onScreen) {
+          x = Math.round(saved.x)
+          y = Math.round(saved.y)
+        }
       }
     }
   } catch (e) { /* bounds 损坏则用默认 */ }

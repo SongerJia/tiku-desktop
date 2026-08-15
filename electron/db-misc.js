@@ -56,7 +56,7 @@ module.exports = function miscModule(ctx) {
       const dow = (now.getDay() + 6) % 7 // 周一=0
       const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow).getTime()
       let qSql = 'SELECT COUNT(*) AS n, COALESCE(SUM(ar.is_correct),0) AS c FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=?'
-      const qParams = [LOCAL_USER, weekStart]
+      let qParams = [LOCAL_USER, weekStart]
       if (subjectId) {
         const ids = descendantCategoryIds(subjectId)
         if (ids.length) {
@@ -81,7 +81,7 @@ module.exports = function miscModule(ctx) {
         const start = d.setHours(0, 0, 0, 0)
         const end = start + 86400000
         let dSql = 'SELECT COUNT(*) AS n FROM answer_records ar JOIN questions q ON q.id=ar.question_id WHERE ar.user_id=? AND ar.deleted=0 AND q.deleted=0 AND ar.created_at>=? AND ar.created_at<?'
-        const dParams = [LOCAL_USER, start, end]
+        let dParams = [LOCAL_USER, start, end]
         if (subjectId) {
           const ids = descendantCategoryIds(subjectId)
           if (ids.length) {
