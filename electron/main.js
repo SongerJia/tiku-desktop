@@ -348,6 +348,12 @@ ipcMain.handle('getAchievements', () => db.getAchievements())
 // ---- 个人知识库（kb_*）：导入编排 + IPC ----
 // 导入策略：原件复制进 userData/kb/（副本，绝不改原件）；同 hash 去重；
 // MD 按标题切块；PDF 用 pdfjs 抽文本，无文本层时降级（空块 + error，靠文件名/标签兜底）。
+// 编码自适应：中文 Windows 的 md 可能是 GBK，先严格试 UTF-8 失败回落 GBK（与渲染层 decodeText 一致）。
+function decodeBuf(buf) {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf) } catch (e) {
+    try { return new TextDecoder('gbk').decode(buf) } catch (e2) { return buf.toString('utf8') }
+  }
+}
 async function importKbPaths(filePaths, subjectId) {
   const dir = path.join(app.getPath('userData'), 'kb')
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
@@ -372,7 +378,7 @@ async function importKbPaths(filePaths, subjectId) {
       let blocks = []
       let error = null
       if (ext === 'md') {
-        blocks = extractMd(raw.toString('utf8'))
+        blocks = extractMd(decodeBuf(raw))
       } else {
         const r = await extractPdf(src)
         blocks = r.blocks || []

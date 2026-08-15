@@ -12,6 +12,7 @@ import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
 import { useEsc } from '../utils/useEsc.js'
 import { detectSubjectLang } from '../utils/speech.js'
+import { decodeText } from '../utils/bankParser.js'
 
 const props = defineProps({ show: Boolean, wide: Boolean })
 useBodyLock(() => props.show)
@@ -199,7 +200,7 @@ function onPickFile(e) {
   const isExcel = ext === 'xlsx' || ext === 'xls'
   const parse = isExcel
     ? file.arrayBuffer().then(buf => tiku.parseSheet(new Uint8Array(buf)).then(rows => rows))
-    : file.text().then(text => parseCsvText(text))
+    : file.arrayBuffer().then(buf => parseCsvText(decodeText(buf))) // GBK/UTF-8 编码自适应（中文 Windows Excel 另存 CSV 是 GBK）
   parse.then(rows => {
     let skipped = 0
     const parsed = []
@@ -220,13 +221,16 @@ function onPickFile(e) {
 async function doImport() {
   if (!importRows.value.length) return
   importing.value = true
+  let n = 0, failed = 0
   try {
-    let n = 0
     for (const r of importRows.value) {
-      await tiku.addCard(r.front, r.back, r.category, subjectId.value ? Number(subjectId.value) : null, categoryId.value ? Number(categoryId.value) : null)
-      n++
+      try {
+        await tiku.addCard(r.front, r.back, r.category, subjectId.value ? Number(subjectId.value) : null, categoryId.value ? Number(categoryId.value) : null)
+        n++
+      } catch (e) { failed++ } // 单条失败不中断整批（已导入的照常计数）
     }
-    showToast(`导入完成：新增 ${n} 张卡片${importSkipped.value ? '，跳过 ' + importSkipped.value + ' 行' : ''}`, 'ok')
+    if (failed) showToast(`导入完成：新增 ${n} 张，失败 ${failed} 行`, 'err')
+    else showToast(`导入完成：新增 ${n} 张卡片${importSkipped.value ? '，跳过 ' + importSkipped.value + ' 行' : ''}`, 'ok')
     importStep.value = 'done'
     await refreshAll()
     emit('changed')

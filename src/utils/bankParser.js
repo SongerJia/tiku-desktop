@@ -283,6 +283,26 @@ export function parseMatrix(matrix, ctx = {}) {
 
 /* ---------------- CSV ---------------- */
 
+/**
+ * 字节缓冲 → 文本。Excel 在中文 Windows 上「另存为 CSV」默认是 GBK 而不是 UTF-8，
+ * 直接按 UTF-8 解会整片乱码。先严格试 UTF-8（含 BOM 探测），失败再回落 GBK。
+ */
+export function decodeText(buffer) {
+  const bytes = new Uint8Array(buffer)
+  if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+    return new TextDecoder('utf-8').decode(bytes)
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch (e) {
+    try {
+      return new TextDecoder('gbk').decode(bytes)
+    } catch (e2) {
+      return new TextDecoder('utf-8').decode(bytes)
+    }
+  }
+}
+
 /** CSV/TSV → 二维数组。处理 BOM、双引号转义、字段内换行、\r\n */
 export function parseCsv(text) {
   const s = String(text || '').replace(/^\uFEFF/, '')

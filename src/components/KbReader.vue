@@ -400,9 +400,9 @@ let linkTimer = null
 
 async function loadHlAndLinks() {
   if (!props.doc) return
-  const [h, l] = await Promise.all([tiku.getHighlightsForDoc(props.doc.id), tiku.getDocLinks(props.doc.id)])
-  hl.value = h
-  links.value = l
+  const [h, l] = await Promise.allSettled([tiku.getHighlightsForDoc(props.doc.id), tiku.getDocLinks(props.doc.id)])
+  hl.value = h.status === 'fulfilled' ? (h.value || []) : []
+  links.value = l.status === 'fulfilled' ? (l.value || []) : []
 }
 
 async function removeHl(id) {
@@ -455,17 +455,17 @@ async function unlinkDoc(docId) {
 
 async function loadQPanel() {
   if (!props.doc) return
-  const [links, sugg] = await Promise.all([
+  const [links, sugg] = await Promise.allSettled([
     tiku.kbLinksForDoc(props.doc.id),
     tiku.kbSuggestQuestions(props.doc.id, 5)
   ])
-  qLinks.value = links
-  qSugg.value = sugg
+  qLinks.value = links.status === 'fulfilled' ? (links.value || []) : []
+  qSugg.value = sugg.status === 'fulfilled' ? (sugg.value || []) : []
 }
 
 // 打开文档（show+doc 同时变）或双链跳转（doc 变）→ 刷新内容。合并为一个 watch：同时变化只触发一次，避免双 loadCurrent 重复初始化 Vditor/PDF
 watch(() => [props.show, props.doc && props.doc.id], ([s, did]) => {
-  if (s && did) loadCurrent()
+  if (s && did) loadCurrent().catch(e => { /* 文档加载失败：阅读区显示错误态，不抛未捕获 */ console.warn('loadCurrent', e) })
 })
 
 let loadGen = 0 // 代际计数：快速连点切文档时，旧 loadCurrent 的异步续作（new Vditor/renderPdf）全部作废，防双实例竞争同一 DOM
@@ -507,14 +507,18 @@ async function loadCurrent() {
 }
 
 async function linkQ(qid) {
-  await tiku.kbLink({ docId: props.doc.id, questionId: qid })
-  mRes.value = mRes.value.filter(x => x.id !== qid)
-  await loadQPanel()
+  try {
+    await tiku.kbLink({ docId: props.doc.id, questionId: qid })
+    mRes.value = mRes.value.filter(x => x.id !== qid)
+    await loadQPanel()
+  } catch (e) { showToast('关联失败：' + (e.message || e), 'err') }
 }
 
 async function unlinkQ(qid) {
-  await tiku.kbUnlink(props.doc.id, qid)
-  await loadQPanel()
+  try {
+    await tiku.kbUnlink(props.doc.id, qid)
+    await loadQPanel()
+  } catch (e) { showToast('解除关联失败：' + (e.message || e), 'err') }
 }
 
 function onMInput() {

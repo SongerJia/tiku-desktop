@@ -6,7 +6,7 @@ import { ref, computed } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { useEsc } from '../utils/useEsc.js'
 import {
-  parseCsv, parseMatrix, parseJsonBank,
+  parseCsv, parseMatrix, parseJsonBank, decodeText,
   buildTemplateCsv, TEMPLATE_HEADER, TYPE_LABEL
 } from '../utils/bankParser.js'
 
@@ -85,26 +85,6 @@ function close() {
   emit('close')
 }
 useEsc(() => close())
-
-/**
- * Excel 在中文 Windows 上「另存为 CSV」默认是 GBK 而不是 UTF-8，
- * 直接按 UTF-8 解会整片乱码。这里先严格试 UTF-8，失败再回落 GBK。
- */
-function decodeText(buffer) {
-  const bytes = new Uint8Array(buffer)
-  if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
-    return new TextDecoder('utf-8').decode(bytes)
-  }
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-  } catch (e) {
-    try {
-      return new TextDecoder('gbk').decode(bytes)
-    } catch (e2) {
-      return new TextDecoder('utf-8').decode(bytes)
-    }
-  }
-}
 
 function readAsArrayBuffer(file) {
   return new Promise((resolve, reject) => {

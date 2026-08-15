@@ -246,10 +246,29 @@ onUnmounted(() => {
   if (timer) clearInterval(timer)
   if (noteHintTimer) clearTimeout(noteHintTimer)
   window.removeEventListener('keydown', onKey)
+  // 兜底：未走 onExit（如底部 Tab 切换直接卸载）且是进行中的练习 → 保存断点防进度丢失
+  if (!exitedRef) saveResumeSilently()
 })
+let exitedRef = false // 主动退出标记（onExit 置位，卸载兜底不再重复保存）
+async function saveResumeSilently() {
+  const isPractice = !props.paperId && !props.recite && !props.durationMin
+  if (!isPractice) return
+  try {
+    if (!isDone.value && questions.value.length > 1) {
+      await tiku.saveResumeSession({
+        subjectId: props.subjectId, categoryId: props.categoryId, categoryIds: props.categoryIds, order: props.order,
+        mode: 'practice', questions: questions.value, idx: idx.value,
+        sessionCorrect: sessionCorrect.value
+      })
+    } else if (isDone.value) {
+      await tiku.clearResumeSession()
+    }
+  } catch (e) { /* 断点保存失败不影响退出 */ }
+}
 
 // 退出拦截：练习模式未完成 → 保存断点；完成 → 清除断点
 async function onExit() {
+  exitedRef = true
   const isPractice = !props.paperId && !props.recite && !props.durationMin
   if (isPractice && !isDone.value && questions.value.length > 1) {
     await tiku.saveResumeSession({
