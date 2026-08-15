@@ -296,7 +296,7 @@ async function exportPaperPdf(p) {
 .tabs { display: flex; gap: 8px; padding: 12px 18px 0; }
 .tab {
   flex: 1; padding: 8px; border-radius: 10px 10px 0 0; font-size: 13px; cursor: pointer;
-  border: 1px solid var(--line); border-bottom: none; background: rgba(255,255,255,.02);
+  border: 1px solid var(--line); border-bottom: none; background: var(--bg-soft, rgba(255,255,255,.02));
   color: var(--muted); transition: all .18s;
 }
 .tab.active { background: var(--brand-light, color-mix(in srgb, var(--brand) 8%, transparent)); color: var(--brand); border-color: var(--brand); }
@@ -306,7 +306,7 @@ async function exportPaperPdf(p) {
 .field > label, .label-row > label { font-size: 12px; color: var(--muted); }
 .label-row { display: flex; align-items: center; justify-content: space-between; }
 .input {
-  width: 100%; box-sizing: border-box; background: rgba(5,8,15,.8);
+  width: 100%; box-sizing: border-box; background: var(--input-solid-bg, rgba(5,8,15,.8));
   border: 1px solid var(--line); border-radius: 8px; color: var(--text);
   padding: 9px 10px; font-size: 13px; outline: none; font-family: inherit;
 }
