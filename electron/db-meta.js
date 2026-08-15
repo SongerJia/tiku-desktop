@@ -103,6 +103,10 @@ module.exports = function metaModule(ctx) {
     sqlite.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)').run(key, String(value))
     return { ok: true }
   },
+  deleteSetting(key) {
+    sqlite.prepare('DELETE FROM settings WHERE key=?').run(key)
+    return { ok: true }
+  },
 
   // 返回两级分类树（科目 → 章节）
   // ---- 分类基础（科目/章节树 + 当前科目）已抽到 electron/db-bank.js（init 中合并）----

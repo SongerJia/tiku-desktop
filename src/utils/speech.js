@@ -24,12 +24,3 @@ export function speakText(text, rate = 1) {
     return true
   } catch (e) { return false }
 }
-
-export function stopSpeak() {
-  try { if (window.speechSynthesis) window.speechSynthesis.cancel() } catch (e) { /* 忽略 */ }
-}
-
-// 首次调用前预热语音列表（部分平台 getVoices 异步填充）
-export function warmUpVoices() {
-  try { if (window.speechSynthesis) window.speechSynthesis.getVoices() } catch (e) { /* 忽略 */ }
-}

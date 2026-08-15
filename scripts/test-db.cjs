@@ -324,6 +324,17 @@ try {
     const pOf = new Map(flat)
     const rootOf = (id) => { let cur = id, seen = new Set(); while (pOf.has(cur) && pOf.get(cur) > 0 && !seen.has(cur)) { seen.add(cur); cur = pOf.get(cur) } return cur }
     ok('mergeRemote 后 subject_id 等于科目根', mSyncQ.every(x => x.category_id == null ? x.subject_id == null : x.subject_id === rootOf(x.category_id)))
+    // 远端携带错误 subject_id（异机自增 id 999999）→ merge 后重算为本地科目根（M1 核心场景，非自合并）
+    const remoteBad = JSON.parse(db.exportSync())
+    const badQ = remoteBad.questions.find(x => x && x.category_id != null)
+    if (badQ) {
+      badQ.subject_id = 999999
+      db.mergeRemote(JSON.stringify(remoteBad))
+      const mergedQ = JSON.parse(db.exportSync()).questions.find(x => x.client_id === badQ.client_id)
+      ok('mergeRemote 远端错误 subject_id 被重算为科目根', !!mergedQ && mergedQ.subject_id === rootOf(mergedQ.category_id))
+    } else {
+      console.log('  - 跳过：无带科目题目')
+    }
   }
   // recite 背题模式：只进错题本，不写答题记录（不污染统计）
   const reciteQ = db.getWrongBook()[0]
@@ -363,9 +374,17 @@ try {
   // H2 回归：importData 列清单必须含 subject_id（此前漏列 → INSERT OR REPLACE 后置 NULL）
   const impQ = db.getQuestionById(q.id)
   ok('importData 后 subject_id 保留', impQ && (impQ.category_id == null ? impQ.subject_id == null : impQ.subject_id != null))
-  // 标签备份恢复：一题多标签完整保留（qtSeen 守卫——逐条 DELETE 会只剩最后一条）
+  // 标签备份恢复：一题多标签完整保留（importData 现为全清+按备份插入的快照语义）
   const impTags = db.getQuestionTags(q.id)
   ok('importData 后题目标签完整保留', Array.isArray(impTags) && impTags.length === 2 && impTags.every(t => ['标签A', '标签B'].includes(t)))
+  // 快照语义：导出「无标签」备份 → 恢复后本地残留标签清空（"删除全部标签"可还原）
+  db.setQuestionTags(q.id, [])
+  const cleanBackup = db.exportData()
+  db.setQuestionTags(q.id, ['标签A', '标签B']) // 恢复前本地加回（模拟残留）
+  db.importData(cleanBackup)
+  ok('importData 后无标签备份恢复为 0 标签（快照语义）', db.getQuestionTags(q.id).length === 0)
+  // 恢复带标签备份，还原状态避免影响后续断言
+  db.importData(exData)
   const syncImgName = db.saveImage(Buffer.from('sync-img-bytes'))
   db.updateQuestion({ ...q, images: [syncImgName] })
   const imgs = db.exportImageFiles(0)

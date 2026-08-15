@@ -268,6 +268,7 @@ module.exports = function schemaModule(ctx) {
       -- wrong/favorite/review 模式按 user_id+status 取 ID，统计按 user_id+question_id 聚合。
       CREATE INDEX IF NOT EXISTS idx_q_cat_deleted ON questions(category_id, deleted);
       CREATE INDEX IF NOT EXISTS idx_q_stem ON questions(stem); -- 前缀/排序加速（子串 %kw% 仍需全扫，量级小无碍）
+      CREATE INDEX IF NOT EXISTS idx_q_client ON questions(client_id); -- mergeRemote getByCid 按 client_id 逐行查（同步高频）
       CREATE INDEX IF NOT EXISTS idx_cat_parent ON categories(parent_id);
       CREATE INDEX IF NOT EXISTS idx_wb_user_status ON wrong_books(user_id, status, next_review_at);
       CREATE INDEX IF NOT EXISTS idx_fav_user ON favorites(user_id, question_id);

@@ -44,7 +44,8 @@ function migrateGhToken() {
   try {
     const legacy = db.getSetting('gh_token')
     if (legacy && !fs.existsSync(GH_TOKEN_PATH)) saveGhToken(legacy)
-    db.setSetting('gh_token', '')
+    // 清掉 settings 中的明文残留（DELETE 而非 setSetting('')——不留孤儿空行）
+    db.deleteSetting('gh_token')
   } catch (e) { /* 迁移失败不阻塞 */ }
 }
 const { extractMd, extractPdf, uniqueRelPath } = require('./kbExtract')
