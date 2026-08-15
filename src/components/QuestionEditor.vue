@@ -372,7 +372,7 @@ async function save() {
             <label>题干配图（选填，支持多张）</label>
             <div class="img-thumbs">
               <div v-for="(img, i) in images" :key="i" class="img-thumb">
-                <img :src="thumbUrls[i]" :alt="img" />
+                <img :src="thumbUrls[i]" :alt="img" loading="lazy" />
                 <button class="img-del" @click="removeImage(i)">×</button>
               </div>
               <label class="img-add">

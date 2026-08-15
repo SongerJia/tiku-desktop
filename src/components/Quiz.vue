@@ -685,7 +685,7 @@ function optionClass(key) {
           </div>
           <div class="rv-stem">{{ r.stem }}</div>
           <div v-if="r.images && r.images.length" class="rv-imgs">
-            <img v-for="(s, k) in r.images" :key="k" :src="s" class="rv-img" alt="题干图" />
+            <img v-for="(s, k) in r.images" :key="k" :src="s" class="rv-img" alt="题干图" loading="lazy" />
           </div>
           <div class="rv-row"><span class="rv-k">你的答案</span><span class="rv-v">{{ r.type === 'essay' ? (r.your || '（未作答）') : optText(r.options, r.your) }}</span></div>
           <div class="rv-row"><span class="rv-k">正确答案</span><span class="rv-v ans">{{ r.type === 'essay' ? ((r.answer && r.answer.length) ? r.answer.join('；') : '（主观题·自评）') : optText(r.options, r.answer) }}</span></div>
@@ -786,7 +786,7 @@ function optionClass(key) {
 
       <!-- 题目图片（题干图） -->
       <div v-if="imageUrls.length" class="q-images">
-        <img v-for="(src, i) in imageUrls" :key="i" :src="src" class="q-img" alt="题干图" />
+        <img v-for="(src, i) in imageUrls" :key="i" :src="src" class="q-img" alt="题干图" loading="lazy" />
       </div>
 
       <!-- 听力音频（题干配置 audio_url 时显示播放器） -->
