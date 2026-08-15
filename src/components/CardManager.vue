@@ -58,13 +58,6 @@ async function loadMeta() {
   try { categories.value = await tiku.getCategories() } catch (e) { categories.value = [] }
 }
 
-// 表单换科目时清掉不属于该科目的章节选择（防跨科目挂错章节）
-watch(() => form.value.subjectId, (v) => {
-  if (form.value.categoryId && !chaptersFor(v).some(c => String(c.id) === String(form.value.categoryId))) {
-    form.value.categoryId = null
-  }
-})
-
 watch(subjectId, () => { categoryId.value = ''; loadList(); loadStats() })
 watch(categoryId, () => { loadList(); loadStats() })
 watch(() => props.show, (v) => { if (v) refreshAll() })
@@ -96,6 +89,12 @@ function editCard(c) {
   formOpen.value = true
 }
 function cancelForm() { formOpen.value = false; form.value = { id: null, front: '', back: '', category: '', subjectId: null, categoryId: null } }
+// 表单换科目时清掉不属于该科目的章节选择（防跨科目挂错章节）
+watch(() => form.value.subjectId, (v) => {
+  if (form.value.categoryId && !chaptersFor(v).some(c => String(c.id) === String(form.value.categoryId))) {
+    form.value.categoryId = null
+  }
+})
 async function saveCard() {
   const f = form.value.front.trim()
   const b = form.value.back.trim()
