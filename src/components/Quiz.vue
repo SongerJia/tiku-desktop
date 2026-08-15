@@ -1,6 +1,6 @@
 <script setup>
 import Icon from './Icon.vue'
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { tiku } from '../api/tiku.js'
 import { showConfirm } from '../utils/confirm.js'
@@ -59,6 +59,13 @@ const paperScore = ref(0)
 const earnedScore = ref(0)
 // 题目图片（题干图）：文件名 → base64 dataURL
 const imageUrls = ref([])
+// 听力音频：本地文件名 → base64 dataURL（与图片同理；http/file 直用）
+const audioSrc = ref('')
+// 自动播放开关（听力题进题即播，会话内记忆）
+const autoPlayAudio = ref(localStorage.getItem('quiz_autoplay_audio') !== '0')
+// 循环播放 / 语速
+const loopAudio = ref(false)
+const playRate = ref(1)
 
 const isExam = computed(() => props.mode === 'exam')
 const isRecite = computed(() => !!props.recite && !isExam.value)  // 考试与背题互斥，双保险
@@ -514,6 +521,7 @@ watch(() => (q.value ? q.value.id : null), async (id) => {
   noteHint.value = ''
   noteText.value = ''
   imageUrls.value = []
+  audioSrc.value = ''
   if (!id) return
   const n = await tiku.getNote(id)
   if (q.value && q.value.id !== id) return // 已切题则丢弃旧结果
@@ -526,7 +534,29 @@ watch(() => (q.value ? q.value.id : null), async (id) => {
       imageUrls.value = urls.filter(Boolean)
     } catch (e) { imageUrls.value = [] }
   }
+  // 听力音频：本地文件名（非 http/file）→ base64 dataURL，否则直用
+  const au = q.value.audio_url
+  if (au && !/^https?:\/\//.test(au) && !au.startsWith('file://')) {
+    try {
+      const url = await tiku.getAudioUrl(au)
+      if (q.value && q.value.id !== id) return
+      audioSrc.value = url || ''
+    } catch (e) { audioSrc.value = '' }
+  } else {
+    audioSrc.value = au || ''
+  }
+  // 听力题自动播放（用户开启时）：等 DOM 渲染出 audio 后播放
+  if (autoPlayAudio.value && audioSrc.value) {
+    nextTick(() => {
+      const el = audioEl.value
+      if (el) { el.muted = false; el.play().catch(() => {}) }
+    })
+  }
 })
+const audioEl = ref(null)
+function persistAutoPlay() {
+  localStorage.setItem('quiz_autoplay_audio', autoPlayAudio.value ? '1' : '0')
+}
 
 let noteHintTimer = null
 async function saveNote() {
@@ -742,8 +772,17 @@ function optionClass(key) {
 
       <!-- 听力音频（题干配置 audio_url 时显示播放器） -->
       <div v-if="q.audio_url" class="q-audio">
-        <audio :src="q.audio_url" controls preload="none"></audio>
+        <audio :src="audioSrc || q.audio_url" controls preload="none" ref="audioEl" :loop="loopAudio" :playbackRate="playRate"></audio>
         <span class="qa-hint">先听音频再作答</span>
+        <button class="qa-mini" :class="{ on: loopAudio }" :title="loopAudio ? '关闭循环' : '循环播放'" @click="loopAudio = !loopAudio">↻</button>
+        <select v-model.number="playRate" class="qa-rate" title="语速">
+          <option :value="0.75">0.75×</option>
+          <option :value="1">1×</option>
+          <option :value="1.25">1.25×</option>
+        </select>
+        <label class="qa-autoplay" title="进题自动播放">
+          <input type="checkbox" v-model="autoPlayAudio" @change="persistAutoPlay" /> 自动播放
+        </label>
       </div>
 
       <!-- 选择题 / 判断题：选项作答 -->
@@ -1005,9 +1044,21 @@ function optionClass(key) {
 .stem { font-size: 15px; font-weight: 500; line-height: 1.5; }
 
 .q-images { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
-.q-audio { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; }
+.q-audio { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; flex-wrap: wrap; }
 .q-audio audio { height: 36px; }
 .qa-hint { font-size: 11px; color: var(--muted); }
+.qa-mini {
+  background: none; border: 1px solid var(--line); border-radius: 6px; color: var(--muted);
+  font-size: 13px; width: 26px; height: 26px; line-height: 1; cursor: pointer; transition: all .15s;
+}
+.qa-mini:hover { border-color: var(--brand); color: var(--brand); }
+.qa-mini.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.qa-rate {
+  background: var(--input-solid-bg); border: 1px solid var(--line); border-radius: 6px;
+  color: var(--text); font-size: 11px; padding: 2px 4px; outline: none;
+}
+.qa-autoplay { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); cursor: pointer; user-select: none; }
+.qa-autoplay input { accent-color: var(--brand); }
 .q-img { max-width: 100%; max-height: 220px; border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--glow-soft); }
 
 .timeup { background: rgba(255, 77, 109, 0.12); border: 1px solid var(--bad); color: var(--bad); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; }

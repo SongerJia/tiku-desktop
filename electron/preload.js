@@ -60,6 +60,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveImage: (buf, ext) => ipcRenderer.invoke('saveImage', buf, ext),
   getImage: (name) => ipcRenderer.invoke('getImage', name),
   cleanupOrphanImages: () => ipcRenderer.invoke('cleanupOrphanImages'),
+  cleanupOrphanAudio: () => ipcRenderer.invoke('cleanupOrphanAudio'),
   getDbStatus: () => ipcRenderer.invoke('getDbStatus'),
   getWeakPoints: (limit, subjectId) => ipcRenderer.invoke('getWeakPoints', limit, subjectId),
   getCategoryAccuracy: (subjectId) => ipcRenderer.invoke('getCategoryAccuracy', subjectId),

@@ -44,6 +44,7 @@ const PATHS = {
   sync: '<path d="M17.5 19 H7 A5 5 0 0 1 7.5 9 C8.5 5.5 12 4.5 15 6.5 C17.5 7.5 19 10 19 12.5"/><path d="M16 12.5 H19.5 V16"/>',
   flag: '<path d="M5 21 V4"/><path d="M5 4 C8 2.5 11 2.5 14 4 C17 5.5 19 5 21 4 V13 C18 14 15 14 12 12.5 C9 11 6.5 11.5 5 12.5"/>',
   play: '<path d="M7 4.5 L20 12 L7 19.5 Z"/>',
+  volume: '<path d="M4 9 V15 H8 L13 19.5 V4.5 L8 9 Z"/><path d="M16 9 A4.5 4.5 0 0 1 16 15"/><path d="M18.5 6.5 A8 8 0 0 1 18.5 17.5"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11 V17 M12 7.5 V8.5"/>',
   bookmark: '<path d="M6 4 V21 L12 17 L18 21 V4 A2 2 0 0 0 16 2 H8 A2 2 0 0 0 6 4 Z"/>',
   layers: '<path d="M12 3 L21 8 L12 13 L3 8 Z"/><path d="M3 12 L12 17 L21 12"/><path d="M3 16 L12 21 L21 16"/>',

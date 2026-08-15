@@ -189,9 +189,11 @@ async function clearLocal() {
 
 async function cleanupImages() {
   try {
-    const r = await tiku.cleanupOrphanImages()
-    if (r.removed > 0) showToast(`已清理 ${r.removed} 张无用图片，释放 ${(r.freedBytes / 1024).toFixed(1)} KB`, 'ok')
-    else showToast('没有需要清理的无用图片', 'ok')
+    const [img, aud] = await Promise.all([tiku.cleanupOrphanImages(), tiku.cleanupOrphanAudio()])
+    const n = img.removed + aud.removed
+    const kb = (img.freedBytes + aud.freedBytes) / 1024
+    if (n > 0) showToast(`已清理 ${n} 个无用文件（图片 ${img.removed} / 音频 ${aud.removed}），释放 ${kb.toFixed(1)} KB`, 'ok')
+    else showToast('没有需要清理的无用文件', 'ok')
   } catch (e) {
     showToast('清理失败：' + (e.message || '未知错误'), 'err')
   }
@@ -883,7 +885,7 @@ onMounted(async () => {
         </div>
         <div class="dm-item" @click="cleanupImages">
           <span class="dm-ico" style="--gc: #fb7185; --gc-a: 251, 113, 133"><Icon name="broom" :size="15" /></span>
-          <div class="dm-main"><span class="dm-name">清理无用图片</span><span class="dm-desc">释放存储空间</span></div>
+          <div class="dm-main"><span class="dm-name">清理无用图片与音频</span><span class="dm-desc">释放存储空间</span></div>
         </div>
       </div>
 

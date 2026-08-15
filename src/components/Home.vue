@@ -316,6 +316,7 @@ function startNoise() {
     }
     const src = noiseCtx.createBufferSource()
     src.buffer = buffer
+    src.loop = true // 2 秒 buffer 循环播放，否则播完即静音
     const gain = noiseCtx.createGain()
     gain.gain.value = 0.05
     src.connect(gain).connect(noiseCtx.destination)

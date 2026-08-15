@@ -8,11 +8,19 @@ import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
 import { useEsc } from '../utils/useEsc.js'
 import Icon from './Icon.vue'
+import { speakText, detectSubjectLang } from '../utils/speech.js'
 
 const props = defineProps({ show: Boolean, subject: { type: Object, default: () => ({ id: null, name: '' }) } })
 useBodyLock(() => props.show)
 useFocusTrap(() => props.show, '.mask > .panel')
 const emit = defineEmits(['close', 'updated'])
+
+// 发音：按科目名识别语言（英语→en-US，日语→ja-JP，其他科目不显示发音）
+const subjLang = computed(() => detectSubjectLang(props.subject && props.subject.name))
+// 复习时翻到正面自动发音（会话内记忆到 localStorage）
+const autoSpeak = ref(localStorage.getItem('card_autospeak') !== '0')
+function toggleAutoSpeak() { localStorage.setItem('card_autospeak', autoSpeak.value ? '1' : '0') }
+function speak(text) { if (subjLang.value && text) speakText(text, 1, subjLang.value) }
 
 const cards = ref([])
 const stats = ref({ total: 0, due: 0 })
@@ -128,6 +136,14 @@ async function startReview() {
   rDone.value = 0
   flipped.value = false
   mode.value = 'review'
+  // 翻到正面自动发音（仅语言类科目；首卡立即读）
+  if (autoSpeak.value && subjLang.value && cur.value) speak(cur.value.front)
+}
+
+// 翻面：翻回正面时若开启自动发音则朗读正面
+function flipCard() {
+  flipped.value = !flipped.value
+  if (!flipped.value && autoSpeak.value && subjLang.value && cur.value) speak(cur.value.front)
 }
 
 const cur = computed(() => reviewItems.value[rIdx.value] || null)
@@ -147,6 +163,8 @@ async function mark(felt) {
     await finishReview()
   } else {
     rIdx.value++
+    // 下一张卡自动朗读正面（仅语言类科目 + 开启自动发音）
+    if (autoSpeak.value && subjLang.value && cur.value) speak(cur.value.front)
   }
 }
 
@@ -230,18 +248,23 @@ watch(scope, () => { if (props.show) load() })
       <!-- 复习模式 -->
       <div v-else class="body review-body">
         <div class="rv-progress">第 {{ rIdx + 1 }} / {{ reviewItems.length }} 张 · 已完成 {{ rDone }} 张</div>
-        <div class="card" :class="{ flipped }" @click="flipped = !flipped">
+        <div class="card" :class="{ flipped }" @click="flipCard">
           <div class="face front">
             <span class="face-label">正面</span>
             <span class="face-text">{{ cur.front }}</span>
             <span class="face-hint">点击卡片翻面</span>
+            <button v-if="subjLang" class="speak-btn" title="朗读正面" @click.stop="speak(cur.front)"><Icon name="volume" :size="14" /></button>
           </div>
           <div class="face back">
             <span class="face-label">背面</span>
             <span class="face-text">{{ cur.back }}</span>
             <span class="face-hint">还记得吗？</span>
+            <button v-if="subjLang" class="speak-btn" title="朗读背面" @click.stop="speak(cur.back)"><Icon name="volume" :size="14" /></button>
           </div>
         </div>
+        <label v-if="subjLang" class="autospeak" title="翻到正面时自动朗读">
+          <input type="checkbox" v-model="autoSpeak" @change="toggleAutoSpeak" /> 自动朗读正面
+        </label>
         <div v-if="flipped" class="mark-row">
           <button class="mark-btn no" @click="mark(false)"><Icon name="x" :size="14" /> 忘记了（明天再见）</button>
           <button class="mark-btn yes" @click="mark(true)"><Icon name="check" :size="14" /> 记住了（3 天后再见）</button>
@@ -330,10 +353,13 @@ watch(scope, () => { if (props.show) load() })
   position: relative;
 }
 .card:hover { border-color: color-mix(in srgb, var(--brand) 40%, transparent); transform: translateY(-2px); }
-.face { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 20px; text-align: center; }
+.face { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 20px; text-align: center; position: relative; }
 .face-label { font-size: 11px; color: var(--muted); letter-spacing: 2px; }
 .face-text { font-size: 22px; font-weight: 700; color: var(--text); word-break: break-word; }
 .face-hint { font-size: 11px; color: var(--muted); opacity: .7; }
+/* 翻转：默认显示正面，flipped 时切背面（隐藏另一面避免两按钮重叠） */
+.card.flipped .face.front { display: none; }
+.card:not(.flipped) .face.back { display: none; }
 .mark-row { display: flex; gap: 12px; width: 100%; max-width: 480px; }
 .mark-btn {
   flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
@@ -343,6 +369,16 @@ watch(scope, () => { if (props.show) load() })
 .mark-btn.no:hover { border-color: var(--bad); color: var(--bad); background: rgba(229, 83, 95, 0.08); }
 .mark-btn.yes:hover { border-color: var(--ok); color: var(--ok); background: rgba(47, 191, 143, 0.08); }
 .mark-hint { font-size: 12px; color: var(--muted); }
+.autospeak { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); cursor: pointer; user-select: none; margin-top: 4px; }
+.autospeak input { accent-color: var(--brand); }
+.speak-btn {
+  position: absolute; top: 12px; right: 12px;
+  background: none; border: 1px solid var(--line); border-radius: 999px;
+  color: var(--muted); width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .15s;
+}
+.speak-btn:hover { color: var(--brand); border-color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, transparent); }
 .empty { text-align: center; color: var(--muted); font-size: 13px; line-height: 1.8; padding: 20px 0; }
 
 /* 次级组件铺开（2026-08-12）：卡片行 hover 渐变底 */

@@ -78,6 +78,33 @@ module.exports = function exportModule(ctx) {
         } catch (e) {}
       }
       return { removed, freedBytes }
+    },
+
+    // 回收孤儿听力音频：删除 userData/audio 中不被任何未删除题目 audio_url 引用的文件
+    // （与 cleanupOrphanImages 同口径：软删题目音频保留，可恢复）
+    cleanupOrphanAudio(opts = {}) {
+      const dir = path.join(app.getPath('userData'), 'audio')
+      if (!fs.existsSync(dir)) return { removed: 0, freedBytes: 0 }
+      const files = fs.readdirSync(dir).filter(f => {
+        try { return fs.statSync(path.join(dir, f)).isFile() } catch (e) { return false }
+      })
+      if (!files.length) return { removed: 0, freedBytes: 0 }
+      const used = new Set()
+      const collect = `SELECT audio_url FROM questions WHERE audio_url IS NOT NULL AND audio_url<>''${opts.includeSoftDeleted ? '' : ' AND deleted=0'}`
+      sqlite.prepare(collect).all().forEach(r => {
+        if (r.audio_url) used.add(path.basename(String(r.audio_url)))
+      })
+      let removed = 0, freedBytes = 0
+      for (const f of files) {
+        if (used.has(f)) continue
+        const full = path.join(dir, f)
+        try {
+          const st = fs.statSync(full)
+          fs.unlinkSync(full)
+          removed++; freedBytes += st.size
+        } catch (e) {}
+      }
+      return { removed, freedBytes }
     }
   }
 }
