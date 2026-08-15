@@ -671,8 +671,9 @@ function fmtTime(ts) {
   color: var(--brand); background: color-mix(in srgb, var(--brand) 14%, transparent);
   border-radius: 999px; padding: 0 5px; margin-left: 2px;
 }
-.kb-tag-row .filter-chip.active .kb-tag-n {
-  color: #021018; background: rgba(255, 255, 255, 0.35);
+/* active 内的数字徽标：品牌底上白底深字，跨主题对比清晰（原 rgba 半透明白底在浅色下边缘弱） */
+.kb-tag-row .filter-chip.active .kb-tag-n, .kb-scope-line .filter-chip.active .kb-tag-n {
+  color: #0e1512; background: #fff;
 }
 
 .kb-grid {

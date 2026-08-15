@@ -1235,7 +1235,7 @@ function optionClass(key) {
   box-shadow: var(--glow);
 }
 .submit:hover, .next:hover { box-shadow: 0 0 20px color-mix(in srgb, var(--brand) 60%, transparent); }
-.submit:disabled { background: rgba(255, 255, 255, 0.10); color: var(--muted); box-shadow: none; cursor: not-allowed; flex: 1; }
+.submit:disabled { background: color-mix(in srgb, var(--muted) 12%, transparent); color: var(--muted); box-shadow: none; cursor: not-allowed; flex: 1; }
 .grade-yes { background: color-mix(in srgb, var(--ok) 18%, transparent); border: 1px solid var(--ok); color: var(--ok); }
 .grade-yes:hover { box-shadow: 0 0 16px color-mix(in srgb, var(--ok) 40%, transparent); }
 .grade-no { background: rgba(255, 77, 109, 0.14); border: 1px solid var(--bad); color: var(--bad); }
