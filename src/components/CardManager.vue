@@ -63,7 +63,11 @@ watch(subjectId, () => { categoryId.value = ''; loadList(); loadStats() })
 watch(categoryId, () => { loadList(); loadStats() })
 watch(() => props.show, (v) => { if (v) refreshAll() })
 onMounted(() => { if (props.show) refreshAll() })
-useEsc(() => emit('close'))
+useEsc(() => {
+  if (formOpen.value) { cancelForm(); return }
+  if (importStep.value) { closeImport(); return }
+  emit('close')
+})
 
 // ---- 记忆状态徽标（与首页 CardsPanel 同口径）----
 function cardBadge(c) {
@@ -78,9 +82,10 @@ function fmtDate(t) {
   return `${d.getMonth() + 1}月${d.getDate()}日`
 }
 
-// ---- 添加 / 编辑（行内展开表单）----
+// ---- 添加 / 编辑（弹窗式，参照题库新增题目）----
 const form = ref({ id: null, front: '', back: '', category: '', subjectId: null, categoryId: null, phonetic: '', audioName: '' })
 const formOpen = ref(false)
+const formErr = ref('')
 // 表单当前科目的语言（英语/日语 → 显示音标与音频；技术类不显示）
 const formLang = computed(() => {
   const s = categories.value.find(c => String(c.id) === String(form.value.subjectId))
@@ -109,10 +114,12 @@ function onPickAudio(e) {
 }
 function startAdd() {
   form.value = { id: null, front: '', back: '', category: '', subjectId: subjectId.value ? Number(subjectId.value) : null, categoryId: categoryId.value ? Number(categoryId.value) : null, phonetic: '', audioName: '' }
+  formErr.value = ''
   formOpen.value = true
 }
 function editCard(c) {
   form.value = { id: c.id, front: c.front, back: c.back, category: c.category || '', subjectId: c.subject_id ?? null, categoryId: c.category_id ?? null, phonetic: c.phonetic || '', audioName: c.audio_url || '' }
+  formErr.value = ''
   formOpen.value = true
 }
 function cancelForm() { formOpen.value = false; form.value = { id: null, front: '', back: '', category: '', subjectId: null, categoryId: null, phonetic: '', audioName: '' } }
@@ -125,7 +132,8 @@ watch(() => form.value.subjectId, (v) => {
 async function saveCard() {
   const f = form.value.front.trim()
   const b = form.value.back.trim()
-  if (!f || !b) { showToast('正面和背面都不能为空'); return }
+  if (!f || !b) { formErr.value = '正面和背面都不能为空'; return }
+  formErr.value = ''
   try {
     if (form.value.id) await tiku.updateCard(form.value.id, f, b, form.value.category.trim(), form.value.subjectId, form.value.categoryId, form.value.phonetic, form.value.audioName)
     else await tiku.addCard(f, b, form.value.category.trim(), form.value.subjectId, form.value.categoryId, form.value.phonetic, form.value.audioName)
@@ -133,7 +141,7 @@ async function saveCard() {
     cancelForm()
     await refreshAll()
     emit('changed')
-  } catch (e) { showToast('保存失败：' + (e.message || '未知错误'), 'err') }
+  } catch (e) { formErr.value = '保存失败：' + (e.message || '未知错误') }
 }
 async function removeCard(c) {
   const ok = await showConfirm(`删除卡片「${c.front}」？复习记录一并清除。`)
@@ -276,7 +284,7 @@ async function downloadTemplateXlsx() {
 
           <!-- 工具栏 -->
           <div class="toolbar">
-            <button class="btn btn-primary sm" @click="startAdd">＋ 添加卡片</button>
+            <button class="btn btn-primary sm" @click="startAdd">添加卡片</button>
             <button class="btn btn-outline sm" @click="importStep = 'pick'">导入记忆卡</button>
           </div>
 
@@ -291,41 +299,6 @@ async function downloadTemplateXlsx() {
               <option v-for="c in chapters" :key="c.id" :value="c.id">{{ c.name }}</option>
             </select>
             <span v-if="stats.total" class="filter-hint">{{ stats.total }} 张卡片{{ categoryId ? ' · 当前章节' : (subjectId ? ' · 当前科目' : ' · 全部科目') }}</span>
-          </div>
-
-          <!-- 行内添加/编辑表单 -->
-          <div v-if="formOpen" class="form-card">
-            <div class="form-grid">
-              <input v-model="form.front" class="input" placeholder="正面（单词 / 问题）" @keyup.enter="saveCard" />
-              <input v-model="form.back" class="input" placeholder="背面（释义 / 答案）" @keyup.enter="saveCard" />
-            </div>
-            <div v-if="formLang" class="form-grid">
-              <input v-model="form.phonetic" class="input" :placeholder="formLang === 'ja-JP' ? '音标 / 假名标注' : '音标（如 /əˈbændən/）'" />
-            </div>
-            <div v-if="formLang" class="form-grid">
-              <label class="input audio-pick">
-                发音音频
-                <input type="file" accept="audio/*" hidden @change="onPickAudio" />
-              </label>
-              <span v-if="form.audioName" class="audio-name">{{ form.audioName }}</span>
-              <button v-if="form.audioName" class="audio-rm" @click="form.audioName = ''">×</button>
-            </div>
-            <audio v-if="formAudioSrc" :src="formAudioSrc" controls preload="none" class="audio-preview"></audio>
-            <div class="form-grid">
-              <select v-model.number="form.subjectId" class="input">
-                <option :value="null">未选科目</option>
-                <option v-for="s in subjects" :key="s.id" :value="s.id">{{ s.name }}</option>
-              </select>
-              <select v-model.number="form.categoryId" class="input">
-                <option :value="null">未选章节</option>
-                <option v-for="c in chaptersFor(form.subjectId)" :key="c.id" :value="c.id">{{ c.name }}</option>
-              </select>
-              <input v-model="form.category" class="input" placeholder="分类（如：词汇）" />
-            </div>
-            <div class="form-actions">
-              <button class="btn btn-primary sm" @click="saveCard">{{ form.id ? '保存修改' : '添加卡片' }}</button>
-              <button class="btn sm" @click="cancelForm">取消</button>
-            </div>
           </div>
 
           <!-- 列表 -->
@@ -430,6 +403,69 @@ async function downloadTemplateXlsx() {
       </div>
     </div>
   </transition>
+
+  <!-- 添加 / 编辑记忆卡弹窗（Teleport 到 body，参照题库新增题目弹窗） -->
+  <Teleport to="body">
+    <transition name="fade">
+      <div v-if="formOpen" class="cf-mask" @click.self="cancelForm">
+        <div class="cf-panel">
+          <div class="cf-head">
+            <span class="cf-title">{{ form.id ? '编辑记忆卡' : '添加记忆卡' }}</span>
+            <span class="cf-close" @click="cancelForm">×</span>
+          </div>
+          <div class="cf-body">
+            <div class="cf-row">
+              <label>正面</label>
+              <input v-model="form.front" class="input" placeholder="单词 / 问题" @keyup.enter="saveCard" />
+            </div>
+            <div class="cf-row">
+              <label>背面</label>
+              <textarea v-model="form.back" class="input cf-area" rows="3" placeholder="释义 / 答案 / 解析" @keyup.enter="saveCard"></textarea>
+            </div>
+            <div v-if="formLang" class="cf-row">
+              <label>音标</label>
+              <input v-model="form.phonetic" class="input" :placeholder="formLang === 'ja-JP' ? '音标 / 假名标注' : '音标（如 /əˈbændən/）'" @keyup.enter="saveCard" />
+            </div>
+            <div v-if="formLang" class="cf-row">
+              <label>发音音频</label>
+              <div class="cf-audio-row">
+                <label class="btn btn-outline sm cf-pick">
+                  选择音频文件
+                  <input type="file" accept="audio/*" hidden @change="onPickAudio" />
+                </label>
+                <span v-if="form.audioName" class="cf-audio-name">{{ form.audioName }}</span>
+                <button v-if="form.audioName" class="cf-audio-rm" @click="form.audioName = ''">×</button>
+              </div>
+              <audio v-if="formAudioSrc" :src="formAudioSrc" controls preload="none" class="cf-audio"></audio>
+              <span class="cf-hint">不选则复习时用系统语音朗读</span>
+            </div>
+            <div class="cf-row">
+              <label>归属</label>
+              <div class="cf-grid">
+                <select v-model.number="form.subjectId" class="input">
+                  <option :value="null">未选科目</option>
+                  <option v-for="s in subjects" :key="s.id" :value="s.id">{{ s.name }}</option>
+                </select>
+                <select v-model.number="form.categoryId" class="input">
+                  <option :value="null">未选章节</option>
+                  <option v-for="c in chaptersFor(form.subjectId)" :key="c.id" :value="c.id">{{ c.name }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="cf-row">
+              <label>分类</label>
+              <input v-model="form.category" class="input" placeholder="分类（如：词汇）" @keyup.enter="saveCard" />
+            </div>
+            <div v-if="formErr" class="cf-err">{{ formErr }}</div>
+          </div>
+          <div class="cf-foot">
+            <button class="btn" @click="cancelForm">取消</button>
+            <button class="btn btn-primary" @click="saveCard">{{ form.id ? '保存修改' : '添加卡片' }}</button>
+          </div>
+        </div>
+      </div>
+    </transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -517,19 +553,6 @@ async function downloadTemplateXlsx() {
 .input:focus { border-color: var(--brand); box-shadow: var(--glow-soft); }
 .input:disabled { opacity: 0.45; }
 
-.form-card {
-  border: 1px dashed color-mix(in srgb, var(--brand) 45%, transparent);
-  border-radius: var(--radius-sm);
-  padding: 12px;
-  background: color-mix(in srgb, var(--brand) 4%, transparent);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.form-grid { display: flex; gap: 8px; flex-wrap: wrap; }
-.form-grid .input { flex: 1; min-width: 120px; }
-.form-actions { display: flex; gap: 8px; }
-
 .card-list { display: flex; flex-direction: column; gap: 10px; }
 .card-item {
   border: 1px solid var(--line);
@@ -568,14 +591,6 @@ async function downloadTemplateXlsx() {
 .cat-badge.uncat { color: var(--warn-soft); }
 .state { font-size: 11px; color: var(--muted); }
 .state.due { color: var(--warn-soft); }
-
-/* 表单音频选择 */
-.audio-pick { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--muted); flex: 0 0 auto; }
-.audio-pick:hover { border-color: var(--brand); color: var(--brand); }
-.audio-name { font-size: 12px; color: var(--muted); word-break: break-all; }
-.audio-rm { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 0 4px; }
-.audio-rm:hover { color: var(--bad); }
-.audio-preview { width: 100%; height: 36px; }
 
 /* CSV/Excel 导入弹层 */
 .cm-import-mask {
@@ -651,4 +666,42 @@ async function downloadTemplateXlsx() {
 
 .fade-enter-active, .fade-leave-active { transition: opacity .18s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* 添加/编辑记忆卡弹窗（参照题库新增题目弹窗） */
+.cf-mask {
+  position: fixed; inset: 0; z-index: 235;
+  background: var(--modal-mask);
+  backdrop-filter: blur(var(--modal-blur));
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.cf-panel {
+  width: 100%; max-width: 560px; margin: 0 auto; max-height: 90vh;
+  background: var(--card-solid);
+  border: 1px solid var(--line);
+  border-radius: 20px 20px 0 0;
+  box-shadow: var(--shadow), var(--glow-soft);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.cf-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 15px 18px; border-bottom: 1px solid var(--line);
+}
+.cf-title { font-size: 16px; font-weight: 700; color: var(--text); }
+.cf-close { font-size: 22px; color: var(--muted); cursor: pointer; line-height: 1; }
+.cf-close:hover { color: var(--brand); }
+.cf-body { padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+.cf-row { display: flex; flex-direction: column; gap: 5px; }
+.cf-row > label { font-size: 12px; color: var(--muted); }
+.cf-grid { display: flex; gap: 8px; }
+.cf-grid .input { flex: 1; min-width: 0; }
+.cf-area { resize: vertical; line-height: 1.6; }
+.cf-audio-row { display: flex; align-items: center; gap: 8px; }
+.cf-pick { cursor: pointer; display: inline-flex; align-items: center; }
+.cf-audio-name { font-size: 12px; color: var(--muted); word-break: break-all; }
+.cf-audio-rm { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 0 4px; }
+.cf-audio-rm:hover { color: var(--bad); }
+.cf-audio { width: 100%; height: 36px; }
+.cf-hint { font-size: 11px; color: var(--muted); }
+.cf-err { font-size: 12px; color: var(--bad-soft); border: 1px solid rgba(255,77,109,.4); background: rgba(255,77,109,.08); border-radius: 8px; padding: 8px 10px; }
+.cf-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 12px 18px; border-top: 1px solid var(--line); }
 </style>

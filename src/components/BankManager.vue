@@ -348,7 +348,7 @@ async function batchDelete() {
           <!-- 操作条 -->
           <div class="toolbar">
             <button class="btn btn-primary sm" @click="showImport = true">批量导入</button>
-            <button class="btn btn-outline sm" @click="openNew">＋ 新增题目</button>
+            <button class="btn btn-outline sm" @click="openNew">新增题目</button>
             <button class="btn btn-outline sm" @click="exportExcel">导出 Excel</button>
             <button class="btn btn-outline sm" :class="{ on: batchMode && batchAction === 'move' }" @click="batchMode ? toggleBatch() : startBatch('move')">批量移动</button>
             <button class="btn btn-outline sm" :class="{ on: batchMode && batchAction === 'tag' }" @click="batchMode ? toggleBatch() : startBatch('tag')">批量加标签</button>

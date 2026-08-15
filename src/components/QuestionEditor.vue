@@ -6,6 +6,7 @@ import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { useEsc } from '../utils/useEsc.js'
 import { LETTERS, splitKeywords } from '../utils/bankParser.js'
+import { detectSubjectLang } from '../utils/speech.js'
 
 const props = defineProps({
   show: Boolean,
@@ -48,6 +49,23 @@ watch(images, async (list) => {
 const isEdit = computed(() => !!(props.question && props.question.id))
 const isJudge = computed(() => type.value === 'judge')
 const isEssay = computed(() => type.value === 'essay')
+
+// 语言科目判定（科目名约定）：从分类树向上找到科目 → 科目名含 英语/English/雅思 等 → 显示听力音频
+const curSubjectName = computed(() => {
+  const cid = Number(categoryId.value)
+  if (!cid) return ''
+  const walk = (nodes) => {
+    for (const n of nodes || []) {
+      if (Number(n.id) === cid) return n.name
+      if (n.children) {
+        if ((n.children || []).some(c => Number(c.id) === cid)) return n.name
+      }
+    }
+    return ''
+  }
+  return walk(props.categories)
+})
+const isLangSubject = computed(() => !!detectSubjectLang(curSubjectName.value))
 
 // 音频：若 audioUrl 是本地文件名（非 http/file），转成可播放的 dataURL
 watch(audioUrl, async (v) => {
@@ -348,8 +366,8 @@ async function save() {
             <span class="hint-sm">图片保存在本机「userData/images」；也可直接 Ctrl+V 粘贴截图。同步时会随题库一起备份</span>
           </div>
 
-          <div class="field">
-            <label>听力音频（选填，雅思等听力题）</label>
+          <div v-if="isLangSubject" class="field">
+            <label>听力音频（选填，{{ curSubjectName }}科目）</label>
             <div class="audio-row">
               <input v-model="audioUrl" class="input" placeholder="音频地址：http(s) 链接，或点右侧选本地文件（自动存入本机）" />
               <label class="audio-pick">
