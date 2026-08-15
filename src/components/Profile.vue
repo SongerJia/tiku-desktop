@@ -1372,7 +1372,7 @@ onMounted(async () => {
 }
 /* 已连接态：立即同步主按钮 + 编辑配置 */
 .sync-actions-main { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
-.sync-btn-big { flex: 1; padding: 11px 0; font-size: 14px; }
+.sync-btn-big { padding: 9px 28px; font-size: 14px; }
 .sync-edit { font-size: 12px; color: var(--brand); cursor: pointer; flex-shrink: 0; }
 .sync-edit:hover { text-decoration: underline; }
 /* 结果三格 */
