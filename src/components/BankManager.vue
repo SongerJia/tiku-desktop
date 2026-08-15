@@ -362,6 +362,42 @@ async function batchDelete() {
             <button class="btn btn-outline sm" :class="{ on: batchMode && batchAction === 'delete' }" @click="batchMode ? toggleBatch() : startBatch('delete')">批量删除</button>
           </div>
 
+          <!-- 批量操作条：点击按钮后在此处滑出，不占底部 -->
+          <transition name="batch">
+            <div v-if="batchMode" class="batch-bar">
+              <div class="bb-top">
+                <span class="bb-count">已选 <b>{{ selCount }}</b> 题</span>
+                <span class="bb-ops">
+                  <button class="bb-mini" @click="selectAll">全选本页</button>
+                  <button class="bb-mini" @click="clearSel">清空</button>
+                  <button class="bb-mini" @click="toggleBatch">退出批量</button>
+                </span>
+              </div>
+              <div v-if="batchAction === 'move'" class="bb-actions">
+                <select v-model="batchMoveCat" class="bb-input">
+                  <option value="">移动至章节…</option>
+                  <option v-for="c in chapters" :key="c.id" :value="c.id">{{ c.name }}</option>
+                </select>
+                <button class="bb-btn" @click="applyBatchMove">移动</button>
+              </div>
+              <div v-else-if="batchAction === 'tag'" class="bb-actions">
+                <input v-model="batchTagInput" class="bb-input" placeholder="输入标签名，回车添加" @keyup.enter="applyBatchTag" />
+                <button class="bb-btn" @click="applyBatchTag">打标签</button>
+              </div>
+              <div v-else-if="batchAction === 'diff'" class="bb-actions">
+                <select v-model="batchDiff" class="bb-input">
+                  <option value="">改难度…</option>
+                  <option v-for="d in [1,2,3,4,5]" :key="d" :value="d">{{ d }}星</option>
+                </select>
+                <button class="bb-btn" @click="applyBatchDiff">改难度</button>
+              </div>
+              <div v-else-if="batchAction === 'delete'" class="bb-actions">
+                <span class="bb-del-tip">将删除已选的 {{ selCount }} 题（答题记录保留）</span>
+                <button class="bb-btn danger" @click="batchDelete">确认删除</button>
+              </div>
+            </div>
+          </transition>
+
           <!-- 筛选 -->
           <div class="filters">
             <select v-model="subjectId" class="input">
@@ -392,7 +428,7 @@ async function batchDelete() {
           <SkeletonCards v-if="loading" :count="3" />
           <EmptyState v-else-if="!list.items.length" icon="book" text="没有找到题目" sub="点「批量导入」把你的真实题库导进来" />
 
-          <div v-else class="q-list">
+          <div v-else class="q-list" :class="{ 'is-batch': batchMode }">
             <div v-for="(q, qi) in list.items" :key="q.id" class="q-item" :class="{ sel: batchMode && selectedIds.has(q.id) }" :style="{ animationDelay: (qi * 0.035) + 's' }">
               <label v-if="batchMode" class="q-check">
                 <input type="checkbox" :checked="selectedIds.has(q.id)" @change="toggleSelect(q)" />
@@ -411,7 +447,10 @@ async function batchDelete() {
                   class="q-img-badge"
                   title="含题干配图"
                 >图</span>
-                <button v-if="!batchMode" class="mini tag-btn" @click="openTagEditor(q)"><Icon name="tag" :size="14"/> 标签</button>
+                <button v-if="!batchMode" class="mini tag-btn" @click="openTagEditor(q)"><Icon name="tag" :size="12"/> 标签</button>
+                <span v-if="!batchMode && q.tags && q.tags.length" class="q-tags">
+                  <span v-for="t in q.tags" :key="t" class="q-tag" @click="toggleTagFilter(t)">#{{ t }}</span>
+                </span>
                 <span class="q-spacer"></span>
                 <button v-if="!batchMode" class="mini" @click="openEdit(q)">编辑</button>
                 <button
@@ -419,9 +458,6 @@ async function batchDelete() {
                   class="mini danger"
                   @click="confirmId = confirmId === q.id ? null : q.id"
                 >{{ confirmId === q.id ? '取消' : '删除' }}</button>
-              </div>
-              <div v-if="q.tags && q.tags.length" class="q-tags">
-                <span v-for="t in q.tags" :key="t" class="q-tag" @click="toggleTagFilter(t)">#{{ t }}</span>
               </div>
               <div class="q-stem">{{ q.stem }}</div>
               <div class="q-bottom">
@@ -486,73 +522,39 @@ async function batchDelete() {
         </div>
       </div>
 
-      <!-- 单题标签编辑 -->
-      <div v-if="tagQ" class="tag-mask" @click.self="closeTag">
-        <div class="tag-box">
-          <div class="tag-head">
-            <span class="tag-title">章节 · {{ tagQ.category_name || '未分类' }}</span>
-            <span class="tag-close" @click="closeTag">×</span>
+          <!-- 单题标签编辑 -->
+          <div v-if="tagQ" class="tag-mask" @click.self="closeTag">
+            <div class="tag-box">
+              <div class="tag-head">
+                <span class="tag-title">章节 · {{ tagQ.category_name || '未分类' }}</span>
+                <span class="tag-close" @click="closeTag">×</span>
+              </div>
+              <div class="tag-stem"><span class="tag-stem-label">题干</span>{{ tagQ.stem }}</div>
+              <div class="tag-current">
+                <span v-for="t in tagDraft" :key="t" class="tag-pill" @click="removeTagFromDraft(t)">#{{ t }} <Icon name="x" :size="14"/></span>
+                <span v-if="!tagDraft.length" class="tag-empty">暂无标签，输入后回车添加</span>
+              </div>
+              <input
+                v-model="tagInput"
+                class="tag-input"
+                placeholder="输入标签名，回车添加（如 高频 / 易错 / 必背）"
+                @keyup.enter="addTagFromInput"
+              />
+              <div class="tag-sug" v-if="allTags.length">
+                <span
+                  v-for="t in allTags"
+                  :key="t"
+                  class="tag-sug-chip"
+                  :class="{ on: tagDraft.includes(t) }"
+                  @click="tagDraft.includes(t) ? removeTagFromDraft(t) : tagDraft.push(t)"
+                >#{{ t }}</span>
+              </div>
+              <div class="tag-foot">
+                <span class="tag-tip">点击标签可移除 · 同步随题目传播</span>
+                <button class="tag-save" @click="saveTags">保存</button>
+              </div>
+            </div>
           </div>
-          <div class="tag-stem"><span class="tag-stem-label">题干</span>{{ tagQ.stem }}</div>
-          <div class="tag-current">
-            <span v-for="t in tagDraft" :key="t" class="tag-pill" @click="removeTagFromDraft(t)">#{{ t }} <Icon name="x" :size="14"/></span>
-            <span v-if="!tagDraft.length" class="tag-empty">暂无标签，输入后回车添加</span>
-          </div>
-          <input
-            v-model="tagInput"
-            class="tag-input"
-            placeholder="输入标签名，回车添加（如 高频 / 易错 / 必背）"
-            @keyup.enter="addTagFromInput"
-          />
-          <div class="tag-sug" v-if="allTags.length">
-            <span
-              v-for="t in allTags"
-              :key="t"
-              class="tag-sug-chip"
-              :class="{ on: tagDraft.includes(t) }"
-              @click="tagDraft.includes(t) ? removeTagFromDraft(t) : tagDraft.push(t)"
-            >#{{ t }}</span>
-          </div>
-          <div class="tag-foot">
-            <span class="tag-tip">点击标签可移除 · 同步随题目传播</span>
-            <button class="tag-save" @click="saveTags">保存</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 批量操作条：按 batchAction 只显示当前功能 -->
-      <div v-if="batchMode" class="batch-bar">
-        <div class="bb-top">
-          <span class="bb-count">已选 <b>{{ selCount }}</b> 题</span>
-          <span class="bb-ops">
-            <button class="bb-mini" @click="selectAll">全选本页</button>
-            <button class="bb-mini" @click="clearSel">清空</button>
-            <button class="bb-mini" @click="toggleBatch">退出批量</button>
-          </span>
-        </div>
-        <div v-if="batchAction === 'move'" class="bb-actions">
-          <select v-model="batchMoveCat" class="bb-input">
-            <option value="">移动至章节…</option>
-            <option v-for="c in chapters" :key="c.id" :value="c.id">{{ c.name }}</option>
-          </select>
-          <button class="bb-btn" @click="applyBatchMove">移动</button>
-        </div>
-        <div v-else-if="batchAction === 'tag'" class="bb-actions">
-          <input v-model="batchTagInput" class="bb-input" placeholder="输入标签名，回车添加" @keyup.enter="applyBatchTag" />
-          <button class="bb-btn" @click="applyBatchTag">打标签</button>
-        </div>
-        <div v-else-if="batchAction === 'diff'" class="bb-actions">
-          <select v-model="batchDiff" class="bb-input">
-            <option value="">改难度…</option>
-            <option v-for="d in [1,2,3,4,5]" :key="d" :value="d">{{ d }}星</option>
-          </select>
-          <button class="bb-btn" @click="applyBatchDiff">改难度</button>
-        </div>
-        <div v-else-if="batchAction === 'delete'" class="bb-actions">
-          <span class="bb-del-tip">将删除已选的 {{ selCount }} 题（答题记录保留）</span>
-          <button class="bb-btn danger" @click="batchDelete">确认删除</button>
-        </div>
-      </div>
     </div>
   </transition>
 </template>
@@ -652,9 +654,11 @@ async function batchDelete() {
   position: relative;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: 11px 12px 11px 44px; /* 左侧留出复选框位 */
+  padding: 11px 12px;
   background: color-mix(in srgb, var(--brand) 3%, transparent);
 }
+/* 批量模式才给复选框留位，平时不空 */
+.q-list.is-batch .q-item { padding-left: 44px; }
 .q-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
 .q-type {
   font-size: 11px;
@@ -807,14 +811,14 @@ async function batchDelete() {
 .tag-chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
 .tag-clear { font-size: 11px; color: var(--muted); background: none; border: none; cursor: pointer; text-decoration: underline; }
 
-/* 题目项标签 */
+/* 题目项标签（与「标签」按钮同一行显示） */
 .q-check { position: absolute; left: 12px; top: 14px; display: flex; align-items: center; }
 .q-check input { width: 18px; height: 18px; accent-color: var(--brand); }
 .q-item.sel { border-color: var(--brand); box-shadow: var(--glow-soft); }
-.q-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
-.q-tag { font-size: 11px; color: var(--brand); border: 1px solid var(--line); border-radius: 12px; padding: 1px 8px; background: color-mix(in srgb, var(--brand) 8%, transparent); cursor: pointer; }
+.q-tags { display: inline-flex; flex-wrap: wrap; gap: 5px; align-items: center; max-width: 46%; }
+.q-tag { font-size: 11px; color: var(--brand); border: 1px solid var(--line); border-radius: 12px; padding: 0 8px; background: color-mix(in srgb, var(--brand) 8%, transparent); cursor: pointer; white-space: nowrap; }
 .q-tag:hover { border-color: var(--brand); }
-.tag-btn { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, transparent); }
+.tag-btn { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, transparent); display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; line-height: 1.4; }
 
 /* 单题标签编辑弹层 */
 .tag-mask { position: fixed; inset: 0; background: var(--modal-mask); backdrop-filter: blur(var(--modal-blur)); z-index: 210; display: flex; align-items: center; justify-content: center; }
@@ -838,8 +842,11 @@ async function batchDelete() {
 .tag-save { border: 1px solid var(--brand); background: none; color: var(--brand); border-radius: 6px; padding: 5px 16px; font-size: 12px; cursor: pointer; transition: all .15s; }
 .tag-save:hover { background: var(--brand-light); box-shadow: var(--glow-soft); }
 
-/* 批量操作条 */
-.batch-bar { position: absolute; left: 0; right: 0; bottom: 0; background: var(--card-solid); border-top: 1px solid var(--brand); box-shadow: var(--shadow); padding: 10px 16px; z-index: 6; display: flex; flex-direction: column; gap: 8px; }
+/* 批量操作条：从按钮下方滑出，不再固定底部 */
+.batch-bar { background: var(--card-solid); border: 1px solid var(--brand); border-radius: var(--radius-sm); box-shadow: var(--glow-soft); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.batch-enter-active, .batch-leave-active { transition: opacity .18s ease, transform .18s ease, max-height .22s ease, margin .22s ease; overflow: hidden; }
+.batch-enter-from, .batch-leave-to { opacity: 0; transform: translateY(-6px); max-height: 0; margin-top: -12px; }
+.batch-enter-to, .batch-leave-from { opacity: 1; transform: translateY(0); max-height: 200px; }
 .bb-top { display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
 .bb-count b { color: var(--brand); }
 .bb-ops { display: flex; gap: 8px; }
@@ -856,6 +863,6 @@ async function batchDelete() {
 .btn-outline.sm.on { background: var(--brand-light); border-color: var(--brand); color: var(--brand); }
 
 /* 题库铺开（2026-08-12）：列表项 hover 渐变底 */
-.q-item { transition: background .15s ease, border-color .15s ease, box-shadow .15s ease; }
+.q-item { transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, padding-left .18s ease; }
 .q-item:hover { background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 8%, transparent), color-mix(in srgb, var(--brand2) 4%, transparent)); }
 </style>
