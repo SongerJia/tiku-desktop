@@ -124,7 +124,7 @@ module.exports = function bankModule(ctx) {
         const seen = new Set()
         const rows = sqlite.prepare('SELECT id, parent_id FROM categories').all()
         const parentOf = new Map(rows.map(r => [r.id, r.parent_id]))
-        while (parentOf.has(cur) && parentOf.get(cur) != null && !seen.has(cur)) {
+        while (parentOf.has(cur) && parentOf.get(cur) > 0 && !seen.has(cur)) {
           seen.add(cur)
           cur = parentOf.get(cur)
         }
@@ -148,7 +148,7 @@ module.exports = function bankModule(ctx) {
         const seen = new Set()
         const rows = sqlite.prepare('SELECT id, parent_id FROM categories').all()
         const parentOf = new Map(rows.map(r => [r.id, r.parent_id]))
-        while (parentOf.has(cur) && parentOf.get(cur) != null && !seen.has(cur)) {
+        while (parentOf.has(cur) && parentOf.get(cur) > 0 && !seen.has(cur)) {
           seen.add(cur)
           cur = parentOf.get(cur)
         }
@@ -359,22 +359,23 @@ module.exports = function bankModule(ctx) {
       const list = (ids || []).map(Number).filter(Boolean)
       if (!list.length) return { ok: true, updated: 0 }
       const now = Date.now()
+      // 批量移题：科目归属联动更新（新章节的根科目）——parentOf 一次构建循环复用（原实现每题全表重扫）
+      let newSubject = null
+      if (patch.categoryId != null) {
+        let cur = Number(patch.categoryId)
+        const seen = new Set()
+        const rows = sqlite.prepare('SELECT id, parent_id FROM categories').all()
+        const parentOf = new Map(rows.map(r => [r.id, r.parent_id]))
+        while (parentOf.has(cur) && parentOf.get(cur) > 0 && !seen.has(cur)) {
+          seen.add(cur)
+          cur = parentOf.get(cur)
+        }
+        newSubject = cur
+      }
       const tx = sqlite.transaction(() => {
         for (const id of list) {
           if (patch.categoryId != null) {
             // 批量移题：科目归属联动更新（新章节的根科目）
-            let newSubject = null
-            if (patch.categoryId != null) {
-              let cur = Number(patch.categoryId)
-              const seen = new Set()
-              const rows = sqlite.prepare('SELECT id, parent_id FROM categories').all()
-              const parentOf = new Map(rows.map(r => [r.id, r.parent_id]))
-              while (parentOf.has(cur) && parentOf.get(cur) != null && !seen.has(cur)) {
-                seen.add(cur)
-                cur = parentOf.get(cur)
-              }
-              newSubject = cur
-            }
             sqlite.prepare('UPDATE questions SET category_id=?, category_cid=?, subject_id=?, updated_at=? WHERE id=?')
               .run(Number(patch.categoryId), categoryCid(Number(patch.categoryId)), newSubject, now, id)
           }

@@ -64,7 +64,8 @@ try {
 
   // 9) 热力图（按年返回当年天数，含 count/date）
   const hm = db.getActivityHeatmap()
-  const expectDays = new Date(new Date().getFullYear(), 11, 31).getDate() === 31 ? 365 : 366
+  // 实现语义：最近 365 天含今天（today-364 ~ today+1），与闰年无关
+  const expectDays = 365
   ok('getActivityHeatmap 返回当年天数且含 count', hm.length === expectDays && 'date' in hm[0] && 'count' in hm[0])
 
   // 10) 导入去重（同科目章节同题干 → skip 计重复）
@@ -105,7 +106,12 @@ try {
   const tc = db.todayCounts()
   ok('todayCounts 返回 review/kbRead', typeof tc.review === 'number' && typeof tc.kbRead === 'number')
   const quest = db.checkQuests()
-  ok('checkQuests 返回任务数组（数量随目标设置）', Array.isArray(quest.tasks) && typeof quest.claimed === 'object')
+  ok('checkQuests 返回任务数组（无目标时为空）', Array.isArray(quest.tasks) && quest.tasks.length === 0 && typeof quest.claimed === 'object')
+  // 目标 >0 时出现任务（99999 保证 done=false，不触发 logXp 副作用）；用完恢复
+  db.setSetting('daily_goal', 99999)
+  const qGoal = db.checkQuests()
+  ok('checkQuests 目标>0 时出现 quiz 任务且未完成', qGoal.tasks.some(t => t.key === 'quiz' && !t.done))
+  db.setSetting('daily_goal', 0)
 
   // 14) 统计模块（拆出的 db-stats 回归）
   const st = db.getStats()
@@ -225,7 +231,7 @@ try {
   ok('getWeakChapters 返回章节数组', Array.isArray(db.getWeakChapters(null, 5)))
   ok('getSimilarQuestions 返回相似题数组', Array.isArray(db.getSimilarQuestions(q.id, 3)))
   const wq = db.getWeakQuestions(10)
-  ok('getWeakQuestions 返回加权题', Array.isArray(wq) && wq.length >= 0)
+  ok('getWeakQuestions 返回加权题', Array.isArray(wq) && wq.length > 0)
   const wqWeak = db.getQuestions({ mode: 'weak', limit: 5 })
   ok('getQuestions(weak 模式) 经 this 走弱项抽题', Array.isArray(wqWeak))
 
@@ -240,7 +246,7 @@ try {
   db.bumpKbRead(kbF)
   ok('bumpKbRead 阅读计数+1', db.getKbDoc(kbF).read_count >= 1)
   db.kbSaveMd(kbF, '# 编辑后标题\n\n新内容')
-  ok('kbSaveMd 保存并切块', db.getKbDoc(kbF).blocks.length >= 1 && db.getKbDoc(kbF).title !== '编辑后标题')
+  ok('kbSaveMd 保存并切块且不改标题', db.getKbDoc(kbF).blocks.length >= 1 && db.getKbDoc(kbF).title === '文件夹文档')
   db.saveKbScroll(kbF, 3)
   ok('saveKbScroll 记录页码', db.getKbDoc(kbF).last_page === 3)
   const kf = db.listKbFiles()
@@ -308,6 +314,9 @@ try {
   // cards 表参与合并（修复：此前漏合并导致跨端闪卡丢失）
   const mCards = db.mergeRemote(JSON.stringify(db.exportSync()))
   ok('mergeRemote 合并 cards 表', mCards.cards >= 1)
+  // M1 回归：合并后 questions 快照仍含 subject_id 且等于本地科目根（远端自增 id 不会覆盖）
+  const mSyncQ = JSON.parse(db.exportSync()).questions
+  ok('mergeRemote 后 subject_id 保留', mSyncQ.every(x => 'subject_id' in x))
   // recite 背题模式：只进错题本，不写答题记录（不污染统计）
   const reciteQ = db.getWrongBook()[0]
   if (reciteQ) {
@@ -336,12 +345,16 @@ try {
   // 新增列覆盖：questions 含 audio_url/material 列、favorites 含 fav_group、cards 含 subject_id
   const exParsed = JSON.parse(exData)
   ok('exportData questions 含 material_id 列', exParsed.questions.every(q => 'material_id' in q))
+  ok('exportData questions 含 subject_id 列', exParsed.questions.every(q => 'subject_id' in q))
   ok('exportData favorites 含 fav_group 列', exParsed.favorites.every(f => 'fav_group' in f))
   ok('exportData cards 含 subject_id 列', exParsed.cards.every(c => 'subject_id' in c))
   const prev = db.importPreview(exData)
   ok('importPreview 返回差异统计', prev.questions && prev.questions.total > 0 && typeof prev.questions.fresh === 'number')
   const impRes = db.importData(exData)
   ok('importData 整机恢复', impRes.ok === true && impRes.imported > 0)
+  // H2 回归：importData 列清单必须含 subject_id（此前漏列 → INSERT OR REPLACE 后置 NULL）
+  const impQ = db.getQuestionById(q.id)
+  ok('importData 后 subject_id 保留', impQ && (impQ.category_id == null ? impQ.subject_id == null : impQ.subject_id != null))
   const syncImgName = db.saveImage(Buffer.from('sync-img-bytes'))
   db.updateQuestion({ ...q, images: [syncImgName] })
   const imgs = db.exportImageFiles(0)

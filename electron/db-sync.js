@@ -345,6 +345,20 @@ module.exports = function syncModule(ctx) {
         const qMerged = lwwMerge(readAll('questions'), remote.questions || [])
         applyFk(qMerged, 'category_cid', 'category_id', catCidToId)
         applyFk(qMerged, 'material_cid', 'material_id', matCidToId)
+        // subject_id 是派生值（= 科目根分类 id）：按已重映射的 category_id 重新推导，
+        // 避免远端机器的本地自增 id 覆盖本地正确值（questions 无 subject_cid 列可 applyFk）
+        {
+          const catParents = sqlite.prepare('SELECT id, parent_id FROM categories').all()
+          const parentOf = new Map(catParents.map(r => [r.id, r.parent_id]))
+          const rootOf = (cid) => {
+            if (cid == null) return null
+            let cur = Number(cid)
+            const seen = new Set()
+            while (parentOf.has(cur) && parentOf.get(cur) > 0 && !seen.has(cur)) { seen.add(cur); cur = parentOf.get(cur) }
+            return cur
+          }
+          for (const r of qMerged) r.subject_id = r.category_id != null ? rootOf(r.category_id) : null
+        }
         const qCidToId = new Map()
         for (const r of qMerged) qCidToId.set(r.client_id, qUpsert(r))
 
@@ -425,7 +439,9 @@ module.exports = function syncModule(ctx) {
           const docId = kbUpsert(r)
           kbCidToId.set(r.client_id, docId)
           kbDocsN++
-          if (remoteWin) {
+          // 远端胜出且文档未删除才重建子表+写回文件：删除优先胜出（deleted=1）时跳过，
+          // 否则本地软删的文档仍会被写回 md 文件（磁盘残留，见 N1）
+          if (remoteWin && !r.deleted) {
             sqlite.prepare('DELETE FROM kb_blocks WHERE doc_id=?').run(docId)
             sqlite.prepare('DELETE FROM kb_tags WHERE doc_id=?').run(docId)
             sqlite.prepare('DELETE FROM kb_links WHERE doc_id=?').run(docId)
@@ -556,7 +572,7 @@ module.exports = function syncModule(ctx) {
         tx()
       }
       replace('categories', data.categories, ['id', 'name', 'parent_id', 'level', 'stage', 'sort', 'client_id', 'parent_cid', 'updated_at', 'deleted'])
-      replace('questions', data.questions, ['id', 'category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'audio_url', 'material_id', 'material_cid', 'client_id', 'category_cid', 'updated_at', 'deleted'])
+      replace('questions', data.questions, ['id', 'category_id', 'type', 'stem', 'options_json', 'answer_json', 'keywords_json', 'analysis', 'difficulty', 'source', 'images_json', 'audio_url', 'material_id', 'material_cid', 'client_id', 'category_cid', 'subject_id', 'updated_at', 'deleted'])
       replace('answer_records', data.answerRecords, ['id', 'user_id', 'question_id', 'selected_json', 'is_correct', 'duration_ms', 'mode', 'self_graded', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])
       replace('wrong_books', data.wrongBooks, ['id', 'user_id', 'question_id', 'wrong_count', 'reviewed_count', 'ease', 'interval', 'next_review_at', 'weak_point', 'reason', 'status', 'client_id', 'question_cid', 'updated_at', 'deleted'])
       replace('favorites', data.favorites, ['id', 'user_id', 'question_id', 'fav_group', 'created_at', 'client_id', 'question_cid', 'updated_at', 'deleted'])

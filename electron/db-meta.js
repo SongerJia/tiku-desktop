@@ -31,7 +31,8 @@ module.exports = function metaModule(ctx) {
     const rootOf = (id) => {
       let cur = id
       const seen = new Set()
-      while (parentOf.has(cur) && parentOf.get(cur) != null && !seen.has(cur)) {
+      // parent_id > 0 才继续上溯：null 或 0 都视为根（0 是历史合法根哨兵，见 db-bank 的根分类查询）
+      while (parentOf.has(cur) && parentOf.get(cur) > 0 && !seen.has(cur)) {
         seen.add(cur)
         cur = parentOf.get(cur)
       }

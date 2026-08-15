@@ -7,7 +7,7 @@ import { showToast } from '../utils/toast.js'
 import { evaluate, achLevel, ACH_SERIES, RARITY_ORDER } from '../utils/achievements.js'
 import { vTilt } from '../utils/tilt.js'
 import { computePosition, offset, flip, shift, autoUpdate } from '@floating-ui/dom'
-import { ref, onMounted, computed, nextTick, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, nextTick, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { applyAppearance } from '../utils/appearance.js'
 import { useBodyLock } from '../composables/useBodyLock.js'
@@ -28,6 +28,7 @@ function forwardStart(payload) {
 
 const userName = ref('本地用户')
 const avatar = ref('') // 本地头像（base64，localStorage 存储，不进同步）
+const avatarAuto = ref(false) // 当前头像是否首字生成（true=首字；false=用户上传。缺失标记按上传处理，防改名误覆盖）
 const editOpen = ref(false) // 编辑资料弹窗
 useBodyLock(editOpen)
 useFocusTrap(editOpen, '.ep-panel')
@@ -47,11 +48,12 @@ async function saveEdit() {
     try { await tiku.setSetting('user_name', v) } catch (e) { /* 保存失败不阻塞 */ }
   }
   // 未上传自定义头像时：用姓名首字生成头像（首汉字或英文首字母大写）
-  // 改名后也刷新（当前头像若是旧名首字生成，改名后应更新首字）
-  if (!avatar.value || renamed) {
+  // 改名后仅当当前是首字头像才刷新（用户上传的头像不能被改名覆盖）
+  if (!avatar.value || (renamed && avatarAuto.value)) {
     const gen = genInitialAvatar(userName.value)
     avatar.value = gen
-    try { localStorage.setItem('tiku_avatar', gen) } catch (e) { /* 存储失败忽略 */ }
+    avatarAuto.value = true
+    try { localStorage.setItem('tiku_avatar', gen); localStorage.setItem('tiku_avatar_auto', '1') } catch (e) { /* 存储失败忽略 */ }
   }
   editOpen.value = false
 }
@@ -94,7 +96,8 @@ function onPickAvatar(e) {
       const sx = (img.width - side) / 2, sy = (img.height - side) / 2
       ctx.drawImage(img, sx, sy, side, side, 0, 0, 112, 112)
       avatar.value = c.toDataURL('image/jpeg', 0.85)
-      try { localStorage.setItem('tiku_avatar', avatar.value) } catch (err) { /* 存储失败忽略 */ }
+      avatarAuto.value = false // 用户上传 → 标记非首字，改名不再覆盖
+      try { localStorage.setItem('tiku_avatar', avatar.value); localStorage.setItem('tiku_avatar_auto', '0') } catch (err) { /* 存储失败忽略 */ }
     }
     img.onerror = () => { showToast('图片解析失败，请换一张', 'err') }
     img.src = reader.result
@@ -104,7 +107,7 @@ function onPickAvatar(e) {
 }
 function clearAvatar() {
   avatar.value = ''
-  try { localStorage.removeItem('tiku_avatar') } catch (e) {}
+  try { localStorage.removeItem('tiku_avatar'); localStorage.removeItem('tiku_avatar_auto') } catch (e) {}
 }
 const showNotes = ref(false)
 const showWrong = ref(false) // 错题管理弹窗
@@ -170,6 +173,10 @@ const showCats = ref(false)
 
 onMounted(async () => {
   try { ghLoad() } catch (e) { /* 同步配置读取失败不阻塞页面 */ }
+})
+// 浮层 autoUpdate 的滚动/resize 监听随组件卸载释放（App 用 v-if 切 Tab 会真卸载，不清理会泄漏空跑）
+onBeforeUnmount(() => {
+  if (medalTipCleanup) { medalTipCleanup(); medalTipCleanup = null }
 })
 
 async function clearLocal() {
@@ -480,6 +487,8 @@ onMounted(async () => {
   if (fR.status === 'fulfilled') fontScale.value = fR.value || '1'
   try { const n = await tiku.getSetting('user_name'); if (n) userName.value = n } catch (e) {}
   try { avatar.value = localStorage.getItem('tiku_avatar') || '' } catch (e) {}
+  // 恢复头像来源标记（仅显式 '1'=首字；缺失/其他=老数据按上传处理，改名不覆盖最安全）
+  try { avatarAuto.value = localStorage.getItem('tiku_avatar_auto') === '1' } catch (e) { avatarAuto.value = false }
   if (achR.status === 'fulfilled' && msR.status === 'fulfilled') metrics.value = { ...achR.value, ...msR.value }
   try { await loadGoals() } catch (e) { /* 目标读取失败不阻塞 */ }
 })
