@@ -435,7 +435,7 @@ async function batchDelete() {
               </label>
               <div class="q-top">
                 <span class="q-type">{{ TYPE_LABEL[q.type] || q.type }}</span>
-                <span class="q-cat">{{ q.category_name || '未分类' }}</span>
+                <span class="q-cat">{{ q.category_name ? '章节-' + q.category_name : '未分类' }}</span>
                 <span
                   v-if="notedIds.has(q.id)"
                   class="q-note"
