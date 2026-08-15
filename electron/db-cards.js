@@ -44,13 +44,12 @@ module.exports = function cardsModule(ctx) {
       // 智能关联：同题已有卡 → 复用；否则按正面内容查重 → 有则关联题目出处（不新建），无则新建
       return this.addCardSmart({
         front, back, category, subjectId, categoryId,
-        sourceQuestionId: q.id,
-        sourceQuestionStem: String(q.stem || '').trim()
+        sourceQuestionId: q.id
       })
     },
 
     // 智能转卡核心：按内容查重 → 已存在则关联出处（source_question_id/source_doc_id），不存在则新建。
-    // opts: { front, back, category, subjectId, categoryId, phonetic, audioUrl, sourceQuestionId, sourceQuestionStem, sourceDocId, sourceDocTitle }
+    // opts: { front, back, category, subjectId, categoryId, phonetic, audioUrl, sourceQuestionId, sourceDocId }
     // 返回 { ok, duplicate, cardId, matched: true } —— matched=true 表示命中已有卡（前端提示"已关联"）
     addCardSmart(opts = {}) {
       const now = Date.now()
@@ -111,8 +110,7 @@ module.exports = function cardsModule(ctx) {
         subjectId: (doc && doc.subject_id) || null,
         phonetic: extra.phonetic || '',
         audioUrl: extra.audioUrl || '',
-        sourceDocId: h.doc_id,
-        sourceDocTitle: title
+        sourceDocId: h.doc_id
       })
     },
 

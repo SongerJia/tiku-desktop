@@ -1083,7 +1083,7 @@ onMounted(async () => {
   padding: 10px 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-faint);
   cursor: pointer;
   user-select: none;
   transition: background .2s, border-color .2s;
@@ -1460,7 +1460,7 @@ onMounted(async () => {
   transition: background .15s;
 }
 .goal-row:last-of-type { border-bottom: none; }
-.goal-row:hover { background: rgba(255, 255, 255, 0.02); border-radius: 8px; }
+.goal-row:hover { background: var(--bg-faint); border-radius: 8px; }
 /* 图标胶囊：每项目标一个主题色（--gc 实色 + --gc-a 透明版） */
 .goal-ico {
   position: relative;
@@ -1852,7 +1852,7 @@ onMounted(async () => {
   position: relative;
   width: 44px; height: 44px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-faint);
   border: 1px solid var(--line);
   cursor: pointer;
   animation: medalIn .4s cubic-bezier(.2, .7, .3, 1) both;

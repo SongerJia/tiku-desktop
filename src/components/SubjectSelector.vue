@@ -193,7 +193,7 @@ useEsc(() => emit('close'))
   font-size: 15px;
   transition: background .15s;
 }
-.tree-row:hover { background: rgba(255, 255, 255, 0.05); }
+.tree-row:hover { background: var(--bg-faint); }
 .tree-row.selected {
   background: var(--brand-light);
   color: var(--brand);

@@ -103,6 +103,7 @@
 import { ref, computed, watch } from 'vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
 import { useFocusTrap } from '../composables/useFocusTrap.js'
+import { useEsc } from '../utils/useEsc.js'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { detectSubjectLang } from '../utils/speech.js'
@@ -115,6 +116,11 @@ const props = defineProps({
 useBodyLock(() => props.show)
 useFocusTrap(() => props.show, '.qd-panel')
 const emit = defineEmits(['close', 'start'])
+// Esc：转卡补充表单优先关，其次关详情
+useEsc(() => {
+  if (cardSupplement.value) { cardSupplement.value = false; return }
+  emit('close')
+})
 
 const REASONS = ['粗心', '知识点不懂', '时间不够']
 const typeLabel = (t) => ({ single: '单选', multiple: '多选', judge: '判断', essay: '问答' }[t] || t || '题目')
@@ -287,7 +293,7 @@ async function markReason(r) {
 .qd-reasons { display: flex; gap: 10px; padding: 0 24px 14px; }
 .qd-reasons .chip {
   padding: 7px 15px; border-radius: 15px; font-size: 13px; cursor: pointer;
-  border: 1px solid var(--line, #1d2740); background: rgba(255, 255, 255, 0.03); color: var(--text, #d6e2f5);
+  border: 1px solid var(--line, #1d2740); background: var(--bg-faint); color: var(--text, #d6e2f5);
 }
 .qd-reasons .chip:hover { border-color: var(--brand, #5b7cfa); }
 

@@ -2,12 +2,14 @@
 import Icon from './Icon.vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
 import { useFocusTrap } from '../composables/useFocusTrap.js'
+import { useEsc } from '../utils/useEsc.js'
 import { computed } from 'vue'
 
 const props = defineProps({ show: Boolean, q: Object })
 useBodyLock(() => props.show)
 useFocusTrap(() => props.show, '.sq-box')
 const emit = defineEmits(['close'])
+useEsc(() => emit('close'))
 
 const typeLabel = { single: '单选', multiple: '多选', judge: '判断', essay: '问答' }
 

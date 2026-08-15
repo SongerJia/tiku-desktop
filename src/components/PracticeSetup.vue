@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
 import { useFocusTrap } from '../composables/useFocusTrap.js'
+import { useEsc } from '../utils/useEsc.js'
 import { tiku } from '../api/tiku.js'
 import Icon from './Icon.vue'
 
@@ -13,6 +14,7 @@ const props = defineProps({
 useBodyLock(() => props.show)
 useFocusTrap(() => props.show, '.setup-panel')
 const emit = defineEmits(['confirm', 'cancel', 'resume'])
+useEsc(() => emit('cancel'))
 
 // 章节维度（2026-08-12 重构）：题目归属是章节粒度，练习范围按章节选。
 // 多选：默认选中进入时的章节，可增删同科目其他章节；一个都不选 = 「全部章节」= 当前科目全部题。
@@ -330,7 +332,7 @@ function confirm() {
   align-items: flex-start;
   gap: 2px;
   border: 1px solid var(--line, #1d2740);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-faint);
   border-radius: 10px;
   padding: 9px 10px;
   font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
@@ -358,7 +360,7 @@ function confirm() {
 
 .input {
   width: 100%;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-faint);
   border: 1px solid var(--line, #1d2740);
   border-radius: 8px;
   color: var(--text, #d6e2f5);

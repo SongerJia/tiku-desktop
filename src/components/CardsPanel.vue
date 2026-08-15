@@ -362,7 +362,7 @@ watch(scope, () => { if (props.show) load() })
 .card {
   width: 100%; max-width: 480px; min-height: 220px;
   border: 1px solid var(--line); border-radius: 14px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-faint);
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   transition: transform .2s, border-color .2s;

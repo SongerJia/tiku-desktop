@@ -159,7 +159,7 @@ function openReleases() {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 2px 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-faint);
   transition: all .15s ease;
   cursor: default;
 }

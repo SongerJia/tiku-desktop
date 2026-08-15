@@ -997,7 +997,7 @@ function optionClass(key) {
 .bar { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
 .back, .fav {
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-faint);
   color: var(--text);
   padding: 6px 12px;
   border-radius: 8px;
@@ -1025,7 +1025,7 @@ function optionClass(key) {
   padding: 9px;
   border-radius: 9px;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-faint);
   color: var(--text);
   font-size: 13px;
   cursor: pointer;
@@ -1078,7 +1078,7 @@ function optionClass(key) {
   padding: 11px 13px;
   cursor: pointer;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-faint);
   position: relative;
   transition: border-color .15s, background .15s, transform .12s, box-shadow .15s;
 }
@@ -1123,7 +1123,7 @@ function optionClass(key) {
 .essay-input {
   width: 100%;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-faint);
   border: 1px solid var(--line);
   border-radius: 10px;
   color: var(--text);
@@ -1137,7 +1137,7 @@ function optionClass(key) {
 .essay-input:focus { border-color: var(--brand); box-shadow: var(--glow-soft); }
 .essay-input:disabled { opacity: .7; cursor: not-allowed; }
 
-.essay-review { margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: rgba(255, 255, 255, 0.02); }
+.essay-review { margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--bg-faint); }
 .kw-summary { font-size: 14px; margin-bottom: 8px; }
 .kw-title { color: var(--muted); }
 .kw-all { color: var(--ok); font-weight: 600; }
@@ -1155,7 +1155,7 @@ function optionClass(key) {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-faint);
 }
 .note-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .note-title { font-size: 13px; color: var(--muted); }
@@ -1163,7 +1163,7 @@ function optionClass(key) {
 .note-input {
   width: 100%;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-faint);
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--text);
@@ -1178,7 +1178,7 @@ function optionClass(key) {
 .note-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
 .note-tip { font-size: 11px; color: var(--muted); }
 .note-save {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-faint);
   border: 1px solid var(--line);
   color: var(--text);
   padding: 5px 16px;
@@ -1204,7 +1204,7 @@ function optionClass(key) {
 .nav-prev {
   flex: 0 0 auto;
   min-width: 100px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-faint);
   border: 1px solid var(--line);
   color: var(--text);
   padding: 11px 18px;
@@ -1312,7 +1312,7 @@ function optionClass(key) {
 .rv-head { display: flex; align-items: center; justify-content: space-between; }
 .rv-head h2 { color: var(--brand); text-shadow: var(--glow-soft); }
 .rv-list { display: flex; flex-direction: column; gap: 12px; max-height: 60vh; overflow-y: auto; }
-.rv-item { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: rgba(255, 255, 255, 0.02); }
+.rv-item { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--bg-faint); }
 .rv-item.ok { border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
 .rv-item.no { border-color: rgba(255, 77, 109, 0.4); }
 .rv-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }

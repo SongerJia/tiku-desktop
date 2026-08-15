@@ -891,7 +891,7 @@ function fmtTime(ts) {
 .g-full {
   margin-left: auto;
   font-size: 11px; padding: 2px 10px; border-radius: 7px;
-  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line); background: var(--bg-faint);
   color: var(--muted); cursor: pointer; transition: all .15s;
 }
 .g-full:hover { border-color: var(--brand); color: var(--brand); }
@@ -906,7 +906,7 @@ function fmtTime(ts) {
 .graph-ctl { display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 .g-ctl-btn {
   width: 26px; height: 26px; border-radius: 7px;
-  border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line); background: var(--bg-faint);
   color: var(--text); font-size: 14px; cursor: pointer; line-height: 1;
 }
 .g-ctl-btn:hover { border-color: var(--brand); color: var(--brand); }

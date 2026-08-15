@@ -301,7 +301,7 @@ async function toggleSimilar(qid) {
 .actions { display: flex; gap: 8px; }
 button { border: none; padding: 7px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; }
 .primary { background: var(--brand); color: #fff; }
-.ghost { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); color: var(--text); }
+.ghost { background: var(--bg-faint); border: 1px solid var(--line); color: var(--text); }
 .ghost:hover { border-color: var(--brand); color: var(--brand); }
 .ghost.del:hover { border-color: var(--bad); color: var(--bad); }
 .ghost:disabled { opacity: .5; cursor: default; }

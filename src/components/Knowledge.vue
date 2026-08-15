@@ -154,7 +154,7 @@ function typeLabel(t) {
   padding: 5px 12px;
   border-radius: 16px;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-faint);
   font-size: 12px;
   color: var(--text);
   cursor: pointer;

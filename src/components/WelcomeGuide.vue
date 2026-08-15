@@ -2,9 +2,13 @@
 import LogoMark from './LogoMark.vue'
 import { ref } from 'vue'
 import { tiku } from '../api/tiku.js'
+import { useBodyLock } from '../composables/useBodyLock.js'
+import { useEsc } from '../utils/useEsc.js'
 
 const props = defineProps({ show: Boolean })
 const emit = defineEmits(['close'])
+useBodyLock(() => props.show)
+useEsc(() => skip())
 
 const step = ref(0)
 const STEPS = [
