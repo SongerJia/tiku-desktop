@@ -72,7 +72,12 @@
         <!-- 阅读器（管理弹窗内打开） -->
         <KbReader :show="reader.show" :doc="reader.doc" @close="reader.show = false" />
 
-        <!-- 导入文档弹窗（Teleport 到 body，独立于管理面板；打开时自动隐藏外层管理弹窗） -->
+        
+    </div>
+  </div>
+</transition>
+
+<!-- 导入文档弹窗（Teleport 到 body，独立于管理面板；打开时自动隐藏外层管理弹窗） -->
         <Teleport to="body">
           <transition name="fade">
             <div v-if="importStep" class="km-import-mask" @click.self="closeImport">
@@ -140,9 +145,6 @@
         </div>
 </transition>
       </Teleport>
-    </div>
-  </div>
-</transition>
 
 <!-- 编辑弹窗（Teleport 到 body，独立于管理面板） -->
 <Teleport to="body">
