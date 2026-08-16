@@ -1,8 +1,8 @@
-# 知识记忆小助手（刷题题库）— Electron 本地版
+# 知识记忆小助手（刷题题库）— 跨平台（Windows 桌面 + Android APK）
 
 一个**本地安装、离线可用**的刷题题库桌面软件。数据全存在你电脑上的一个 SQLite 文件里，不需要服务器、不需要联网、不需要备案。支持分类刷题、选择题自动判分、问答题自评、错题本、收藏、学习统计、模拟卷组卷、题目图片与笔记，以及 CSV / Excel / JSON 导入导出。内置**个人知识库**（md / pdf 知识文档，与题库题目双向联动），升级为"刷题 + 资料库"all-in-one 学习工具。
 
-> 当前版本：**v0.7.0（Phase 1 本地 + Phase 2 全量云同步 + 科目维度全闭环 + 模拟卷/图片 + 个人知识库全闭环 + 学习反馈层 + 赛季系统 + 全局打磨 + 阅读器体验升级 + 自动更新）**。已实现本地刷题全闭环、**GitHub 仓库全量云同步**（学习数据 + 题库 + 知识库文档原件 + 题目图片，跨 Windows/macOS）、**科目维度全闭环**（题库/错题/收藏/复习/每日一题/薄弱点/知识库/记忆卡全部跟随科目）、模拟卷组卷、题目图片与音频、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就（**20 个归类成就 × 4 档**）与**赛季挑战**、批量操作、**三主题**（深色 / 浅色 / 护眼绿），**个人知识库**（md/pdf 导入、全文搜索、阅读、MD 在线编辑、文件夹分类、同步、导出、与题目双向联动、统计），**学习反馈层**（XP 等级、每日任务、每日回顾、番茄钟、错题原因、文档高亮/双链、周排行、学习周报），**记忆卡**（按科目归类 + SM-2 调度复习）、**全局体验打磨**（应用内 Toast/Confirm/Prompt、骨架屏、计数动画、Tab 过渡、Esc 关闭、**弹窗背景滚动锁定 + 焦点圈定**、键盘可达、自动备份、首启引导、打包图标）与**学习体验打磨**（知识块间隔复习、练习完成总结、顽固错题优先、答题键盘快捷键、成就/升级即时庆祝）与**阅读器体验升级**（知识库全屏单栏沉浸阅读页、目录/相关抽屉按需唤出、MD 打开即 **Typora 式所见即所得**（Vditor 即时渲染：点击行即编辑、无工具栏纯正文）、PDF 懒渲染 + 缩放缓存 + Ctrl+滚轮 + 右下角缩放浮层）与**发布体系**（GitHub Releases 应用内自动更新、安装包瘦身、一键安装向导）；Phase 3 用 Capacitor 出 Android APK。
+> 当前版本：**v0.7.0（Phase 1 本地 + Phase 2 全量云同步 + 科目维度全闭环 + 模拟卷/图片 + 个人知识库全闭环 + 学习反馈层 + 赛季系统 + 全局打磨 + 阅读器体验升级 + 自动更新）**。已实现本地刷题全闭环、**GitHub 仓库全量云同步**（学习数据 + 题库 + 知识库文档原件 + 题目图片，跨 Windows/macOS）、**科目维度全闭环**（题库/错题/收藏/复习/每日一题/薄弱点/知识库/记忆卡全部跟随科目）、模拟卷组卷、题目图片与音频、标签系统、弱点强化、错题深度分析、PDF 导出、游戏化成就（**20 个归类成就 × 4 档**）与**赛季挑战**、批量操作、**三主题**（深色 / 浅色 / 护眼绿），**个人知识库**（md/pdf 导入、全文搜索、阅读、MD 在线编辑、文件夹分类、同步、导出、与题目双向联动、统计），**学习反馈层**（XP 等级、每日任务、每日回顾、番茄钟、错题原因、文档高亮/双链、周排行、学习周报），**记忆卡**（按科目归类 + SM-2 调度复习）、**全局体验打磨**（应用内 Toast/Confirm/Prompt、骨架屏、计数动画、Tab 过渡、Esc 关闭、**弹窗背景滚动锁定 + 焦点圈定**、键盘可达、自动备份、首启引导、打包图标）与**学习体验打磨**（知识块间隔复习、练习完成总结、顽固错题优先、答题键盘快捷键、成就/升级即时庆祝）与**阅读器体验升级**（知识库全屏单栏沉浸阅读页、目录/相关抽屉按需唤出、MD 打开即 **Typora 式所见即所得**（Vditor 即时渲染：点击行即编辑、无工具栏纯正文）、PDF 懒渲染 + 缩放缓存 + Ctrl+滚轮 + 右下角缩放浮层）与**发布体系**（GitHub Releases 应用内自动更新、安装包瘦身、一键安装向导）；**Android APK**（Capacitor 打包，与 Windows 同源的应用内自动更新）。
 
 ---
 
@@ -106,12 +106,12 @@
 | **赛季系统** | 每月一赛季：6 项挑战（刷题/复习/专注/打卡/记忆卡/全勤）目标逐季递增 + 赛季成就存档 | ✅ 完成 | `achievements.js` currentSeason/evaluateSeason/syncSeasonArchive + Profile 赛季区块 |
 | **安装版数据隔离** | 打包版用独立 userData 目录（`知识记忆小助手-正式版`），安装版首次打开干净空库，不带开发机测试数据 | ✅ 完成 | main.js `app.isPackaged` 时 setPath 独立目录 |
 | **发布流程** | `npm run bump patch/minor/major`（升版本号+同步 README，提交需手动）→ `npm run release`（防呆查重+打包+上传 GitHub Releases）→ 已装用户自动更新 | ✅ 完成 | `scripts/bump-version.mjs` + `scripts/check-release-version.mjs` + electron-updater 全链路通知 |
-| **Android APK** | Capacitor 打包移动端 | ⏳ 未开始 | Phase 3 |
+| **Android APK** | Capacitor 打包移动端（复用同一套 Vue 界面，应用内自动更新） | ✅ 已完成 | v0.7.0 |
 
 > 「我的笔记」入口已从占位升级为真实功能（展示/删除全部笔记）；原「默写记录」「我的反馈」两个纯占位入口已移除。
 
 ### 当前阶段一句话
-v0.6.3 全功能落地：题库闭环、模拟卷、标签、错题、笔记、知识库全链路、反馈层（XP/任务/回顾/番茄/高亮/双链/周报）、**科目维度全闭环**、**赛季系统**、**三主题**、全局打磨与数据安全（备份/引导/图标/打包配置）均已完成；**云同步为 GitHub 仓库单后端**（学习数据 + 题库 + 知识库文档原件 + 题目图片全量），**发布体系就绪**（bump 升版 + release 发布 + 应用内自动更新）。代码经过 **5 轮代码审计（38 项修复）+ 全量逐行审查 + UX 交互专项 + 性能优化**，配套 `docs/ui-guidelines.md`（UI 设计规范，改展示元素前必读）与 `docs/audit/`（审计报告）。代码可直接 `npm install && npm run dev` 跑起来，`npm run dist` 可打包安装包，`npm run release` 发布后已装用户自动更新；下一步可选：**Phase 3 安卓 APK** 或 **扫描版 PDF OCR**。
+v0.7.0 全功能落地（含 Android APK 多端）：题库闭环、模拟卷、标签、错题、笔记、知识库全链路、反馈层（XP/任务/回顾/番茄/高亮/双链/周报）、**科目维度全闭环**、**赛季系统**、**三主题**、全局打磨与数据安全（备份/引导/图标/打包配置）均已完成；**云同步为 GitHub 仓库单后端**（学习数据 + 题库 + 知识库文档原件 + 题目图片全量），**发布体系就绪**（bump 升版 + release 发布 + 应用内自动更新）。代码经过 **5 轮代码审计（38 项修复）+ 全量逐行审查 + UX 交互专项 + 性能优化**，配套 `docs/ui-guidelines.md`（UI 设计规范，改展示元素前必读）与 `docs/audit/`（审计报告）。代码可直接 `npm install && npm run dev` 跑起来，`npm run dist` 可打包安装包，`npm run release` 发布后已装用户自动更新；下一步可选：**扫描版 PDF OCR**。
 
 ---
 
@@ -135,7 +135,15 @@ tiku-desktop/
 │  ├─ db-assets.js     # 题图/音频存取（内存缓存 + 魔数识别格式）
 │  ├─ kbExtract.js     # 知识库抽取：MD 按标题切块、PDF pdfjs 逐页抽文本
 │  ├─ xlsx-lite.js     # 零依赖 Excel 读写器
-│  └─ sampleData.js    # 首启样例数据（二级建造师）
+│  ├─ sampleData.js    # 首启样例数据（二级建造师）
+├─ electron-mobile/
+│  ├─ platform-methods.js   # APK 端 19 个平台方法（与 Electron main 对齐：JS 直实现 / Capacitor 原生桥 / GitHub 自动更新）
+│  └─ boot.js               # 启动桥：合并 109 个 PURE_DB_METHODS + 19 平台方法 → window.capacitorBridge.api
+├─ android/                 # Capacitor 原生壳（Java 桥 TikuBridgePlugin + FileProvider 安装）
+├─ public-mobile/           # APK 专属静态资源（注入桥脚本）
+├─ dist-mobile/             # 移动端构建产物（npm run build:mobile）
+├─ capacitor.config.json    # Capacitor 配置（appId / web-dir=dist-mobile）
+├─ vite.mobile.config.js    # 移动端 Vite 构建配置
 ├─ src/
 │  ├─ App.vue          # 5 Tab 导航 + 顶部科目选择器/统一搜索按钮 + 答题覆盖层
 │  ├─ main.js          # Vue 入口
@@ -151,6 +159,7 @@ tiku-desktop/
 ├─ scripts/            # 独立测试脚本 + check-css-vars.py（CSS 变量一致性）
 ├─ vite.config.js
 ├─ vite.verify.config.js   # 纯编译校验（不落盘产物）
+├─ RELEASE.md              # 发版与自动更新说明（Windows 安装包 + Android APK）
 └─ package.json
 ```
 
@@ -242,6 +251,7 @@ npm run release               # ④ 打包 + 上传 GitHub Releases（内置防�
 
 发布后：
 - **已装用户**：启动 10 秒后 / 每 6 小时自动检测，发现新版自动下载，退出应用即自动安装——无需重新下载安装包
+- **Android APK 已装用户**：「关于」页检测 GitHub Releases 最新版本，`downloadUpdate` 下载 APK（带进度）后调起系统安装器更新——与 Windows 同源的自动更新
 - **新用户**：从 GitHub Releases 下载安装包（一键安装向导）
 - 版本号在 **README / 软件内「关于我们」/ 安装包 / GitHub Release** 四处保持一致
 
@@ -392,14 +402,13 @@ node --check electron/main.js && node --check electron/preload.js
 2. **PDF 原件**：二进制大文件与 kb 目录一起走仓库 `kb/` 增量同步（hash 比对，缺失/变更才传）——文档原件跨设备可完整还原。
 3. **合并策略**：`kb_docs` 走 client_id + LWW；子表（`kb_blocks`/`kb_tags`/`kb_links`）无 client_id，按 doc 的 client_id 分组随快照携带，跟随「远端胜出」的文档整体重建；rel_path 冲突自动换名兜底。
 
-### Phase 3：Android APK（复用同一套 Vue 界面）
-Electron 只能出桌面端，出 APK 用 **Capacitor**：
-1. `npm run build` 产出纯 Web 产物到 `dist/`。
-2. 加 Capacitor：`npm i -D @capacitor/core @capacitor/cli @capacitor/android`
-   - `npx cap init tiku com.yourcompany.tiku --web-dir=dist`
-   - `npx cap add android` → `npx cap sync` → `npx cap open android`
-3. **存储替换**：`better-sqlite3` 在 WebView 里跑不了，改用 `@capacitor-community/sqlite`；SQL 建表/查询语句几乎照搬 `db.js`。
-4. **IPC 替换**：当前 `src/api/tiku.js` 走 `window.electronAPI`；APK 版改成 Capacitor 插件桥，UI 组件无需改。
+### Phase 3：Android APK（已完成，v0.7.0）
+Electron 只能出桌面端，APK 用 **Capacitor** 复用同一套 Vue 界面，已发布并支持应用内自动更新：
+- **构建链路**：`npm run build`（产出 `dist/`）→ `npm run build:mobile`（注入 `boot.js` 桥、拷贝 `public-mobile/` → `dist-mobile/`）→ Capacitor 同步进 `android/` 原生壳；配置见 `capacitor.config.json` 与 `vite.mobile.config.js`。
+- **数据存储**：WebView 内**沿用 better-sqlite3**（经 Capacitor 原生桥暴露文件 API，`electron-mobile/platform-methods.js` 实现 19 个平台方法），无需替换为 `@capacitor-community/sqlite`；桌面 `db.js` 数据层逻辑基本原样复用。
+- **IPC 对齐**：桌面走 `window.electronAPI`（preload 127 方法）；APK 走 `window.capacitorBridge.api`（boot.js 合并 109 个 PURE_DB_METHODS + 19 个平台方法），UI 组件经 `src/api/tiku.js` 的 Proxy 自动转发，不改动业务组件。
+- **应用内自动更新**：基于 GitHub Releases（仓库 `SongerJia/tiku-desktop`）——`checkUpdate` 拉最新 release 比对版本号，`downloadUpdate` 下载 APK（带进度）落设备文件，`installApk` 经 FileProvider URI 调起系统安装（`REQUEST_INSTALL_PACKAGES`）。
+- **打包发布**：指定 APK 名称/图标，并新增 Windows + APK 自动发布工作流（`.github/`）；详见 `RELEASE.md`。
 
 ---
 
