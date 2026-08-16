@@ -697,6 +697,15 @@ input:focus, textarea:focus, select:focus, .input:focus {
   .list-item:hover { background: none; }
 }
 
+/* P6 真机修复：弹窗遮罩强制全屏——个别 mask 用 absolute/受 app 容器（520px）限制
+   导致「外层大长方形上下包着弹窗」；fixed inset 0 覆盖整个屏幕 */
+.app.is-mobile [class$="-mask"] {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
 /* P6 真机修复：大面板弹层统一居中 + 高度填充（92dvh 上限、内容充满消除上下大空白）；
    小提示框（cf/ab 等）天然居中不受影响。仅 820px 内生效，桌面布局不受影响。 */
 @media (max-width: 820px) {

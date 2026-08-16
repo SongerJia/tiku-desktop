@@ -295,8 +295,12 @@ function openImport() {
 async function pickImportFiles() {
   try {
     const files = await tiku.kbPickFiles()
+    // P6 诊断：区分「原生桥缺失」（插件未注册）与「选择器未返回」（用户取消/读取失败）
+    if (files && files.bridgeMissing) {
+      showToast('文件选择器未就绪（原生插件未注册，需重新打包）', 'err')
+      return
+    }
     if (!files || !files.length) {
-      // P6 诊断：选择器返回空需可见（原生桥缺失/读取失败等），此前静默
       showToast('未选择文件（若已选却无反应，请检查文件选择器返回）', 'err')
       return
     }

@@ -6,7 +6,10 @@
     var t = localStorage.getItem('tiku_theme')
     if (t !== 'light' && t !== 'eye') t = 'dark'
     document.documentElement.setAttribute('data-theme', t)
-    var z = parseFloat(localStorage.getItem('tiku_font_scale'))
-    if (z && z > 0) document.documentElement.style.zoom = z
+    // P6：移动端（<820px）禁用 zoom 字号缩放（整体缩放界面会破坏响应式 + 引发横向滑动条）
+    if (window.innerWidth >= 820) {
+      var z = parseFloat(localStorage.getItem('tiku_font_scale'))
+      if (z && z > 0) document.documentElement.style.zoom = z
+    }
   } catch (e) {}
 })()

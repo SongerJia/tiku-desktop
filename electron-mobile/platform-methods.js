@@ -113,10 +113,11 @@ export function createPlatformMethods(db) {
 
     // ---- ② Capacitor 原生桥 ----
 
-    // 选择 md/pdf 文档：原生返回 [{ name, ext, size, base64 }]
+    // 选择 md/pdf 文档：原生返回 [{ name, ext, size, base64 }]。
+    // bridgeMissing 标记用于诊断：window.Capacitor.Plugins.TikuBridge 不存在（插件未注册/名不匹配）
     kbPickFiles: async () => {
       const nb = nativeBridge()
-      if (!nb) return []
+      if (!nb) return { bridgeMissing: true, files: [] }
       const r = await nb.kbPickFiles({ mimeTypes: KB_MIME })
       return (r && r.files) || []
     },
