@@ -18,11 +18,9 @@ export async function applyAppearance() {
     localStorage.setItem('tiku_font_scale', fontScale)
   } catch (e) { /* 存储失败不影响本次应用 */ }
   document.documentElement.setAttribute('data-theme', t)
-  // P6 修复：字号缩放用 zoom 会「整体缩放界面」——移动端破坏响应式布局且引发横向滑动条
-  // （zoom 不改布局 scrollWidth，元素超宽时滚动条仍出现）。移动端固定 zoom=1，
-  // 界面始终等于手机屏幕大小；字号设置在移动端暂不缩放界面（后续可做 font-size 专项）。
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 820
+  // 字号缩放：根元素 zoom 整体缩放。范围限制 0.85~1.20（之前 0.8~1.4 过大触发溢出）。
+  // 移动端也应用 zoom——之前 P6 第四轮因 .app 装饰背景 fixed 异常禁用，第七轮已去背景，安全。
   const z = parseFloat(fontScale)
-  const applied = (z && z > 0 && !isMobile) ? z : 1
+  const applied = (z && z > 0) ? Math.min(1.20, Math.max(0.85, z)) : 1
   document.documentElement.style.zoom = applied
 }

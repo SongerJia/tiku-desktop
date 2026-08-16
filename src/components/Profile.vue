@@ -708,15 +708,15 @@ onMounted(async () => {
         <span class="pref-label">字号</span>
         <span class="pref-a">A</span>
         <div class="pref-range-wrap">
-          <div class="pref-bubble" :style="{ left: `calc(${(fontScale - 0.8) / 0.6 * 100}% - 19px)` }">
+          <div class="pref-bubble" :style="{ left: `calc(${(fontScale - 0.85) / 0.35 * 100}% - 19px)` }">
             <b>{{ Math.round(fontScale * 100) }}%</b>
           </div>
-          <input class="pref-range" type="range" min="0.8" max="1.4" step="0.05" :value="fontScale"
+          <input class="pref-range" type="range" min="0.85" max="1.20" step="0.05" :value="fontScale"
                  @input="onScaleDrag" @change="onScaleCommit"
-                 :style="{ background: `linear-gradient(90deg, var(--brand) ${(fontScale - 0.8) / 0.6 * 100}%, var(--line) ${(fontScale - 0.8) / 0.6 * 100}%)` }" />
+                 :style="{ background: `linear-gradient(90deg, var(--brand) ${(fontScale - 0.85) / 0.35 * 100}%, var(--line) ${(fontScale - 0.85) / 0.35 * 100}%)` }" />
           <div class="pref-ticks">
-            <i v-for="t in 7" :key="t" :class="{ on: Math.round(fontScale * 100) >= Math.round((0.8 + (t - 1) * 0.1) * 100) }"
-               :style="{ left: ((t - 1) / 6 * 100) + '%' }"></i>
+            <i v-for="t in 8" :key="t" :class="{ on: Math.round(fontScale * 100) >= Math.round((0.85 + (t - 1) * 0.05) * 100) }"
+               :style="{ left: ((t - 1) / 7 * 100) + '%' }"></i>
           </div>
         </div>
         <span class="pref-a big">A</span>
@@ -2038,8 +2038,7 @@ onMounted(async () => {
 @media (max-width: 820px) {
   .medal-grid { grid-template-columns: repeat(6, 1fr); gap: 14px 6px; }
   .wf-panel { height: 92dvh; max-height: 92dvh; }
-  /* P6：移动端字号缩放禁用（zoom 会整体缩放界面）→ 隐藏字号滑块，避免无效设置 */
-  .pref-row:has(.pref-range) { display: none; }
+  /* 字号缩放已恢复移动端 zoom（0.85~1.20 限幅），字号滑块正常显示 */
 }
 
 </style>

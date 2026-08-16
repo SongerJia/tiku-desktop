@@ -102,6 +102,12 @@ html, body, #app {
 .app.is-mobile .km-list { display: flex; flex-direction: column; }
 .app.is-mobile .km-list .km-empty { margin: auto; } /* flex column auto margin 居中 */
 
+/* P6 真机适配：Profile 偏好设置
+   - 主题卡片（深色/浅色/护眼）三卡 + label 横排在窄屏溢出 → pref-row column 换行 + palette wrap */
+.app.is-mobile .pref-row { flex-wrap: wrap; align-items: flex-start; }
+.app.is-mobile .pref-row .pref-label { flex-basis: 100%; margin-bottom: 4px; }
+.app.is-mobile .theme-palette { flex-wrap: wrap; }
+
 .app.is-mobile {
   display: flex;
   flex-direction: column;
