@@ -2038,6 +2038,8 @@ onMounted(async () => {
 @media (max-width: 820px) {
   .medal-grid { grid-template-columns: repeat(6, 1fr); gap: 14px 6px; }
   .wf-panel { height: 92dvh; max-height: 92dvh; }
+  /* P6：移动端字号缩放禁用（zoom 会整体缩放界面）→ 隐藏字号滑块，避免无效设置 */
+  .pref-row:has(.pref-range) { display: none; }
 }
 
 </style>

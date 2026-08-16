@@ -32,9 +32,6 @@ import java.io.InputStream;
 @CapacitorPlugin(name = "TikuBridge")
 public class TikuBridgePlugin extends Plugin {
 
-    private static final int REQ_KB = 9101;      // 知识文档选择（md/pdf，多选）
-    private static final int REQ_BACKUP = 9102;  // 备份文件选择（.db）
-
     // ---- 版本号（build.gradle versionName）----
     @PluginMethod
     public void getVersion(PluginCall call) {
@@ -63,28 +60,30 @@ public class TikuBridgePlugin extends Plugin {
     // ---- 知识文档选择（多选 md/pdf）----
     @PluginMethod
     public void kbPickFiles(PluginCall call) {
-        launchPicker(call, REQ_KB, new String[]{"text/markdown", "text/plain", "application/pdf"});
+        launchPicker(call, true, new String[]{"text/markdown", "text/plain", "application/pdf"});
     }
 
     // 选择并导入（字节处理在 WebView 侧，与 kbPickFiles 同一原生路径）
     @PluginMethod
     public void kbImportFiles(PluginCall call) {
-        launchPicker(call, REQ_KB, new String[]{"text/markdown", "text/plain", "application/pdf"});
+        launchPicker(call, true, new String[]{"text/markdown", "text/plain", "application/pdf"});
     }
 
     // ---- 备份文件选择（.db）----
     @PluginMethod
     public void pickBackup(PluginCall call) {
-        launchPicker(call, REQ_BACKUP, new String[]{"application/octet-stream"});
+        launchPicker(call, false, new String[]{"application/octet-stream"});
     }
 
-    private void launchPicker(PluginCall call, int reqCode, String[] mimeTypes) {
+    private void launchPicker(PluginCall call, boolean multi, String[] mimeTypes) {
         Intent i = new Intent(Intent.ACTION_GET_CONTENT);
         i.setType("*/*");
         i.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
         i.addCategory(Intent.CATEGORY_OPENABLE);
-        i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, reqCode == REQ_KB); // 文档多选，备份单选
-        startActivityForResult(call, i, reqCode);
+        i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, multi); // 文档多选，备份单选
+        // 修复：Capacitor 8 的 startActivityForResult 第三参是「@ActivityCallback 回调方法名」
+        // 而非 requestCode——此前传 int（"9101"）导致 launcher 匹配失败、选择结果永远回不来
+        startActivityForResult(call, i, "onPickerResult");
     }
 
     @ActivityCallback
@@ -141,7 +140,14 @@ public class TikuBridgePlugin extends Plugin {
             o.put("base64", Base64.encodeToString(bytes, Base64.NO_WRAP));
             return o;
         } catch (Exception e) {
-            return null;
+            // P6：读取失败不静默跳过——返回带 readError 的条目，WebView 端可见具体错误
+            JSObject o = new JSObject();
+            o.put("name", "file");
+            o.put("ext", "");
+            o.put("size", 0);
+            o.put("base64", "");
+            o.put("readError", e.getMessage() == null ? e.toString() : e.getMessage());
+            return o;
         }
     }
 
