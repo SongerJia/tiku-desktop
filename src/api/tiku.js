@@ -7,8 +7,9 @@ import { bridge } from './bridge.js'
 export const tiku = new Proxy({}, {
   get(_, key) {
     if (key === 'then') return undefined // 配合 Promise.resolve 兼容性
-    // 快速路径：方法存在才返回包装（不存在返回 undefined，与旧行为一致）
-    if (typeof bridge.raw()[key] !== 'function') return undefined
+    // P5 真机修复：不做同步存在性检查——APK 分支 boot（SQL.js wasm）完成前 raw() 为空，
+    // 同步判断会误判方法不存在（TypeError: xxx is not a function）。
+    // 方法是否可用由 bridge.call 在等待数据层就绪后判断；不存在的调用返回 undefined（与旧行为一致）。
     return (...args) => bridge.call(key, args)
   }
 })

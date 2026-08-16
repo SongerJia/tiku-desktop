@@ -42,11 +42,34 @@ const PURE_DB_METHODS = [
   'exportWrongBook', 'exportNotes', 'getWeeklyReport', 'getMonthStats'
 ]
 
-// 创建数据服务：所有方法 = (...args) => db[method](...args)
+// 渲染层/IPC 方法名 → db 实际方法名的别名映射（P2 修复：清单沿用渲染层 API 名，
+// 部分与 db 方法名不一致——kb* 缩写 vs 完整名、exportWrongBook/exportNotes 的 Markdown 后缀）
+const DB_ALIASES = {
+  kbList: 'getKbDocs',
+  kbGet: 'getKbDoc',
+  kbUpdate: 'updateKbDoc',
+  kbDelete: 'deleteKbDoc',
+  kbSetTags: 'setKbTags',
+  kbTags: 'listKbTags',
+  kbLink: 'linkKbDoc',
+  kbUnlink: 'unlinkKbDoc',
+  kbLinksForQuestion: 'getKbLinksForQuestion',
+  kbLinksForDoc: 'getKbLinksForDoc',
+  kbSearch: 'searchKb',
+  kbRead: 'readKbFile',
+  kbSuggestDocs: 'getSuggestedDocsForQuestion',
+  kbSuggestQuestions: 'getSuggestedQuestionsForDoc',
+  kbBumpRead: 'bumpKbRead',
+  exportWrongBook: 'exportWrongBookMarkdown',
+  exportNotes: 'exportNotesMarkdown'
+}
+
+// 创建数据服务：所有方法 = (...args) => db[realMethod](...args)
 function createDataService(db) {
   const svc = {}
   for (const m of PURE_DB_METHODS) {
-    svc[m] = (...args) => db[m](...args)
+    const real = DB_ALIASES[m] || m
+    svc[m] = (...args) => db[real](...args)
   }
   return svc
 }
