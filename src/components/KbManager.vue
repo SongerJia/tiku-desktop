@@ -314,7 +314,9 @@ async function confirmImport() {
     const sid = Number(subjectFilter.value) || null
     const cid = Number(categoryFilter.value) || null
     const target = cid || sid || null
-    const paths = importFiles.value.map(f => f.path)
+    // P6 修复：APK 端直接传预览文件对象（含 base64），Electron 端传 {path} 路径数组——
+    // 由桥层 kbImportFiles 按元素类型区分（对象=复用字节，字符串=读磁盘路径）
+    const paths = importFiles.value.map(f => (f.path ? f.path : f))
     const res = (await tiku.kbImportFiles(paths, target)) || []
     const ok = res.filter(r => r.ok && !r.duplicated)
     const dup = res.filter(r => r.duplicated)

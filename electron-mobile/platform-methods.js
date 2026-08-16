@@ -122,13 +122,22 @@ export function createPlatformMethods(db) {
     },
 
     // 选择并导入知识文档（字节 → 共享 importKbFiles，与 Electron 同一套去重/切块/入库）
+    // paths 语义（跨端差异）：
+    //   Electron：字符串路径数组（main.js 读磁盘）
+    //   APK：kbPickFiles 预览返回的 [{ name, ext, base64 }] 对象数组 → 复用不重复弹选择器；
+    //        空/null → 弹系统选择器
     kbImportFiles: async (paths, subjectId) => {
-      const nb = nativeBridge()
-      if (!nb) return []
-      const r = await nb.kbPickFiles({ mimeTypes: KB_MIME })
-      const files = ((r && r.files) || []).map(f => ({
+      let picked = paths
+      const isObjList = Array.isArray(paths) && paths.length > 0 && typeof paths[0] === 'object'
+      if (!isObjList) {
+        const nb = nativeBridge()
+        if (!nb) return []
+        const r = await nb.kbPickFiles({ mimeTypes: KB_MIME })
+        picked = (r && r.files) || []
+      }
+      const files = (picked || []).map(f => ({
         name: f.name, ext: f.ext, data: b64ToBytes(f.base64 || '')
-      }))
+      })).filter(f => f.data.length > 0)
       if (!files.length) return []
       return importKbFiles(db, files, subjectId)
     },

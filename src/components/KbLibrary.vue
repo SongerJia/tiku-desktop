@@ -349,6 +349,9 @@ async function onImport() {
     if (dup.length) msgs.push(`已存在跳过 ${dup.length} 篇`)
     if (failed.length) msgs.push(`失败 ${failed.length} 篇（${failed[0].error || '仅支持 md/pdf'}）`)
     if (msgs.length) showToast(msgs.join('；'), failed.length ? 'err' : 'ok')
+  } catch (e) {
+    // P6 修复：导入异常需可见（此前静默失败无任何反馈）
+    showToast('导入失败：' + ((e && e.message) || e || '未知错误'), 'err')
   } finally {
     importing.value = false
   }
