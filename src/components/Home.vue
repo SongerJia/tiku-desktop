@@ -231,10 +231,7 @@ const focusWeek = ref(0)
 const focusPhase = ref('work')   // 'work' 25 分钟 | 'break' 5 分钟（番茄循环）
 const pomodoroCount = ref(0)     // 本日完成的番茄数（会话内累计）
 const paused = ref(false)
-const noiseOn = ref(false)       // 白噪音开关
 let focusTimer = null
-let noiseCtx = null
-let noiseSrc = null
 
 const focusText = computed(() => {
   const m = Math.floor(focusLeft.value / 60)
@@ -291,44 +288,12 @@ async function stopFocus(completed = false) {
   focusTimer = null
   focusRunning.value = false
   paused.value = false
-  stopNoise()
   if (completed && focusPhase.value === 'work' && !focusCompleting) { // focusCompleting 防与 phaseComplete 并发双记账
     await tiku.addFocusSession(focusMinutes.value)
     const fs = await tiku.focusStats()
     focusToday.value = fs.today
   }
   focusLeft.value = 0
-}
-// 白噪音：Web Audio 本地生成粉噪（无需外部文件）
-function startNoise() {
-  if (noiseCtx) return
-  try {
-    const AC = window.AudioContext || window.webkitAudioContext
-    noiseCtx = new AC()
-    const size = 2 * noiseCtx.sampleRate
-    const buffer = noiseCtx.createBuffer(1, size, noiseCtx.sampleRate)
-    const data = buffer.getChannelData(0)
-    let last = 0
-    for (let i = 0; i < size; i++) {
-      const white = Math.random() * 2 - 1
-      last = (last + 0.02 * white) / 1.02 // 一阶低通近似粉噪
-      data[i] = last * 3.5
-    }
-    const src = noiseCtx.createBufferSource()
-    src.buffer = buffer
-    src.loop = true // 2 秒 buffer 循环播放，否则播完即静音
-    const gain = noiseCtx.createGain()
-    gain.gain.value = 0.05
-    src.connect(gain).connect(noiseCtx.destination)
-    src.start()
-    noiseSrc = src
-  } catch (e) { /* 音频不可用则静默 */ }
-}
-function stopNoise() {
-  try { if (noiseSrc) noiseSrc.stop() } catch (e) {}
-  try { if (noiseCtx) noiseCtx.close() } catch (e) {}
-  noiseSrc = null
-  noiseCtx = null
 }
 // 记忆卡复习/增删后刷新首页「到期」角标
 async function onCardsUpdated() {
@@ -339,7 +304,6 @@ async function onCardsUpdated() {
 }
 onBeforeUnmount(() => {
   if (focusTimer) clearInterval(focusTimer)
-  stopNoise()
 })
 </script>
 

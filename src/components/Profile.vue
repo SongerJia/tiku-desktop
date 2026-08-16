@@ -503,7 +503,7 @@ onMounted(async () => {
 <template>
   <div class="profile">
     <!-- 用户信息 + XP 等级（紧凑右侧） -->
-    <div class="card user-card" v-tilt="{ deg: 3 }">
+    <div class="card user-card" v-tilt="{ deg: 3, flat: true }">
       <div class="avatar-wrap">
         <img v-if="avatar" :src="avatar" class="avatar-img" alt="头像" />
         <div v-else class="avatar">{{ userName.slice(0, 1) }}</div>
@@ -544,7 +544,7 @@ onMounted(async () => {
       <div v-show="secOpen.learn" class="sec-body">
 
     <!-- 游戏化成就：概览条 + 系列分组 + 三态成就卡 -->
-    <div class="card ach-card" v-tilt="{ deg: 3 }">
+    <div class="card ach-card" v-tilt="{ deg: 3, flat: true }">
       <!-- 概览条 -->
       <div class="ach-summary">
         <span class="ach-lv" :style="{ borderColor: achLv.min >= 600 ? '#7dd3fc' : achLv.min >= 300 ? '#d9a514' : achLv.min >= 100 ? '#9fb2c0' : '#b87333', color: achLv.min >= 600 ? '#7dd3fc' : achLv.min >= 300 ? '#d9a514' : achLv.min >= 100 ? '#9fb2c0' : '#b87333' }"><Icon :name="achLv.icon" :size="13" /> {{ achLv.name }}</span>

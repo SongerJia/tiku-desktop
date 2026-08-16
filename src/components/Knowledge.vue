@@ -20,6 +20,7 @@ const showAllCh = ref(false) // 章节筛选：折叠「更多」展开态（方
 const detailId = ref(null) // 当前查看详情的题目 id
 
 let alive = true // 卸载后作废在途请求结果（须在 watch/onMounted 之前声明，避免 setup 同步触发时 TDZ）
+let fetchSeq = 0 // 代际计数：快速切章节/搜索/加载更多并发时旧请求作废，防慢响应覆盖
 onMounted(load)
 watch(() => props.subject.id, load) // 切科目：重载章节列表 + 题目
 watch(() => props.refreshToken, () => { if (props.refreshToken) load() }) // 题库管理弹窗变更 → 刷新（导入/增删改）
@@ -43,6 +44,7 @@ onBeforeUnmount(() => { alive = false })
 
 async function fetchQuestions() {
   if (!alive) return
+  const seq = ++fetchSeq // 代际计数：快速切章节/搜索时旧请求返回作废，防慢响应覆盖新结果
   loading.value = true
   page.value = 1
   try {
@@ -54,18 +56,19 @@ async function fetchQuestions() {
       page: 1,
       pageSize: PAGE
     })
-    if (alive) {
+    if (alive && seq === fetchSeq) {
       questions.value = (res && res.items) || []
       total.value = (res && res.total) || 0
     }
   } finally {
-    if (alive) loading.value = false
+    if (alive && seq === fetchSeq) loading.value = false
   }
 }
 
 // 加载更多：按服务端总数判断是否还有，翻页追加（避免前端 slice 大数组）
 async function loadMore() {
   if (!alive || loading.value || loadingMore.value) return
+  const seq = ++fetchSeq // 加载更多也占代际：fetchQuestions（切章节/搜索）进行中时作废本请求
   loadingMore.value = true
   const next = page.value + 1
   try {
@@ -76,13 +79,13 @@ async function loadMore() {
       page: next,
       pageSize: PAGE
     })
-    if (alive) {
+    if (alive && seq === fetchSeq) {
       questions.value = questions.value.concat((res && res.items) || [])
       total.value = (res && res.total) || total.value
       page.value = next
     }
   } finally {
-    if (alive) loadingMore.value = false
+    if (alive && seq === fetchSeq) loadingMore.value = false
   }
 }
 
