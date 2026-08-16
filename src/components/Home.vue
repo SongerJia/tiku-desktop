@@ -1028,4 +1028,8 @@ onBeforeUnmount(() => {
 }
 .focus-done .fd-ico { color: var(--ok); display: flex; }
 
+/* P6-B 移动端适配：功能卡网格 3 列 → 2 列（820px 断点与 useResponsive 一致） */
+@media (max-width: 820px) {
+  .more-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+}
 </style>

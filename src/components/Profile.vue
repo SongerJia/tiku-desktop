@@ -2034,5 +2034,10 @@ onMounted(async () => {
   60% { transform: translate(calc(var(--tiltRx) * -1.4px), calc(var(--tiltRy) * 1.4px)) translateY(-8px) scale(1.2) rotate(calc(var(--tiltRx) * -0.7deg) + 6deg); }
 }
 
+/* P6-B 移动端适配：勋章墙 9 列 → 6 列（820px 断点与 useResponsive 一致） */
+@media (max-width: 820px) {
+  .medal-grid { grid-template-columns: repeat(6, 1fr); gap: 14px 6px; }
+  .wf-panel { height: 92dvh; max-height: 92dvh; }
+}
 
 </style>

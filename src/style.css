@@ -308,6 +308,9 @@ html, body, #app {
 .list-item:hover { color: var(--brand); }
 .list-item:last-child { border-bottom: none; }
 .list-item .title { font-size: 15px; color: var(--text); }
+
+/* P6-C：移动端通用触控目标加高（列表项/行级点击区 ≥44px，防误触相邻项） */
+.app.is-mobile .list-item { min-height: 46px; padding: 14px 2px; }
 .list-item .meta { font-size: 12px; color: var(--muted); }
 .list-item .arrow { color: var(--brand); font-size: 14px; }
 

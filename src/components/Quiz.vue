@@ -1492,4 +1492,11 @@ function optionClass(key) {
 .timer.warn { animation: timerWarn 1s ease-in-out infinite; }
 @keyframes timerWarn { 0%, 100% { color: var(--bad); opacity: 1; } 50% { color: var(--bad); opacity: .55; } }
 
+/* P6-B 移动端适配：触控目标加高 + 答题卡列数（820px 断点与 useResponsive 一致） */
+@media (max-width: 820px) {
+  .option { min-height: 48px; padding: 13px 14px; }
+  .btn-review { min-height: 44px; }
+  .ac-grid { grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .quiz-modal { max-height: 94dvh; }
+}
 </style>
