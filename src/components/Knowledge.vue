@@ -11,9 +11,11 @@ const keyword = ref('')
 const chapters = ref([])
 const currentChapterId = ref(null)
 const questions = ref([])
+const total = ref(0) // 服务端总数（listQuestions 返回），驱动「加载更多」显示
+const page = ref(1)
 const loading = ref(true)
+const loadingMore = ref(false)
 const PAGE = 50
-const visibleCount = ref(PAGE)
 const showAllCh = ref(false) // 章节筛选：折叠「更多」展开态（方案②）
 const detailId = ref(null) // 当前查看详情的题目 id
 
@@ -42,16 +44,45 @@ onBeforeUnmount(() => { alive = false })
 async function fetchQuestions() {
   if (!alive) return
   loading.value = true
-  visibleCount.value = PAGE
+  page.value = 1
   try {
-    const list = await tiku.getQuestions({
+    // 服务端分页：万题级不全量拉取，IPC 只传当前页（listQuestions 返回 total 驱动「加载更多」）
+    const res = await tiku.listQuestions({
       subjectId: props.subject.id || undefined,
-      categoryId: currentChapterId.value,
-      keyword: keyword.value.trim() || undefined
+      categoryId: currentChapterId.value || undefined,
+      keyword: keyword.value.trim() || undefined,
+      page: 1,
+      pageSize: PAGE
     })
-    if (alive) questions.value = list
+    if (alive) {
+      questions.value = (res && res.items) || []
+      total.value = (res && res.total) || 0
+    }
   } finally {
     if (alive) loading.value = false
+  }
+}
+
+// 加载更多：按服务端总数判断是否还有，翻页追加（避免前端 slice 大数组）
+async function loadMore() {
+  if (!alive || loading.value || loadingMore.value) return
+  loadingMore.value = true
+  const next = page.value + 1
+  try {
+    const res = await tiku.listQuestions({
+      subjectId: props.subject.id || undefined,
+      categoryId: currentChapterId.value || undefined,
+      keyword: keyword.value.trim() || undefined,
+      page: next,
+      pageSize: PAGE
+    })
+    if (alive) {
+      questions.value = questions.value.concat((res && res.items) || [])
+      total.value = (res && res.total) || total.value
+      page.value = next
+    }
+  } finally {
+    if (alive) loadingMore.value = false
   }
 }
 
@@ -109,7 +140,7 @@ function typeLabel(t) {
     <div v-else-if="!questions.length" class="empty card">暂无知识点</div>
     <div v-else class="question-list">
       <div
-        v-for="q in questions.slice(0, visibleCount)"
+        v-for="q in questions"
         :key="q.id"
         class="card q-card"
         @click="openDetail(q)"
@@ -120,8 +151,8 @@ function typeLabel(t) {
         </div>
         <div class="q-arrow">›</div>
       </div>
-      <button v-if="questions.length > visibleCount" class="load-more" @click="visibleCount += PAGE">
-        加载更多（{{ questions.length - visibleCount }} 道）
+      <button v-if="questions.length < total" class="load-more" :disabled="loadingMore" @click="loadMore">
+        {{ loadingMore ? '加载中…' : `加载更多（${total - questions.length} 道）` }}
       </button>
     </div>
 

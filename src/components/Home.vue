@@ -917,18 +917,13 @@ onBeforeUnmount(() => {
   -webkit-text-fill-color: transparent; color: transparent;
 }
 
-/* ② 问候卡装饰波纹（右上同心圆环，overflow hidden 裁切；缓慢波纹呼吸：scale + opacity 合成动画） */
+/* ② 问候卡装饰（右上静态淡环：避免无限旋转/缩放动画吸引注意力，保持界面克制） */
 .greet-card::after {
   content: ''; position: absolute; top: -42px; right: -34px;
   width: 150px; height: 150px; border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--brand) 20%, transparent);
-  box-shadow: 0 0 0 14px color-mix(in srgb, var(--brand) 6%, transparent), 0 0 0 30px color-mix(in srgb, var(--brand) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 16%, transparent);
+  box-shadow: 0 0 0 14px color-mix(in srgb, var(--brand) 5%, transparent);
   pointer-events: none;
-  animation: greetRing 5.5s ease-in-out infinite;
-}
-@keyframes greetRing {
-  0%, 100% { transform: scale(1); opacity: .72; }
-  50% { transform: scale(1.14); opacity: 1; }
 }
 
 /* ③ 等级进度条：Lv 徽章 + 渐变 XP 进度 + 尽头光点 */

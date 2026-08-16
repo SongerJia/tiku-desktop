@@ -528,8 +528,8 @@ async function save() {
 }
 .chip.active {
   border-color: var(--brand);
-  color: var(--brand);
-  background: var(--brand-light);
+  color: #fff;
+  background: var(--brand);
   box-shadow: var(--glow-soft);
 }
 

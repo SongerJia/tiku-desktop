@@ -221,8 +221,10 @@ app.on('web-contents-created', (e, contents) => {
     const ok = !url || url === 'about:blank' || url.startsWith('file://')
     return ok ? { action: 'allow' } : { action: 'deny' }
   })
+  // 全 deny 导航：应用内 SPA 无需页面跳转，外部链接统一走 openExternal（IPC 协议白名单），
+  // 防止渲染层被注入后导航到任意网页（含 http/https 伪协议钓鱼面）
   contents.on('will-navigate', (ev, url) => {
-    if (!url.startsWith('file://') && !url.startsWith('http://') && !url.startsWith('https://') && url !== 'about:blank') {
+    if (!url.startsWith('file://') && url !== 'about:blank') {
       ev.preventDefault()
     }
   })

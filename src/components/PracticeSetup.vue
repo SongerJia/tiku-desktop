@@ -4,6 +4,7 @@ import { useBodyLock } from '../composables/useBodyLock.js'
 import { useFocusTrap } from '../composables/useFocusTrap.js'
 import { useEsc } from '../utils/useEsc.js'
 import { tiku } from '../api/tiku.js'
+import { showToast } from '../utils/toast.js'
 import Icon from './Icon.vue'
 
 const props = defineProps({
@@ -101,7 +102,9 @@ function pickScope(s) {
   }
 }
 
-function confirm() {
+const confirming = ref(false)
+async function confirm() {
+  if (confirming.value) return
   const cfg = {
     categoryId: null,
     categoryIds: selectedCatIds.value.length ? selectedCatIds.value.slice() : null, // 多章节（空=当前科目全部）
@@ -113,6 +116,20 @@ function confirm() {
     recite: isExam.value ? false : recite.value,
     tags: selTags.value.slice()
   }
+  // 空题库预校验：该范围无题时直接提示，不进入答题页（此前会进完成态，体验差）
+  confirming.value = true
+  try {
+    const probe = await tiku.getQuestions({
+      subjectId: cfg.subjectId,
+      categoryIds: cfg.categoryIds && cfg.categoryIds.length ? cfg.categoryIds : undefined,
+      categoryId: undefined,
+      tags: cfg.tags && cfg.tags.length ? cfg.tags : undefined,
+      mode: cfg.mode,
+      limit: 1
+    })
+    if (!probe || !probe.length) { showToast('该范围暂无题目，先添加题目或调整筛选范围', 'err'); return }
+  } catch (e) { /* 预检失败不阻塞（getQuestions 内部多数场景降级为空数组） */ }
+  finally { confirming.value = false }
   emit('confirm', cfg)
 }
 </script>
@@ -249,7 +266,7 @@ function confirm() {
 
         <div class="footer">
           <button class="btn btn-outline" @click="emit('cancel')">取消</button>
-          <button class="btn btn-primary" @click="confirm">{{ recite && !isExam ? '开始背题' : '开始练习' }}</button>
+          <button class="btn btn-primary" :disabled="confirming" @click="confirm">{{ confirming ? '检查中…' : (recite && !isExam ? '开始背题' : '开始练习') }}</button>
         </div>
       </div>
     </div>
