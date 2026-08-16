@@ -282,70 +282,18 @@ process.on('unhandledRejection', (reason) => {
 })
 
 // ---- 主进程 ↔ 渲染层 的 IPC 通道 ----
-ipcMain.handle('getCategories', () => db.getCategories())
-ipcMain.handle('getSubjects', () => db.getSubjects())
-ipcMain.handle('getCurrentSubject', () => db.getCurrentSubject())
-ipcMain.handle('setCurrentSubject', (e, id) => db.setCurrentSubject(id))
-ipcMain.handle('getQuestions', (e, opts) => db.getQuestions(opts))
-ipcMain.handle('submitAnswer', (e, payload) => db.submitAnswer(payload))
-ipcMain.handle('getWrongBook', () => db.getWrongBook())
-ipcMain.handle('getFavorites', () => db.getFavorites())
-ipcMain.handle('toggleFavorite', (e, questionId, group) => db.toggleFavorite(questionId, group))
-ipcMain.handle('setFavoriteGroup', (e, questionId, group) => db.setFavoriteGroup(questionId, group))
-ipcMain.handle('getNote', (e, questionId) => db.getNote(questionId))
-ipcMain.handle('saveNote', (e, payload) => db.saveNote(payload))
-ipcMain.handle('listNotes', () => db.listNotes())
-ipcMain.handle('getNotedQuestionIds', () => db.getNotedQuestionIds())
-ipcMain.handle('getSummary', (e, subjectId) => db.getSummary(subjectId))
-ipcMain.handle('getActivityHeatmap', (e, days, subjectId) => db.getActivityHeatmap(days, subjectId))
-ipcMain.handle('markMastered', (e, questionId) => db.markMastered(questionId))
-ipcMain.handle('rateReview', (e, questionId, quality) => db.rateReview(questionId, quality))
-ipcMain.handle('getReviewCurve', (e, days) => db.getReviewCurve(days))
-ipcMain.handle('getReasonAnalysis', (e, scope) => db.getReasonAnalysis(scope))
-ipcMain.handle('getDailyBrief', () => db.getDailyBrief())
-ipcMain.handle('exportAllZip', (e, avatar) => db.exportAllZip(avatar))
-ipcMain.handle('getKbGraph', () => db.getKbGraph())
-ipcMain.handle('getDailyPuzzle', (e, subjectId) => db.getDailyPuzzle(subjectId))
-ipcMain.handle('submitDailyPuzzle', (e, questionId, correct) => db.submitDailyPuzzle(questionId, correct))
-ipcMain.handle('clearUserData', () => db.clearUserData())
-ipcMain.handle('exportData', (e, avatar) => db.exportData(avatar))
-ipcMain.handle('importData', (e, json) => db.importData(json))
-ipcMain.handle('importPreview', (e, json) => db.importPreview(json))
+// P2：109 个纯 db 转发统一由数据服务层注册（见文件尾 registerDataService），
+// 此处只保留依赖平台能力的 18 个 handler（对话框/文件系统/加密/自动更新等）。
 
 // ---- 题库管理 ----
-ipcMain.handle('listQuestions', (e, opts) => db.listQuestions(opts))
-ipcMain.handle('addQuestion', (e, q) => db.addQuestion(q))
-ipcMain.handle('updateQuestion', (e, q) => db.updateQuestion(q))
-ipcMain.handle('deleteQuestion', (e, id) => db.deleteQuestion(id))
-ipcMain.handle('getQuestionInfo', (e, id) => db.getQuestionInfo(id))
-ipcMain.handle('importQuestionBank', (e, rows, opts) => db.importQuestionBank(rows, opts))
-ipcMain.handle('getBankStats', () => db.getBankStats())
-ipcMain.handle('exportBank', (e, subjectId) => db.exportBank(subjectId))
-ipcMain.handle('addCategory', (e, payload) => db.addCategory(payload))
-ipcMain.handle('renameCategory', (e, payload) => db.renameCategory(payload))
-ipcMain.handle('deleteCategory', (e, id) => db.deleteCategory(id))
 
 // ---- 模拟卷组卷 / 题目图片 ----
-ipcMain.handle('generatePaper', (e, payload) => db.generatePaper(payload))
-ipcMain.handle('listPapers', () => db.listPapers())
-ipcMain.handle('getPaper', (e, id) => db.getPaper(id))
-ipcMain.handle('deletePaper', (e, id) => db.deletePaper(id))
 ipcMain.handle('saveImage', (e, buf, ext) => {
   const buffer = Buffer.isBuffer(buf) ? buf : Buffer.from(buf)
   return db.saveImage(buffer, ext)
 })
-ipcMain.handle('getImage', (e, name) => db.getImage(name))
 
 // ---- 标签 / 薄弱分析 / 相似题 / 批量操作 / 设置 ----
-ipcMain.handle('setQuestionTags', (e, questionId, tags) => db.setQuestionTags(questionId, tags))
-ipcMain.handle('getQuestionById', (e, id) => db.getQuestionById(id))
-ipcMain.handle('listTags', () => db.listTags())
-ipcMain.handle('getSimilarQuestions', (e, questionId, limit) => db.getSimilarQuestions(questionId, limit))
-ipcMain.handle('batchUpdateQuestions', (e, ids, patch) => db.batchUpdateQuestions(ids, patch))
-ipcMain.handle('batchDeleteQuestions', (e, ids) => db.batchDeleteQuestions(ids))
-ipcMain.handle('getSetting', (e, key) => db.getSetting(key))
-ipcMain.handle('setSetting', (e, key, value) => db.setSetting(key, value))
-ipcMain.handle('getAchievements', () => db.getAchievements())
 
 // ---- 个人知识库（kb_*）：导入编排 + IPC ----
 // 导入策略：原件复制进 userData/kb/（副本，绝不改原件）；同 hash 去重；
@@ -425,61 +373,8 @@ ipcMain.handle('kbPickFiles', async () => {
   if (res.canceled || !res.filePaths.length) return []
   return res.filePaths.map(p => ({ path: p, name: path.basename(p), ext: (path.extname(p) || '').replace('.', '').toLowerCase() }))
 })
-ipcMain.handle('kbList', (e, subjectId) => db.getKbDocs(subjectId))
-ipcMain.handle('kbGet', (e, id) => db.getKbDoc(id))
-ipcMain.handle('kbUpdate', (e, id, patch) => db.updateKbDoc(id, patch))
-ipcMain.handle('kbDelete', (e, id) => db.deleteKbDoc(id))
-ipcMain.handle('kbSetTags', (e, docId, tags) => db.setKbTags(docId, tags))
-ipcMain.handle('kbTags', () => db.listKbTags())
-ipcMain.handle('kbLink', (e, payload) => db.linkKbDoc(payload))
-ipcMain.handle('kbUnlink', (e, docId, questionId) => db.unlinkKbDoc(docId, questionId))
-ipcMain.handle('kbLinksForQuestion', (e, questionId) => db.getKbLinksForQuestion(questionId))
-ipcMain.handle('kbLinksForDoc', (e, docId) => db.getKbLinksForDoc(docId))
-ipcMain.handle('kbSearch', (e, query, limit) => db.searchKb(query, limit))
-ipcMain.handle('kbRead', (e, id) => db.readKbFile(id))
-ipcMain.handle('kbSuggestDocs', (e, questionId, limit) => db.getSuggestedDocsForQuestion(questionId, limit))
-ipcMain.handle('kbSuggestQuestions', (e, docId, limit) => db.getSuggestedQuestionsForDoc(docId, limit))
-ipcMain.handle('kbBumpRead', (e, id) => db.bumpKbRead(id))
-ipcMain.handle('kbSaveMd', (e, id, content) => db.kbSaveMd(id, content))
 // ---- 反馈层（XP/每日任务/专注/高亮/双链/错题原因）----
-ipcMain.handle('xpStats', () => db.xpStats())
-ipcMain.handle('logXp', (e, xp, source, note) => db.logXp(xp, source, note))
-ipcMain.handle('checkQuests', (e, subjectId) => db.checkQuests(subjectId))
-ipcMain.handle('addFocusSession', (e, minutes) => db.addFocusSession(minutes))
-ipcMain.handle('focusStats', () => db.focusStats())
-ipcMain.handle('getHighlightsForDoc', (e, docId) => db.getHighlightsForDoc(docId))
-ipcMain.handle('removeHighlight', (e, id) => db.removeHighlight(id))
-ipcMain.handle('getDocLinks', (e, docId) => db.getDocLinks(docId))
-ipcMain.handle('linkDocs', (e, fromDocId, toDocId) => db.linkDocs(fromDocId, toDocId))
-ipcMain.handle('unlinkDocs', (e, fromDocId, toDocId) => db.unlinkDocs(fromDocId, toDocId))
-ipcMain.handle('setWrongReason', (e, questionId, reason) => db.setWrongReason(questionId, reason))
-ipcMain.handle('removeWrongBook', (e, questionId) => db.removeWrongBook(questionId))
-ipcMain.handle('addCard', (e, front, back, category, subjectId, categoryId, phonetic, audioUrl) => db.addCard(front, back, category, subjectId, categoryId, phonetic, audioUrl))
-ipcMain.handle('addCardFromQuestion', (e, questionId) => db.addCardFromQuestion(questionId))
-ipcMain.handle('addCardFromHighlight', (e, highlightId, extra) => db.addCardFromHighlight(highlightId, extra || {}))
-ipcMain.handle('addCardSmart', (e, opts) => db.addCardSmart(opts || {}))
-ipcMain.handle('listCards', (e, opts) => db.listCards(opts || {}))
-ipcMain.handle('updateCard', (e, id, front, back, category, subjectId, categoryId, phonetic, audioUrl) => db.updateCard(id, front, back, category, subjectId, categoryId, phonetic, audioUrl))
-ipcMain.handle('deleteCard', (e, id) => db.deleteCard(id))
-ipcMain.handle('rateCard', (e, cardId, felt) => db.rateCard(cardId, felt))
-ipcMain.handle('getCardReview', (e, limit, subjectId) => db.getCardReview(limit, subjectId))
-ipcMain.handle('cardsStats', (e, opts) => db.cardsStats(opts || {}))
 
-ipcMain.handle('saveResumeSession', (e, p) => db.saveResumeSession(p))
-ipcMain.handle('getResumeSession', () => db.getResumeSession())
-ipcMain.handle('clearResumeSession', () => db.clearResumeSession())
-ipcMain.handle('reviewDueStats', (e, subjectId) => db.reviewDueStats(subjectId))
-ipcMain.handle('saveKbScroll', (e, docId, page) => db.saveKbScroll(docId, page))
-ipcMain.handle('listBackups', () => db.listBackups())
-ipcMain.handle('cleanupOrphanImages', () => db.cleanupOrphanImages())
-ipcMain.handle('cleanupOrphanAudio', () => db.cleanupOrphanAudio())
-ipcMain.handle('getDbStatus', () => db.getDbStatus())
-ipcMain.handle('getWeakPoints', (e, limit, subjectId) => db.getWeakPoints(limit, subjectId))
-ipcMain.handle('getCategoryAccuracy', (e, subjectId) => db.getCategoryAccuracy(subjectId))
-ipcMain.handle('saveAudio', (e, buf, ext) => db.saveAudio(buf, ext))
-ipcMain.handle('getAudioUrl', (e, name) => db.getAudioUrl(name))
-ipcMain.handle('exportWrongBook', () => db.exportWrongBookMarkdown())
-ipcMain.handle('exportNotes', () => db.exportNotesMarkdown())
 ipcMain.handle('openPath', async (e, p) => {
     // 白名单：只允许打开应用自己导出的文件（userData/exports 下），防渲染层被攻破后打开任意路径
     try {
@@ -500,8 +395,6 @@ ipcMain.handle('restoreBackup', (e, file) => {
   if (r.ok) setTimeout(() => { try { app.relaunch(); app.exit(0) } catch (err) { app.exit(0) } }, 600)
   return r
 })
-ipcMain.handle('getWeeklyReport', (e, subjectId) => db.getWeeklyReport(subjectId))
-ipcMain.handle('getMonthStats', () => db.getMonthStats())
 ipcMain.handle('getVersion', () => ({ name: pkg.productName || '知识记忆小助手', version: pkg.version }))
 ipcMain.handle('openExternal', (e, url) => {
   const u = String(url || '')
@@ -670,3 +563,13 @@ ipcMain.handle('ghSync', async () => {
     ghSyncInFlight = false
   }
 })
+// ---- P2 数据服务批量注册（109 个纯 db 转发）----
+// 所有纯转发 handler 由 service 统一生成，业务逻辑跨端复用（APK 用 Capacitor 桥调同一 service）
+const { createDataService } = require('./service')
+const dataSvc = createDataService(db)
+{
+  const { PURE_DB_METHODS } = require('./service')
+  for (const m of PURE_DB_METHODS) {
+    ipcMain.handle(m, (e, ...args) => dataSvc[m](...args))
+  }
+}
