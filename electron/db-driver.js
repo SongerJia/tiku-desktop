@@ -52,14 +52,14 @@ function createBetterDriver(dbPath) {
 // SQL.js 驱动：异步初始化（wasm 加载）。
 // 持久化：SQL.js 是内存库，改动后由上层调 driver.persist() 写回文件。
 // P4b：文件读写走 platform.fs（Electron=node fs；APK=内存 fs），libsql 字节读写统一。
-async function createSqlJsDriver({ file, locateFile } = {}) {
+async function createSqlJsDriver({ file, locateFile, wasmBinary } = {}) {
   const initSqlJs = require('sql.js')
   const { platform } = require('./platform')
-  const fs = platform.fs
-  const SQL = await initSqlJs(locateFile ? { locateFile } : undefined)
+  // wasmBinary：直接传字节（无 fs 环境如 WebView 模拟测试用）；locateFile：WebView 相对路径
+  const SQL = await initSqlJs(wasmBinary ? { wasmBinary } : (locateFile ? { locateFile } : undefined))
   let db
-  if (file && fs.existsSync(file)) {
-    const bytes = fs.readFileSync(file)
+  if (file && platform.fs.existsSync(file)) {
+    const bytes = platform.fs.readFileSync(file)
     db = new SQL.Database(new Uint8Array(bytes))
   } else {
     db = new SQL.Database()
@@ -124,7 +124,7 @@ async function createSqlJsDriver({ file, locateFile } = {}) {
     persist() {
       if (!file) return
       const data = db.export()
-      fs.writeFileSync(file, Buffer.from(data))
+      platform.fs.writeFileSync(file, Buffer.from(data))
     },
     exportBytes() {
       return Buffer.from(db.export())

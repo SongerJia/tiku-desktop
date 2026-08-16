@@ -18,6 +18,7 @@
     "test:sync": "node scripts/test-sync-merge.mjs",
     "test:db": "electron scripts/test-db.cjs",
     "test:mobile": "node scripts/test-mobile-boot.cjs && vite build --config vite.mobile.config.js && node scripts/test-mobile-dist.cjs",
+    "test:mobile:nofs": "node scripts/test-mobile-nofs.cjs",
     "build:mobile": "vite build --config vite.mobile.config.js",
     "sim:mobile": "electron scripts/mobile-sim.cjs",
     "sim:mobile:nodevtools": "electron scripts/mobile-sim.cjs --no-devtools",

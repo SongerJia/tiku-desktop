@@ -7,8 +7,9 @@
 //   images/<safeName>    题目图片
 // 清单用「本地 sha256 快照」比对（远端 git blob sha 与本地 sha256 不可直接比）。
 // P5：electron net 惰性化（WebView 无 electron → 用全局 fetch）；zlib 从 platform 取
+// P7：zlib Proxy 懒绑定（禁止顶层 require('zlib')，WebView 无 zlib）
 const { platform } = require('./platform')
-const zlib = platform.zlib || require('zlib')
+const zlib = new Proxy({}, { get(_, k) { return platform.zlib[k] } })
 let net = null
 try { net = require('electron').net } catch (e) { /* WebView：走全局 fetch */ }
 const API = 'https://api.github.com'

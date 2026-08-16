@@ -3,9 +3,10 @@
 // - PDF：pdfjs-dist legacy 构建逐页抽文本；无文本层/异常时降级返回空块 + error（靠文件名与标签兜底）
 // P4b：WebView（APK）无 Node 内建模块，fs/path 仅 PDF 抽取/文件路径场景使用（APK 走平台方法不直调）——
 // 顶层 require 加保护，避免 boot 打包后模块加载即崩。
-let fs = null
-let path = null
-try { fs = require('fs'); path = require('path') } catch (e) { /* 非 Node 环境（WebView）：惰性降级 */ }
+// P7：接入 platform（Proxy 懒绑定）——WebView 下 platform.fs = Capacitor 内存 fs；
+//     之前 `let fs = null; try { fs = require('fs') }` 在 WebView 下 fs 恒为 null，
+//     uniqueRelPath 的 fs.existsSync 报「Cannot read properties of null」。
+const { platform, fs, path } = require('./platform')
 
 // MD 按标题切块：每遇到 #~###### 标题开启新块；块头取标题文本（去 # 与尾随井号）
 function splitMdBlocks(content) {

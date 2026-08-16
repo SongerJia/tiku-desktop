@@ -14,7 +14,10 @@
  */
 
 // P5：zlib 从 platform 取（Electron=node zlib；APK=platform-capacitor 的 pako shim）
-const zlib = (require('./platform').platform.zlib) || require('zlib')
+// P7：Proxy 懒绑定——禁止顶层 `platform.zlib || require('zlib')`（WebView 无 zlib 会崩；
+// 且 platform.zlib 在 setPlatform 前为 null，每次访问需实时取最新值）
+const { platform } = require('./platform')
+const zlib = new Proxy({}, { get(_, k) { return platform.zlib[k] } })
 
 /* ============================== 通用工具 ============================== */
 
