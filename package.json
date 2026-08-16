@@ -76,6 +76,7 @@
     "@floating-ui/dom": "^1.8.0",
     "better-sqlite3": "^11.3.0",
     "electron-updater": "^6.8.9",
+    "pako": "^2.1.0",
     "pdfjs-dist": "^6.2.108",
     "sql.js": "^1.14.1",
     "vditor": "^3.11.2"

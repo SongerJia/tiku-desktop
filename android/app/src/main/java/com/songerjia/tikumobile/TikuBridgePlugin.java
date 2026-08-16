@@ -1,77 +1,158 @@
-// 平台方法桥（P4b 骨架 / P5 逐个实现）：
-// 对应 Electron main.js 的 18 个平台方法（对话框/文件系统/外链/加密/更新/同步等）。
-// WebView 端 bridge.js 的 APK 分支把这类调用转发到本插件；
-// 当前全部返回 unimplemented，P5 按方法逐个接 Capacitor 原生能力。
+// 平台方法桥（P4b 骨架 / P5 原生能力接入）：
+// 对应 Electron main.js 的 18 个平台方法。JS 可直接实现的（xlsx 读写/saveImage/GitHub 同步）
+// 在 electron-mobile/platform-methods.js 完成，本插件只承载需要原生能力的 5 个：
+//   getVersion     —— BuildConfig 版本号
+//   openExternal   —— ACTION_VIEW 打开 http/https 外链
+//   kbPickFiles    —— 系统文件选择器选 md/pdf（多选），返回 [{ name, ext, size, base64 }]
+//   kbImportFiles  —— 同上（WebView 侧用字节走共享 importKbFiles 完成导入）
+//   pickBackup     —— 选 .db 备份文件，返回 { name, base64 }（WebView 侧覆盖内存库）
 package com.songerjia.tikumobile;
 
+import android.app.Activity;
+import android.content.ContentResolver;
+import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
+import android.provider.OpenableColumns;
+import android.util.Base64;
+
+import androidx.activity.result.ActivityResult;
+
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 
 @CapacitorPlugin(name = "TikuBridge")
 public class TikuBridgePlugin extends Plugin {
 
-    private JSObject unimplemented(PluginCall call) {
+    private static final int REQ_KB = 9101;      // 知识文档选择（md/pdf，多选）
+    private static final int REQ_BACKUP = 9102;  // 备份文件选择（.db）
+
+    // ---- 版本号（build.gradle versionName）----
+    @PluginMethod
+    public void getVersion(PluginCall call) {
         JSObject ret = new JSObject();
-        ret.put("ok", false);
-        ret.put("error", "平台方法尚未在 APK 端实现（P5 逐个接入）");
+        ret.put("name", "知识记忆小助手");
+        ret.put("version", BuildConfig.VERSION_NAME);
         call.resolve(ret);
-        return ret;
     }
 
+    // ---- 外链（协议白名单：仅 http/https）----
     @PluginMethod
-    public void checkUpdate(PluginCall call) { unimplemented(call); }
+    public void openExternal(PluginCall call) {
+        String url = call.getString("url", "");
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            call.reject("仅支持 http/https 链接");
+            return;
+        }
+        try {
+            getActivity().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("打开链接失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
+        }
+    }
 
+    // ---- 知识文档选择（多选 md/pdf）----
     @PluginMethod
-    public void saveImage(PluginCall call) { unimplemented(call); }
+    public void kbPickFiles(PluginCall call) {
+        launchPicker(call, REQ_KB, new String[]{"text/markdown", "text/plain", "application/pdf"});
+    }
 
+    // 选择并导入（字节处理在 WebView 侧，与 kbPickFiles 同一原生路径）
     @PluginMethod
-    public void kbImportFiles(PluginCall call) { unimplemented(call); }
+    public void kbImportFiles(PluginCall call) {
+        launchPicker(call, REQ_KB, new String[]{"text/markdown", "text/plain", "application/pdf"});
+    }
 
+    // ---- 备份文件选择（.db）----
     @PluginMethod
-    public void kbPickFiles(PluginCall call) { unimplemented(call); }
+    public void pickBackup(PluginCall call) {
+        launchPicker(call, REQ_BACKUP, new String[]{"application/octet-stream"});
+    }
 
-    @PluginMethod
-    public void openPath(PluginCall call) { unimplemented(call); }
+    private void launchPicker(PluginCall call, int reqCode, String[] mimeTypes) {
+        Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+        i.setType("*/*");
+        i.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, reqCode == REQ_KB); // 文档多选，备份单选
+        startActivityForResult(call, i, reqCode);
+    }
 
-    @PluginMethod
-    public void restoreBackup(PluginCall call) { unimplemented(call); }
+    @ActivityCallback
+    private void onPickerResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
+            JSObject cancel = new JSObject();
+            cancel.put("files", new JSArray());
+            cancel.put("canceled", true);
+            call.resolve(cancel);
+            return;
+        }
+        JSArray files = new JSArray();
+        if (result.getData().getClipData() != null) {
+            for (int i = 0; i < result.getData().getClipData().getItemCount(); i++) {
+                Uri uri = result.getData().getClipData().getItemAt(i).getUri();
+                JSObject info = readFileInfo(uri);
+                if (info != null) files.put(info);
+            }
+        } else if (result.getData().getData() != null) {
+            JSObject info = readFileInfo(result.getData().getData());
+            if (info != null) files.put(info);
+        }
+        JSObject ret = new JSObject();
+        ret.put("files", files);
+        ret.put("canceled", false);
+        call.resolve(ret);
+    }
 
-    @PluginMethod
-    public void getVersion(PluginCall call) { unimplemented(call); }
+    // 读取 uri 内容：{ name, ext, size, base64 }（base64 供 WebView 解出字节；NO_WRAP 无换行）
+    private JSObject readFileInfo(Uri uri) {
+        try {
+            ContentResolver cr = getContext().getContentResolver();
+            String name = null;
+            Cursor c = cr.query(uri, null, null, null, null);
+            if (c != null) {
+                try {
+                    if (c.moveToFirst()) {
+                        int idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                        if (idx >= 0) name = c.getString(idx);
+                    }
+                } finally { c.close(); }
+            }
+            if (name == null) name = "file";
+            String ext = "";
+            int dot = name.lastIndexOf('.');
+            if (dot >= 0) ext = name.substring(dot + 1).toLowerCase();
 
-    @PluginMethod
-    public void openExternal(PluginCall call) { unimplemented(call); }
+            byte[] bytes = readAll(cr.openInputStream(uri));
+            JSObject o = new JSObject();
+            o.put("name", name);
+            o.put("ext", ext);
+            o.put("size", bytes.length);
+            o.put("base64", Base64.encodeToString(bytes, Base64.NO_WRAP));
+            return o;
+        } catch (Exception e) {
+            return null;
+        }
+    }
 
-    @PluginMethod
-    public void kbExport(PluginCall call) { unimplemented(call); }
-
-    @PluginMethod
-    public void kbOpen(PluginCall call) { unimplemented(call); }
-
-    @PluginMethod
-    public void parseSheet(PluginCall call) { unimplemented(call); }
-
-    @PluginMethod
-    public void exportExcel(PluginCall call) { unimplemented(call); }
-
-    @PluginMethod
-    public void exportExcelTemplate(PluginCall call) { unimplemented(call); }
-
-    @PluginMethod
-    public void exportCardTemplate(PluginCall call) { unimplemented(call); }
-
-    @PluginMethod
-    public void ghGetConfig(PluginCall call) { unimplemented(call); }
-
-    @PluginMethod
-    public void ghSaveConfig(PluginCall call) { unimplemented(call); }
-
-    @PluginMethod
-    public void ghTest(PluginCall call) { unimplemented(call); }
-
-    @PluginMethod
-    public void ghSync(PluginCall call) { unimplemented(call); }
+    private byte[] readAll(InputStream in) throws Exception {
+        if (in == null) throw new Exception("无法打开文件流");
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+            return out.toByteArray();
+        } finally { in.close(); }
+    }
 }

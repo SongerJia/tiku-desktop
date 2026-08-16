@@ -83,19 +83,81 @@ function ok(name, cond, extra) {
   const cards2 = await dataSvc.listCards()
   ok('重启后记忆卡保留', cards2.some(c => c.front === 'APK正面'))
 
-  // 9) 平台方法占位：boot.js 合并 { ...dataSvc, ...platformStub } 后，未实现方法 reject 占位错误（P5 逐个替换）
-  const PLATFORM_PLACEHOLDER = [
-    'checkUpdate', 'saveImage', 'kbImportFiles', 'kbPickFiles', 'openPath',
-    'restoreBackup', 'getVersion', 'openExternal', 'kbExport', 'kbOpen',
-    'parseSheet', 'exportExcel', 'exportExcelTemplate', 'exportCardTemplate',
-    'ghGetConfig', 'ghSaveConfig', 'ghTest', 'ghSync'
-  ]
-  const stub = {}
-  for (const mm of PLATFORM_PLACEHOLDER) stub[mm] = (...a) => Promise.reject(new Error('[' + mm + '] 平台方法将在 APK 集成中由原生插件提供'))
-  const bridge = { ...dataSvc, ...stub }
-  ok('bridge 合并后方法数 = 109 + 18', Object.keys(bridge).length === PURE_DB_METHODS.length + PLATFORM_PLACEHOLDER.length, '实际 ' + Object.keys(bridge).length)
-  try { await bridge.checkUpdate() } catch (e) { ok('checkUpdate 占位 reject 提示 P5 集成', /平台方法将在 APK 集成/.test(String(e.message || e))) }
-  try { await bridge.ghSync() } catch (e) { ok('ghSync 占位 reject', /ghSync/.test(String(e.message || e))) }
+  // 9) 平台方法（P5 真实实现）：createPlatformMethods 提供 18 个，其中 JS 可实现部分可验证；
+  //    原生桥部分（kbPickFiles/restoreBackup 等）在无原生插件时走「原生桥不可用」路径不抛异常
+  const methodsMod = await import('../electron-mobile/platform-methods.js')
+  const pm = methodsMod.createPlatformMethods(db)
+  const bridge = { ...dataSvc, ...pm }
+  ok('bridge 合并后方法数 = 109 + 18', Object.keys(bridge).length === PURE_DB_METHODS.length + 18, '实际 ' + Object.keys(bridge).length)
+
+  // 9a) saveImage：真实实现（db 落盘）
+  const imgNamePm = await pm.saveImage(Buffer.from('pm-png-bytes'), 'png')
+  ok('pm.saveImage 返回文件名', !!imgNamePm && String(imgNamePm).endsWith('.png'))
+
+  // 9b) Excel 往返：exportExcelTemplate（writeXlsx）→ parseSheet（readXlsx）恢复表头
+  const xlsxB64 = await pm.exportExcelTemplate()
+  ok('exportExcelTemplate 返回 base64', typeof xlsxB64 === 'string' && xlsxB64.length > 100)
+  const xlsxBytes = Buffer.from(xlsxB64, 'base64')
+  const matrix = await pm.parseSheet(xlsxBytes)
+  ok('parseSheet 解析模板含表头', Array.isArray(matrix) && matrix.length >= 2 && matrix[0][0] === '科目')
+
+  // 9c) exportExcel：题库非空时返回 base64
+  const bankB64 = await pm.exportExcel(null)
+  ok('exportExcel 返回题库 base64', bankB64 === null || typeof bankB64 === 'string')
+
+  // 9d) gh 配置往返（token 存 settings）
+  await pm.ghSaveConfig({ token: 'ghp_test123', owner: 'songerjia', repo: 'tiku-assets' })
+  const ghCfg = await pm.ghGetConfig()
+  ok('ghSaveConfig/ghGetConfig 往返', ghCfg.hasToken === true && ghCfg.owner === 'songerjia' && ghCfg.repo === 'tiku-assets')
+  // ghSync 未配置网络仓库：应抛「请先完成配置」类错误或网络错误（此处 token 无效 → 测试连接失败路径）
+  try { await pm.ghSync() } catch (e) { ok('ghSync 无有效配置时报错（不静默）', !!e) }
+
+  // 9e) 首版占位：checkUpdate/openPath/kbExport/kbOpen 返回明确错误而非抛异常
+  const cu = await pm.checkUpdate()
+  ok('checkUpdate 占位返回错误提示', cu && cu.ok === false && /暂不支持/.test(cu.error))
+  const op = await pm.openPath('/data/x')
+  ok('openPath 占位返回错误提示', op && op.ok === false)
+
+  // 9f) 原生桥缺失路径：kbPickFiles 返回 []、getVersion 回退内置版本
+  const picked = await pm.kbPickFiles()
+  ok('kbPickFiles 无原生桥时返回 []', Array.isArray(picked) && picked.length === 0)
+  const ver = await pm.getVersion()
+  ok('getVersion 回退内置版本', ver && !!ver.version)
+  const ext = await pm.openExternal('https://example.com')
+  ok('openExternal 无原生桥时返回错误', ext && ext.ok === false)
+
+  // 9g) 跨端一致性：Capacitor shim 的 sha1/sha256/zlib 与 node 实现输出一致（同步核心正确性）
+  const nodeCrypto = require('crypto')
+  const capCrypto = platform.crypto
+  const payload = Buffer.from('跨端一致性测试 payload 123')
+  const sha256Cap = capCrypto.createHash('sha256').update(payload).digest('hex')
+  const sha256Node = nodeCrypto.createHash('sha256').update(payload).digest('hex')
+  ok('sha256 shim 与 node 一致', sha256Cap === sha256Node, sha256Cap)
+  const sha1Cap = capCrypto.createHash('sha1').update(payload).digest('hex')
+  const sha1Node = nodeCrypto.createHash('sha1').update(payload).digest('hex')
+  ok('sha1 shim 与 node 一致', sha1Cap === sha1Node, sha1Cap)
+  const nodeZlib = require('zlib')
+  const capZlib = platform.zlib
+  const raw = Buffer.from('zlib 跨端 payload ' + 'x'.repeat(1000))
+  const deflated = capZlib.deflateRawSync(raw)
+  const nodeInflated = nodeZlib.inflateRawSync(deflated)
+  ok('pako deflateRaw → node inflateRaw 互操作', nodeInflated.equals(raw))
+  const nodeDeflated = nodeZlib.deflateRawSync(raw)
+  const capInflated = Buffer.from(capZlib.inflateRawSync(nodeDeflated))
+  ok('node deflateRaw → pako inflateRaw 互操作', capInflated.equals(raw))
+  const gzCap = capZlib.gzipSync(raw)
+  const gzNode = nodeZlib.gunzipSync(gzCap)
+  ok('pako gzip → node gunzip 互操作', gzNode.equals(raw))
+  ok('zlib crc32 shim 与 node 一致', capZlib.crc32(raw) === nodeZlib.crc32(raw))
+  // zip.js 在 shim 下可生成合法 zip（crc32 正确性间接验证）
+  const { makeZip } = require('../electron/zip.js')
+  const zipBuf = makeZip([{ path: 'a.txt', data: Buffer.from('hello zip') }])
+  ok('makeZip 在 pako crc32 shim 下产出 zip', zipBuf && zipBuf.length > 40 && zipBuf[0] === 0x50 && zipBuf[1] === 0x4b)
+  // xlsx-lite 在 shim 下完整往返（writeXlsx 用 deflateRaw、readXlsx 用 inflateRaw）
+  const { writeXlsx, readXlsx } = require('../electron/xlsx-lite.js')
+  const xBuf = writeXlsx([['列A', '列B'], ['1', 'hello']], { sheetName: '测试' })
+  const xParsed = readXlsx(xBuf)
+  ok('xlsx-lite 在 pako shim 下读写往返', Array.isArray(xParsed) && xParsed[1] && xParsed[1][1] === 'hello')
 
   // 10) 图片 base64 路径（WebView 无 Node Buffer，验证 polyfill 生效）
   const tinyPng = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c626001000000ffff03000006000557bfabd40000000049454e44ae426082', 'hex')

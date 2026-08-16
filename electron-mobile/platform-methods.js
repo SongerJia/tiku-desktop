@@ -1,0 +1,198 @@
+// APK 端 18 平台方法实现（P5）：与 Electron main.js 的平台 handler 对齐。
+// 分三类：
+//   ① JS 可直接实现（数据层/纯计算）：saveImage / parseSheet / exportExcel*（复用 xlsx-lite，
+//     zlib 已由 platform 注入 pako shim）/ gh*（GitHub 同步走 fetch + sync-runner，token 存 settings）
+//   ② Capacitor 原生桥（文件选择/版本/外链）：kbPickFiles / kbImportFiles / restoreBackup /
+//     getVersion / openExternal —— 调 window.Capacitor.Plugins.TikuBridge
+//   ③ 首版占位（明确错误，不阻塞 UI）：checkUpdate / openPath / kbExport / kbOpen
+// 由 boot.js 合并进 window.capacitorBridge.api。
+
+import xlsxModule from '../electron/xlsx-lite.js'
+import kbImportModule from '../electron/kb-import.js'
+import syncRunnerFactory from '../electron/sync-runner.js'
+// 以下静态 import（而非动态 import）：boot 是 IIFE 单 bundle，动态 import 会触发 code-splitting
+// 与 IIFE 冲突；这些模块的顶层 require 均有惰性保护，boot 注入 platform 后加载安全。
+import ghRepoModule from '../electron/sync-github-repo.js'
+import platformModule from '../electron/platform.js'
+
+const { readXlsx, writeXlsx } = xlsxModule
+const { importKbFiles } = kbImportModule
+const { platform } = platformModule
+
+const KB_MIME = ['text/markdown', 'text/plain', 'application/pdf']
+
+// 原生桥（Capacitor 插件；WebView 未注册时降级为不可用）
+function nativeBridge() {
+  return (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins.TikuBridge : null
+}
+
+// base64 → Uint8Array（WebView Buffer polyfill 已提供，这里双保险）
+function b64ToBytes(b64) {
+  const clean = String(b64 || '').replace(/\s+/g, '')
+  const bin = atob(clean)
+  const u8 = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i)
+  return u8
+}
+
+export function createPlatformMethods(db) {
+  return {
+    // ---- ① JS 直接实现 ----
+
+    // 题图保存：db 层落盘（APK 走内存 fs，跳过 nativeImage 压缩存原始字节）
+    saveImage: (buf, ext) => db.saveImage(buf, ext),
+
+    // Excel 解析：复用 xlsx-lite（Electron 主进程同款逻辑）
+    parseSheet: (buf) => {
+      try {
+        const matrix = readXlsx(new Uint8Array(buf))
+        const rows = Array.isArray(matrix) && Array.isArray(matrix[0]) ? matrix : (matrix && matrix.rows ? matrix.rows : [])
+        if (!rows.length) return []
+        return rows.map(r => (Array.isArray(r) ? r : []).map(c => (c == null ? '' : String(c))))
+      } catch (err) {
+        throw new Error('Excel 解析失败：' + ((err && err.message) || String(err)))
+      }
+    },
+
+    // 题库导出 Excel / 模板：xlsx-lite 生成 base64（渲染层转 blob 下载/保存）
+    exportExcel: (subjectId) => {
+      const rows = db.exportBank(subjectId || null)
+      if (!rows || !rows.length) return null
+      const matrix = rows.map(r => {
+        const opts = Array.isArray(r.options) ? r.options : []
+        const optCols = [0, 1, 2, 3, 4, 5].map(i => opts[i] || '')
+        let ans = Array.isArray(r.answer) ? r.answer.join('') : String(r.answer || '')
+        if (r.type === '判断' && ans) ans = (ans === 'true' || ans === '1') ? '对' : '错'
+        return [r.subject || '', r.chapter || '', r.type || '', r.stem || '', ...optCols, ans,
+          (Array.isArray(r.keywords) ? r.keywords.join('；') : ''), r.analysis || '', r.difficulty || 3, '']
+      })
+      const buf = writeXlsx(matrix, { sheetName: '题库' })
+      return b64(buf)
+    },
+
+    exportExcelTemplate: () => b64(writeXlsx(TEMPLATE_SAMPLE_ROWS, { sheetName: '题库导入模板' })),
+    exportCardTemplate: () => b64(writeXlsx([
+      ['正面', '背面', '分类'],
+      ['apple', 'n. 苹果；苹果树', '词汇'],
+      ['abandon', 'v. 放弃；抛弃', '词汇'],
+      ['りんご', '苹果', '単語']
+    ], { sheetName: '记忆卡导入模板' })),
+
+    // GitHub 仓库同步：token 存 settings（APK 无 safeStorage，明文存本地；owner/repo 同 Electron）
+    ghGetConfig: () => ({
+      hasToken: !!(db.getSetting('gh_token') || ''),
+      owner: db.getSetting('gh_owner') || '',
+      repo: db.getSetting('gh_repo') || '',
+      lastSync: Number(db.getSetting('gh_last_sync') || 0)
+    }),
+
+    ghSaveConfig: (cfg) => {
+      const t = String((cfg && cfg.token) || '').trim()
+      if (t) db.setSetting('gh_token', t)
+      db.setSetting('gh_owner', String((cfg && cfg.owner) || '').trim())
+      db.setSetting('gh_repo', String((cfg && cfg.repo) || '').trim())
+      return { ok: true }
+    },
+
+    ghTest: async (cfg) => {
+      const token = String((cfg && cfg.token) || '').trim() || db.getSetting('gh_token') || ''
+      await ghRepoModule.testConnection({ token, owner: (cfg && cfg.owner) || '', repo: (cfg && cfg.repo) || '' })
+      return { ok: true }
+    },
+
+    ghSync: async () => {
+      const token = db.getSetting('gh_token') || ''
+      const owner = db.getSetting('gh_owner') || ''
+      const repo = db.getSetting('gh_repo') || ''
+      if (!token || !owner || !repo) throw new Error('请先完成 GitHub 仓库配置')
+      const runner = syncRunnerFactory(db)
+      const r = await runner.sync({ token, owner, repo })
+      db.setSetting('gh_last_sync', String(Date.now()))
+      return r
+    },
+
+    // ---- ② Capacitor 原生桥 ----
+
+    // 选择 md/pdf 文档：原生返回 [{ name, ext, size, base64 }]
+    kbPickFiles: async () => {
+      const nb = nativeBridge()
+      if (!nb) return []
+      const r = await nb.kbPickFiles({ mimeTypes: KB_MIME })
+      return (r && r.files) || []
+    },
+
+    // 选择并导入知识文档（字节 → 共享 importKbFiles，与 Electron 同一套去重/切块/入库）
+    kbImportFiles: async (paths, subjectId) => {
+      const nb = nativeBridge()
+      if (!nb) return []
+      const r = await nb.kbPickFiles({ mimeTypes: KB_MIME })
+      const files = ((r && r.files) || []).map(f => ({
+        name: f.name, ext: f.ext, data: b64ToBytes(f.base64 || '')
+      }))
+      if (!files.length) return []
+      return importKbFiles(db, files, subjectId)
+    },
+
+    // 选择备份文件恢复：原生返回字节 → 覆盖内存库 tiku.db 并重开
+    restoreBackup: async () => {
+      const nb = nativeBridge()
+      if (!nb) return { ok: false, error: '原生桥不可用' }
+      const r = await nb.pickBackup()
+      if (!r || !r.base64) return { ok: false, canceled: true }
+      const bytes = b64ToBytes(r.base64)
+      const head = String.fromCharCode.apply(null, bytes.slice(0, 16))
+      if (!head.startsWith('SQLite format 3')) return { ok: false, error: '备份文件损坏（非 SQLite 数据库）' }
+      platform.fs.writeFileSync('/data/tiku.db', bytes)
+      return { ok: true, needRestart: true } // WebView 需 reload 使新库生效
+    },
+
+    getVersion: async () => {
+      const nb = nativeBridge()
+      if (nb) { const r = await nb.getVersion(); if (r && r.version) return r }
+      return { name: '知识记忆小助手', version: '0.7.0' }
+    },
+
+    openExternal: async (url) => {
+      const u = String(url || '')
+      if (!/^https?:\/\//i.test(u)) return { ok: false, error: '仅支持 http/https 链接' }
+      const nb = nativeBridge()
+      if (nb) { await nb.openExternal({ url: u }); return { ok: true } }
+      return { ok: false, error: '原生桥不可用' }
+    },
+
+    // ---- ③ 首版占位（明确错误提示，不阻塞 UI；P6 按需实现）----
+    checkUpdate: async () => ({ ok: false, error: 'APK 端暂不支持应用内更新（请通过应用商店更新）' }),
+    openPath: async () => ({ ok: false, error: 'APK 端不支持打开系统路径（文件已保存在应用目录）' }),
+    kbExport: async () => ({ ok: false, error: 'APK 端暂不支持目录导出（可走 GitHub 同步备份）' }),
+    kbOpen: async () => ({ ok: false, error: 'APK 端不支持系统打开原件' })
+  }
+}
+
+// 题库导入模板样例（与 main.js 一致：含表头 + 4 行示例）
+const EXPORT_HEADER = ['科目', '章节', '题型', '题干', '选项A', '选项B', '选项C', '选项D', '选项E', '选项F', '答案', '解析', '知识点', '难度', '来源']
+const TEMPLATE_SAMPLE_ROWS = [
+  EXPORT_HEADER,
+  ['建设工程法规', '基本法律知识', '单选', '根据《民法典》，下列不属于法人应当具备条件的是？',
+   '依法成立', '有必要的财产或者经费', '有自己的名称、组织机构和场所', '必须营利', '', '',
+   'D', '', '法人并不以营利为必要条件，非营利法人同样具有法人资格。', 2, '教材例题'],
+  ['建设工程施工管理', '施工组织设计', '多选', '施工组织设计一般应包括的内容有（ ）。',
+   '工程概况', '施工部署', '施工进度计划', '施工准备与资源配置计划', '', '',
+   'ABCD', '', '施工组织设计通常包括上述内容及主要施工方法、平面布置、管理计划等。', 3, '教材例题'],
+  ['建设工程法规', '施工许可法律制度', '判断', '建设单位未取得施工许可证擅自施工的，责令停止施工，可以并处以罚款。（ ）',
+   '', '', '', '', '', '', '对', '', '依据《建筑法》第六十四条。', 1, '教材例题'],
+  ['建设工程施工管理', '施工管理基础', '问答', '简述施工进度计划编制的主要步骤，并说明关键控制点。',
+   '', '', '', '', '', '',
+   '①收集资料 ②划分施工过程 ③计算工程量 ④确定持续时间 ⑤编制初始计划 ⑥检查与优化 ⑦交底与动态调整。关键控制点是持续时间估算与关键线路识别。',
+   '收集资料；划分施工过程；计算工程量；持续时间；网络图；关键线路；资源均衡；动态调整',
+   '本题考查施工进度计划编制流程。', 4, '教材例题']
+]
+
+// Uint8Array → base64（浏览器 btoa 分块，避免 apply 超参）
+function b64(u8) {
+  let bin = ''
+  const chunk = 0x8000
+  for (let i = 0; i < u8.length; i += chunk) {
+    bin += String.fromCharCode.apply(null, u8.subarray(i, i + chunk))
+  }
+  return btoa(bin)
+}

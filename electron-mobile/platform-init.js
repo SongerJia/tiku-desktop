@@ -2,8 +2,8 @@
 // 在 boot.js 的静态 import 链中作为第一个依赖求值，顶层立即 setPlatform 注入 Capacitor shim，
 // 保证后续 db.js/db-assets.js 等模块求值时（它们模块顶层解构 platform.fs/path/crypto 快照）
 // 拿到的已是 Capacitor 内存 fs，而非 Node 内建模块（WebView 内不存在）。
-import platformModule from '../electron/platform'
-import capacitorModule from '../electron/platform-capacitor'
+import platformModule from '../electron/platform.js'
+import capacitorModule from '../electron/platform-capacitor.js'
 
 const { setPlatform } = platformModule
 const { createCapacitorPlatform } = capacitorModule

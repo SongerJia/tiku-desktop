@@ -6,8 +6,11 @@
 //   kb/<rel_path>        知识库文档原件（逐段 encodeURIComponent）
 //   images/<safeName>    题目图片
 // 清单用「本地 sha256 快照」比对（远端 git blob sha 与本地 sha256 不可直接比）。
-const zlib = require('zlib')
-const { net } = require('electron')
+// P5：electron net 惰性化（WebView 无 electron → 用全局 fetch）；zlib 从 platform 取
+const { platform } = require('./platform')
+const zlib = platform.zlib || require('zlib')
+let net = null
+try { net = require('electron').net } catch (e) { /* WebView：走全局 fetch */ }
 const API = 'https://api.github.com'
 const MANIFEST = 'tiku-manifest.json'
 
@@ -129,7 +132,8 @@ async function downloadFile(cfg, relPath) {
     if (r.content) return Buffer.from(String(r.content).replace(/\s/g, ''), 'base64')
     // >1MB 文件 contents API 不给 content，只给 download_url → 直接拉 raw 直链
     if (r.download_url) {
-      const res = await net.fetch(r.download_url, { headers: { Authorization: `Bearer ${cfg.token}` }, signal: AbortSignal.timeout(60000) })
+      const f = net && net.fetch ? net.fetch.bind(net) : fetch.bind(globalThis)
+      const res = await f(r.download_url, { headers: { Authorization: `Bearer ${cfg.token}` }, signal: AbortSignal.timeout(60000) })
       if (res.status >= 400) throw new Error(`下载 ${relPath} → HTTP ${res.status}`)
       return Buffer.from(await res.arrayBuffer())
     }
@@ -140,10 +144,10 @@ async function downloadFile(cfg, relPath) {
   }
 }
 
-// ---- 数据快照（data.json.gz：gzip 压缩，避免 base64 膨胀超限；异步压缩不阻塞主进程）----
-const { promisify } = require('util')
-const gzip = promisify(zlib.gzip)
-const gunzip = promisify(zlib.gunzip)
+// ---- 数据快照（data.json.gz：gzip 压缩，避免 base64 膨胀超限）----
+// 统一走同步 API（node zlib gzipSync / pako gzip），返回 Promise<Buffer> 保持原接口
+const gzip = async (buf) => Buffer.from(zlib.gzipSync(buf))
+const gunzip = async (buf) => Buffer.from(zlib.gunzipSync(buf))
 
 async function uploadData(cfg, jsonStr) {
   const buf = await gzip(Buffer.from(jsonStr, 'utf8'))

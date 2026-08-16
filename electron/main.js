@@ -48,7 +48,6 @@ function migrateGhToken() {
     db.deleteSetting('gh_token')
   } catch (e) { /* 迁移失败不阻塞 */ }
 }
-const { extractMd, extractPdf, uniqueRelPath } = require('./kbExtract')
 const logger = require('./logger')
 
 // ---- 继承 git 代理通道（必须在 app ready 前生效）----
@@ -298,54 +297,22 @@ ipcMain.handle('saveImage', (e, buf, ext) => {
 // ---- 个人知识库（kb_*）：导入编排 + IPC ----
 // 导入策略：原件复制进 userData/kb/（副本，绝不改原件）；同 hash 去重；
 // MD 按标题切块；PDF 用 pdfjs 抽文本，无文本层时降级（空块 + error，靠文件名/标签兜底）。
-// 编码自适应：中文 Windows 的 md 可能是 GBK，先严格试 UTF-8 失败回落 GBK（与渲染层 decodeText 一致）。
-function decodeBuf(buf) {
-  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf) } catch (e) {
-    try { return new TextDecoder('gbk').decode(buf) } catch (e2) { return buf.toString('utf8') }
-  }
-}
+// P5：核心导入逻辑已抽到 kb-import.js（Electron/APK 共用），此处只做「读磁盘出字节」。
+const { importKbFiles } = require('./kb-import')
 async function importKbPaths(filePaths, subjectId) {
-  const dir = path.join(app.getPath('userData'), 'kb')
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  const results = []
+  const files = []
   for (const src of filePaths || []) {
     try {
-      const ext = (path.extname(src) || '').toLowerCase().replace('.', '')
-      if (ext !== 'md' && ext !== 'pdf') {
-        results.push({ ok: false, file: src, error: '仅支持 md / pdf 文档' })
-        continue
-      }
-      const title = path.basename(src, path.extname(src))
-      const raw = fs.readFileSync(src)
-      const hash = crypto.createHash('sha1').update(raw).digest('hex')
-      const dup = db.findKbDocByHash(hash)
-      if (dup) {
-        results.push({ ok: true, duplicated: true, docId: dup.id, title: dup.title, type: dup.type })
-        continue
-      }
-      const rel = uniqueRelPath(dir, title, ext)
-      fs.copyFileSync(src, path.join(dir, rel))
-      let blocks = []
-      let error = null
-      if (ext === 'md') {
-        blocks = extractMd(decodeBuf(raw))
-      } else {
-        const r = await extractPdf(src)
-        blocks = r.blocks || []
-        error = r.error
-      }
-      const kind = db.categoryKind(subjectId) // 导入位置可能是科目或章节
-      const docId = db.addKbDoc({
-        title, type: ext, relPath: rel, size: raw.length, hash, blocks,
-        subjectId: kind === 'subject' ? subjectId : null,
-        categoryId: kind === 'chapter' ? subjectId : null
+      files.push({
+        name: path.basename(src),
+        ext: (path.extname(src) || '').replace('.', '').toLowerCase(),
+        data: fs.readFileSync(src)
       })
-      results.push({ ok: true, docId, title, type: ext, blocks: blocks.length, error })
     } catch (e) {
-      results.push({ ok: false, file: src, error: String((e && e.message) || e) })
+      files.push({ name: src, ext: '', data: new Uint8Array(0) })
     }
   }
-  return results
+  return importKbFiles(db, files, subjectId)
 }
 
 ipcMain.handle('kbImportFiles', async (e, paths, subjectId) => {

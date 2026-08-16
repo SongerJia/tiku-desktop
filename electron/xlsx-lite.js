@@ -13,7 +13,8 @@
  * 不支持（题库场景用不到）：公式重算、图表、多工作表读取（只读第一个）、单元格样式还原。
  */
 
-const zlib = require('zlib')
+// P5：zlib 从 platform 取（Electron=node zlib；APK=platform-capacitor 的 pako shim）
+const zlib = (require('./platform').platform.zlib) || require('zlib')
 
 /* ============================== 通用工具 ============================== */
 

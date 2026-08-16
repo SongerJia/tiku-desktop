@@ -17,16 +17,19 @@
 let nodePath = null
 let nodeFs = null
 let nodeCrypto = null
+let nodeZlib = null
 try {
   nodePath = require('path')
   nodeFs = require('fs')
   nodeCrypto = require('crypto')
+  nodeZlib = require('zlib') // P5：xlsx-lite/zip.js/sync 的 deflate/inflate/crc32（APK 用 pako shim）
 } catch (e) { /* 非 Node 环境：等待 setPlatform 注入 */ }
 
 let _userDataDir = null
 let _fs = nodeFs
 let _path = nodePath
 let _crypto = nodeCrypto
+let _zlib = nodeZlib
 let _nativeImage = null
 let _isElectron = false
 
@@ -52,6 +55,7 @@ const platform = {
   get fs() { return _fs },
   get path() { return _path },
   get crypto() { return _crypto },
+  get zlib() { return _zlib },
   get nativeImage() { return _nativeImage },
   get isElectron() { return _isElectron }
 }
@@ -62,6 +66,7 @@ function setPlatform(overrides = {}) {
   if (overrides.fs) _fs = overrides.fs
   if (overrides.path) _path = overrides.path
   if (overrides.crypto) _crypto = overrides.crypto
+  if (overrides.zlib) _zlib = overrides.zlib
   if ('nativeImage' in overrides) _nativeImage = overrides.nativeImage
   if (typeof overrides.isElectron === 'boolean') _isElectron = overrides.isElectron
 }

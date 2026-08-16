@@ -10,8 +10,9 @@ export default defineConfig({
     emptyOutDir: true,
     lib: {
       entry: 'electron-mobile/boot.js',
-      formats: ['iife'],
-      name: 'TikuMobileBoot',
+      // ES module 格式：支持 code-splitting（pdfjs 等懒加载 chunk）；
+      // index.html 用 <script type="module" src="boot.js"> 引用，Capacitor assets 全量拷贝可加载
+      formats: ['es'],
       fileName: () => 'boot.js'
     },
     // WebView 内不关心产物 hash（Capacitor 固定引用 boot.js）
@@ -27,8 +28,8 @@ export default defineConfig({
       // 兜底降级（Electron 主进程/桌面端不受影响，仍用原生打包流程）。
       external: ['better-sqlite3', 'electron', 'fs', 'path', 'crypto', 'os', 'util', 'events', 'stream', 'buffer'],
       output: {
-        // sql.js 是 CJS + wasm，体积大且只在启动期用到；保持原样注入
-        inlineDynamicImports: false
+        // 懒加载 chunk（pdfjs 等）相对 boot.js 定位，Capacitor assets 全量拷贝可加载
+        chunkFileNames: 'chunks/[name]-[hash].js'
       }
     }
   },

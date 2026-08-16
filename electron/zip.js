@@ -1,6 +1,7 @@
 // 零依赖 ZIP 生成器（STORE 无压缩）：图片/音频/PDF 本身已是压缩格式，STORE 足够。
 // 用法：makeZip([{ path: 'images/a.png', data: Buffer }, ...]) → Buffer（标准 ZIP，可被资源管理器/解压工具打开）
-const zlib = require('zlib')
+// P5：zlib 从 platform 取（Electron=node zlib 含 crc32；APK=pako shim + 手写 crc32）
+const zlib = (require('./platform').platform.zlib) || require('zlib')
 
 function crc32(buf) {
   return (zlib.crc32(buf) >>> 0)

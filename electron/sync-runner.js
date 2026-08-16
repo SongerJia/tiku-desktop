@@ -1,14 +1,15 @@
 // 全 GitHub 同步编排：数据快照 + 知识库文档 + 题目图片 全部走 GitHub 仓库。
 // 复用 db 既有能力（exportSync/mergeRemote/exportImageFiles/restoreImages）。
-const path = require('path')
-const fs = require('fs')
-const crypto = require('crypto')
-const { app } = require('electron')
+// P5：path/fs/crypto/userData 全走 platform（Electron=node 内置；APK=Capacitor shim），跨端复用。
+const { platform } = require('./platform')
+const path = platform.path
+const fs = platform.fs
+const crypto = platform.crypto
 const ghRepo = require('./sync-github-repo')
 const logger = require('./logger')
 
 module.exports = function syncRunner(db) {
-  const kbDir = () => path.join(app.getPath('userData'), 'kb')
+  const kbDir = () => path.join(platform.userDataDir(), 'kb')
 
   // 本地知识库文件清单：{ rel: { hash, buf } }——buf 复用，避免上传时二次读盘
   // 只纳入「未删除文档」对应的文件（软删文档的文件已被删除，不再进入清单 → 远端 manifest 不含 → 其他端不再下载）
