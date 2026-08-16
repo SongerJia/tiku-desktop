@@ -2,10 +2,12 @@
 // 从 db.js 拆出（拆分渐进一步）：ctx 注入 sqlite/LOCAL_USER/uuid；
 // 依赖 db-cols(EXPORT_COLS)/db-assets(clearImageCache)/sync-merge(lwwMerge, applyFk)/logger；
 // this 互调（listKbFiles/restoreKbFiles/backfillClientIds）合并后指向 api。
-const path = require('path')
-const fs = require('fs')
-const crypto = require('crypto')
-const { app } = require('electron')
+// P4a：平台能力从 platform 单例取。
+const { platform } = require('./platform')
+const path = platform.path
+const fs = platform.fs
+const crypto = platform.crypto
+const app = { getPath: () => platform.userDataDir() }
 const { lwwMerge, applyFk } = require('./sync-merge')
 const { EXPORT_COLS } = require('./db-cols')
 const assets = require('./db-assets')

@@ -1,9 +1,13 @@
 // 题图 / 听力音频的本地文件存取模块（纯文件操作，不依赖 sqlite）。
 // 从 db.js 拆出：拆分模式的渐进一步，行为与原实现完全一致。
-const path = require('path')
-const fs = require('fs')
-const crypto = require('crypto')
-const { app, nativeImage } = require('electron')
+// P4a：平台能力从 platform 单例取（Electron 默认 / APK setPlatform 注入），去掉顶层 electron 依赖。
+const { platform } = require('./platform')
+const path = platform.path
+const fs = platform.fs
+const crypto = platform.crypto
+const nativeImage = platform.nativeImage
+// app.getPath('userData') 兼容别名（APK 端 userDataDir 指向 Capacitor 目录）
+const app = { getPath: () => platform.userDataDir() }
 
 const uuid = () => crypto.randomUUID()
 

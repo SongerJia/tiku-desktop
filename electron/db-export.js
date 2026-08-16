@@ -1,9 +1,11 @@
 // 导出/工具模块：错题本/笔记 Markdown 导出、_writeExport、孤儿图片清理。
 // 从 db.js 拆出（拆分渐进一步）：ctx 注入 sqlite/LOCAL_USER；
 // _writeExport 为内部辅助，方法互调走 this（合并后 this=api）。
-const path = require('path')
-const fs = require('fs')
-const { app } = require('electron')
+// P4a：平台能力从 platform 单例取。
+const { platform } = require('./platform')
+const path = platform.path
+const fs = platform.fs
+const app = { getPath: () => platform.userDataDir() }
 
 module.exports = function exportModule(ctx) {
   const { sqlite, LOCAL_USER } = ctx
