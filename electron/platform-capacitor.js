@@ -1,7 +1,8 @@
 // WebView 平台 shim（P4b）：APK 端替代 electron/Node 内置模块，供 db 层 platform 单例注入。
 // 提供：userDataDir / fs(内存文件系统，SQL.js 驱动落盘用) / path / crypto(WebCrypto) / nativeImage(空)
-// fs 用内存 Map 模拟（SQL.js 是内存库 + persist 导出字节；图片/音频文件在 APK 端走 Capacitor Filesystem 插件，
-// 但为了 db 层 API 兼容，这里提供内存 fs 实现，真实落盘由上层 persist 到 Capacitor 目录）。
+// fs 用内存 Map 模拟（SQL.js 是内存库 + persist 导出字节）。为解决「进程被杀即丢数据」，memFs 额外把
+// 整棵文件系统快照序列化进 WebView localStorage（见 _persistToStorage/_loadFromStorage），冷启动可还原。
+// 注意：localStorage 有容量上限，超量会降级为仅内存；图片/音频等大体量资源如需持久化，建议改用 @capacitor/filesystem。
 
 // ---- path shim（Node path 的常用子集）----
 const pathShim = {
@@ -79,6 +80,23 @@ function installBufferPolyfill() {
 }
 
 // ---- 内存文件系统（SQL.js 驱动 persist/export 用；key 为绝对路径，值 Uint8Array）----
+// 持久化：APK 无 node fs，纯内存 Map 在进程被杀后即丢失（数据全丢）。WebView 的 localStorage
+// 由 Android 落盘到应用私有目录、跨进程重启保留，故用它做内存 fs 的兜底快照，使 APK 用户数据
+// 在冷启动后不丢。注意 localStorage 有容量上限（通常 ~5MB），超量写入会被浏览器抛 QuotaExceededError，
+// 这里 catch 后降级为仅内存（不阻塞、不崩溃），生产环境建议改用 @capacitor/filesystem 存设备目录。
+const MEMFS_STORAGE_KEY = '__tiku_memfs_v1__'
+function bytesToB64(u8) {
+  let bin = ''
+  const chunk = 0x8000
+  for (let i = 0; i < u8.length; i += chunk) bin += String.fromCharCode.apply(null, u8.subarray(i, i + chunk))
+  return btoa(bin)
+}
+function b64ToBytes(b64) {
+  const bin = atob(String(b64 || '').replace(/\s+/g, ''))
+  const u8 = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i)
+  return u8
+}
 function createMemoryFs(rootPrefix) {
   installBufferPolyfill() // 确保字节可 base64/utf8 转换（db 层 readFileSync().toString('base64') 依赖）
   const files = new Map() // path -> Uint8Array
@@ -146,6 +164,33 @@ function createMemoryFs(rootPrefix) {
       files.clear()
       for (const [k, v] of Object.entries(entries || {})) {
         files.set(k, v instanceof Uint8Array ? v : new Uint8Array(v))
+      }
+    },
+    // 兜底持久化：把整棵内存 fs 序列化为 { path: base64 } 写入 WebView localStorage，
+    // 使冷启动后能还原（解决 APK 数据随进程死亡丢失的问题）。无 localStorage 环境（node 测试）安全跳过。
+    _persistToStorage() {
+      try {
+        if (typeof localStorage === 'undefined' || !localStorage) return
+        const obj = {}
+        for (const [k, v] of files) obj[k] = bytesToB64(v)
+        localStorage.setItem(MEMFS_STORAGE_KEY, JSON.stringify(obj))
+      } catch (e) {
+        // 容量超限等：降级为仅内存，不阻塞主流程
+        console.warn('[memfs] 持久化到 localStorage 失败（可能超出容量上限），数据仅保留在内存', e && e.message)
+      }
+    },
+    // 冷启动还原：从 localStorage 读回整棵内存 fs（在 createSqlJsDriver 读 db 之前调用）
+    _loadFromStorage() {
+      try {
+        if (typeof localStorage === 'undefined' || !localStorage) return
+        const raw = localStorage.getItem(MEMFS_STORAGE_KEY)
+        if (!raw) return
+        const obj = JSON.parse(raw)
+        for (const [k, b64] of Object.entries(obj || {})) {
+          if (k && typeof b64 === 'string') files.set(k, b64ToBytes(b64))
+        }
+      } catch (e) {
+        console.warn('[memfs] 从 localStorage 还原失败，将以空库启动', e && e.message)
       }
     }
   }
