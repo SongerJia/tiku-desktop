@@ -220,9 +220,16 @@ npm run test:parser && npm run test:xlsx   # 解析层 + Excel
 # 4. 打包成 Windows 安装包（输出在 release/ 目录，含自定义图标）
 npm run dist
 
+# 4b. 打包 Android APK（需本地 Android SDK / Gradle；签名 release 包详见 RELEASE.md）
+npm run build:mobile                      # 产出 dist-mobile/（注入桥脚本 + 拷贝 public-mobile/）
+npx cap sync android                     # 同步进 android/ 原生壳
+cd android && ./gradlew assembleRelease && cd ..   # 签名 release 包；调试用 assembleDebug
+# APK 产物：android/app/build/outputs/apk/{debug,release}/
+
 # 5. 发布新版本（详见下方「发版流程」小节）
 npm run bump minor   # 升版本号（自动同步 README 版本行）
-npm run release      # 防呆查重 → 打包 → 上传 GitHub Releases → 已装用户自动更新
+npm run release      # 仅构建 Windows 并上传 GitHub Releases（内置防呆查重）
+git push             # 推到 main 后，GitHub Actions 工作流会再构建 Android APK 并上传同一 Release
 ```
 
 ### 发版流程（版本号由 bump 命令统一管理）
@@ -245,8 +252,8 @@ npm run release      # 防呆查重 → 打包 → 上传 GitHub Releases → �
 ```bash
 npm run bump minor            # ① 升版本（自动改 package.json + README）
 git add -A && git commit -m "release: v0.7.0"   # ② 提交版本号
-git push                      # ③ 推送代码（可选但建议）
-npm run release               # ④ 打包 + 上传 GitHub Releases（内置防呆：同版本已发布会中止）
+git push                      # ③ 推送代码 → GitHub Actions 工作流据此构建 Android APK 并上传同一 Release
+npm run release               # ④ 仅打包 Windows 并上传 GitHub Releases（内置防呆：同版本已发布会中止）
 ```
 
 发布后：
