@@ -6,12 +6,19 @@
     var t = localStorage.getItem('tiku_theme')
     if (t !== 'light' && t !== 'eye') t = 'dark'
     document.documentElement.setAttribute('data-theme', t)
-    // 字号缩放：根 zoom。窗口跟随由 mobile-sim 处理（窗口 = base_size / zoom 让内容视觉铺满）
+    // 字号缩放：根 zoom；真机 WebView 需 layout 反向补偿（html/body 宽度 = 100vw/zoom）
     var z = parseFloat(localStorage.getItem('tiku_font_scale'))
     if (z && z > 0) {
       z = Math.min(1.20, Math.max(0.85, z))
       document.documentElement.style.zoom = z
       document.documentElement.style.setProperty('--ui-zoom', String(z))
+      // 检测：mobile-sim/桌面（window.electronAPI.__host 存在）vs 真机 WebView
+      var hasHost = !!(window.electronAPI && window.electronAPI.__host)
+      if (!hasHost && document.body) {
+        var w = 'calc(100vw / ' + z + ')'
+        document.documentElement.style.width = w
+        document.body.style.width = w
+      }
     }
   } catch (e) {}
 })()

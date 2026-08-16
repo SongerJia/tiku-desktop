@@ -628,13 +628,18 @@ function fmtTime(ts) {
 }
 .km-import {
   width: 480px; max-width: 92vw;
-  max-height: 88dvh; overflow-y: auto; /* 移动端内容高时滚动，防止超出屏幕 */
+  /* 桌面端限高（移动端在 .app.is-mobile 中独立设置）；min(88dvh, 480px) 让内容少的弹窗不撑满 */
+  max-height: min(88dvh, 480px);
+  overflow-y: auto;
   background: var(--card-solid);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow), var(--glow-soft);
   padding: 18px;
   display: flex; flex-direction: column; gap: 14px;
+}
+.app.is-mobile .km-import {
+  max-height: 88dvh; /* 移动端仍限高（长列表/多文件预览场景） */
 }
 .ki-head { display: flex; align-items: center; justify-content: space-between; }
 .ki-title { font-size: 15px; font-weight: 600; color: var(--text); }

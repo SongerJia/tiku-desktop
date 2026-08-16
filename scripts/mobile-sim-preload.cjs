@@ -17,6 +17,11 @@ window.Capacitor = {
   Plugins: { TikuBridge }
 }
 
+// 标记：这是 mobile-sim（宿主环境支持 BrowserWindow 联动），区别于真机 APK WebView
+// appearance.js / theme-init.js 据此决定是否需要 layout 反向补偿（真机需要，模拟器不需要）
+window.electronAPI = window.electronAPI || {}
+window.electronAPI.__host = true
+
 // 全局错误捕获：错误直接显示在页面上（无需 DevTools），方便定位
 function showGlobalError(tag, err) {
   const msg = (err && (err.stack || err.message)) || String(err)

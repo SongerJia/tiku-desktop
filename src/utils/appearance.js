@@ -19,11 +19,20 @@ export async function applyAppearance() {
   } catch (e) { /* 存储失败不影响本次应用 */ }
   document.documentElement.setAttribute('data-theme', t)
   // 字号缩放：根元素 zoom 整体缩放。范围 0.85~1.20 限幅。
-  // 内容视觉铺满窗口由 mobile-sim 主进程的 applyZoom 实现：窗口按 base_size / zoom 等比放大，
-  // 内容 layout 尺寸 = base_size 不变，渲染视觉 = base_size × zoom × 1/zoom = base_size（铺满窗口）。
-  // 这样 zoom 0.85 → 窗口 485 宽，内容 layout 412 视觉 412 填满窗口（与手机等比缩放体验一致）。
+  // 关键：环境检测——
+  //   - mobile-sim / 桌面 Electron：依赖窗口联动（窗口按 base_size/zoom 等比放大），只设 zoom
+  //   - 真机 APK WebView：没有 BrowserWindow 联动，必须配合 layout 反向补偿
+  //     （html/body 宽度 = 100vw/zoom，让内容视觉恒等于视口，无留空/溢出）
+  // 之前 A 方案只解决 mobile-sim，导致真机 zoom<1 右侧留空（用户报"窗口变小"）。
   const z = parseFloat(fontScale)
   const applied = (z && z > 0) ? Math.min(1.20, Math.max(0.85, z)) : 1
   document.documentElement.style.zoom = applied
   document.documentElement.style.setProperty('--ui-zoom', String(applied))
+  const hasWindowControl = typeof window !== 'undefined' && !!(window.electronAPI && window.electronAPI.__host)
+  if (!hasWindowControl && typeof document !== 'undefined') {
+    // 真机 WebView：layout 反向补偿
+    const w = `calc(100vw / ${applied})`
+    document.documentElement.style.width = w
+    if (document.body) document.body.style.width = w
+  }
 }
