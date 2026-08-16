@@ -93,6 +93,15 @@ html, body, #app {
 /* 移动端隐藏 webkit 滚动条（防止 Electron WebView 出现横向滚动条） */
 .app.is-mobile *::-webkit-scrollbar { height: 0 !important; width: 0 !important; display: none !important; }
 
+/* P6 真机适配：KbManager 文档管理弹窗
+   - 筛选行三元素（科目/章节/搜索）默认 150+150+search 在窄屏溢出 → flex-wrap 换行
+   - 空文档列表时 km-empty 在 km-list 中居中（之前 top 显示下方大片空白） */
+.app.is-mobile .km-filters { flex-wrap: wrap; }
+.app.is-mobile .km-filters select { width: auto !important; flex: 1 1 calc(50% - 5px); min-width: 0; }
+.app.is-mobile .km-filters .km-search { flex: 1 1 100%; min-width: 0; }
+.app.is-mobile .km-list { display: flex; flex-direction: column; }
+.app.is-mobile .km-list .km-empty { margin: auto; } /* flex column auto margin 居中 */
+
 .app.is-mobile {
   display: flex;
   flex-direction: column;
