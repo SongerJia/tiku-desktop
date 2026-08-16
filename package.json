@@ -19,6 +19,8 @@
     "test:db": "electron scripts/test-db.cjs",
     "test:mobile": "node scripts/test-mobile-boot.cjs && vite build --config vite.mobile.config.js && node scripts/test-mobile-dist.cjs",
     "build:mobile": "vite build --config vite.mobile.config.js",
+    "sim:mobile": "electron scripts/mobile-sim.cjs",
+    "sim:mobile:nodevtools": "electron scripts/mobile-sim.cjs --no-devtools",
     "cap:add:android": "cap add android",
     "cap:sync": "cap sync",
     "test": "node scripts/test-parser.mjs && node scripts/test-xlsx.mjs && node scripts/test-sync-merge.mjs && node scripts/test-sm2.mjs && node scripts/test-kb-extract.mjs",
