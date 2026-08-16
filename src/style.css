@@ -90,6 +90,13 @@ html, body, #app {
 .app.is-mobile .more-grid { max-width: 100%; }
 .app.is-mobile > * { max-width: 100%; }
 
+/* P6 字号缩放：.app 宽度用 calc(100vw / var(--ui-zoom))——zoom<1 时布局反向放大
+   视觉恒等于视口（无右侧留空）；max-width 520px 保留（大屏限宽居中设计）。
+   html/body 的宽度补偿由 appearance.js / theme-init.js 设置，此处兜底。 */
+.app.is-mobile {
+  width: calc(100vw / var(--ui-zoom, 1));
+}
+
 /* 移动端隐藏 webkit 滚动条（防止 Electron WebView 出现横向滚动条） */
 .app.is-mobile *::-webkit-scrollbar { height: 0 !important; width: 0 !important; display: none !important; }
 
