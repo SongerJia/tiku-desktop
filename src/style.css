@@ -77,6 +77,22 @@ html, body, #app {
   background-size: 100% 100%, 100% 100%, 30px 30px, 30px 30px;
   background-attachment: fixed;
 }
+/* 移动端兜底：所有 flex/grid 容器加 min-width:0 防止子项撑大父级（默认 min-width:auto
+   会按内容尺寸撑大，触发横向滚动条） */
+.app.is-mobile,
+.app.is-mobile .main-col,
+.app.is-mobile .topbar,
+.app.is-mobile .bottom-tab,
+.app.is-mobile .more-grid,
+.app.is-mobile .kpi-row {
+  min-width: 0;
+}
+.app.is-mobile .more-grid { max-width: 100%; }
+.app.is-mobile > * { max-width: 100%; }
+
+/* 移动端隐藏 webkit 滚动条（防止 Electron WebView 出现横向滚动条） */
+.app.is-mobile *::-webkit-scrollbar { height: 0 !important; width: 0 !important; display: none !important; }
+
 .app.is-mobile {
   display: flex;
   flex-direction: column;

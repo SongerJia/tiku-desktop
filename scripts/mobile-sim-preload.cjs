@@ -21,3 +21,20 @@ window.Capacitor = {
 window.addEventListener('error', (e) => {
   console.error('[mobile-sim] 页面错误:', e.message, e.filename, e.lineno)
 })
+
+// 移动端兜底：隐藏 webkit 滚动条 + 禁止页面级横向溢出
+// 单独元素 overflow-x hidden 有时漏掉某些伪元素/阴影，强制 root 隐藏更稳
+function injectSimGuard() {
+  const s = document.createElement('style')
+  s.textContent = `
+    ::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
+    html, body { overflow: hidden !important; overscroll-behavior: none; }
+    html, body, #app { max-width: 100vw; }
+  `
+  ;(document.head || document.documentElement).appendChild(s)
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', injectSimGuard)
+} else {
+  injectSimGuard()
+}
