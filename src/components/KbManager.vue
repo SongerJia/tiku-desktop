@@ -615,6 +615,7 @@ function fmtTime(ts) {
 }
 .km-import {
   width: 480px; max-width: 92vw;
+  max-height: 88dvh; overflow-y: auto; /* 移动端内容高时滚动，防止超出屏幕 */
   background: var(--card-solid);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -635,7 +636,7 @@ function fmtTime(ts) {
   border-radius: var(--radius-sm);
 }
 .ki-target-label { color: var(--muted); flex-shrink: 0; }
-.ki-target-val { color: var(--brand); font-weight: 500; }
+.ki-target-val { color: var(--brand); font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ki-drop {
   border: 2px dashed var(--line);
   border-radius: var(--radius-sm);
