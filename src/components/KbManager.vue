@@ -295,7 +295,11 @@ function openImport() {
 async function pickImportFiles() {
   try {
     const files = await tiku.kbPickFiles()
-    if (!files || !files.length) return
+    if (!files || !files.length) {
+      // P6 诊断：选择器返回空需可见（原生桥缺失/读取失败等），此前静默
+      showToast('未选择文件（若已选却无反应，请检查文件选择器返回）', 'err')
+      return
+    }
     importFiles.value = files
     importStep.value = 'preview'
   } catch (e) {
