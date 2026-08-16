@@ -85,8 +85,11 @@ function createWindow(devtools) {
   const win = new BrowserWindow({
     width: 412,
     height: 900,
-    minWidth: 320,
+    minWidth: 412,
+    maxWidth: 412, // 禁止拉宽：否则 .app.is-mobile max-width:520px 居中后右侧大片空白
     minHeight: 600,
+    maxHeight: 1400,
+    resizable: true, // 允许纵向调整（看长列表）
     title: '知识记忆小助手 · 移动端模拟器',
     backgroundColor: '#f5f7fb',
     webPreferences: {
