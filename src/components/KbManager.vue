@@ -640,10 +640,21 @@ function fmtTime(ts) {
 }
 /* 真机字号缩放（zoom<1 启用 layout 反向补偿）：弹窗 width/max-width 跟随
    mask 反向宽度（100%），弹窗视觉 = viewport - 边距，内容全部在弹窗内。 */
+.app.is-mobile .km-import-mask {
+  align-items: flex-end; /* 底部滑出（bottom sheet） */
+  justify-content: center;
+}
 .app.is-mobile .km-import {
-  width: calc(100% - 36px);       /* 反向补偿后的 mask 宽度减左右边距（各 18px） */
-  max-width: calc(100% - 36px);
+  width: 100%;
+  max-width: 100%;
+  border-radius: 16px 16px 0 0; /* 顶部圆角 */
+  border-bottom: none;
   max-height: 88dvh; /* 移动端仍限高（长列表/多文件预览场景） */
+  animation: kmSheetIn .22s cubic-bezier(.2, .7, .3, 1);
+}
+@keyframes kmSheetIn {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 .ki-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ki-title { font-size: 15px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
