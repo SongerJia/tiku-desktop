@@ -14,7 +14,7 @@ import { useEsc } from '../utils/useEsc.js'
 import { detectSubjectLang } from '../utils/speech.js'
 import { decodeText, parseCsv } from '../utils/bankParser.js'
 
-const props = defineProps({ show: Boolean, wide: Boolean })
+const props = defineProps({ show: Boolean, wide: Boolean, initialSubjectId: { type: [Number, String], default: null } })
 useBodyLock(() => props.show)
 useFocusTrap(() => props.show, '.cm-panel')
 const emit = defineEmits(['close', 'changed'])
@@ -62,7 +62,7 @@ async function loadMeta() {
 
 watch(subjectId, () => { categoryId.value = ''; loadList(); loadStats() })
 watch(categoryId, () => { loadList(); loadStats() })
-watch(() => props.show, (v) => { if (v) refreshAll() })
+watch(() => props.show, (v) => { if (v) { subjectId.value = props.initialSubjectId != null ? String(props.initialSubjectId) : ''; refreshAll() } })
 onMounted(() => { if (props.show) refreshAll() })
 useEsc(() => {
   if (formOpen.value) { cancelForm(); return }

@@ -47,6 +47,7 @@ const bankSubjectId = ref(null) // 入口初始科目：tab 页=当前科目，�
 // 文档管理（知识库：搜索/重命名/移动/删除/导入）
 const showKbManager = ref(false)
 const showCardManager = ref(false)
+const cardsSubjectId = ref(null) // 记忆卡管理入口初始科目：我的页=当前科目
 const kbSubjectId = ref(null) // 同上：tab 页=当前科目，我的页=null 全部
 const kbRefreshToken = ref(0)
 // 模拟卷组卷 / 我的试卷
@@ -340,9 +341,9 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
             @focus-consumed="profileSection = ''"
             @reset="currentTab = 'home'"
             @start="onStart"
-            @open-bank="showBank = true; bankSubjectId = null"
-            @open-kb-manager="showKbManager = true; kbSubjectId = null"
-            @open-card-manager="showCardManager = true"
+            @open-bank="showBank = true; bankSubjectId = currentSubject.id"
+            @open-kb-manager="showKbManager = true; kbSubjectId = currentSubject.id"
+            @open-card-manager="showCardManager = true; cardsSubjectId = currentSubject.id"
           />
             </div>
           </Transition>
@@ -391,7 +392,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
 
     <KbManager :show="showKbManager" :initial-subject-id="kbSubjectId" @close="showKbManager = false" @changed="onKbChanged" />
 
-    <CardManager :show="showCardManager" :wide="isWide" @close="showCardManager = false" @changed="homeRefresh++" />
+    <CardManager :show="showCardManager" :wide="isWide" :initial-subject-id="cardsSubjectId" @close="showCardManager = false" @changed="homeRefresh++" />
 
     <MockExamSetup
       v-if="mock.active"
