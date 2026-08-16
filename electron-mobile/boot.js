@@ -40,8 +40,8 @@ function schedulePersist() {
     persistTimer = null
     try {
       if (driverRef && driverRef.persist) driverRef.persist() // 写回内存 fs（Map）
-      // 兜底落盘到 WebView localStorage，保证进程被杀后冷启动不丢数据
-      if (platform && platform.fs && platform.fs._persistToStorage) platform.fs._persistToStorage()
+      // 兜底层落盘：优先设备文件（TikuBridge.fsWrite），localStorage 兜底，保证进程被杀后冷启动不丢数据
+      if (platform && platform.fs && platform.fs._persistToStorage) platform.fs._persistToStorage().catch(e => console.warn('[capacitor-bridge] 持久化失败', e))
     } catch (e) { console.error('[capacitor-bridge] persist 失败', e) }
   }, 3000)
 }
@@ -50,8 +50,9 @@ async function boot() {
   if (bootPromise) return bootPromise
   bootPromise = (async () => {
     // 1) 初始化 SQL.js 驱动 + db（建表/迁移/种子/回填，与 Electron 同一套逻辑）
-    //    先尝试从 WebView localStorage 还原上一会话的内存 fs（含 tiku.db），避免冷启动丢数据
-    try { if (platform && platform.fs && platform.fs._loadFromStorage) platform.fs._loadFromStorage() } catch (e) { console.warn('[capacitor-bridge] 还原本地存储失败', e) }
+    //    先尝试从设备文件（TikuBridge.fsRead）/ localStorage 还原上一会话的内存 fs（含 tiku.db），
+    //    避免冷启动丢数据。_loadFromStorage 为异步（设备文件经原生桥），须 await 后再读 db。
+    try { if (platform && platform.fs && platform.fs._loadFromStorage) await platform.fs._loadFromStorage() } catch (e) { console.warn('[capacitor-bridge] 还原本地存储失败', e) }
     const driver = await createSqlJsDriver({ file: DB_FILE, locateFile: () => 'sql-wasm.wasm' })
     driverRef = driver
     await db.initAsync(driver)

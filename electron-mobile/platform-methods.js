@@ -14,6 +14,7 @@ import syncRunnerFactory from '../electron/sync-runner.js'
 // 与 IIFE 冲突；这些模块的顶层 require 均有惰性保护，boot 注入 platform 后加载安全。
 import ghRepoModule from '../electron/sync-github-repo.js'
 import platformModule from '../electron/platform.js'
+import { webCryptoAvailable, generateKeyB64, importKeyB64, encryptToken, decryptToken } from './token-crypto.js'
 
 const { readXlsx, writeXlsx } = xlsxModule
 const { importKbFiles } = kbImportModule
@@ -36,6 +37,28 @@ function b64ToBytes(b64) {
 }
 
 export function createPlatformMethods(db) {
+  // ---- GitHub token 静态加密（S1 建议项）----
+  // 密钥存 settings.gh_key（base64），token 以 AES-GCM 密文存 settings.gh_token。
+  // 无 WebCrypto 时降级明文，保证功能不中断。
+  async function getCryptoKey() {
+    if (!webCryptoAvailable()) return null
+    let b64 = db.getSetting('gh_key')
+    if (!b64) { b64 = await generateKeyB64(); db.setSetting('gh_key', b64) }
+    return importKeyB64(b64)
+  }
+  // 读取并解密 token；密文损坏/非本格式时按迁移前明文返回
+  async function readToken() {
+    const raw = db.getSetting('gh_token') || ''
+    if (!raw) return ''
+    if (!webCryptoAvailable()) return raw
+    try {
+      const k = await getCryptoKey()
+      return await decryptToken(k, raw)
+    } catch (e) {
+      return raw // 兼容加密改造前的明文存储
+    }
+  }
+
   return {
     // ---- ① JS 直接实现 ----
 
@@ -78,7 +101,7 @@ export function createPlatformMethods(db) {
       ['りんご', '苹果', '単語']
     ], { sheetName: '记忆卡导入模板' })),
 
-    // GitHub 仓库同步：token 存 settings（APK 无 safeStorage，明文存本地；owner/repo 同 Electron）
+    // GitHub 仓库同步：token 加密存 settings（AES-GCM，APK 无 safeStorage；owner/repo 同 Electron）
     ghGetConfig: () => ({
       hasToken: !!(db.getSetting('gh_token') || ''),
       owner: db.getSetting('gh_owner') || '',
@@ -86,22 +109,27 @@ export function createPlatformMethods(db) {
       lastSync: Number(db.getSetting('gh_last_sync') || 0)
     }),
 
-    ghSaveConfig: (cfg) => {
+    ghSaveConfig: async (cfg) => {
       const t = String((cfg && cfg.token) || '').trim()
-      if (t) db.setSetting('gh_token', t)
+      if (t) {
+        const k = await getCryptoKey()
+        // 无 WebCrypto 时降级为明文存储（告警已在 readToken 路径兼容）
+        db.setSetting('gh_token', k ? await encryptToken(k, t) : t)
+        if (!k) console.warn('[gh] WebCrypto 不可用，token 以明文存储')
+      }
       db.setSetting('gh_owner', String((cfg && cfg.owner) || '').trim())
       db.setSetting('gh_repo', String((cfg && cfg.repo) || '').trim())
       return { ok: true }
     },
 
     ghTest: async (cfg) => {
-      const token = String((cfg && cfg.token) || '').trim() || db.getSetting('gh_token') || ''
+      const token = String((cfg && cfg.token) || '').trim() || await readToken()
       await ghRepoModule.testConnection({ token, owner: (cfg && cfg.owner) || '', repo: (cfg && cfg.repo) || '' })
       return { ok: true }
     },
 
     ghSync: async () => {
-      const token = db.getSetting('gh_token') || ''
+      const token = await readToken()
       const owner = db.getSetting('gh_owner') || ''
       const repo = db.getSetting('gh_repo') || ''
       if (!token || !owner || !repo) throw new Error('请先完成 GitHub 仓库配置')
@@ -160,6 +188,8 @@ export function createPlatformMethods(db) {
       const head = String.fromCharCode.apply(null, bytes.slice(0, 16))
       if (!head.startsWith('SQLite format 3')) return { ok: false, error: '备份文件损坏（非 SQLite 数据库）' }
       platform.fs.writeFileSync('/data/tiku.db', bytes)
+      // 立即落盘设备文件（平台方法不经防抖调度），否则 reload 前内存快照未写回会丢恢复结果
+      try { if (platform && platform.fs && platform.fs._persistToStorage) await platform.fs._persistToStorage() } catch (e) {}
       return { ok: true, needRestart: true } // WebView 需 reload 使新库生效
     },
 

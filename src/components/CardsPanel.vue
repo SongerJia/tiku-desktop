@@ -213,7 +213,7 @@ watch(scope, () => { if (props.show) load() })
             <div class="card-meta">
               <span class="mem-badge" :class="cardBadge(c).cls">{{ cardBadge(c).text }}</span>
               <span v-if="!c.subject_id && isAll" class="cat-badge uncat">未分类</span>
-              <span v-if="c.source_question_id" class="cat-badge src">来自题目</span>
+              <span v-if="c.source_question_exists" class="cat-badge src">来自题目</span>
               <span v-if="c.category_name" class="cat-badge">{{ c.category_name }}</span>
               <span v-else-if="c.category" class="cat-badge">{{ c.category }}</span>
               <span class="state" :class="{ due: c.due }">

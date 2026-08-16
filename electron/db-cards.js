@@ -133,7 +133,8 @@ module.exports = function cardsModule(ctx) {
       if (subjectId) { where += ' AND c.subject_id=?'; params.push(subjectId) }
       if (categoryId) { where += ' AND c.category_id=?'; params.push(categoryId) }
       return sqlite.prepare(
-        `SELECT c.*, cat.name AS category_name, (c.review_at IS NULL OR c.review_at<=?) AS due, c.review_lapses AS lapses
+        `SELECT c.*, cat.name AS category_name, (c.review_at IS NULL OR c.review_at<=?) AS due, c.review_lapses AS lapses,
+                (SELECT 1 FROM questions q WHERE q.id=c.source_question_id AND q.deleted=0) AS source_question_exists
          FROM cards c LEFT JOIN categories cat ON cat.id=c.category_id
          WHERE ${where} ORDER BY c.created_at DESC`
       ).all(dueNow, ...params)
@@ -150,6 +151,20 @@ module.exports = function cardsModule(ctx) {
 
     deleteCard(id) {
       sqlite.prepare('UPDATE cards SET deleted=1, updated_at=? WHERE id=?').run(Date.now(), id)
+      return { ok: true }
+    },
+
+    // 清理悬空的 source_question_id（源题目已被硬删 / 备份恢复后 id 错位时，引用指向不存在的行）。
+    // 正常流程题目仅软删（行仍存在），引用不会真正消失；但备份恢复、跨库导入可能产生 id 不匹配，
+    // 故启动期兜底校验一次，避免卡片永久挂着不存在的题目引用。
+    cleanupOrphanCardSources() {
+      try {
+        sqlite.prepare(
+          `UPDATE cards SET source_question_id=NULL
+           WHERE source_question_id IS NOT NULL
+             AND source_question_id NOT IN (SELECT id FROM questions)`
+        ).run()
+      } catch (e) { /* 不影响启动 */ }
       return { ok: true }
     },
 

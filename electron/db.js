@@ -127,6 +127,8 @@ const api = {
     Object.assign(this, metaModule({ sqlite, LOCAL_USER, uuid, sample: require('./sampleData'), descendantCategoryIds }))
     this.initSchema()
     this.migrateSchema()
+    // 启动期兜底：清理指向不存在题目的悬空 source_question_id（备份恢复/跨库导入可能产生）
+    try { if (this.cleanupOrphanCardSources) this.cleanupOrphanCardSources() } catch (e) {}
     this.ensureUser()
     this.seedIfEmpty()
     this.backfillClientIds() // 老库/样例数据补齐 client_id 与 *_cid，保证可同步

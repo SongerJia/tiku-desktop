@@ -298,7 +298,7 @@ async function downloadTemplateXlsx() {
             <div class="card-side">
               <div class="card-meta">
                 <span class="mem-badge" :class="cardBadge(c).cls">{{ cardBadge(c).text }}</span>
-                <span v-if="c.source_question_id" class="cat-badge src">来自题目</span>
+                <span v-if="c.source_question_exists" class="cat-badge src">来自题目</span>
                 <span v-if="c.source_doc_id" class="cat-badge doc">来自文档</span>
                 <span v-if="c.audio_url" class="cat-badge aud">有音频</span>
                 <span v-if="c.category_name" class="cat-badge">{{ c.category_name }}</span>

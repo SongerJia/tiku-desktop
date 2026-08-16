@@ -1,8 +1,8 @@
-// WebView 平台 shim（P4b）：APK 端替代 electron/Node 内置模块，供 db 层 platform 单例注入。
+// WebView 平台 shim（P4b/P 建议项 S2）：APK 端替代 electron/Node 内置模块，供 db 层 platform 单例注入。
 // 提供：userDataDir / fs(内存文件系统，SQL.js 驱动落盘用) / path / crypto(WebCrypto) / nativeImage(空)
-// fs 用内存 Map 模拟（SQL.js 是内存库 + persist 导出字节）。为解决「进程被杀即丢数据」，memFs 额外把
-// 整棵文件系统快照序列化进 WebView localStorage（见 _persistToStorage/_loadFromStorage），冷启动可还原。
-// 注意：localStorage 有容量上限，超量会降级为仅内存；图片/音频等大体量资源如需持久化，建议改用 @capacitor/filesystem。
+// fs 用内存 Map 模拟（SQL.js 是内存库 + persist 导出字节）。冷启动丢数据问题通过持久化解决：
+//   优先经 TikuBridge.fsWrite 把整棵内存 fs 快照写进 Android 应用私有目录（容量无 5MB 上限），
+//   localStorage 仅作兜底（见 _persistToStorage/_loadFromStorage）。
 
 // ---- path shim（Node path 的常用子集）----
 const pathShim = {
@@ -80,11 +80,22 @@ function installBufferPolyfill() {
 }
 
 // ---- 内存文件系统（SQL.js 驱动 persist/export 用；key 为绝对路径，值 Uint8Array）----
-// 持久化：APK 无 node fs，纯内存 Map 在进程被杀后即丢失（数据全丢）。WebView 的 localStorage
-// 由 Android 落盘到应用私有目录、跨进程重启保留，故用它做内存 fs 的兜底快照，使 APK 用户数据
-// 在冷启动后不丢。注意 localStorage 有容量上限（通常 ~5MB），超量写入会被浏览器抛 QuotaExceededError，
-// 这里 catch 后降级为仅内存（不阻塞、不崩溃），生产环境建议改用 @capacitor/filesystem 存设备目录。
-const MEMFS_STORAGE_KEY = '__tiku_memfs_v1__'
+// 持久化：APK 无 node fs，纯内存 Map 在进程被杀后即丢失（数据全丢）。
+// 优先写真实设备文件：经 TikuBridge.fsWrite 落盘到 Android 应用私有目录（getFilesDir()/tiku/），
+// 容量无 WebView localStorage 5MB 上限、跨进程重启保留，从根本上解决冷启动丢数据 + 容量焦虑。
+// localStorage 作为兜底（原生桥不可用 / 旧版本兼容），写入失败（超容量等）降级为仅内存、不阻塞。
+const MEMFS_STORAGE_KEY = '__tiku_memfs_v1__'        // localStorage 兜底键
+const MEMFS_SNAPSHOT_NAME = 'memfs.snapshot.json'    // 设备文件快照名（TikuBridge.fs*）
+
+// 原生桥（与 platform-methods.js 同一对象）：提供 fsWrite/fsRead/fsDelete 落盘设备私有目录
+function getNativeFs() {
+  try {
+    if (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.TikuBridge) {
+      return window.Capacitor.Plugins.TikuBridge
+    }
+  } catch (e) {}
+  return null
+}
 function bytesToB64(u8) {
   let bin = ''
   const chunk = 0x8000
@@ -166,28 +177,56 @@ function createMemoryFs(rootPrefix) {
         files.set(k, v instanceof Uint8Array ? v : new Uint8Array(v))
       }
     },
-    // 兜底持久化：把整棵内存 fs 序列化为 { path: base64 } 写入 WebView localStorage，
-    // 使冷启动后能还原（解决 APK 数据随进程死亡丢失的问题）。无 localStorage 环境（node 测试）安全跳过。
-    _persistToStorage() {
+    // 兜底持久化（异步）：优先写真实设备文件（TikuBridge.fsWrite，容量无 5MB 上限），
+    // 失败则降级到 WebView localStorage；两者皆不可用时仅内存（不阻塞、不崩溃）。
+    // 在 schedulePersist 的 setTimeout 中调用，返回 Promise，调用方自行 .catch。
+    async _persistToStorage() {
+      const obj = {}
+      for (const [k, v] of files) obj[k] = bytesToB64(v)
+      const nb = getNativeFs()
+      if (nb && typeof nb.fsWrite === 'function') {
+        try {
+          await nb.fsWrite({ name: MEMFS_SNAPSHOT_NAME, data: bytesToB64(new TextEncoder().encode(JSON.stringify(obj))) })
+          return
+        } catch (e) {
+          console.warn('[memfs] 设备文件持久化失败，降级到 localStorage', e && e.message)
+        }
+      }
       try {
-        if (typeof localStorage === 'undefined' || !localStorage) return
-        const obj = {}
-        for (const [k, v] of files) obj[k] = bytesToB64(v)
-        localStorage.setItem(MEMFS_STORAGE_KEY, JSON.stringify(obj))
+        if (typeof localStorage !== 'undefined' && localStorage) {
+          localStorage.setItem(MEMFS_STORAGE_KEY, JSON.stringify(obj))
+        }
       } catch (e) {
-        // 容量超限等：降级为仅内存，不阻塞主流程
         console.warn('[memfs] 持久化到 localStorage 失败（可能超出容量上限），数据仅保留在内存', e && e.message)
       }
     },
-    // 冷启动还原：从 localStorage 读回整棵内存 fs（在 createSqlJsDriver 读 db 之前调用）
-    _loadFromStorage() {
+    // 冷启动还原（异步）：从设备文件读回整棵内存 fs（在 createSqlJsDriver 读 db 之前 await 调用）。
+    // 设备文件缺失时回退 localStorage；均无则空库启动。
+    async _loadFromStorage() {
+      const nb = getNativeFs()
+      if (nb && typeof nb.fsRead === 'function') {
+        try {
+          const r = await nb.fsRead({ name: MEMFS_SNAPSHOT_NAME })
+          const b64 = r && r.data
+          if (b64) {
+            const obj = JSON.parse(new TextDecoder().decode(b64ToBytes(b64)))
+            for (const [k, v] of Object.entries(obj || {})) {
+              if (k && typeof v === 'string') files.set(k, b64ToBytes(v))
+            }
+            return
+          }
+        } catch (e) {
+          console.warn('[memfs] 从设备文件还原失败，尝试 localStorage', e && e.message)
+        }
+      }
       try {
-        if (typeof localStorage === 'undefined' || !localStorage) return
-        const raw = localStorage.getItem(MEMFS_STORAGE_KEY)
-        if (!raw) return
-        const obj = JSON.parse(raw)
-        for (const [k, b64] of Object.entries(obj || {})) {
-          if (k && typeof b64 === 'string') files.set(k, b64ToBytes(b64))
+        if (typeof localStorage !== 'undefined' && localStorage) {
+          const raw = localStorage.getItem(MEMFS_STORAGE_KEY)
+          if (!raw) return
+          const obj = JSON.parse(raw)
+          for (const [k, b64] of Object.entries(obj || {})) {
+            if (k && typeof b64 === 'string') files.set(k, b64ToBytes(b64))
+          }
         }
       } catch (e) {
         console.warn('[memfs] 从 localStorage 还原失败，将以空库启动', e && e.message)

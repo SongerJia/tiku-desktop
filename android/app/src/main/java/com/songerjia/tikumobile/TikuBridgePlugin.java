@@ -161,4 +161,63 @@ public class TikuBridgePlugin extends Plugin {
             return out.toByteArray();
         } finally { in.close(); }
     }
+
+    // ---- 内存 fs 持久化（S2 建议项）：把整棵内存文件系统快照写入应用私有目录
+    //   getFilesDir()/tiku/，容量无 WebView localStorage 5MB 上限，且跨进程重启保留。
+    //   name 仅允许 [a-zA-Z0-9._-]，防止路径穿越。
+    private java.io.File tikuDataFile(String name) {
+        java.io.File dir = new java.io.File(getContext().getFilesDir(), "tiku");
+        return new java.io.File(dir, sanitize(name));
+    }
+
+    private String sanitize(String n) {
+        if (n == null || n.isEmpty()) return "memfs.snapshot.json";
+        return n.replaceAll("[^a-zA-Z0-9._-]", "_");
+    }
+
+    @PluginMethod
+    public void fsWrite(PluginCall call) {
+        String name = call.getString("name", "memfs.snapshot.json");
+        String data = call.getString("data", "");
+        try {
+            java.io.File f = tikuDataFile(name);
+            java.io.File dir = f.getParentFile();
+            if (dir != null && !dir.exists()) dir.mkdirs();
+            java.io.FileOutputStream out = new java.io.FileOutputStream(f);
+            try {
+                out.write(Base64.decode(data, Base64.NO_WRAP));
+            } finally { out.close(); }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("fsWrite 失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
+        }
+    }
+
+    @PluginMethod
+    public void fsRead(PluginCall call) {
+        String name = call.getString("name", "memfs.snapshot.json");
+        try {
+            java.io.File f = tikuDataFile(name);
+            if (!f.exists()) { call.resolve(new JSObject()); return; }
+            java.io.FileInputStream in = new java.io.FileInputStream(f);
+            byte[] bytes = readAll(in);
+            JSObject ret = new JSObject();
+            ret.put("data", Base64.encodeToString(bytes, Base64.NO_WRAP));
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("fsRead 失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
+        }
+    }
+
+    @PluginMethod
+    public void fsDelete(PluginCall call) {
+        String name = call.getString("name", "memfs.snapshot.json");
+        try {
+            java.io.File f = tikuDataFile(name);
+            if (f.exists()) f.delete();
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("fsDelete 失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
+        }
+    }
 }
