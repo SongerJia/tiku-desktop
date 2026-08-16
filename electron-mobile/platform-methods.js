@@ -1,10 +1,12 @@
-// APK 端 18 平台方法实现（P5）：与 Electron main.js 的平台 handler 对齐。
+// APK 端 19 个平台方法实现：与 Electron main.js 的平台 handler 对齐（main 注册 18 个显式 handler
+// + 109 个 PURE_DB_METHODS；APK 额外含 downloadUpdate 共 19 个平台方法）。
 // 分三类：
 //   ① JS 可直接实现（数据层/纯计算）：saveImage / parseSheet / exportExcel*（复用 xlsx-lite，
-//     zlib 已由 platform 注入 pako shim）/ gh*（GitHub 同步走 fetch + sync-runner，token 存 settings）
-//   ② Capacitor 原生桥（文件选择/版本/外链）：kbPickFiles / kbImportFiles / restoreBackup /
-//     getVersion / openExternal —— 调 window.Capacitor.Plugins.TikuBridge
-//   ③ 首版占位（明确错误，不阻塞 UI）：checkUpdate / openPath / kbExport / kbOpen
+//     zlib 已由 platform 注入 pako shim）/ gh*（GitHub 同步走 fetch + sync-runner，token 用 WebCrypto 加密）
+//   ② Capacitor 原生桥（文件选择/版本/外链/安装）：kbPickFiles / kbImportFiles / restoreBackup /
+//     getVersion / openExternal / installApk —— 调 window.Capacitor.Plugins.TikuBridge
+//   ③ 占位（明确错误，不阻塞 UI）：openPath / kbExport / kbOpen
+//   注：checkUpdate / downloadUpdate 已基于 GitHub Releases 实现（应用内自动更新），不再占位。
 // 由 boot.js 合并进 window.capacitorBridge.api。
 
 import xlsxModule from '../electron/xlsx-lite.js'
