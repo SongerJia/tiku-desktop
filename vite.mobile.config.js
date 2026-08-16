@@ -32,8 +32,9 @@ export default defineConfig({
       }
     }
   },
-  // sql.js 的 wasm 直接拷贝到产物根，boot.js 用 locateFile: () => 'sql-wasm.wasm' 相对定位
-  publicDir: false,
+  // sql.js 的 wasm 与 WebView 启动壳（index.html）放 public-mobile/，构建时原样拷贝到产物根——
+  // boot.js 用 locateFile: () => 'sql-wasm.wasm' 相对定位
+  publicDir: 'public-mobile',
   optimizeDeps: {
     exclude: ['sql.js']
   },
