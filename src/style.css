@@ -83,6 +83,13 @@ html, body, #app {
   max-width: 520px;
   margin: 0 auto;
   position: relative;
+  /* P6 真机修复：去掉桌面氛围装饰网格。
+     .app 通用块有 background-attachment: fixed 的双重网格（横线+竖线 30px 方格），
+     移动端配合 overflow-x: hidden 在 Android WebView 中 fixed 背景绘制范围会
+     异常扩展到整个视口，触发首页/我的页底部横向滚动条。移动端不需要此装饰，
+     省去背景图既消除滚动条也省一层绘制。 */
+  background-image: none;
+  background-attachment: scroll;
   /* P6-A 移动端基础适配：
      - 安全区：底部 Tab/顶部栏避让手机手势条与刘海（覆盖 :root 固定值）
      - touch-action: manipulation 消除双击缩放延迟/双击选词误触
