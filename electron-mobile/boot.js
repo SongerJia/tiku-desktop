@@ -80,6 +80,17 @@ async function boot() {
 if (isCapacitorEnv) {
   window.capacitorBridgeReady = boot().catch(e => {
     console.error('[capacitor-bridge] 启动失败', e)
+    // 失败时把错误显示在启动页（#boot-status），无需 DevTools 即可见完整堆栈
+    try {
+      const el = document.getElementById('boot-status')
+      if (el) {
+        el.innerHTML =
+          '<div style="color:#e34;font-weight:600">启动失败</div>' +
+          '<div style="font-size:11px;color:#888;max-width:340px;word-break:break-all;white-space:pre-wrap;text-align:left;line-height:1.6;padding:8px 14px">' +
+          ((e && (e.stack || e.message)) || String(e)).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])) +
+          '</div>'
+      }
+    } catch (err) { /* 显示失败忽略 */ }
     throw e
   })
 }

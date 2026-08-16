@@ -17,10 +17,23 @@ window.Capacitor = {
   Plugins: { TikuBridge }
 }
 
-// 启动失败时也在控制台可见（模拟器 DevTools 里看得到）
-window.addEventListener('error', (e) => {
-  console.error('[mobile-sim] 页面错误:', e.message, e.filename, e.lineno)
-})
+// 全局错误捕获：错误直接显示在页面上（无需 DevTools），方便定位
+function showGlobalError(tag, err) {
+  const msg = (err && (err.stack || err.message)) || String(err)
+  console.error('[mobile-sim] ' + tag, msg)
+  try {
+    let el = document.getElementById('sim-error-banner')
+    if (!el) {
+      el = document.createElement('div')
+      el.id = 'sim-error-banner'
+      el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#7f1d1d;color:#fee2e2;font:11px/1.5 monospace;padding:8px 10px;max-height:40vh;overflow:auto;word-break:break-all;white-space:pre-wrap'
+      document.documentElement.appendChild(el)
+    }
+    el.textContent = '[' + tag + '] ' + msg
+  } catch (e) { /* 显示失败忽略 */ }
+}
+window.addEventListener('error', (e) => showGlobalError('页面错误', e.error || e.message))
+window.addEventListener('unhandledrejection', (e) => showGlobalError('未处理 Promise 错误', e.reason))
 
 // 移动端兜底：隐藏 webkit 滚动条 + 禁止页面级横向溢出
 // 单独元素 overflow-x hidden 有时漏掉某些伪元素/阴影，强制 root 隐藏更稳
