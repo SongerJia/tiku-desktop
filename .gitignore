@@ -4,6 +4,7 @@ node_modules/
 # 构建产物
 dist/
 dist-electron/
+dist-mobile/
 release/
 out/
 
@@ -38,3 +39,11 @@ tmp*
 dist.bak/
 dist.bak2/
 scripts/__*
+
+# 测试输出
+db-test-out.txt
+sqljs-test-out.txt
+mobile-boot-test-out.txt
+mobile-dist-test-out.txt
+db-error.txt
+sqljs-error.txt

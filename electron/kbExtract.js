@@ -1,8 +1,11 @@
 // 个人知识库：文档文本抽取与切块（零依赖 MD 切块 + pdfjs-dist 抽 PDF 文本）
 // - MD：按 # 标题切块，无标题则整篇一块（零格式门槛）
 // - PDF：pdfjs-dist legacy 构建逐页抽文本；无文本层/异常时降级返回空块 + error（靠文件名与标签兜底）
-const fs = require('fs')
-const path = require('path')
+// P4b：WebView（APK）无 Node 内建模块，fs/path 仅 PDF 抽取/文件路径场景使用（APK 走平台方法不直调）——
+// 顶层 require 加保护，避免 boot 打包后模块加载即崩。
+let fs = null
+let path = null
+try { fs = require('fs'); path = require('path') } catch (e) { /* 非 Node 环境（WebView）：惰性降级 */ }
 
 // MD 按标题切块：每遇到 #~###### 标题开启新块；块头取标题文本（去 # 与尾随井号）
 function splitMdBlocks(content) {

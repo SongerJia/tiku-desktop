@@ -1,0 +1,13 @@
+{
+  "appId": "com.songerjia.tiku-mobile",
+  "appName": "知识记忆小助手",
+  "webDir": "dist-mobile",
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#f5f7fb"
+  },
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  }
+}

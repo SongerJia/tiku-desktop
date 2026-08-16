@@ -12,9 +12,16 @@
 //   APK:       const { platform, setPlatform } = require('./platform')
 //              setPlatform(require('./platform-capacitor')) // WebView 启动最早处调用
 
-const nodePath = require('path')
-const nodeFs = require('fs')
-const nodeCrypto = require('crypto')
+// P4b：WebView（APK）无 Node 内建模块，顶层 require 加保护——
+// 非 Node 环境置 null，boot 会 setPlatform 注入 Capacitor shim 覆盖；Electron 环境正常取值。
+let nodePath = null
+let nodeFs = null
+let nodeCrypto = null
+try {
+  nodePath = require('path')
+  nodeFs = require('fs')
+  nodeCrypto = require('crypto')
+} catch (e) { /* 非 Node 环境：等待 setPlatform 注入 */ }
 
 let _userDataDir = null
 let _fs = nodeFs
@@ -24,14 +31,20 @@ let _nativeImage = null
 let _isElectron = false
 
 try {
-  const { app, nativeImage } = require('electron')
-  _nativeImage = nativeImage
-  _userDataDir = () => app.getPath('userData')
-  _isElectron = true
+  // 注意：纯 Node 下 require('electron') 不会抛错（npm 包仅导出二进制路径字符串），
+  // 必须校验 app/nativeImage 是真实对象才算 Electron 环境。
+  const electron = require('electron')
+  const { app, nativeImage } = (electron && typeof electron === 'object') ? electron : {}
+  if (app && typeof app.getPath === 'function' && nativeImage) {
+    _nativeImage = nativeImage
+    _userDataDir = () => app.getPath('userData')
+    _isElectron = true
+  }
 } catch (e) {
   // 非 Electron 环境（WebView/测试）：默认降级为当前目录，APK 会 setPlatform 覆盖
   _userDataDir = () => '.'
 }
+if (!_userDataDir) _userDataDir = () => '.' // electron 存在但无 app（纯 Node）也降级
 
 // 单例：业务代码统一从 platform.* 取平台能力（getter 读内部变量，setPlatform 可替换）
 const platform = {
@@ -43,13 +56,13 @@ const platform = {
   get isElectron() { return _isElectron }
 }
 
-// APK/测试注入自定义平台实现（部分覆盖即可）
+// APK/测试注入自定义平台实现（部分覆盖即可；nativeImage 允许显式置 null 表示"跳过图片压缩"）
 function setPlatform(overrides = {}) {
   if (overrides.userDataDir) _userDataDir = overrides.userDataDir
   if (overrides.fs) _fs = overrides.fs
   if (overrides.path) _path = overrides.path
   if (overrides.crypto) _crypto = overrides.crypto
-  if (overrides.nativeImage) _nativeImage = overrides.nativeImage
+  if ('nativeImage' in overrides) _nativeImage = overrides.nativeImage
   if (typeof overrides.isElectron === 'boolean') _isElectron = overrides.isElectron
 }
 

@@ -13,7 +13,9 @@
 //   APK:       const driver = await createSqlJsDriver({ file })   // 异步（wasm 加载 + 文件持久化）
 
 function createBetterDriver(dbPath) {
-  const Database = require('better-sqlite3')
+  // P4b：better-sqlite3 是原生模块，WebView（APK）不可用且无需加载——惰性 require + 明确报错
+  let Database
+  try { Database = require('better-sqlite3') } catch (e) { throw new Error('better-sqlite3 仅 Electron 环境可用（' + (e && e.message || e) + '）') }
   const db = new Database(dbPath)
   try { db.pragma('journal_mode = WAL') } catch (e) {}
   try { db.pragma('busy_timeout = 5000') } catch (e) {}
@@ -39,15 +41,21 @@ function createBetterDriver(dbPath) {
     // WAL checkpoint（备份前调用；SQL.js 无 WAL，no-op）
     checkpoint() { try { db.pragma('wal_checkpoint(TRUNCATE)') } catch (e) {} },
     // 导出整库字节（备份/同步快照用；better 直接读文件，SQL.js 用 db.export()）
-    exportBytes() { return require('fs').readFileSync(dbPath) }
+    exportBytes() {
+      try { return require('fs').readFileSync(dbPath) } catch (e) { return null }
+    },
+    // SQL.js 导出内存库字节（APK 备份/同步用；Electron better 驱动不实现）
+    exportSqlBytes() { return null }
   }
 }
 
 // SQL.js 驱动：异步初始化（wasm 加载）。
 // 持久化：SQL.js 是内存库，改动后由上层调 driver.persist() 写回文件。
+// P4b：文件读写走 platform.fs（Electron=node fs；APK=内存 fs），libsql 字节读写统一。
 async function createSqlJsDriver({ file, locateFile } = {}) {
   const initSqlJs = require('sql.js')
-  const fs = require('fs')
+  const { platform } = require('./platform')
+  const fs = platform.fs
   const SQL = await initSqlJs(locateFile ? { locateFile } : undefined)
   let db
   if (file && fs.existsSync(file)) {
