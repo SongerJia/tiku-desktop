@@ -8,6 +8,25 @@
 
 const isCapacitor = typeof window !== 'undefined' && !!(window.Capacitor && window.Capacitor.isNativePlatform)
 
+// APK 数据层就绪等待：boot.js 异步加载 SQL.js wasm，Vue 应用可能在就绪前调用数据方法。
+// Electron 分支无此问题（preload 同步注入）。
+let capReadyPromise = null
+function capacitorReady() {
+  if (!isCapacitor) return Promise.resolve(null)
+  if (!capReadyPromise) {
+    // boot.js 设置 window.capacitorBridgeReady = boot()；尚未执行到则等待其出现（罕见时序）
+    capReadyPromise = new Promise((resolve, reject) => {
+      if (window.capacitorBridgeReady) { window.capacitorBridgeReady.then(resolve, reject); return }
+      let tries = 0
+      const timer = setInterval(() => {
+        if (window.capacitorBridgeReady) { clearInterval(timer); window.capacitorBridgeReady.then(resolve, reject) }
+        else if (++tries > 100) { clearInterval(timer); reject(new Error('capacitorBridge 启动超时（boot.js 未加载？）')) }
+      }, 100)
+    })
+  }
+  return capReadyPromise
+}
+
 // 取底层桥对象（方法集合，与 electronAPI 同形：每个方法返回 Promise）
 function getBridge() {
   if (isCapacitor) return (window.capacitorBridge && window.capacitorBridge.api) || {}
@@ -26,7 +45,9 @@ function deepSafe(v) {
 }
 
 // 统一调用：取方法 → 剥 Proxy → 调用 → 统一错误日志
-function bridgeCall(key, args) {
+// P5：APK 分支先等待数据层就绪（boot.js 的 SQL.js wasm 加载为异步）
+async function bridgeCall(key, args) {
+  await capacitorReady()
   const fn = getBridge()[key]
   if (typeof fn !== 'function') return undefined
   try {

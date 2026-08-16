@@ -15,8 +15,17 @@ function ok(name, cond, extra) {
 
 ;(async () => {
   const distDir = path.join(__dirname, '..', 'dist-mobile')
-  if (!fs.existsSync(path.join(distDir, 'boot.js'))) {
-    console.error('缺少 dist-mobile/boot.js，请先运行: npx vite build --config vite.mobile.config.js')
+  // 产物结构：index.html + boot chunk（app-mobile 已合并 Vue，boot 独立入口供验证）
+  const bootChunk = (() => {
+    const assets = fs.readdirSync(path.join(distDir, 'assets')).filter(f => /^boot-.*\.js$/.test(f))
+    return assets[0]
+  })()
+  if (!bootChunk) {
+    console.error('缺少 dist-mobile/assets/boot-*.js，请先运行: npx vite build --config vite.mobile.config.js')
+    process.exit(1)
+  }
+  if (!fs.existsSync(path.join(distDir, 'index.html'))) {
+    console.error('缺少 dist-mobile/index.html（构建入口 html 未生成）')
     process.exit(1)
   }
   // 模拟 WebView 全局（Capacitor 8 + 浏览器 API）
@@ -30,10 +39,21 @@ function ok(name, cond, extra) {
     }
     return origFetch ? origFetch(input, init) : Promise.reject(new Error('fetch 不可用: ' + s))
   }
+  // 产物结构验证（Vue 应用部分需真实 DOM，node 只做静态检查）
+  const html = fs.readFileSync(path.join(distDir, 'index.html'), 'utf8')
+  const jsRefs = [...html.matchAll(/src="\.\/([^"]+)"/g)].map(m => m[1])
+  const cssRefs = [...html.matchAll(/href="\.\/([^"]+\.css)"/g)].map(m => m[1])
+  ok('index.html 引用 app-mobile entry js', jsRefs.some(f => /app-mobile-.*\.js$/.test(f)))
+  ok('index.html 引用样式表', cssRefs.length >= 1)
+  ok('index.html 引用的资源文件存在', jsRefs.concat(cssRefs).every(f => fs.existsSync(path.join(distDir, f))))
+  const appChunk = fs.readFileSync(path.join(distDir, 'assets', (fs.readdirSync(path.join(distDir, 'assets')).find(f => /^app-mobile-.*\.js$/.test(f)))), 'utf8')
+  ok('app-mobile 含 Vue 应用（createApp）', appChunk.includes('createApp'))
+  ok('app-mobile 含数据层引导（capacitorBridgeReady）', appChunk.includes('capacitorBridgeReady'))
+  ok('app-mobile 的 require 均受保护（try/catch 前缀）', (appChunk.match(/catch\{[^}]*require\(/g) || []).length >= 3 || !/require\(/.test(appChunk.replace(/catch\{[^}]*?require\(/g, '')))
   // 确保 sql-wasm.wasm 可被 locateFile 相对定位
   process.chdir(distDir)
-  // 产物是 IIFE（无 export）：直接 import 原文件即可执行，window.Capacitor 存在 → 自动 boot
-  const bootUrl = 'file://' + path.join(distDir, 'boot.js').replace(/\\/g, '/')
+  // 加载打包后的 boot chunk（ESM，自动 boot：window.Capacitor 存在）
+  const bootUrl = 'file://' + path.join(distDir, 'assets', bootChunk).replace(/\\/g, '/')
   await import(bootUrl)
   // 等待自动 boot 完成（window.Capacitor 存在 → boot.js 自动启动）
   let bridge = null

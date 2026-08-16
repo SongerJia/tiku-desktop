@@ -75,9 +75,13 @@ async function boot() {
   return bootPromise
 }
 
-// 自动启动（WebView 加载即初始化；失败打日志不阻塞 UI）
+// 自动启动（WebView 加载即初始化；失败打日志不阻塞 UI）。
+// 同时暴露 window.capacitorBridgeReady（Promise）：Vue 应用通过 bridge.js 等待数据层就绪后再调用。
 if (isCapacitorEnv) {
-  boot().catch(e => console.error('[capacitor-bridge] 启动失败', e))
+  window.capacitorBridgeReady = boot().catch(e => {
+    console.error('[capacitor-bridge] 启动失败', e)
+    throw e
+  })
 }
 
 export { boot }
