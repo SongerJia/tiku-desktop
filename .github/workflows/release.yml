@@ -1,0 +1,122 @@
+# 发布工作流：手动触发，构建 Windows 安装包 + Android APK，并创建 GitHub Release
+# 触发：GitHub → Actions → Release (Windows + APK) → Run workflow（可填版本号，留空读 package.json）
+name: Release (Windows + APK)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号（如 0.7.0，留空则读取 package.json）'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  # ---------- Windows (Electron) ----------
+  build-windows:
+    name: Windows 安装包
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # dist = vite build + electron-builder（仅本地产出，不自动发布）；用国内镜像加速 Electron 下载
+      - name: 构建 Windows 安装包
+        run: npm run dist
+        env:
+          ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
+          ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: release/*
+
+  # ---------- Android (Capacitor) ----------
+  build-android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: 设置 Android SDK
+        uses: android-actions/setup-android@v3
+      - name: 安装 SDK 平台与构建工具
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - run: npm ci --ignore-scripts   # APK 用 sql.js，无需编译 better-sqlite3
+      - name: 构建移动端 Web 资源
+        run: npm run build:mobile
+      - name: 同步 Capacitor Android
+        run: npx cap sync android
+      - name: 解码签名密钥（已配置 Secrets 时）
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
+        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/release-keystore.jks
+      - name: 读取版本号
+        id: ver
+        shell: bash
+        run: |
+          VER="${{ github.event.inputs.version }}"
+          if [ -z "$VER" ]; then VER=$(node -p "require('./package.json').version"); fi
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          CODE=$(node -e "const v='$VER'.split('.').map(Number); console.log(v[0]*10000+v[1]*100+v[2])")
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+      - name: 构建 APK（签名 release 或降级 debug）
+        shell: bash
+        run: |
+          cd android
+          chmod +x gradlew
+          if [ -f release-keystore.jks ]; then
+            ./gradlew assembleRelease -PappVersionName="${{ steps.ver.outputs.version }}" -PappVersionCode="${{ steps.ver.outputs.code }}"
+          else
+            ./gradlew assembleDebug  -PappVersionName="${{ steps.ver.outputs.version }}" -PappVersionCode="${{ steps.ver.outputs.code }}"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: android/app/build/outputs/apk/**/*.apk
+
+  # ---------- 发布到 GitHub Release ----------
+  publish:
+    name: 创建 GitHub Release
+    needs: [build-windows, build-android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: 计算版本号与标签
+        id: collect
+        shell: bash
+        run: |
+          VER="${{ github.event.inputs.version }}"
+          if [ -z "$VER" ]; then VER=$(node -p "require('./package.json').version"); fi
+          echo "tag=v$VER" >> "$GITHUB_OUTPUT"
+      - name: 创建 Release 并上传产物
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.collect.outputs.tag }}
+          name: ${{ steps.collect.outputs.tag }}
+          files: |
+            artifacts/windows-installer/*
+            artifacts/android-apk/**/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

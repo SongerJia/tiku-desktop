@@ -1,6 +1,6 @@
 {
   "appId": "com.songerjia.tikumobile",
-  "appName": "知识记忆小助手",
+  "appName": "知识题库",
   "webDir": "dist-mobile",
   "android": {
     "allowMixedContent": true,
