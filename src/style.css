@@ -81,6 +81,15 @@ html, body, #app {
   max-width: 520px;
   margin: 0 auto;
   position: relative;
+  /* P6-A 移动端基础适配：
+     - 安全区：底部 Tab/顶部栏避让手机手势条与刘海（覆盖 :root 固定值）
+     - touch-action: manipulation 消除双击缩放延迟/双击选词误触
+     - overflow-x 兜底防横向溢出（个别页面固定宽度元素） */
+  --safe-bottom: env(safe-area-inset-bottom, 20px);
+  --safe-top: env(safe-area-inset-top, 0px);
+  touch-action: manipulation;
+  overflow-x: hidden;
+  min-height: 100dvh;
 }
 .app.is-wide {
   display: flex;
@@ -170,7 +179,12 @@ html, body, #app {
   -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
 }
-.app.is-mobile .topbar { justify-content: center; }
+.app.is-mobile .topbar {
+  justify-content: center;
+  /* 刘海屏避让：高度随安全区拉伸（默认 border-box，padding 计入） */
+  height: calc(54px + var(--safe-top));
+  padding-top: var(--safe-top);
+}
 
 /* 主内容区 */
 .page-content {
@@ -660,3 +674,10 @@ input:focus, textarea:focus, select:focus, .input:focus {
 
 /* 进度条从 0 填充的共用动画（全局注册，供各页渐变条/分布条复用） */
 @keyframes fillBar { from { width: 0; } }
+
+/* P6-A：触屏设备降级 hover 特效——点按后卡片/按钮不会"粘住"悬停态（触屏无 hover 语义） */
+@media (hover: none) {
+  .card:hover { transform: none; box-shadow: var(--shadow); }
+  .btn:hover, button:hover, .chip:hover, .tab-item:hover { transform: none; }
+  .list-item:hover { background: none; }
+}

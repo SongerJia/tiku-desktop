@@ -103,11 +103,19 @@ onMounted(async () => {
     const st = await tiku.getDbStatus()
     if (st && st.recovered) showToast('数据库已自动从备份恢复（数据可能回滚到最近一次备份）', 'ok')
   } catch (e) { /* 忽略 */ }
+  // P6-A：移动端禁用系统右键/长按上下文菜单（触屏误触弹出菜单体验差；桌面端保留 F12/右键调试）
+  if (!isWide.value) {
+    document.addEventListener('contextmenu', onNoContextMenu)
+  }
 })
+
+// 移动端禁用 contextmenu（isWide 为窄屏时挂载；桌面右键保留）
+function onNoContextMenu(e) { e.preventDefault() }
 
 // 卸载时清理 resize 全局监听，避免泄漏
 onBeforeUnmount(() => {
   stopResize()
+  document.removeEventListener('contextmenu', onNoContextMenu)
 })
 
 // 导入或增删题目后，科目树可能变了（自动建了新科目），重取一次当前科目
