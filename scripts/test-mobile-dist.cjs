@@ -65,7 +65,7 @@ function ok(name, cond, extra) {
   if (!bridge) { fs.appendFileSync(OUT, 'mobile dist 产物：' + pass + ' 通过 / ' + fail + ' 失败\n'); process.exit(1) }
 
   const api = bridge.api
-  ok('bridge.api 方法数 = 109 + 18', Object.keys(api).length === 109 + 18, '实际 ' + Object.keys(api).length)
+  ok('bridge.api 方法数 = 109 + 19', Object.keys(api).length === 109 + 19, '实际 ' + Object.keys(api).length)
 
   // 数据方法可用
   const summary = await api.getSummary()
@@ -76,8 +76,9 @@ function ok(name, cond, extra) {
   const wrong = await api.submitAnswer({ questionId: q.id, selected: [], durationMs: 0, mode: 'practice' })
   ok('答错入错题本', wrong.isCorrect === false && (await api.getWrongBook()).some(x => x.question_id === q.id))
 
-  // 平台方法占位
-  try { await api.checkUpdate() } catch (e) { ok('checkUpdate 占位 reject', /平台方法将在 APK 集成/.test(String(e.message || e))) }
+  // 平台方法：checkUpdate 在缺原生桥时返回错误对象（不抛异常、不触发网络）
+  const cu = await api.checkUpdate()
+  ok('checkUpdate 无原生桥时返回错误对象', cu && cu.ok === false)
 
   // persist 落盘 + 调试句柄：bridge.persist 显式调用不抛错，bridge.db 可调 db 方法
   bridge.persist()

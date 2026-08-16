@@ -74,3 +74,21 @@ APK 位于 `android/app/build/outputs/apk/{debug,release}/`。
 - APK 版本号由 `package.json` 推导：`versionCode = MAJOR*10000 + MINOR*100 + PATCH`（如 0.7.0 → 700），升级时必须递增。
 - 签名密钥一旦生成请永久保存；换密钥后旧用户无法增量更新（需卸载重装）。
 - 自定义图标只需替换 `build/icon.png`（建议 512×512 透明背景），重新跑本仓库的图标生成脚本即可刷新 `mipmap-*`。
+
+---
+
+## 五、APK 应用内自动更新（已内置）
+
+「关于」页的**检查更新**按钮在 APK 端会真正生效：拉取 `SongerJia/tiku-desktop` 的
+GitHub Releases latest，比较版本号；发现新版本后可在应用内**下载并安装**（下载带进度条，
+完成后调起系统安装器）。更新源与 Windows 端一致，均为 GitHub Release。
+
+**关键约束（务必遵守）**：
+- 应用内自动更新是**覆盖安装**，要求新 APK 与已装应用**同一签名**。
+  因此分发给用户用于自动更新的 APK **必须是签名 release 包**（在 `release.yml` 配置
+  `ANDROID_KEYSTORE_*` Secrets 后产出）。用 debug 包分发的用户**无法增量升级**，
+  系统安装器会报签名不一致，只能卸载重装。
+- **首次**从 debug 包切换到签名 release 包时，也必须先卸载旧 debug 版再装（一次性）。
+- 未配密钥时工作流产出的 debug APK 仍可使用，只是自动更新不可用（按钮会提示「自动更新不可用 → 手动下载」）。
+- GitHub API 未认证限流 60 次/小时/IP，对个人用户日常检查足够；如需更高频可后续加 Token。
+

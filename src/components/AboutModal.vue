@@ -26,23 +26,47 @@ const STACK = ['Electron 31', 'Vue 3', 'Vite 5', 'SQLite · better-sqlite3', 'Gi
 function openRepo() {
   tiku.openExternal('https://github.com/SongerJia/tiku-desktop')
 }
-// 手动更新状态：'' | checking | up-to-date | downloading | error
+// 手动更新状态：'' | checking | up-to-date | available | downloading | installing | error
 const updState = ref('')
+// APK 可用更新信息：{ version, downloadUrl, size, progress }
+const updInfo = ref(null)
 async function checkUpdate() {
-  if (updState.value === 'checking') return
+  if (updState.value === 'checking' || updState.value === 'downloading') return
   updState.value = 'checking'
   try {
     const r = await tiku.checkUpdate()
     if (!r || !r.ok) {
-      // 开发模式或不可用：引导手动下载
+      // 开发模式 / 非 APK 环境 / 查询失败：引导手动下载
       updState.value = 'error'
       updTimer = setTimeout(() => { updState.value = '' }, 4000)
       return
     }
-    // 检查已触发：结果通过系统通知反馈（update-available/downloaded/error 事件）
-    // 这里只提示已开始检查；发现新版会弹通知
-    updState.value = 'up-to-date' // 临时态，3s 后恢复（实际结果看通知）
-    updTimer = setTimeout(() => { updState.value = '' }, 3000)
+    if (r.downloadUrl && r.available) {
+      // APK：发现新版本，展示下载并安装按钮
+      updInfo.value = { version: r.version, downloadUrl: r.downloadUrl, size: r.size, progress: 0 }
+      updState.value = 'available'
+    } else {
+      // APK 已是最新（有 downloadUrl 但 available=false）或桌面端（无 downloadUrl，后台自动下载看通知）
+      updInfo.value = null
+      updState.value = 'up-to-date'
+      updTimer = setTimeout(() => { updState.value = '' }, 3000)
+    }
+  } catch (e) {
+    updState.value = 'error'
+    updTimer = setTimeout(() => { updState.value = '' }, 4000)
+  }
+}
+
+// APK：下载并调起系统安装器（桌面端不走到这里）
+async function doUpdate() {
+  if (!updInfo.value || !updInfo.value.downloadUrl) return
+  updState.value = 'downloading'
+  try {
+    await tiku.downloadUpdate(updInfo.value.downloadUrl, (p) => {
+      if (updInfo.value) updInfo.value.progress = p
+    })
+    // 已调起系统安装器，后续由用户在系统弹窗中完成
+    updState.value = 'installing'
   } catch (e) {
     updState.value = 'error'
     updTimer = setTimeout(() => { updState.value = '' }, 4000)
@@ -71,13 +95,27 @@ function openReleases() {
         </div>
         <div class="ab-update">
           <div class="ab-row">
-            <button class="btn ab-repo" :disabled="updState === 'checking'" @click="checkUpdate">
-              {{ updState === 'checking' ? '检查中…' : '检查更新' }}
+            <button class="btn ab-repo" :disabled="updState === 'checking' || updState === 'downloading'" @click="checkUpdate">
+              {{ updState === 'checking' ? '检查中…' : (updState === 'downloading' ? '下载中…' : '检查更新') }}
             </button>
             <button class="btn ab-repo" @click="openRepo">GitHub 仓库 ↗</button>
           </div>
+          <!-- APK：发现新版本 -->
+          <div v-if="updState === 'available'" class="ab-upd-avail">
+            <span class="ab-upd-tip">发现新版本 v{{ updInfo.version }}</span>
+            <button class="btn primary ab-repo ab-download" @click="doUpdate">下载并安装</button>
+          </div>
+          <!-- APK：下载进度 -->
+          <div v-else-if="updState === 'downloading'" class="ab-upd-prog">
+            <div class="ab-prog-bar"><div class="ab-prog-fill" :style="{ width: (updInfo ? updInfo.progress : 0) + '%' }"></div></div>
+            <span class="ab-upd-tip">{{ updInfo ? updInfo.progress : 0 }}%</span>
+          </div>
+          <!-- APK：已调起系统安装器 -->
+          <span v-else-if="updState === 'installing'" class="ab-upd-tip">正在调起安装…请在系统弹窗中完成更新</span>
+          <!-- 桌面 / 已最新 -->
+          <span v-else-if="updState === 'up-to-date'" class="ab-upd-tip">已检查，如有新版会弹通知</span>
+          <!-- 失败兜底 -->
           <button v-if="updState === 'error'" class="btn ghost ab-repo ab-download" @click="openReleases">自动更新不可用 → 手动下载</button>
-          <span v-if="updState === 'up-to-date'" class="ab-upd-tip">已检查，如有新版会弹通知</span>
         </div>
         <div class="ab-foot"><Icon name="heart" :size="11" class="ab-heart" /> Made with · 祝备考顺利</div>
       </div>
@@ -176,6 +214,14 @@ function openReleases() {
 .ab-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .ab-download { font-size: 11px; padding: 4px 10px; }
 .ab-upd-tip { font-size: 11px; color: var(--muted); }
+/* APK 更新：可用版本 + 进度 */
+.ab-upd-avail { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.btn.primary { background: var(--brand); color: #fff; border-color: transparent; }
+.btn.primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.ab-upd-prog { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 240px; }
+.ab-prog-bar { flex: 1; height: 6px; border-radius: 4px; background: var(--bg-faint); overflow: hidden; }
+.ab-prog-fill { height: 100%; background: var(--brand); transition: width .2s ease; }
+.ab-upd-prog .ab-upd-tip { min-width: 34px; text-align: right; }
 /* footer 心跳（emoji 换主题色心形图标 + 心跳动效） */
 .ab-foot {
   margin-top: 10px;

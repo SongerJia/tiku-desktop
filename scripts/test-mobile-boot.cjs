@@ -88,7 +88,7 @@ function ok(name, cond, extra) {
   const methodsMod = await import('../electron-mobile/platform-methods.js')
   const pm = methodsMod.createPlatformMethods(db)
   const bridge = { ...dataSvc, ...pm }
-  ok('bridge 合并后方法数 = 109 + 18', Object.keys(bridge).length === PURE_DB_METHODS.length + 18, '实际 ' + Object.keys(bridge).length)
+  ok('bridge 合并后方法数 = 109 + 19', Object.keys(bridge).length === PURE_DB_METHODS.length + 19, '实际 ' + Object.keys(bridge).length)
 
   // 9a) saveImage：真实实现（db 落盘）
   const imgNamePm = await pm.saveImage(Buffer.from('pm-png-bytes'), 'png')
@@ -112,15 +112,15 @@ function ok(name, cond, extra) {
   // ghSync 未配置网络仓库：应抛「请先完成配置」类错误或网络错误（此处 token 无效 → 测试连接失败路径）
   try { await pm.ghSync() } catch (e) { ok('ghSync 无有效配置时报错（不静默）', !!e) }
 
-  // 9e) 首版占位：checkUpdate/openPath/kbExport/kbOpen 返回明确错误而非抛异常
+  // 9e) checkUpdate 在缺原生桥时返回明确错误对象（不抛异常）；有桥且联网时才会真正检测
   const cu = await pm.checkUpdate()
-  ok('checkUpdate 占位返回错误提示', cu && cu.ok === false && /暂不支持/.test(cu.error))
+  ok('checkUpdate 无原生桥时返回错误对象', cu && cu.ok === false && /更新|桥|不可用/.test(cu.error || ''))
   const op = await pm.openPath('/data/x')
   ok('openPath 占位返回错误提示', op && op.ok === false)
 
   // 9f) 原生桥缺失路径：kbPickFiles 返回 []、getVersion 回退内置版本
   const picked = await pm.kbPickFiles()
-  ok('kbPickFiles 无原生桥时返回 []', Array.isArray(picked) && picked.length === 0)
+  ok('kbPickFiles 无原生桥时返回空结果', picked && picked.bridgeMissing === true && Array.isArray(picked.files) && picked.files.length === 0)
   const ver = await pm.getVersion()
   ok('getVersion 回退内置版本', ver && !!ver.version)
   const ext = await pm.openExternal('https://example.com')

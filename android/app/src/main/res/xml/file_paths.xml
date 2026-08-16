@@ -2,4 +2,6 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <external-path name="my_images" path="." />
     <cache-path name="my_cache_images" path="." />
+    <!-- APK 自动更新：允许 FileProvider 暴露已下载的更新包（getFilesDir()/tiku/update.apk） -->
+    <files-path name="tiku_data" path="tiku" />
 </paths>

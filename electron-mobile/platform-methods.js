@@ -22,6 +22,21 @@ const { platform } = platformModule
 
 const KB_MIME = ['text/markdown', 'text/plain', 'application/pdf']
 
+// 应用自身的 GitHub 仓库（APK 自动更新源；与 AboutModal 中仓库一致）
+const GH_REPO = 'SongerJia/tiku-desktop'
+
+// 语义化版本比较：a>b 返回 1，a<b 返回 -1，相等 0（按 . 分段数值比较）
+function cmpVer(a, b) {
+  const pa = String(a || '0').split('.').map(n => parseInt(n, 10) || 0)
+  const pb = String(b || '0').split('.').map(n => parseInt(n, 10) || 0)
+  const n = Math.max(pa.length, pb.length)
+  for (let i = 0; i < n; i++) {
+    const x = pa[i] || 0, y = pb[i] || 0
+    if (x !== y) return x - y
+  }
+  return 0
+}
+
 // 原生桥（Capacitor 插件；WebView 未注册时降级为不可用）
 function nativeBridge() {
   return (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins.TikuBridge : null
@@ -207,8 +222,66 @@ export function createPlatformMethods(db) {
       return { ok: false, error: '原生桥不可用' }
     },
 
-    // ---- ③ 首版占位（明确错误提示，不阻塞 UI；P6 按需实现）----
-    checkUpdate: async () => ({ ok: false, error: 'APK 端暂不支持应用内更新（请通过应用商店更新）' }),
+    // ---- ③ 自动更新（APK 应用内更新，基于 GitHub Releases）----
+    // 检测：查本仓库 latest release，比较版本号；返回可用版本与 APK 下载地址。
+    // 桌面端不走这里（走 electron-updater）；前端靠 downloadUrl 是否存在区分两平台。
+    checkUpdate: async () => {
+      const nb = nativeBridge()
+      if (!nb) return { ok: false, error: '原生桥不可用（非 APK 环境）' }
+      try {
+        const cur = await nb.getVersion()
+        const curVer = String((cur && cur.version) || '0.0.0').replace(/^v/, '')
+        const api = 'https://api.github.com/repos/' + GH_REPO + '/releases/latest'
+        const resp = await fetch(api, {
+          headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'tiku-desktop' }
+        })
+        if (!resp.ok) return { ok: false, error: '查询更新失败（HTTP ' + resp.status + '）' }
+        const rel = await resp.json()
+        const tag = String(rel.tag_name || '').replace(/^v/, '')
+        const assets = Array.isArray(rel.assets) ? rel.assets : []
+        const apk = assets.find(a => String(a.name || '').toLowerCase().endsWith('.apk'))
+        if (!apk) return { ok: true, available: false, version: tag }
+        return {
+          ok: true,
+          available: cmpVer(tag, curVer) > 0,
+          version: tag,
+          downloadUrl: apk.browser_download_url,
+          size: Number(apk.size || 0)
+        }
+      } catch (e) {
+        return { ok: false, error: '检查更新异常：' + (e && e.message ? e.message : e) }
+      }
+    },
+
+    // 下载并安装：fetch APK（带进度）→ 写设备文件 → 调起系统安装器。
+    // onProgress(percent) 由调用方传入（如 AboutModal 进度条）；无总长度时不回调。
+    // 注意：覆盖安装要求新 APK 与已装应用同一签名（release 包），否则安装器会报签名不一致。
+    downloadUpdate: async (downloadUrl, onProgress) => {
+      const nb = nativeBridge()
+      if (!nb) return { ok: false, error: '原生桥不可用' }
+      if (!downloadUrl) return { ok: false, error: '缺少下载地址' }
+      const resp = await fetch(downloadUrl)
+      if (!resp.ok) throw new Error('下载失败（HTTP ' + resp.status + '）')
+      const total = Number(resp.headers.get('content-length') || 0)
+      const reader = resp.body.getReader()
+      const chunks = []
+      let received = 0
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value) { chunks.push(value); received += value.length }
+        if (onProgress && total) onProgress(Math.min(99, Math.floor(received / total * 100)))
+      }
+      const len = chunks.reduce((a, c) => a + c.length, 0)
+      const u8 = new Uint8Array(len)
+      let off = 0
+      for (const c of chunks) { u8.set(c, off); off += c.length }
+      // 写设备文件（TikuBridge.fsWrite → getFilesDir()/tiku/update.apk）
+      await nb.fsWrite({ name: 'update.apk', data: b64(u8) })
+      // 调起系统安装器（FileProvider 已授权临时读权限）
+      await nb.installApk({ path: 'tiku/update.apk' })
+      return { ok: true }
+    },
     openPath: async () => ({ ok: false, error: 'APK 端不支持打开系统路径（文件已保存在应用目录）' }),
     kbExport: async () => ({ ok: false, error: 'APK 端暂不支持目录导出（可走 GitHub 同步备份）' }),
     kbOpen: async () => ({ ok: false, error: 'APK 端不支持系统打开原件' })

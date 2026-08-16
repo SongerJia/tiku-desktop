@@ -15,6 +15,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.provider.OpenableColumns;
 import android.util.Base64;
+import androidx.core.content.FileProvider;
 
 import androidx.activity.result.ActivityResult;
 
@@ -218,6 +219,32 @@ public class TikuBridgePlugin extends Plugin {
             call.resolve();
         } catch (Exception e) {
             call.reject("fsDelete 失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
+        }
+    }
+
+    // ---- APK 自动更新：调起系统安装器安装已下载的更新包 ----
+    // path 为相对 getFilesDir() 的（已 sanitize 过的）相对路径，如 "tiku/update.apk"。
+    // 通过 FileProvider 生成 content:// URI 授予临时读权限，避免 Android 7+ 的 file:// 暴露限制。
+    @PluginMethod
+    public void installApk(PluginCall call) {
+        String rel = call.getString("path", "");
+        if (rel == null || rel.isEmpty()) { call.reject("缺少安装包路径"); return; }
+        try {
+            java.io.File f = new java.io.File(getContext().getFilesDir(), rel);
+            if (!f.exists()) { call.reject("更新包不存在：" + rel); return; }
+            Uri uri = FileProvider.getUriForFile(
+                getContext(),
+                getContext().getPackageName() + ".fileprovider",
+                f
+            );
+            Intent i = new Intent(Intent.ACTION_VIEW);
+            i.setDataAndType(uri, "application/vnd.android.package-archive");
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            getActivity().startActivity(i);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("安装失败：" + (e.getMessage() == null ? e.toString() : e.getMessage()));
         }
     }
 }
