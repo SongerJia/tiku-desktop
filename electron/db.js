@@ -1,4 +1,4 @@
-const Database = require('better-sqlite3')
+const { createBetterDriver, createSqlJsDriver } = require('./db-driver')
 const path = require('path')
 const crypto = require('crypto')
 const fs = require('fs')
@@ -68,14 +68,10 @@ function categoryCid(id) {
 
 const api = {
   // 仅建立连接 + PRAGMA，不建表。返回是否成功打开。
+  // 统一走驱动适配层（Electron=better-sqlite3 同步；APK=SQL.js 异步，见 initWithDriver）
   _tryOpen() {
     try {
-      sqlite = new Database(dbPath())
-      sqlite.pragma('journal_mode = WAL')
-      // 健壮性 / 性能 PRAGMA：避免多连接锁超时、启用外键语义、放宽页缓存
-      try { sqlite.pragma('busy_timeout = 5000') } catch (e) { /* 老版本 better-sqlite3 可能不支持，忽略 */ }
-      try { sqlite.pragma('foreign_keys = ON') } catch (e) { /* 同上 */ }
-      try { sqlite.pragma('cache_size = -8000') } catch (e) { /* 8MB 页缓存，约 -8000 页 */ }
+      sqlite = createBetterDriver(dbPath())
       return true
     } catch (e) {
       try { if (sqlite) sqlite.close() } catch (e2) {}
@@ -113,26 +109,9 @@ const api = {
     }
   },
 
-  init() {
-    logger.info('db.init 启动')
-    if (!this._tryOpen()) {
-      // 1) 损坏的 WAL/SHM 副文件常导致打开失败 → 删掉再试（仅丢未 checkpoint 的尾，可接受）
-      const base = dbPath()
-      for (const ext of ['-wal', '-shm']) {
-        const w = base + ext
-        try { if (fs.existsSync(w)) fs.unlinkSync(w) } catch (e) {}
-      }
-      if (!this._tryOpen()) {
-        // 2) 主库损坏 → 用最近备份恢复
-        const recovered = this._recoverFromBackup()
-        if (!recovered) {
-          logger.error('db.init 自动恢复失败，数据库损坏')
-          throw new Error('数据库文件损坏，且自动恢复未成功。请到「我的 → 数据管理」手动恢复备份，或联系支持。')
-        }
-        dbRecovered = true
-        logger.warn('db.init 已从最近备份自动恢复')
-      }
-    }
+  // 合并子模块 + 建表/迁移/种子/回填（sqlite 已就绪后调用；Electron 同步路径与 APK 异步路径共用）
+  _initModules() {
+    this._raw = sqlite // 暴露底层驱动（测试/诊断用；SQL.js 变体测试需要直接执行 SQL）
     // sqlite 已赋值，此时再合并依赖它的子模块（ctx 需要真实 sqlite 实例）
     Object.assign(this, gamify({ sqlite, LOCAL_USER, uuid, descendantCategoryIds }))
     Object.assign(this, statsModule({ sqlite, LOCAL_USER, uuid, descendantCategoryIds }))
@@ -157,6 +136,37 @@ const api = {
     setTimeout(() => { try { this.autoBackup() } catch (e) { /* 备份失败不影响运行 */ } }, 4000)
   },
 
+  init() {
+    logger.info('db.init 启动')
+    if (!this._tryOpen()) {
+      // 1) 损坏的 WAL/SHM 副文件常导致打开失败 → 删掉再试（仅丢未 checkpoint 的尾，可接受）
+      const base = dbPath()
+      for (const ext of ['-wal', '-shm']) {
+        const w = base + ext
+        try { if (fs.existsSync(w)) fs.unlinkSync(w) } catch (e) {}
+      }
+      if (!this._tryOpen()) {
+        // 2) 主库损坏 → 用最近备份恢复
+        const recovered = this._recoverFromBackup()
+        if (!recovered) {
+          logger.error('db.init 自动恢复失败，数据库损坏')
+          throw new Error('数据库文件损坏，且自动恢复未成功。请到「我的 → 数据管理」手动恢复备份，或联系支持。')
+        }
+        dbRecovered = true
+        logger.warn('db.init 已从最近备份自动恢复')
+      }
+    }
+    this._initModules()
+  },
+
+  // APK 异步初始化入口：SQL.js 驱动（wasm 加载为异步），初始化后行为与 Electron 一致。
+  // usage: const db = require('./db'); await db.initAsync(await createSqlJsDriver({ file }))
+  async initAsync(driver) {
+    logger.info('db.initAsync 启动（SQL.js 驱动）')
+    sqlite = driver
+    this._initModules()
+  },
+
   // 启动期数据库状态（供渲染端提示「已从备份恢复」）
   getDbStatus() {
     return { recovered: dbRecovered }
@@ -166,6 +176,10 @@ const api = {
   autoBackup() {
     try {
       const src = dbPath()
+      // SQL.js 是内存库：无物理文件时先 persist 落盘（APK 场景），再走统一复制逻辑
+      if (!fs.existsSync(src)) {
+        if (sqlite && sqlite.persist) sqlite.persist()
+      }
       if (!fs.existsSync(src)) return
       const dir = path.join(app.getPath('userData'), 'backups')
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
@@ -173,7 +187,8 @@ const api = {
       const dst = path.join(dir, `tiku-${stamp}.db`)
       if (fs.existsSync(dst)) return // 当天已备份过
       // WAL 模式下先 checkpoint，确保 -wal 中的写入也进入主库文件，否则备份缺本次会话数据
-      try { sqlite.pragma('wal_checkpoint(TRUNCATE)') } catch (e) {}
+      // （SQL.js 无 WAL，checkpoint 内部 no-op）
+      try { sqlite.checkpoint ? sqlite.checkpoint() : sqlite.pragma('wal_checkpoint(TRUNCATE)') } catch (e) {}
       fs.copyFileSync(src, dst)
       const list = fs.readdirSync(dir).filter(f => f.endsWith('.db')).sort()
       while (list.length > 5) {
