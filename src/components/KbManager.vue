@@ -638,16 +638,16 @@ function fmtTime(ts) {
   padding: 18px;
   display: flex; flex-direction: column; gap: 14px;
 }
-/* 真机字号缩放（zoom<1 启用 layout 反向补偿后）：max-width 92vw 仍可能让弹窗视觉宽于
-   viewport（zoom 缩放 vw 等同 layout viewport，不参与反向补偿）。改 max-width 跟
-   随反向 body 宽度，确保弹窗视觉永远 ≤ viewport。 */
+/* 真机字号缩放（zoom<1 启用 layout 反向补偿）：弹窗 width/max-width 跟随
+   mask 反向宽度（100%），弹窗视觉 = viewport - 边距，内容全部在弹窗内。 */
 .app.is-mobile .km-import {
+  width: calc(100% - 36px);       /* 反向补偿后的 mask 宽度减左右边距（各 18px） */
+  max-width: calc(100% - 36px);
   max-height: 88dvh; /* 移动端仍限高（长列表/多文件预览场景） */
-  max-width: min(92vw, calc(100vw * var(--ui-zoom, 1)));
 }
-.ki-head { display: flex; align-items: center; justify-content: space-between; }
-.ki-title { font-size: 15px; font-weight: 600; color: var(--text); }
-.ki-close { font-size: 22px; color: var(--text-secondary); cursor: pointer; line-height: 1; padding: 0 4px; transition: color .15s; }
+.ki-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ki-title { font-size: 15px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ki-close { font-size: 22px; color: var(--text-secondary); cursor: pointer; line-height: 1; padding: 0 4px; flex-shrink: 0; transition: color .15s; }
 .ki-close:hover { color: var(--brand); }
 .ki-body { display: flex; flex-direction: column; gap: 12px; }
 .ki-target {
