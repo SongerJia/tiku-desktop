@@ -6,8 +6,13 @@
     var t = localStorage.getItem('tiku_theme')
     if (t !== 'light' && t !== 'eye') t = 'dark'
     document.documentElement.setAttribute('data-theme', t)
-    // 字号缩放：移动端也应用（0.85~1.20 限幅防止溢出；之前因 .app 装饰背景 fixed 异常禁用）
+    // 字号缩放：根 zoom + body 宽度反向补偿（视觉恒等于视口，无留空/溢出）
     var z = parseFloat(localStorage.getItem('tiku_font_scale'))
-    if (z && z > 0) document.documentElement.style.zoom = Math.min(1.20, Math.max(0.85, z))
+    if (z && z > 0) {
+      z = Math.min(1.20, Math.max(0.85, z))
+      document.documentElement.style.zoom = z
+      document.documentElement.style.setProperty('--ui-zoom', String(z))
+      if (document.body) document.body.style.width = 'calc(100vw / ' + z + ')'
+    }
   } catch (e) {}
 })()

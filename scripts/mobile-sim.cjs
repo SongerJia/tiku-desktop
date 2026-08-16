@@ -80,23 +80,11 @@ function setupIpc() {
   })
 }
 
-// ---- 窗口 ----
-const BASE_W = 412
-const BASE_H = 900
-
-function applyZoom(win, z) {
-  if (!win || !z || z <= 0) return
-  // zoom 让内容按 z 渲染：窗口 base_size / z 后，内容渲染 = base_size（视觉等比）
-  const w = Math.round(BASE_W / z)
-  const h = Math.round(BASE_H / z)
-  // 高度允许超过 base（避免窗口过窄不便用），宽度严格按 zoom 等比
-  win.setSize(w, Math.max(h, 600))
-}
-
+// ---- 窗口（固定手机尺寸；字号缩放走 rem 方案，不联动窗口）----
 function createWindow(devtools) {
   const win = new BrowserWindow({
-    width: BASE_W,
-    height: BASE_H,
+    width: 412,
+    height: 900,
     minWidth: 320,
     minHeight: 600,
     title: '知识记忆小助手 · 移动端模拟器',
@@ -108,8 +96,6 @@ function createWindow(devtools) {
     }
   })
   win.loadURL(`http://127.0.0.1:${PORT}/index.html`)
-  // 监听 preload 的缩放通知，窗口随之等比缩放
-  ipcMain.on('sim:zoom-changed', (_e, z) => applyZoom(win, z))
   if (devtools) win.webContents.openDevTools({ mode: 'right' })
   return win
 }

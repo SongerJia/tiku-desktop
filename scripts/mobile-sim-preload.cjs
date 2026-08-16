@@ -38,14 +38,3 @@ if (document.readyState === 'loading') {
 } else {
   injectSimGuard()
 }
-
-// 缩放联动：documentElement.style.zoom 改变时通知主进程调整 BrowserWindow 尺寸，
-// 否则窗口不变 + 内容缩小 → 右侧空白（与真机/手机用户体验一致：整体等比）
-function notifyZoom() {
-  const z = parseFloat(document.documentElement.style.zoom) || 1
-  try { ipcRenderer.send('sim:zoom-changed', z) } catch (e) {}
-}
-// 首次加载立即同步（启动时已设 zoom）
-setTimeout(notifyZoom, 50)
-// 监听 style 属性变化（appearance.js / theme-init.js 设置 zoom 时）
-new MutationObserver(notifyZoom).observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
