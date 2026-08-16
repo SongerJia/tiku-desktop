@@ -6,14 +6,12 @@
     var t = localStorage.getItem('tiku_theme')
     if (t !== 'light' && t !== 'eye') t = 'dark'
     document.documentElement.setAttribute('data-theme', t)
-    // 字号缩放：根 zoom + html/body 宽度反向补偿（视觉恒等于视口，无留空/溢出）
+    // 字号缩放：根 zoom。窗口跟随由 mobile-sim 处理（窗口 = base_size / zoom 让内容视觉铺满）
     var z = parseFloat(localStorage.getItem('tiku_font_scale'))
     if (z && z > 0) {
       z = Math.min(1.20, Math.max(0.85, z))
       document.documentElement.style.zoom = z
       document.documentElement.style.setProperty('--ui-zoom', String(z))
-      document.documentElement.style.width = 'calc(100vw / ' + z + ')'
-      if (document.body) document.body.style.width = 'calc(100vw / ' + z + ')'
     }
   } catch (e) {}
 })()

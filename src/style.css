@@ -109,13 +109,6 @@ html, body, #app {
 .app.is-mobile .km-list { display: flex; flex-direction: column; }
 .app.is-mobile .km-list .km-empty { margin: auto; } /* flex column auto margin 居中 */
 
-/* P6 字号缩放：fixed 弹窗遮罩补偿——zoom 视觉缩小遮罩不全屏，按 --ui-zoom 反向放大 */
-.app.is-mobile [class$="-mask"],
-.app.is-mobile .modal-mask {
-  width: calc(100vw / var(--ui-zoom, 1)) !important;
-  height: calc(100vh / var(--ui-zoom, 1)) !important;
-}
-
 /* P6 真机适配：Profile 偏好设置
    - 主题卡片（深色/浅色/护眼）三卡 + label 横排在窄屏溢出 → pref-row column 换行 + palette wrap */
 .app.is-mobile .pref-row { flex-wrap: wrap; align-items: flex-start; }

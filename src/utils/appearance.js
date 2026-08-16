@@ -18,17 +18,12 @@ export async function applyAppearance() {
     localStorage.setItem('tiku_font_scale', fontScale)
   } catch (e) { /* 存储失败不影响本次应用 */ }
   document.documentElement.setAttribute('data-theme', t)
-  // 字号缩放：根元素 zoom 整体缩放 + 布局反向补偿。
-  // zoom 只缩放渲染不缩放视口 → 90% 右侧留空 / 110% 溢出边框。
-  // 补偿：html/body 宽度设 100vw/z，内容布局随 zoom 反向放大，视觉恒等于视口（填满）。
-  // 范围限制 0.85~1.20（过大会溢出不可控）。fixed 弹窗遮罩用 --ui-zoom 补偿（见 style.css）。
+  // 字号缩放：根元素 zoom 整体缩放。范围 0.85~1.20 限幅。
+  // 内容视觉铺满窗口由 mobile-sim 主进程的 applyZoom 实现：窗口按 base_size / zoom 等比放大，
+  // 内容 layout 尺寸 = base_size 不变，渲染视觉 = base_size × zoom × 1/zoom = base_size（铺满窗口）。
+  // 这样 zoom 0.85 → 窗口 485 宽，内容 layout 412 视觉 412 填满窗口（与手机等比缩放体验一致）。
   const z = parseFloat(fontScale)
   const applied = (z && z > 0) ? Math.min(1.20, Math.max(0.85, z)) : 1
   document.documentElement.style.zoom = applied
   document.documentElement.style.setProperty('--ui-zoom', String(applied))
-  const w = `calc(100vw / ${applied})`
-  document.documentElement.style.width = w // html 宽度同步反向补偿（body 溢出 html 时背景不连续）
-  if (typeof document !== 'undefined' && document.body) {
-    document.body.style.width = w
-  }
 }

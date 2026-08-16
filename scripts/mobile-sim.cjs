@@ -80,16 +80,24 @@ function setupIpc() {
   })
 }
 
-// ---- 窗口（固定手机尺寸；字号缩放走 rem 方案，不联动窗口）----
+// ---- 窗口（宽度跟随 zoom 等比放大：内容 layout 始终 base_size，渲染视觉 = base_size 铺满窗口）----
+const BASE_W = 412
+const BASE_H = 900
+
+function applyZoom(win, z) {
+  if (!win || !z || z <= 0) return
+  // zoom 让内容渲染按 z 缩放；窗口宽度 = base_size / z 后，内容渲染视觉 = base_size 填满窗口
+  const w = Math.round(BASE_W / z)
+  const h = Math.round(BASE_H / z)
+  win.setSize(w, Math.max(h, 600)) // 高度允许超过 base 避免过窄
+}
+
 function createWindow(devtools) {
   const win = new BrowserWindow({
-    width: 412,
-    height: 900,
-    minWidth: 412,
-    maxWidth: 412, // 禁止拉宽：否则 .app.is-mobile max-width:520px 居中后右侧大片空白
+    width: BASE_W,
+    height: BASE_H,
+    minWidth: 320,
     minHeight: 600,
-    maxHeight: 1400,
-    resizable: true, // 允许纵向调整（看长列表）
     title: '知识记忆小助手 · 移动端模拟器',
     backgroundColor: '#f5f7fb',
     webPreferences: {
@@ -99,6 +107,8 @@ function createWindow(devtools) {
     }
   })
   win.loadURL(`http://127.0.0.1:${PORT}/index.html`)
+  // 监听 preload 的缩放通知：窗口随之等比缩放（让内容视觉永远铺满窗口）
+  ipcMain.on('sim:zoom-changed', (_e, z) => applyZoom(win, z))
   if (devtools) win.webContents.openDevTools({ mode: 'right' })
   return win
 }

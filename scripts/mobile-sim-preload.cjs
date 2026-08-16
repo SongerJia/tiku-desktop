@@ -38,3 +38,11 @@ if (document.readyState === 'loading') {
 } else {
   injectSimGuard()
 }
+
+// 缩放联动：document zoom 变化时通知主进程调整 BrowserWindow 尺寸（让内容视觉铺满窗口）
+function notifyZoom() {
+  const z = parseFloat(document.documentElement.style.zoom) || 1
+  try { ipcRenderer.send('sim:zoom-changed', z) } catch (e) {}
+}
+setTimeout(notifyZoom, 50)
+new MutationObserver(notifyZoom).observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
