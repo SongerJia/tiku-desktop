@@ -1,8 +1,10 @@
 package com.songerjia.tikumobile;
 
+import android.graphics.Insets;
 import android.os.Build;
 import android.os.Bundle;
-import android.view.Window;
+import android.view.View;
+import android.view.WindowInsets;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -12,16 +14,19 @@ public class MainActivity extends BridgeActivity {
         // 注册平台方法桥（checkUpdate/saveImage/kbImportFiles 等 18 个，P5 逐个实现）
         registerPlugin(TikuBridgePlugin.class);
         super.onCreate(savedInstanceState);
-        // P6 真机修复：内容区不延伸到状态栏/刘海下（部分设备 WebView 顶到状态栏被遮挡）。
-        // Android 15（API 35+）强制 edge-to-edge 时该调用无效，改由 CSS env(safe-area-inset-top) 兜底。
+        // P6 真机修复：Android 15+（API 35）强制 edge-to-edge——内容延伸到状态栏/导航条后被遮挡，
+        // 且 CSS env(safe-area-inset-top) 只覆盖「刘海安全区」不覆盖「状态栏」→ 此处手动给内容根视图
+        // 加系统栏 inset padding，让 WebView 从状态栏下方、导航条上方开始（小米 15 / Android 16 实测）。
         if (Build.VERSION.SDK_INT >= 30) {
-            getWindow().setDecorFitsSystemWindows(true);
-        } else {
-            Window w = getWindow();
-            int flags = w.getDecorView().getSystemUiVisibility();
-            flags &= ~(android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
-            w.getDecorView().setSystemUiVisibility(flags);
+            getWindow().getDecorView().getRootView().setOnApplyWindowInsetsListener((v, insets) -> {
+                int top = 0, bottom = 0;
+                Insets t = insets.getInsets(WindowInsets.Type.statusBars());
+                Insets b = insets.getInsets(WindowInsets.Type.navigationBars());
+                top = t.top;
+                bottom = b.bottom;
+                v.setPadding(0, top, 0, bottom);
+                return WindowInsets.CONSUMED;
+            });
         }
     }
 }

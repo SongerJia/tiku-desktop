@@ -138,7 +138,14 @@ export function createPlatformMethods(db) {
       const files = (picked || []).map(f => ({
         name: f.name, ext: f.ext, data: b64ToBytes(f.base64 || '')
       })).filter(f => f.data.length > 0)
-      if (!files.length) return []
+      if (!files.length) {
+        // 有选中项但字节为空 → 返回可读错误（此前静默失败无任何反馈，难排查）
+        if (Array.isArray(picked) && picked.length > 0) {
+          const first = picked[0] || {}
+          return [{ ok: false, file: first.name || '文件', error: '未读取到文件内容（base64 为空，可能读取失败）' }]
+        }
+        return []
+      }
       return importKbFiles(db, files, subjectId)
     },
 
