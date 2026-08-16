@@ -112,12 +112,22 @@
 
             <div v-else class="ki-body">
               <div class="ki-done">
-                <div class="ki-done-ico">✓</div>
+                <div class="ki-done-ico" :class="{ 'is-fail': importResult.failed }">{{ importResult.failed ? '!' : '✓' }}</div>
                 <div class="ki-done-text">
                   <template v-if="importResult.ok">导入 {{ importResult.ok }} 篇</template>
                   <template v-if="importResult.dup"> · 已存在跳过 {{ importResult.dup }} 篇</template>
                   <template v-if="importResult.failed"> · 失败 {{ importResult.failed }} 篇</template>
                 </div>
+                <!-- 失败明细：列出每个失败文件的名称 + 原因（最长 5 条，可滚动） -->
+                <ul v-if="importResult.failed && (importResult.failDetails || []).length" class="ki-fail-list">
+                  <li v-for="(f, i) in (importResult.failDetails || []).slice(0, 5)" :key="i">
+                    <span class="kf-name">{{ f.file }}</span>
+                    <span class="kf-reason">{{ f.error }}</span>
+                  </li>
+                  <li v-if="(importResult.failDetails || []).length > 5" class="kf-more">
+                    等还有 {{ (importResult.failDetails || []).length - 5 }} 项未展开
+                  </li>
+                </ul>
               </div>
               <div class="ki-actions">
                 <button class="btn btn-primary" @click="closeImport">完成</button>
@@ -329,7 +339,10 @@ async function confirmImport() {
     const ok = res.filter(r => r.ok && !r.duplicated)
     const dup = res.filter(r => r.duplicated)
     const failed = res.filter(r => !r.ok)
-    importResult.value = { ok: ok.length, dup: dup.length, failed: failed.length }
+    importResult.value = {
+      ok: ok.length, dup: dup.length, failed: failed.length,
+      failDetails: failed.map(r => ({ file: r.file || r.title || '文件', error: r.error || '未知错误' }))
+    }
     importStep.value = 'done'
     if (ok.length || dup.length) {
       await load()
@@ -680,5 +693,13 @@ function fmtTime(ts) {
   font-size: 20px; color: var(--ok);
   background: rgba(47, 191, 143, 0.12); border: 1px solid rgba(47, 191, 143, 0.45);
 }
+.ki-done-ico.is-fail { color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
 .ki-done-text { font-size: 13px; color: var(--text); }
+/* 失败明细列表：列出每个失败文件的名称 + 原因（导入失败时可见） */
+.ki-fail-list { width: 100%; max-height: 140px; overflow-y: auto; margin: 6px 0 0; padding: 0; list-style: none; font-size: 11px; color: var(--muted); text-align: left; }
+.ki-fail-list li { display: flex; gap: 6px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+.ki-fail-list li:last-child { border-bottom: none; }
+.ki-fail-list .kf-name { flex-shrink: 0; max-width: 50%; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ki-fail-list .kf-reason { flex: 1; min-width: 0; color: var(--bad); word-break: break-word; }
+.ki-fail-list .kf-more { color: var(--muted); font-style: italic; justify-content: center; }
 </style>
