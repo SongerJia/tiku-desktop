@@ -154,8 +154,9 @@ const heatStats = computed(() => {
   return { today, week, total: heatGrid.value.total, streak: summary.value.streak || 0, activeDays: summary.value.activeDays || 0, peak, bestDay }
 })
 
-// 热力图自适应格子尺寸：顶满卡片宽度不留空白（clamp 8~20）
+// 热力图自适应格子尺寸：顶满卡片宽度不留空白（clamp 5~20，移动端最小 5px）
 const heatCellSize = ref(10)
+const heatGap = ref(2) // 列间距：窄屏 1px（格子更密，53 周一屏放全）
 const heatWrapEl = ref(null)
 const HEAT_GAP = 2
 function computeHeatSize() {
@@ -164,11 +165,13 @@ function computeHeatSize() {
   const avail = wrap.clientWidth
   // 窄屏（≤640px 媒体查询）下统计列与格子区垂直堆叠：统计列不再与格子区并排，宽度不能从可用宽中扣除
   const isNarrow = window.innerWidth <= 640
+  heatGap.value = isNarrow ? 1 : 2
+  const gap = heatGap.value
   const statsEl = wrap.querySelector('.heat-stats')
   const statsW = (!isNarrow && statsEl) ? statsEl.offsetWidth + 16 : 0 // 统计列宽 + 列间距
   const cols = Math.max(1, heatGrid.value.cols || 53)
-  const cell = Math.floor((avail - statsW - (cols - 1) * HEAT_GAP - 4) / cols)
-  heatCellSize.value = Math.max(8, Math.min(20, cell))
+  const cell = Math.floor((avail - statsW - (cols - 1) * gap - 4) / cols)
+  heatCellSize.value = Math.max(5, Math.min(20, cell))
 }
 let heatObs = null
 
@@ -457,9 +460,9 @@ async function loadAnalysis() {
           </div>
           <div class="heat-main">
             <div class="heat-months">
-              <span v-for="m in heatGrid.months" :key="m.col" class="hm-label" :title="`${m.label} · ${monthTotals[m.label] || 0} 题`" :style="{ left: m.col * (heatCellSize + HEAT_GAP) + 'px' }">{{ m.label }}</span>
+              <span v-for="m in heatGrid.months" :key="m.col" class="hm-label" :title="`${m.label} · ${monthTotals[m.label] || 0} 题`" :style="{ left: m.col * (heatCellSize + heatGap) + 'px' }">{{ m.label }}</span>
             </div>
-            <div class="heat-grid" :key="'h' + heatYear + '-' + filterSubjectId" :style="{ gridTemplateColumns: `repeat(${heatGrid.cols}, ${heatCellSize}px)`, gridTemplateRows: `repeat(7, ${heatCellSize}px)` }" @mouseleave="onHeatLeave">
+            <div class="heat-grid" :key="'h' + heatYear + '-' + filterSubjectId" :style="{ gridTemplateColumns: `repeat(${heatGrid.cols}, ${heatCellSize}px)`, gridTemplateRows: `repeat(7, ${heatCellSize}px)`, columnGap: heatGap + 'px' }" @mouseleave="onHeatLeave">
               <div
                 v-for="(c, i) in heatGrid.cells"
                 :key="i"
@@ -935,7 +938,8 @@ async function loadAnalysis() {
 @media (max-width: 640px) {
   .heat-flex { flex-direction: column; }
   .heat-stats { grid-template-columns: repeat(3, auto); }
-  .heat-main { overflow: hidden; }
+  /* 热力图：窄屏格子缩小（5px+1px 间距，53 周一屏放全）；极端情况仍可横向滚动查看 */
+  .heat-main { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 
 </style>
