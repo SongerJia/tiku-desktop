@@ -1,6 +1,7 @@
 <template>
   <transition name="fade">
-    <div v-if="show" class="km-mask" @click.self="close">
+    <!-- 打开导入文档时隐藏管理弹窗（避免两个弹窗叠加，导入弹窗 Teleport 到 body 独立显示） -->
+    <div v-if="show && !importStep" class="km-mask" @click.self="close">
       <div class="km-panel">
         <div class="km-header">
           <span class="close" @click="close">×</span>
@@ -71,9 +72,11 @@
         <!-- 阅读器（管理弹窗内打开） -->
         <KbReader :show="reader.show" :doc="reader.doc" @close="reader.show = false" />
 
-        <!-- 导入文档弹窗 -->
-        <div v-if="importStep" class="km-import-mask" @click.self="closeImport">
-          <div class="km-import">
+        <!-- 导入文档弹窗（Teleport 到 body，独立于管理面板；打开时自动隐藏外层管理弹窗） -->
+        <Teleport to="body">
+          <transition name="fade">
+            <div v-if="importStep" class="km-import-mask" @click.self="closeImport">
+              <div class="km-import">
             <div class="ki-head">
               <span class="ki-title">导入知识文档</span>
               <span class="ki-close" @click="closeImport">×</span>
@@ -135,13 +138,15 @@
             </div>
           </div>
         </div>
-      </div>
+</transition>
+      </Teleport>
     </div>
-  </transition>
+  </div>
+</transition>
 
-  <!-- 编辑弹窗（Teleport 到 body，独立于管理面板） -->
-  <Teleport to="body">
-    <transition name="fade">
+<!-- 编辑弹窗（Teleport 到 body，独立于管理面板） -->
+<Teleport to="body">
+  <transition name="fade">
       <div v-if="editDoc" class="km-emask" @click.self="editDoc = null">
         <div class="km-ebox">
           <div class="km-ehead">
