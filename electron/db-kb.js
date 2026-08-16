@@ -1,10 +1,7 @@
 // 知识库文档基础模块：文件读写 / 文档 CRUD / 标签 / 互链图谱。
 // 从 db.js 拆出（拆分渐进一步）：ctx 注入 sqlite/uuid；this 互调（kbDir/getKbDoc/getKbLinksForDoc）合并后指向 api。
 // P4a：平台能力从 platform 单例取。
-const { platform } = require('./platform')
-const path = platform.path
-const fs = platform.fs
-const crypto = platform.crypto
+const { platform, fs, path, crypto } = require('./platform')
 const { extractMd } = require('./kbExtract')
 
 module.exports = function kbModule(ctx) {

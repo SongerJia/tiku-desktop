@@ -1,8 +1,5 @@
 const { createBetterDriver, createSqlJsDriver } = require('./db-driver')
-const { platform } = require('./platform') // P4a：userDataDir/fs/path/crypto/nativeImage 统一取平台单例
-const path = platform.path
-const fs = platform.fs
-const crypto = platform.crypto
+const { platform, fs, path, crypto } = require('./platform') // P4a + P7：fs/path/crypto 走 Proxy 懒绑定（避免 Rollup chunk 顺序导致顶层快照为 null）
 const app = { getPath: () => platform.userDataDir() } // app.getPath('userData') 兼容别名（APK 指向 Capacitor 目录）
 const assets = require('./db-assets') // 题图/音频文件存取 + getImage 缓存
 const gamify = require('./db-gamify') // XP/激励/每日任务/复习到期统计

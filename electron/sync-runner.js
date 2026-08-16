@@ -1,10 +1,7 @@
 // 全 GitHub 同步编排：数据快照 + 知识库文档 + 题目图片 全部走 GitHub 仓库。
 // 复用 db 既有能力（exportSync/mergeRemote/exportImageFiles/restoreImages）。
 // P5：path/fs/crypto/userData 全走 platform（Electron=node 内置；APK=Capacitor shim），跨端复用。
-const { platform } = require('./platform')
-const path = platform.path
-const fs = platform.fs
-const crypto = platform.crypto
+const { platform, fs, path, crypto } = require('./platform')
 const ghRepo = require('./sync-github-repo')
 const logger = require('./logger')
 

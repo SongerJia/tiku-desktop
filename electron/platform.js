@@ -79,4 +79,16 @@ function setPlatform(overrides = {}) {
   if (typeof overrides.isElectron === 'boolean') _p._isElectron = overrides.isElectron
 }
 
-module.exports = { platform, setPlatform }
+// P7 修复（配套）：fs/path/crypto/zlib 导出为 Proxy（懒绑定，实时从 _p 读最新值）——
+// 解决「kb-import.js 等模块顶层 const fs = platform.fs 快照时 setPlatform 尚未执行」
+// 导致 fs=null 的问题。改成 const { fs } = require('./platform') 后，fs 是 Proxy，
+// 每次 fs.existsSync(p) 调用都从 _p 实时读（setPlatform 之后再调就能拿到 memFs）。
+function _bind(name) {
+  return new Proxy({}, { get(_, k) { return _p['_' + name][k] } })
+}
+const fs = _bind('fs')
+const path = _bind('path')
+const crypto = _bind('crypto')
+const zlib = _bind('zlib')
+
+module.exports = { platform, setPlatform, fs, path, crypto, zlib }

@@ -4,10 +4,7 @@
 //   APK：原生插件（TikuBridgePlugin.kbPickFiles）返回 { name, ext, base64 } → WebView 解出字节
 // 全部文件操作走 platform（Electron=node fs；APK=Capacitor 内存 fs）。
 
-const { platform } = require('./platform')
-const path = platform.path
-const fs = platform.fs
-const crypto = platform.crypto
+const { platform, fs, path, crypto } = require('./platform')
 const { extractMd, extractPdf, uniqueRelPath } = require('./kbExtract')
 
 // 编码自适应：中文 Windows 的 md 可能是 GBK，先严格试 UTF-8 失败回落 GBK（与渲染层 decodeText 一致）
