@@ -50,3 +50,4 @@ sqljs-error.txt
 
 # 手动下载的包（沙箱内 npm install 不可用时 curl 下载，解压后残留）
 pako.tgz
+mobile-nofs-test-out.txt
