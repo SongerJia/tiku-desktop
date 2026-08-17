@@ -10,7 +10,7 @@ import { useBodyLock } from '../composables/useBodyLock.js'
 import { useFocusTrap } from '../composables/useFocusTrap.js'
 import KbReader from './KbReader.vue'
 
-const props = defineProps({ subject: { type: Object, default: () => ({ id: null, name: '' }) }, scope: { type: String, default: 'current' }, refreshToken: { type: Number, default: 0 } })
+const props = defineProps({ subject: { type: Object, default: () => ({ id: null, name: '' }) }, scope: { type: String, default: 'current' }, refreshToken: { type: Number, default: 0 }, currentChapterId: { type: [Number, String], default: null } })
 const emit = defineEmits(['manage'])
 const docs = ref([])
 const allTags = ref([])
@@ -26,6 +26,17 @@ useFocusTrap(() => editor.value.show, '.kb-modal')
 const subjects = ref([])
 // 知识库范围：'current' 跟随顶部科目（tab 默认）；'all' 全部科目管理（「我的→知识库概览」进入）
 const filterSubjectId = computed(() => props.scope === 'all' ? undefined : props.subject.id || undefined)
+// 章节穿透：顶部选中章节时（scope=current）按章节收窄；否则跟随科目（或全部）
+// getKbDocs / getKbGraph 用 categoryKind 判定 id 类型：章节 id → 按 category_id 过滤
+const filterCategoryId = computed(() => props.scope === 'all' ? undefined : (props.currentChapterId ? Number(props.currentChapterId) : undefined))
+// 列表/图谱实际过滤 id：有章节优先传章节 id（getKbDocs 按 category_id 过滤），否则科目 id
+const listFilterId = computed(() => filterCategoryId.value != null ? filterCategoryId.value : filterSubjectId.value)
+// 范围角标文案：全部 / 科目 / 科目·章节（章节名取自分类树展平映射）
+const scopeLabel = computed(() => {
+  if (scope.value === 'all') return '全部科目文档'
+  if (props.currentChapterId && catNameMap.value[props.currentChapterId]) return catNameMap.value[props.currentChapterId] + ' 文档'
+  return (props.subject.name || '当前科目') + ' 文档'
+})
 
 let debounceTimer = null
 onUnmounted(() => {
@@ -42,7 +53,7 @@ async function loadList() {
     const hits = await tiku.kbSearch(keyword.value.trim(), 50)
     docs.value = hits.map(h => ({ ...h, tags: [], linkCount: 0 }))
   } else {
-    docs.value = await tiku.kbList(filterSubjectId.value)
+    docs.value = await tiku.kbList(listFilterId.value)
   }
   loading.value = false
 }
@@ -73,6 +84,7 @@ async function loadCatNames() {
 }
 
 watch(() => props.subject.id, () => { if (props.scope !== 'all') loadList() }) // 顶部切科目（跟随态）→ 刷新
+watch(() => props.currentChapterId, () => { if (props.scope !== 'all') { loadList(); if (viewMode.value === 'graph') loadGraph() } }) // 顶部切章节 → 刷新列表/图谱
 watch(() => props.refreshToken, () => { if (props.refreshToken) loadList() }) // 文档管理弹窗变更 → 刷新
 watch(() => props.scope, loadList) // 范围切换（current↔all）→ 刷新
 
@@ -232,7 +244,7 @@ async function loadGraph() {
   // 跟随顶部范围（科目/章节）+ 列表标签筛选（联动）
   try {
     graph.value = await tiku.getKbGraph({
-      subjectId: filterSubjectId.value,
+      subjectId: listFilterId.value,
       tag: tagFilter.value || null
     })
   } catch (e) { graph.value = { nodes: [], links: [] } }
@@ -336,7 +348,7 @@ async function onImport() {
   if (importing.value) return
   importing.value = true
   try {
-    const res = (await tiku.kbImportFiles(null, filterSubjectId.value)) || []
+    const res = (await tiku.kbImportFiles(null, listFilterId.value)) || []
     const ok = res.filter(r => r.ok && !r.duplicated) // duplicated 项不重复计数
     const dup = res.filter(r => r.duplicated)
     const failed = res.filter(r => !r.ok)
@@ -445,7 +457,7 @@ function fmtTime(ts) {
   <div class="kb">
     <div class="card kb-search-card">
       <div class="kb-scope-line">
-        <span class="kb-scope-tag" :class="{ all: scope === 'all' }">{{ scope === 'all' ? '全部科目文档' : (props.subject.name || '当前科目') + ' 文档' }}</span>
+        <span class="kb-scope-tag" :class="{ all: scope === 'all' }">{{ scopeLabel }}</span>
       </div>
       <div class="kb-tools">
         <input
@@ -457,7 +469,7 @@ function fmtTime(ts) {
         />
         <button class="btn btn-primary" @click="onSearchInput">搜索</button>
         <button class="btn" :class="{ 'btn-active': viewMode === 'graph' }" @click="toggleGraph">图谱</button>
-        <button class="btn btn-primary" @click="emit('manage')">管理文档</button>
+        <button class="btn btn-primary" @click="emit('manage', props.currentChapterId ?? null)">管理文档</button>
       </div>
       <div v-if="allTags.length" class="kb-tag-row">
         <button

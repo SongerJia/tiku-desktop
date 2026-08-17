@@ -4,7 +4,7 @@ import SkeletonCards from './SkeletonCards.vue'
 import QuestionDetail from './QuestionDetail.vue'
 import { tiku } from '../api/tiku.js'
 
-const props = defineProps({ subject: Object, refreshToken: { type: Number, default: 0 } })
+const props = defineProps({ subject: Object, refreshToken: { type: Number, default: 0 }, currentChapterId: { type: [Number, String], default: null } })
 const emit = defineEmits(['start', 'manage'])
 
 const keyword = ref('')
@@ -24,6 +24,7 @@ let fetchSeq = 0 // 代际计数：快速切章节/搜索/加载更多并发时�
 onMounted(load)
 watch(() => props.subject.id, load) // 切科目：重载章节列表 + 题目
 watch(() => props.refreshToken, () => { if (props.refreshToken) load() }) // 题库管理弹窗变更 → 刷新（导入/增删改）
+watch(() => props.currentChapterId, (v) => { currentChapterId.value = v ?? null }) // 顶部选择章节 → 同步本页章节筛选
 watch(currentChapterId, fetchQuestions) // 切章节：拉该章题目
 
 async function load() {
@@ -33,10 +34,11 @@ async function load() {
   const subjectNode = tree.find(n => n.id === props.subject.id)
   chapters.value = subjectNode ? subjectNode.children : (tree[0]?.children || [])
   showAllCh.value = false // 切科目重置章节展开态
+  // 顶部若选了章节则跟随（同步到本页章节筛选），否则清空；值未变时手动补拉一次
+  const target = props.currentChapterId ?? null
   const was = currentChapterId.value
-  currentChapterId.value = null
-  // 仅当值未变（不会触发 watch）时手动补拉一次；非 null→null 已由 watch 触发，避免并发双请求
-  if (was === null) await fetchQuestions()
+  currentChapterId.value = target
+  if (was === target) await fetchQuestions()
   loading.value = false
 }
 

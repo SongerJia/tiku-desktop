@@ -36,10 +36,26 @@ function select(node) {
   selectedId.value = node.id
 }
 
+// 向上回溯到根科目（顶层 parent_id 为空的节点），用于把章节选择解析为「科目 + 章节」
+function rootSubject(node) {
+  let n = node
+  while (n && n.parent_id) {
+    const p = findNode(tree.value, n.parent_id)
+    if (!p) break
+    n = p
+  }
+  return n
+}
+
 function confirm() {
   if (!selectedId.value) return
   const node = findNode(tree.value, selectedId.value)
-  if (node) emit('select', { id: node.id, name: node.name })
+  if (node) {
+    const root = rootSubject(node)
+    // id/name = 实际选中的节点（章节就带章节名）；subjectId/subjectName = 所属根科目
+    // 选科目时 id === subjectId，管理弹窗据此区分「科目」与「章节」
+    emit('select', { id: node.id, name: node.name, subjectId: root.id, subjectName: root.name })
+  }
   emit('update:show', false)
 }
 

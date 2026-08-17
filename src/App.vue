@@ -37,6 +37,8 @@ const tabs = [
 
 const currentTab = ref('home')
 const currentSubject = ref({ id: null, name: '请选择科目' })
+// 顶部选择器的「当前章节」：选科目时为 null；选章节/子章节时记录该节点（currentSubject 始终为所属科目）
+const currentChapter = ref(null)
 const showSubjectPicker = ref(false)
 const quiz = ref({ active: false, categoryId: null, subjectId: null, mode: 'practice', order: 'sequential', limit: null, durationMin: null, recite: false, paperId: null, tags: null, questionId: null, daily: false })
 // 练习设置弹层：所有「开始刷题」入口先到这里配置范围/方式/考试参数
@@ -48,9 +50,10 @@ const bankCategoryId = ref(null) // 入口初始章节（题库页内选中的�
 // 文档管理（知识库：搜索/重命名/移动/删除/导入）
 const showKbManager = ref(false)
 const kbSubjectId = ref(null) // 入口初始科目（知识库页 scope=all 时传 null=全部；我的页同理）
-const kbCategoryId = ref(null) // 入口初始章节（当前入口均无章节状态，预留 prop 保链路完整）
+const kbCategoryId = ref(null) // 入口初始章节（顶部选章节时跟随 currentChapter；全部范围时为 null）
 const showCardManager = ref(false)
 const cardsSubjectId = ref(null) // 记忆卡管理入口初始科目：我的页=当前科目
+const cardsCategoryId = ref(null) // 记忆卡管理入口初始章节：我的页=当前章节
 const kbRefreshToken = ref(0)
 // 模拟卷组卷 / 我的试卷
 const mock = ref({ active: false })
@@ -149,9 +152,12 @@ function onGoto(tab, section) {
   switchTab(tab)
 }
 
-async function onSubjectSelected(subject) {
-  await tiku.setCurrentSubject(subject.id)
-  currentSubject.value = subject
+async function onSubjectSelected(sel) {
+  // sel 来自 SubjectSelector：id/name 是实际选中节点，subjectId/subjectName 是所属根科目
+  // currentSubject 始终保持为「科目」，章节单独记到 currentChapter，避免下游把它当科目用
+  currentSubject.value = { id: sel.subjectId, name: sel.subjectName }
+  currentChapter.value = (sel.id !== sel.subjectId) ? { id: sel.id, name: sel.name } : null
+  await tiku.setCurrentSubject(sel.subjectId)
   showSubjectPicker.value = false
 }
 
@@ -304,7 +310,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
       <header class="topbar">
         <button class="subject-btn" @click="showSubjectPicker = true">
           <span class="dot"></span>
-          <span class="sb-name">{{ currentSubject.name }}</span>
+          <span class="sb-name">{{ currentChapter ? currentSubject.name + ' / ' + currentChapter.name : currentSubject.name }}</span>
           <span class="arrow">▾</span>
         </button>
         <button class="top-search" title="统一搜索（题目 + 知识文档）" @click="showSearch = true">
@@ -333,9 +339,9 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
         <template v-else>
           <Transition name="fade" mode="out-in">
             <div :key="currentTab" class="tab-page">
-              <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" @quick="onQuickStart" @manage-cards="showCardManager = true; cardsSubjectId = currentSubject.id" />
-              <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" :refresh-token="bankRefreshToken" @start="onStart" @manage="(cat) => { showBank = true; bankSubjectId = currentSubject.id; bankCategoryId = cat || null }" />
-              <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :scope="kbScope" :refresh-token="kbRefreshToken" @manage="showKbManager = true; kbSubjectId = kbScope === 'all' ? null : currentSubject.id" />
+              <Home v-if="currentTab === 'home'" :subject="currentSubject" :current-chapter-id="currentChapter?.id ?? null" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" @quick="onQuickStart" @manage-cards="(catId) => { showCardManager = true; cardsSubjectId = currentSubject.id; cardsCategoryId = catId ?? null }" />
+              <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" :current-chapter-id="currentChapter?.id ?? null" :refresh-token="bankRefreshToken" @start="onStart" @manage="(cat) => { showBank = true; bankSubjectId = currentSubject.id; bankCategoryId = cat || null }" />
+              <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :current-chapter-id="currentChapter?.id ?? null" :scope="kbScope" :refresh-token="kbRefreshToken" @manage="(catId) => { showKbManager = true; kbSubjectId = kbScope === 'all' ? null : currentSubject.id; kbCategoryId = kbScope === 'all' ? null : (catId ?? null) }" />
               <Stats v-else-if="currentTab === 'stats'" :subject="currentSubject" @goto="onGoto" />
               <Profile
             v-else-if="currentTab === 'profile'"
@@ -343,9 +349,9 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
             @focus-consumed="profileSection = ''"
             @reset="currentTab = 'home'"
             @start="onStart"
-            @open-bank="showBank = true; bankSubjectId = currentSubject.id; bankCategoryId = null"
-            @open-kb-manager="showKbManager = true; kbSubjectId = currentSubject.id"
-            @open-card-manager="showCardManager = true; cardsSubjectId = currentSubject.id"
+            @open-bank="showBank = true; bankSubjectId = currentSubject.id; bankCategoryId = currentChapter?.id ?? null"
+            @open-kb-manager="showKbManager = true; kbSubjectId = currentSubject.id; kbCategoryId = currentChapter?.id ?? null"
+            @open-card-manager="showCardManager = true; cardsSubjectId = currentSubject.id; cardsCategoryId = currentChapter?.id ?? null"
           />
             </div>
           </Transition>
@@ -395,7 +401,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
 
     <KbManager :show="showKbManager" :initial-subject-id="kbSubjectId" :initial-category-id="kbCategoryId" @close="showKbManager = false" @changed="onKbChanged" />
 
-    <CardManager :show="showCardManager" :wide="isWide" :initial-subject-id="cardsSubjectId" @close="showCardManager = false" @changed="homeRefresh++" />
+    <CardManager :show="showCardManager" :wide="isWide" :initial-subject-id="cardsSubjectId" :initial-category-id="cardsCategoryId" @close="showCardManager = false" @changed="homeRefresh++" />
 
     <MockExamSetup
       v-if="mock.active"

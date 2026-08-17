@@ -8,7 +8,7 @@ import { showToast } from '../utils/toast.js'
 import { vTilt } from '../utils/tilt.js' // 统一 3D 倾斜指令（2026-08-14 去重：此前 Home 内联同逻辑）
 import CardsPanel from './CardsPanel.vue'
 
-const props = defineProps({ subject: Object, refreshKey: { default: 0 } })
+const props = defineProps({ subject: Object, refreshKey: { default: 0 }, currentChapterId: { type: [Number, String], default: null } })
 const emit = defineEmits(['start', 'start-mock', 'goto', 'daily', 'quick', 'manage-cards'])
 
 const summary = ref({ total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0, accuracy: 0, weekAccuracy: 0, weekDelta: 0, streak: 0 })
@@ -222,6 +222,11 @@ function startSmartReview() {
 
 // ---- 番茄钟 ----
 const cardsOpen = ref(false)
+// 记忆卡面板请求「去管理」→ 带上当前章节 id 一并抛出（供 App 打开记忆卡管理弹窗并预选章节）
+function onManageCards(catId) {
+  cardsOpen.value = false
+  emit('manage-cards', catId ?? null)
+}
 const cardStats = ref({ total: 0, due: 0 })
 const focusMinutes = ref(25)
 const focusLeft = ref(0)
@@ -528,7 +533,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <CardsPanel :show="cardsOpen" :subject="props.subject" @close="cardsOpen = false" @updated="onCardsUpdated" @manage="cardsOpen = false; emit('manage-cards')" />
+      <CardsPanel :show="cardsOpen" :subject="props.subject" :current-chapter-id="props.currentChapterId ?? null" @close="cardsOpen = false" @updated="onCardsUpdated" @manage="onManageCards" />
     </template>
   </div>
 </template>

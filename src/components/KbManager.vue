@@ -276,11 +276,21 @@ const filteredDocs = computed(() => {
   })
 })
 
-// 概览统计：总文档 / 未读 / 总阅读次数
+// 当前范围（科目+章节）文档：统计条口径，不含关键词（避免搜索时统计跟着抖动）
+const scopedDocs = computed(() => {
+  const sid = Number(subjectFilter.value)
+  const cid = Number(categoryFilter.value)
+  return docs.value.filter(d => {
+    if (sid && Number(d.subject_id) !== sid) return false
+    if (cid && Number(d.category_id) !== cid) return false
+    return true
+  })
+})
+// 概览统计：总文档 / 未读 / 总阅读次数（跟随入口的科目+章节范围，与列表一致）
 const kmStats = computed(() => {
-  const total = docs.value.length
-  const unread = docs.value.filter(d => !d.read_count).length
-  const reads = docs.value.reduce((s, d) => s + (d.read_count || 0), 0)
+  const total = scopedDocs.value.length
+  const unread = scopedDocs.value.filter(d => !d.read_count).length
+  const reads = scopedDocs.value.reduce((s, d) => s + (d.read_count || 0), 0)
   return { total, unread, reads }
 })
 

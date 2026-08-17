@@ -186,11 +186,13 @@ module.exports = function cardsModule(ctx) {
       return { ok: true }
     },
 
-    // 单词卡复习抽取：到期卡优先（含新卡），最多 limit 张；subjectId 限定科目范围
-    getCardReview(limit = 10, subjectId) {
+    // 单词卡复习抽取：到期卡优先（含新卡），最多 limit 张；subjectId 限定科目、categoryId 限定章节范围
+    getCardReview(limit = 10, subjectId, categoryId) {
       const now = Date.now()
-      const where = subjectId ? ' AND subject_id=?' : ''
-      const params = subjectId ? [subjectId] : []
+      let where = ''
+      const params = []
+      if (subjectId) { where += ' AND subject_id=?'; params.push(subjectId) }
+      if (categoryId) { where += ' AND category_id=?'; params.push(categoryId) }
       const due = sqlite.prepare(
         `SELECT * FROM cards WHERE deleted=0 AND review_count>0 AND (review_at IS NULL OR review_at<=?)${where}
          ORDER BY (review_lapses>0) DESC, review_at IS NULL DESC, review_at ASC LIMIT ?`

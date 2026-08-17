@@ -6,7 +6,7 @@ import { useBodyLock } from '../composables/useBodyLock.js'
 import { useFocusTrap } from '../composables/useFocusTrap.js'
 import EmptyState from './EmptyState.vue'
 import SkeletonCards from './SkeletonCards.vue'
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
@@ -14,7 +14,7 @@ import { useEsc } from '../utils/useEsc.js'
 import { detectSubjectLang } from '../utils/speech.js'
 import { decodeText, parseCsv } from '../utils/bankParser.js'
 
-const props = defineProps({ show: Boolean, wide: Boolean, initialSubjectId: { type: [Number, String], default: null } })
+const props = defineProps({ show: Boolean, wide: Boolean, initialSubjectId: { type: [Number, String], default: null }, initialCategoryId: { type: [Number, String], default: null } })
 useBodyLock(() => props.show)
 useFocusTrap(() => props.show, '.cm-panel')
 const emit = defineEmits(['close', 'changed'])
@@ -62,7 +62,15 @@ async function loadMeta() {
 
 watch(subjectId, () => { categoryId.value = ''; loadList(); loadStats() })
 watch(categoryId, () => { loadList(); loadStats() })
-watch(() => props.show, (v) => { if (v) { subjectId.value = props.initialSubjectId != null ? String(props.initialSubjectId) : ''; refreshAll() } })
+watch(() => props.show, async (v) => {
+  if (!v) return
+  subjectId.value = props.initialSubjectId != null ? String(props.initialSubjectId) : ''
+  refreshAll()
+  // 初始章节跟随：subjectId 变化会触发 watch 清空 categoryId（下一 flush），
+  // 等它清完后 nextTick 再应用入口章节，避免被覆盖（与 BankManager 同款兜底）
+  await nextTick()
+  categoryId.value = props.initialCategoryId != null ? String(props.initialCategoryId) : ''
+})
 onMounted(() => { if (props.show) refreshAll() })
 useEsc(() => {
   if (formOpen.value) { cancelForm(); return }

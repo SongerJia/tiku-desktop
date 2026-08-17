@@ -10,7 +10,7 @@ import { useEsc } from '../utils/useEsc.js'
 import Icon from './Icon.vue'
 import { speakText, detectSubjectLang } from '../utils/speech.js'
 
-const props = defineProps({ show: Boolean, subject: { type: Object, default: () => ({ id: null, name: '' }) } })
+const props = defineProps({ show: Boolean, subject: { type: Object, default: () => ({ id: null, name: '' }) }, currentChapterId: { type: [Number, String], default: null } })
 useBodyLock(() => props.show)
 useFocusTrap(() => props.show, '.mask > .panel')
 const emit = defineEmits(['close', 'updated', 'manage'])
@@ -50,6 +50,8 @@ const loading = ref(true)
 // 记忆卡范围：默认跟随顶部科目，点角标切「全部科目」（未分类卡只在全部视图出现）
 const scope = ref('current')
 const filterSubjectId = computed(() => scope.value === 'all' ? undefined : props.subject.id || undefined)
+// 章节穿透：顶部选中章节时（scope=current）按章节收窄；scope=all 或仅选科目时不限章节
+const filterCategoryId = computed(() => scope.value === 'all' ? undefined : (props.currentChapterId ? Number(props.currentChapterId) : undefined))
 const isAll = computed(() => scope.value === 'all' || !props.subject.id)
 
 // 管理模式：列表 / 复习
@@ -75,7 +77,7 @@ function cardBadge(c) {
 async function load() {
   loading.value = true
   try {
-    const [list, s] = await Promise.all([tiku.listCards({ subjectId: filterSubjectId.value }), tiku.cardsStats({ subjectId: filterSubjectId.value })])
+    const [list, s] = await Promise.all([tiku.listCards({ subjectId: filterSubjectId.value, categoryId: filterCategoryId.value }), tiku.cardsStats({ subjectId: filterSubjectId.value, categoryId: filterCategoryId.value })])
     cards.value = list
     stats.value = s
   } catch (e) { /* 加载失败不转圈 */ }
@@ -117,7 +119,7 @@ async function removeCard(c) {
 // ---- 复习模式 ----
 async function startReview() {
   try {
-    reviewItems.value = await tiku.getCardReview(10, filterSubjectId.value)
+    reviewItems.value = await tiku.getCardReview(10, filterSubjectId.value, filterCategoryId.value)
   } catch (e) { reviewItems.value = [] }
   if (!reviewItems.value.length) { showToast('还没有卡片，先添加几张吧'); return }
   rIdx.value = 0
@@ -172,6 +174,8 @@ watch(() => props.show, (v) => {
   }
 })
 watch(() => props.subject.id, () => { if (props.show && scope.value === 'current') load() })
+// 顶部切章节 → 跟随刷新列表（scope=current 才跟随；all 由 scope watch 处理）
+watch(() => props.currentChapterId, () => { if (props.show && scope.value === 'current') load() })
 watch(scope, () => { if (props.show) load() })
 </script>
 
@@ -198,7 +202,7 @@ watch(scope, () => { if (props.show) load() })
       <!-- 列表模式 -->
       <div v-if="mode === 'list'" class="body">
         <!-- 添加/导入已移到「我的 → 记忆卡管理」，此处只做复习与浏览 -->
-        <div class="manage-hint" @click="emit('manage')">
+        <div class="manage-hint" @click="emit('manage', props.currentChapterId ?? null)">
           <Icon name="bookmark" :size="13" /> 添加 / 批量导入请到「我的 → 记忆卡管理」
         </div>
 
