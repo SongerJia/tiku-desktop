@@ -82,11 +82,13 @@ async function extractPdf(filePath) {
 }
 
 // 文件名消毒 + 冲突去重（返回 userData/kb 下的相对路径）
-function uniqueRelPath(dir, originalName, ext) {
+// occupied：可选 Set（库中已占用的 rel_path，含软删行）——仅查磁盘会漏掉
+// "库里有记录但磁盘无文件"（如同步元数据）场景，导致 INSERT 撞 UNIQUE(rel_path)
+function uniqueRelPath(dir, originalName, ext, occupied) {
   const safe = String(originalName || 'doc').replace(/[\\/:*?"<>|]/g, '_').trim() || 'doc'
   let rel = safe + (ext ? '.' + ext : '')
   let i = 1
-  while (fs.existsSync(path.join(dir, rel))) {
+  while (fs.existsSync(path.join(dir, rel)) || (occupied && occupied.has(rel))) {
     rel = `${safe}-${i}.${ext}`
     i += 1
   }

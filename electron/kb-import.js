@@ -19,6 +19,8 @@ async function importKbFiles(db, files, subjectId) {
   const dir = path.join(platform.userDataDir(), 'kb')
   try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }) } catch (e) {}
   const results = []
+  // 库中已占用 rel_path（含软删行）：去重必须同时避开磁盘文件与库记录，否则 INSERT 撞 UNIQUE(rel_path)
+  const occupiedRel = new Set(db.listKbRelPaths())
   for (const f of files || []) {
     const display = f && f.name ? f.name : '未知文件'
     try {
@@ -35,7 +37,8 @@ async function importKbFiles(db, files, subjectId) {
         results.push({ ok: true, duplicated: true, docId: dup.id, title: dup.title, type: dup.type })
         continue
       }
-      const rel = uniqueRelPath(dir, title, ext)
+      const rel = uniqueRelPath(dir, title, ext, occupiedRel)
+      occupiedRel.add(rel)
       fs.writeFileSync(path.join(dir, rel), raw)
       let blocks = []
       let error = null

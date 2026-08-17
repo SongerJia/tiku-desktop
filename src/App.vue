@@ -333,7 +333,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
             <div :key="currentTab" class="tab-page">
               <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" @quick="onQuickStart" @manage-cards="showCardManager = true" />
               <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" :refresh-token="bankRefreshToken" @start="onStart" @manage="showBank = true; bankSubjectId = currentSubject.id" />
-              <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :scope="kbScope" :refresh-token="kbRefreshToken" @manage="showKbManager = true; kbSubjectId = currentSubject.id" />
+              <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :scope="kbScope" :refresh-token="kbRefreshToken" @manage="showKbManager = true; kbSubjectId = kbScope === 'all' ? null : currentSubject.id" />
               <Stats v-else-if="currentTab === 'stats'" :subject="currentSubject" @goto="onGoto" />
               <Profile
             v-else-if="currentTab === 'profile'"

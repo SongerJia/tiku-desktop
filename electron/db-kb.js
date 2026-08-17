@@ -36,6 +36,12 @@ module.exports = function kbModule(ctx) {
       return sqlite.prepare('SELECT id, title, type FROM kb_docs WHERE hash=? AND deleted=0 LIMIT 1').get(hash) || null
     },
 
+    // 全部已占用 rel_path（含软删行：rel_path UNIQUE 约束对软删行同样生效，
+    // 导入去重只查磁盘文件会漏掉"库里有记录但磁盘无文件"的场景 → UNIQUE 冲突）
+    listKbRelPaths() {
+      return sqlite.prepare("SELECT rel_path FROM kb_docs WHERE rel_path IS NOT NULL AND rel_path != ''").all().map(r => r.rel_path)
+    },
+
     // id 是科目还是章节：categories 里 parent_id 为空/0 = 科目，有父 = 章节；查不到返回 null
     categoryKind(id) {
       if (id == null) return null
