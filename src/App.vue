@@ -44,11 +44,13 @@ const setup = ref({ active: false, categoryId: null, subjectId: null, presetMode
 // 题库管理（导入/录题/编辑/删除）
 const showBank = ref(false)
 const bankSubjectId = ref(null) // 入口初始科目：tab 页=当前科目，我的页=null 全部
+const bankCategoryId = ref(null) // 入口初始章节（题库页内选中的章节；我的页=null 全部章节）
 // 文档管理（知识库：搜索/重命名/移动/删除/导入）
 const showKbManager = ref(false)
+const kbSubjectId = ref(null) // 入口初始科目（知识库页 scope=all 时传 null=全部；我的页同理）
+const kbCategoryId = ref(null) // 入口初始章节（当前入口均无章节状态，预留 prop 保链路完整）
 const showCardManager = ref(false)
 const cardsSubjectId = ref(null) // 记忆卡管理入口初始科目：我的页=当前科目
-const kbSubjectId = ref(null) // 同上：tab 页=当前科目，我的页=null 全部
 const kbRefreshToken = ref(0)
 // 模拟卷组卷 / 我的试卷
 const mock = ref({ active: false })
@@ -331,8 +333,8 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
         <template v-else>
           <Transition name="fade" mode="out-in">
             <div :key="currentTab" class="tab-page">
-              <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" @quick="onQuickStart" @manage-cards="showCardManager = true" />
-              <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" :refresh-token="bankRefreshToken" @start="onStart" @manage="showBank = true; bankSubjectId = currentSubject.id" />
+              <Home v-if="currentTab === 'home'" :subject="currentSubject" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" @quick="onQuickStart" @manage-cards="showCardManager = true; cardsSubjectId = currentSubject.id" />
+              <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" :refresh-token="bankRefreshToken" @start="onStart" @manage="(cat) => { showBank = true; bankSubjectId = currentSubject.id; bankCategoryId = cat || null }" />
               <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :scope="kbScope" :refresh-token="kbRefreshToken" @manage="showKbManager = true; kbSubjectId = kbScope === 'all' ? null : currentSubject.id" />
               <Stats v-else-if="currentTab === 'stats'" :subject="currentSubject" @goto="onGoto" />
               <Profile
@@ -341,7 +343,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
             @focus-consumed="profileSection = ''"
             @reset="currentTab = 'home'"
             @start="onStart"
-            @open-bank="showBank = true; bankSubjectId = currentSubject.id"
+            @open-bank="showBank = true; bankSubjectId = currentSubject.id; bankCategoryId = null"
             @open-kb-manager="showKbManager = true; kbSubjectId = currentSubject.id"
             @open-card-manager="showCardManager = true; cardsSubjectId = currentSubject.id"
           />
@@ -386,11 +388,12 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
       :show="showBank"
       :wide="isWide"
       :initial-subject-id="bankSubjectId"
+      :initial-category-id="bankCategoryId"
       @close="showBank = false"
       @changed="onBankChanged"
     />
 
-    <KbManager :show="showKbManager" :initial-subject-id="kbSubjectId" @close="showKbManager = false" @changed="onKbChanged" />
+    <KbManager :show="showKbManager" :initial-subject-id="kbSubjectId" :initial-category-id="kbCategoryId" @close="showKbManager = false" @changed="onKbChanged" />
 
     <CardManager :show="showCardManager" :wide="isWide" :initial-subject-id="cardsSubjectId" @close="showCardManager = false" @changed="homeRefresh++" />
 

@@ -103,7 +103,7 @@ function onDetailStart(payload) {
 }
 
 function typeLabel(t) {
-  return { single: '单选', multiple: '多选', judge: '判断' }[t] || t
+  return { single: '单选', multiple: '多选', judge: '判断', essay: '问答' }[t] || t
 }
 </script>
 
@@ -118,7 +118,7 @@ function typeLabel(t) {
           @keyup.enter="search"
         />
         <button class="btn btn-primary" @click="search">搜索</button>
-        <button class="btn manage-btn" @click="$emit('manage')" title="增删改查 / 批量导入导出题目">管理题库</button>
+        <button class="btn manage-btn" @click="$emit('manage', currentChapterId)" title="增删改查 / 批量导入导出题目">管理题库</button>
       </div>
       <div class="chapter-filter">
         <button

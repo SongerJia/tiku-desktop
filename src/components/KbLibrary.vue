@@ -361,6 +361,12 @@ function openReader(doc) {
   reader.value = { show: true, doc }
 }
 
+// 关闭阅读器后刷新列表：阅读埋点（read_count）实时反映，不用重进页面
+async function onReaderClose() {
+  reader.value = { show: false, doc: null }
+  await loadList()
+}
+
 // 从双链跳转打开另一篇文档（优先本地列表，否则按 id 拉取）
 async function openLinkedDoc(docId) {
   const found = docs.value.find(d => d.id === docId)
@@ -639,7 +645,7 @@ function fmtTime(ts) {
       </div>
     </div>
 
-    <KbReader :show="reader.show" :doc="reader.doc" @close="reader.show = false" @open-doc="openLinkedDoc" />
+    <KbReader :show="reader.show" :doc="reader.doc" @close="onReaderClose" @open-doc="openLinkedDoc" />
   </div>
 </template>
 

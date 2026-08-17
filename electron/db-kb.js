@@ -233,7 +233,7 @@ module.exports = function kbModule(ctx) {
       if (!kw) return []
       const like = '%' + kw.replace(/[%_\\]/g, m => '\\' + m) + '%'
       const docs = sqlite.prepare(
-        `SELECT id, title, type, rel_path, folder, updated_at FROM kb_docs
+        `SELECT id, title, type, rel_path, folder, size, hash, subject_id, category_id, read_count, updated_at FROM kb_docs
          WHERE deleted=0 AND (title LIKE ? ESCAPE '\\' OR id IN (SELECT doc_id FROM kb_blocks WHERE content LIKE ? ESCAPE '\\'))
          ORDER BY updated_at DESC LIMIT ?`
       ).all(like, like, limit)

@@ -200,7 +200,8 @@ import { useEsc } from '../utils/useEsc.js'
 
 const props = defineProps({
   show: Boolean,
-  initialSubjectId: { type: [Number, String], default: null }
+  initialSubjectId: { type: [Number, String], default: null },
+  initialCategoryId: { type: [Number, String], default: null }
 })
 useBodyLock(() => props.show)
 useFocusTrap(() => props.show, '.km-panel')
@@ -222,7 +223,7 @@ watch(() => props.show, async (v) => {
   if (!v) return
   keyword.value = ''
   subjectFilter.value = props.initialSubjectId != null ? String(props.initialSubjectId) : ''
-  categoryFilter.value = ''
+  categoryFilter.value = props.initialCategoryId != null ? String(props.initialCategoryId) : ''
   await load()
 })
 
@@ -321,7 +322,15 @@ async function pickImportFiles() {
       showToast('未选择文件（若已选却无反应，请检查文件选择器返回）', 'err')
       return
     }
-    importFiles.value = files
+    // 「再选文件」追加到已选列表（按 name+size 去重），首次选择才替换
+    if (importFiles.value.length) {
+      const seen = new Set(importFiles.value.map(f => `${f.name}|${f.size || ''}`))
+      const added = files.filter(f => !seen.has(`${f.name}|${f.size || ''}`))
+      if (!added.length) { showToast('所选文件已在列表中', 'info'); return }
+      importFiles.value = [...importFiles.value, ...added]
+    } else {
+      importFiles.value = files
+    }
     importStep.value = 'preview'
   } catch (e) {
     showToast('选择文件失败：' + (e.message || '未知错误'), 'err')

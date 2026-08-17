@@ -3,7 +3,7 @@ import Icon from './Icon.vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
 import { useFocusTrap } from '../composables/useFocusTrap.js'
 import EmptyState from './EmptyState.vue'
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import { useEsc } from '../utils/useEsc.js'
 import { tiku } from '../api/tiku.js'
@@ -17,7 +17,8 @@ const props = defineProps({
   show: Boolean,
   wide: Boolean,
   initialKeyword: { type: String, default: '' },
-  initialSubjectId: { type: [Number, String], default: null }
+  initialSubjectId: { type: [Number, String], default: null },
+  initialCategoryId: { type: [Number, String], default: null }
 })
 useBodyLock(() => props.show)
 useFocusTrap(() => props.show, '.bm-panel')
@@ -127,13 +128,18 @@ useEsc(() => {
   emit('close')
 })
 
-watch(() => props.show, (v) => {
+watch(() => props.show, async (v) => {
   if (v) {
     // 入口决定初始筛选：tab 页传当前科目，我的页不传 = 全部科目
     if (props.initialSubjectId != null) subjectId.value = String(props.initialSubjectId)
     else subjectId.value = ''
     if (props.initialKeyword) { keyword.value = props.initialKeyword; page.value = 1; emit('keyword-consumed') }
     refreshAll()
+    // 初始章节跟随：subjectId 变化会触发 watch 清空 categoryId（下一 flush），
+    // 等它清完后 nextTick 再应用入口章节，避免被覆盖
+    await nextTick()
+    if (props.initialCategoryId != null) categoryId.value = String(props.initialCategoryId)
+    else categoryId.value = ''
   }
 })
 onMounted(() => { if (props.show) refreshAll() })
