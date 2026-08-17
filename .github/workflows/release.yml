@@ -22,12 +22,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
-      # dist = vite build + electron-builder（仅本地产出，不自动发布）；用国内镜像加速 Electron 下载
+      # 只构建不上传：--publish never 避免 electron-builder 找 GH_TOKEN（CI 自动 token 名是 GITHUB_TOKEN，electron-builder 不认）
+      # 发布由下方 publish job 用 softprops/action-gh-release 统一创建 Release 并上传产物
       - name: 构建 Windows 安装包
-        run: npm run dist
+        run: npm run build && npx electron-builder --publish never
         env:
           ELECTRON_BUILDER_BINARIES_MIRROR: https://npmmirror.com/mirrors/electron-builder-binaries/
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
@@ -49,7 +50,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - uses: actions/setup-java@v4
         with:
