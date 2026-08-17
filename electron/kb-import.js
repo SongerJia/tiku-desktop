@@ -15,10 +15,28 @@ function decodeBuf(buf) {
 }
 
 // files: [{ name, ext, data: Uint8Array }]
-async function importKbFiles(db, files, subjectId) {
+// target: { subjectId, categoryId }（推荐，外部已明确科目+章节）或单 id（兼容旧调用：科目/章节）
+async function importKbFiles(db, files, target) {
   const dir = path.join(platform.userDataDir(), 'kb')
   try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }) } catch (e) {}
   const results = []
+  // 解析导入落点：优先用显式传入的 subjectId/categoryId（前端已同时持有父科目与章节）；
+  // 单 id（旧调用）按类型判定——章节需回溯父科目补 subjectId，否则科目会丢失
+  let subjectId = null
+  let categoryId = null
+  if (target && typeof target === 'object') {
+    subjectId = target.subjectId != null ? Number(target.subjectId) : null
+    categoryId = target.categoryId != null ? Number(target.categoryId) : null
+  } else if (target != null) {
+    const id = Number(target)
+    const kind = db.categoryKind(id)
+    if (kind === 'subject') {
+      subjectId = id
+    } else if (kind === 'chapter') {
+      categoryId = id
+      subjectId = db.categoryParent ? db.categoryParent(id) : null
+    }
+  }
   // 库中已占用 rel_path（含软删行）：去重必须同时避开磁盘文件与库记录，否则 INSERT 撞 UNIQUE(rel_path)
   const occupiedRel = new Set(db.listKbRelPaths())
   for (const f of files || []) {
@@ -49,11 +67,9 @@ async function importKbFiles(db, files, subjectId) {
         blocks = r.blocks || []
         error = r.error
       }
-      const kind = db.categoryKind(subjectId) // 导入位置可能是科目或章节
       const docId = db.addKbDoc({
         title, type: ext, relPath: rel, size: raw.length, hash, blocks,
-        subjectId: kind === 'subject' ? subjectId : null,
-        categoryId: kind === 'chapter' ? subjectId : null
+        subjectId, categoryId
       })
       results.push({ ok: true, docId, title, type: ext, blocks: blocks.length, error })
     } catch (e) {

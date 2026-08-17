@@ -354,10 +354,10 @@ async function confirmImport() {
   if (!importFiles.value.length) return
   importBusy.value = true
   try {
-    // 导入目标：章节/科目 id（与筛选一致）；未筛选传 null = 不挂科目
+    // 导入目标：同时带父科目(subjectFilter)与章节(categoryFilter)，避免外部是章节时只落章节、科目丢失
     const sid = Number(subjectFilter.value) || null
     const cid = Number(categoryFilter.value) || null
-    const target = cid || sid || null
+    const target = { subjectId: sid, categoryId: cid }
     // P6 修复：APK 端直接传预览文件对象（含 base64），Electron 端传 {path} 路径数组——
     // 由桥层 kbImportFiles 按元素类型区分（对象=复用字节，字符串=读磁盘路径）
     const paths = importFiles.value.map(f => (f.path ? f.path : f))

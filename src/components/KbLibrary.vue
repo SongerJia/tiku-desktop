@@ -348,7 +348,12 @@ async function onImport() {
   if (importing.value) return
   importing.value = true
   try {
-    const res = (await tiku.kbImportFiles(null, listFilterId.value)) || []
+    // 导入落点：同时带父科目与章节（外部选章节时两者都传），避免只落章节、科目丢失
+    const target = {
+      subjectId: filterSubjectId.value ?? null,
+      categoryId: filterCategoryId.value ?? null
+    }
+    const res = (await tiku.kbImportFiles(null, target)) || []
     const ok = res.filter(r => r.ok && !r.duplicated) // duplicated 项不重复计数
     const dup = res.filter(r => r.duplicated)
     const failed = res.filter(r => !r.ok)

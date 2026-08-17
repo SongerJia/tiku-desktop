@@ -299,7 +299,7 @@ ipcMain.handle('saveImage', (e, buf, ext) => {
 // MD 按标题切块；PDF 用 pdfjs 抽文本，无文本层时降级（空块 + error，靠文件名/标签兜底）。
 // P5：核心导入逻辑已抽到 kb-import.js（Electron/APK 共用），此处只做「读磁盘出字节」。
 const { importKbFiles } = require('./kb-import')
-async function importKbPaths(filePaths, subjectId) {
+async function importKbPaths(filePaths, target) {
   const files = []
   for (const src of filePaths || []) {
     try {
@@ -312,10 +312,10 @@ async function importKbPaths(filePaths, subjectId) {
       files.push({ name: src, ext: '', data: new Uint8Array(0) })
     }
   }
-  return importKbFiles(db, files, subjectId)
+  return importKbFiles(db, files, target)
 }
 
-ipcMain.handle('kbImportFiles', async (e, paths, subjectId) => {
+ipcMain.handle('kbImportFiles', async (e, paths, target) => {
   let filePaths = paths && paths.length ? paths : null
   if (!filePaths) {
     const win = BrowserWindow.getFocusedWindow()

@@ -50,6 +50,13 @@ module.exports = function kbModule(ctx) {
       return row.parent_id ? 'chapter' : 'subject'
     },
 
+    // 取章节的父科目 id（章节 parent_id 指向所属科目）；非章节或查不到返回 null
+    categoryParent(id) {
+      if (id == null) return null
+      const row = sqlite.prepare('SELECT parent_id FROM categories WHERE id=? AND deleted=0').get(id)
+      return row && row.parent_id ? row.parent_id : null
+    },
+
     addKbDoc({ title, type = 'md', relPath, size = 0, hash, blocks = [], subjectId = null, categoryId = null }) {
       const now = Date.now()
       const tx = sqlite.transaction(() => {
