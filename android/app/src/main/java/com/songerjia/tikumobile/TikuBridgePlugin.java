@@ -229,6 +229,8 @@ public class TikuBridgePlugin extends Plugin {
     public void installApk(PluginCall call) {
         String rel = call.getString("path", "");
         if (rel == null || rel.isEmpty()) { call.reject("缺少安装包路径"); return; }
+        // 路径校验：禁止绝对路径与 .. 穿越（与 fs 系列 sanitize 同级别防护，防指向私有目录其他文件）
+        if (rel.startsWith("/") || rel.contains("..")) { call.reject("非法安装包路径"); return; }
         try {
             java.io.File f = new java.io.File(getContext().getFilesDir(), rel);
             if (!f.exists()) { call.reject("更新包不存在：" + rel); return; }

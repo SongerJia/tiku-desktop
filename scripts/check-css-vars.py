@@ -32,6 +32,7 @@ DYNAMIC_VARS = {
     '--tiltry': 'tilt.js setProperty --tiltRy（3D 倾斜重力）',
     '--ang': 'style.css @property --ang（应被 @property 捕获，兜底白名单）',
     '--kb-md-fs': 'KbReader 模板 :style 动态绑定（{\'--kb-md-fs\': fontSize+\'px\'}）',
+    '--ui-zoom': 'appearance.js setProperty --ui-zoom（移动端字号缩放，zoom<1 时布局反向放大）',
 }
 
 DEF_RE = re.compile(r'--([a-zA-Z][\w-]*)\s*:')
@@ -73,7 +74,7 @@ def main():
 
     # 无 fallback 且未定义的引用（--good 式真 bug：var() 解析失败 → 样式静默失效）
     for f, i, name in refs:
-        if name not in available and name not in DYNAMIC_VARS:
+        if name not in available and name not in DYNAMIC_VARS and ('--' + name) not in DYNAMIC_VARS:
             problems.append((f, i, name, 'var(--%s) 无 fallback 且无定义' % name))
     # 注：带 fallback 的引用（var(--x, 兜底值)）有兜底，不算问题；
     #     若 fallback 值本身是 var() 且该变量未定义（链条断裂），会被上面的 refs 捕获。

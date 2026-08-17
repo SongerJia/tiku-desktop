@@ -45,6 +45,7 @@
   --bad-soft: #ffb3c1;           /* 红粉系亮字（错误提示/弱态/删除） */
   --warn-soft: #ffc154;          /* 黄橙系亮字（警告/笔记/背诵/复习横幅） */
   --brand-soft: #93b1ff;         /* 蓝紫系亮字（标签/徽章/次要品牌强调） */
+  --font-mono: 'Cascadia Code', 'JetBrains Mono', Consolas, 'Courier New', monospace; /* 音标/代码等宽 */
 }
 
 * { box-sizing: border-box; }

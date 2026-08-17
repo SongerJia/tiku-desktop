@@ -665,7 +665,7 @@ function fmtTime(ts) {
 }
 .ki-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ki-title { font-size: 15px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ki-close { font-size: 22px; color: var(--text-secondary); cursor: pointer; line-height: 1; padding: 0 4px; flex-shrink: 0; transition: color .15s; }
+.ki-close { font-size: 22px; color: var(--muted); cursor: pointer; line-height: 1; padding: 0 4px; flex-shrink: 0; transition: color .15s; }
 .ki-close:hover { color: var(--brand); }
 .ki-body { display: flex; flex-direction: column; gap: 12px; }
 .ki-target {
