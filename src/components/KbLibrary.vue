@@ -33,7 +33,7 @@ const filterCategoryId = computed(() => props.scope === 'all' ? undefined : (pro
 const listFilterId = computed(() => filterCategoryId.value != null ? filterCategoryId.value : filterSubjectId.value)
 // 范围角标文案：全部 / 科目 / 科目·章节（章节名取自分类树展平映射）
 const scopeLabel = computed(() => {
-  if (scope.value === 'all') return '全部科目文档'
+  if (props.scope === 'all') return '全部科目文档'
   if (props.currentChapterId && catNameMap.value[props.currentChapterId]) return catNameMap.value[props.currentChapterId] + ' 文档'
   return (props.subject.name || '当前科目') + ' 文档'
 })
