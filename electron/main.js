@@ -327,7 +327,7 @@ ipcMain.handle('kbImportFiles', async (e, paths, target) => {
     if (res.canceled || !res.filePaths.length) return []
     filePaths = res.filePaths
   }
-  return importKbPaths(filePaths, subjectId)
+  return importKbPaths(filePaths, target)
 })
 // 知识库导入弹窗：只弹系统文件选择框返回路径，不立即导入（渲染层预览后确认再调 kbImportFiles）
 ipcMain.handle('kbPickFiles', async () => {
