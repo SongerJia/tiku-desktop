@@ -55,7 +55,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
       - name: 设置 Android SDK
         uses: android-actions/setup-android@v3
       - name: 安装 SDK 平台与构建工具
