@@ -64,7 +64,7 @@
               <div class="qd-st-num">{{ s.correctRate }}%</div>
               <div class="qd-st-sub">答过 {{ s.answered }} 次</div>
             </div>
-            <div v-if="!s.wrong && !s.favorited && !s.hasCard && !s.answered" class="qd-st empty-st">
+            <div v-if="!s.wrong && !s.favorited && !s.answered" class="qd-st empty-st">
               <div class="qd-st-num">—</div>
               <div class="qd-st-sub">还没有学习记录</div>
             </div>
@@ -76,7 +76,6 @@
       <div class="qd-actions">
         <button class="btn btn-primary" @click="startPractice">开始练习本章节</button>
         <button class="btn btn-outline" @click="toggleFav" :class="{ on: s.favorited }">{{ s.favorited ? '取消收藏' : '收藏' }}</button>
-        <button class="btn btn-outline" @click="toCard" :disabled="cardBusy">{{ cardBusy ? '生成中…' : '转记忆卡' }}</button>
         <button v-if="s.wrong && !s.reason" class="btn btn-outline" @click="reasonOpen = !reasonOpen">标记错因</button>
       </div>
       <div v-if="reasonOpen" class="qd-reasons">
@@ -84,18 +83,6 @@
       </div>
     </div>
     </div>
-
-    <!-- 转卡补充表单（front 截断与 addCardFromQuestion 一致，category 用章节名，保证同题各入口查重一致） -->
-    <CardSupplement
-      :show="cardSupplement"
-      :front="(info.question.stem || '').slice(0, 80)"
-      :back="answerText || info.question.analysis || ''"
-      :category="chapterName"
-      :source-question-id="props.questionId"
-      :lang="cardLang"
-      @close="cardSupplement = false"
-      @created="onCardCreated"
-    />
   </Teleport>
 </template>
 
@@ -106,89 +93,8 @@ import { useFocusTrap } from '../composables/useFocusTrap.js'
 import { useEsc } from '../utils/useEsc.js'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
-import { detectSubjectLang } from '../utils/speech.js'
-import CardSupplement from './CardSupplement.vue'
 
-const props = defineProps({
-  show: Boolean,
-  questionId: { type: Number, default: 0 }
-})
-useBodyLock(() => props.show)
-useFocusTrap(() => props.show, '.qd-panel')
-const emit = defineEmits(['close', 'start'])
-// Esc：转卡补充表单优先关，其次关详情
-useEsc(() => {
-  if (cardSupplement.value) { cardSupplement.value = false; return }
-  emit('close')
-})
-
-const REASONS = ['粗心', '知识点不懂', '时间不够']
-const typeLabel = (t) => ({ single: '单选', multiple: '多选', judge: '判断', essay: '问答' }[t] || t || '题目')
-const info = ref({ question: { type: '', stem: '', options_json: '', answer_json: '', analysis: '', categoryPath: [], tags: [] }, status: {} })
-const revealed = ref(false)
-const reasonOpen = ref(false)
-const cardBusy = ref(false)
-// 转卡补充表单（音标/释义/音频）：仅语言科目显示音标音频，技术类只确认背面向容
-const cardSupplement = ref(false)
-const cardLang = ref('')
-
-const options = computed(() => {
-  try { return JSON.parse(info.value.question.options_json || '[]') } catch (e) { return [] }
-})
-const answerText = computed(() => {
-  try {
-    const a = JSON.parse(info.value.question.answer_json || '[]')
-    if (Array.isArray(a)) {
-      // answer_json 存字母 key（如 ['A','B']，判断题 ['对']）；老数据可能是数字下标 → 兼容转换
-      return a.map(x => {
-        const n = Number(x)
-        return Number.isInteger(n) && String(x).trim() !== '' ? String.fromCharCode(65 + n) : String(x)
-      }).join('、')
-    }
-    return String(a)
-  } catch (e) { return '' }
-})
-const s = computed(() => info.value.status || {})
-const pathText = computed(() => (info.value.question.categoryPath || []).join(' › '))
-// 转卡分类：取路径最后一段（章节名；无章节则科目名），与 addCardFromQuestion 的 category 一致
-const chapterName = computed(() => (info.value.question.categoryPath || []).slice(-1)[0] || '')
-// 科目语言：从路径首段（科目名）识别，英语/日语才显示音标/音频
-const subjectName = computed(() => (info.value.question.categoryPath || [])[0] || '')
-
-const fmtDate = (ts) => {
-  if (!ts) return ''
-  const d = new Date(ts)
-  return `${d.getMonth() + 1}月${d.getDate()}日`
-}
-
-watch(() => [props.show, props.questionId], async ([sh, id]) => {
-  if (!sh || !id) return
-  revealed.value = false
-  reasonOpen.value = false
-  try {
-    const r = await tiku.getQuestionInfo(id)
-    if (r && r.ok) info.value = r
-  } catch (e) { /* 查询失败保持空态，不中断弹层 */ }
-})
-
-function startPractice() {
-  emit('start', { categoryId: info.value.question.categoryId, mode: 'practice' })
-}
-
-async function toggleFav() {
-  const r = await tiku.toggleFavorite(info.value.question.id, '')
-  if (r) info.value.status.favorited = !!r.favorited
-}
-
-async function toCard() {
-  if (cardBusy.value) return
-  // 打开补充表单：内部先查重（同内容已有关联 → 提示；无 → 补充音标/释义/音频后新建）
-  cardLang.value = detectSubjectLang(subjectName.value) || ''
-  cardSupplement.value = true
-}
-function onCardCreated() {
-  info.value.status.hasCard = true
-}
+// ===== 转记忆卡功能已移除 =====
 
 async function markReason(r) {
   await tiku.setWrongReason(info.value.question.id, r)

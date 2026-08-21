@@ -33,7 +33,7 @@ function fmtTime(ms) {
 }
 
 async function restore(b) {
-  const ok = await showConfirm(`用 ${fmtTime(b.mtime)} 的备份恢复？\n将覆盖当前全部本地数据（含知识库），应用会自动重启。`, { title: '恢复备份', danger: true })
+  const ok = await showConfirm(`用 ${fmtTime(b.mtime)} 的备份恢复？\n将覆盖当前全部本地数据，应用会自动重启。`, { title: '恢复备份', danger: true })
   if (!ok) return
   restoring.value = true
   try {

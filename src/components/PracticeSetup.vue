@@ -132,6 +132,20 @@ async function confirm() {
   finally { confirming.value = false }
   emit('confirm', cfg)
 }
+function quickStart() {
+  emit('confirm', {
+    categoryId: null,
+    categoryIds: null,
+    subjectId: props.preset.subjectId,
+    mode: 'practice',
+    order: 'random',
+    limit: 10,
+    durationMin: null,
+    recite: false,
+    tags: null,
+    year: props.preset.year || null
+  })
+}
 </script>
 
 <template>
@@ -142,6 +156,12 @@ async function confirm() {
           <span class="close" @click="emit('cancel')">×</span>
           <span class="title">练习设置</span>
           <span class="scope">{{ scopeLabel }}</span>
+        </div>
+        <!-- 快速开始：一键跳过配置 -->
+        <div class="quick-start-bar" @click="quickStart()">
+          <span class="qs-icon">⚡</span>
+          <span class="qs-text">快速开始 · 10 题随机</span>
+          <span class="qs-go">开始 ›</span>
         </div>
 
         <!-- 可滚动内容区：header/footer 固定，内容超高时滚动（修复显示不全无法滑动） -->
@@ -334,6 +354,17 @@ async function confirm() {
 .header .close { font-size: 24px; color: var(--muted, #7c8aa5); cursor: pointer; width: 32px; }
 .header .title { font-size: 17px; font-weight: 600; }
 .header .scope { font-size: 12px; color: var(--brand, #5b7cfa); background: var(--brand-light, color-mix(in srgb, var(--brand) 12%, transparent)); border: 1px solid var(--line, #1d2740); border-radius: 20px; padding: 3px 10px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quick-start-bar {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  margin: 8px 0 12px; border-radius: 10px; cursor: pointer;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 14%, transparent), color-mix(in srgb, var(--brand2) 8%, transparent));
+  border: 1px solid color-mix(in srgb, var(--brand) 30%, transparent);
+  transition: all .2s;
+}
+.quick-start-bar:hover { border-color: var(--brand); box-shadow: var(--glow); }
+.qs-icon { font-size: 20px; }
+.qs-text { flex: 1; font-size: 14px; font-weight: 600; color: var(--text); }
+.qs-go { font-size: 13px; color: var(--brand); font-weight: 600; }
 
 .section { padding: 14px 18px; border-bottom: 1px solid var(--line, #1d2740); }
 .sec-title { font-size: 13px; color: var(--muted, #7c8aa5); margin-bottom: 10px; }

@@ -37,11 +37,18 @@ function getBridge() {
 function deepSafe(v) {
   if (v === null || v === undefined) return v
   if (typeof v !== 'object') return v
-  if (v instanceof ArrayBuffer || ArrayBuffer.isView(v)) return v // 二进制透传（IPC/桥原生支持）
-  if (Array.isArray(v)) return v.map(deepSafe)
-  const out = {}
-  for (const k of Object.keys(v)) out[k] = deepSafe(v[k])
-  return out
+  if (v instanceof ArrayBuffer || ArrayBuffer.isView(v)) return v
+  // 处理 Vue ref（解包 value）
+  if (v.__v_isRef) return deepSafe(v.value)
+  // 处理 Vue reactive（尝试 JSON 序列化剥 Proxy，失败则手动拷贝）
+  try { return JSON.parse(JSON.stringify(v)) } catch (e) {
+    if (Array.isArray(v)) return v.map(deepSafe)
+    const out = {}
+    for (const k of Object.keys(v)) {
+      try { out[k] = deepSafe(v[k]) } catch (e) { out[k] = null }
+    }
+    return out
+  }
 }
 
 // 统一调用：取方法 → 剥 Proxy → 调用 → 统一错误日志

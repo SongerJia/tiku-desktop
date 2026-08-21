@@ -30,7 +30,7 @@ const subjectId = ref('')
 const categoryId = ref('')
 const keyword = ref('')
 const page = ref(1)
-const pageSize = 10
+const pageSize = ref(10)
 const list = ref({ total: 0, items: [] })
 const loading = ref(false)
 let noteHintTimer = null
@@ -40,8 +40,21 @@ const showImport = ref(false)
 const showEditor = ref(false)
 const editing = ref(null)
 const confirmId = ref(null)
+const batchDropdownOpen = ref(false)
 
-const totalPages = computed(() => Math.max(1, Math.ceil(list.value.total / pageSize)))
+const totalPages = computed(() => Math.max(1, Math.ceil(list.value.total / pageSize.value)))
+// 前端统计：从已加载列表计算，跟随筛选实时变化（总题量用 list.value.total 确保准确）
+const localStats = computed(() => {
+  const items = list.value.items || []
+  const byType = {}
+  for (const q of items) {
+    byType[q.type] = (byType[q.type] || 0) + 1
+  }
+  return {
+    total: list.value.total || 0,
+    byType: Object.entries(byType).map(([type, n]) => ({ type, n }))
+  }
+})
 const chapters = computed(() => {
   const s = categories.value.find(c => String(c.id) === String(subjectId.value))
   return s ? (s.children || []) : []
@@ -57,9 +70,22 @@ const currentCategoryName = computed(() => {
   const c = s ? (s.children || []).find(x => String(x.id) === String(categoryId.value)) : null
   return c ? c.name : ''
 })
+// 科目名映射：id → name（用于题目列表显示「科目-章节」）
+const subjectNameMap = computed(() => {
+  const m = {}
+  for (const c of categories.value) m[c.id] = c.name
+  return m
+})
 
 async function loadMeta() {
-  const [cats, st, tags] = await Promise.all([tiku.getCategories(), tiku.getBankStats(), tiku.listTags().catch(() => [])])
+  const [cats, st, tags] = await Promise.all([
+    tiku.getCategories(),
+    tiku.getBankStats({
+      subjectId: subjectId.value ? Number(subjectId.value) : null,
+      categoryId: categoryId.value ? Number(categoryId.value) : null
+    }),
+    tiku.listTags().catch(() => [])
+  ])
   categories.value = cats
   stats.value = st
   allTags.value = (tags || []).map(t => t.tag)
@@ -75,7 +101,7 @@ async function loadList() {
       categoryId: categoryId.value ? Number(categoryId.value) : null,
       keyword: keyword.value.trim(),
       page: page.value,
-      pageSize,
+      pageSize: pageSize.value,
       tags: tagFilter.value.length ? tagFilter.value : null
     })
     if (seq === listSeq) list.value = res
@@ -142,11 +168,13 @@ watch(() => props.show, async (v) => {
     else categoryId.value = ''
   }
 })
-onMounted(() => { if (props.show) refreshAll() })
+onMounted(() => { if (props.show) refreshAll(); document.addEventListener('click', onDocClick) })
+onUnmounted(() => { document.removeEventListener('click', onDocClick) })
+function onDocClick(e) { batchDropdownOpen.value = false }
 
 // 切科目要清掉章节筛选，否则会出现"科目A + 科目B的章节"这种空结果
-watch(subjectId, () => { categoryId.value = ''; page.value = 1; loadList() })
-watch(categoryId, () => { page.value = 1; loadList() })
+watch(subjectId, () => { categoryId.value = ''; page.value = 1; loadList(); loadMeta() })
+watch(categoryId, () => { page.value = 1; loadList(); loadMeta() })
 
 watch(keyword, () => {
   clearTimeout(searchTimer)
@@ -164,6 +192,21 @@ function goPage(p) {
   page.value = p
   loadList()
 }
+const pageNumbers = computed(() => {
+  const total = totalPages.value
+  const cur = page.value
+  const pages = []
+  if (total <= 7) {
+    for (let i = 1; i <= total; i++) pages.push(i)
+  } else {
+    pages.push(1)
+    if (cur > 3) pages.push('…')
+    for (let i = Math.max(2, cur - 1); i <= Math.min(total - 1, cur + 1); i++) pages.push(i)
+    if (cur < total - 2) pages.push('…')
+    pages.push(total)
+  }
+  return pages
+})
 
 function openNew() {
   editing.value = null
@@ -228,6 +271,15 @@ function answerText(q) {
 function keywordText(q) {
   return (q.keywords && q.keywords.length) ? '采分点：' + q.keywords.join('；') : ''
 }
+// 题目位置标签：科目 · 章节
+function qPosLabel(q) {
+  const subjName = q.subject_id ? subjectNameMap.value[Number(q.subject_id)] : ''
+  const catName = q.category_name || ''
+  if (subjName && catName) return subjName + ' · ' + catName
+  if (subjName) return subjName
+  if (catName) return catName
+  return '未分类'
+}
 
 // ---- 标签系统 ----
 const allTags = ref([])
@@ -287,6 +339,7 @@ function toggleBatch() {
 function startBatch(action) {
   batchAction.value = action
   batchMode.value = true
+  batchDropdownOpen.value = false
   if (!selectedIds.value.size) selectedIds.value = new Set()
 }
 function toggleSelect(q) {
@@ -337,15 +390,20 @@ async function batchDelete() {
         <div class="bm-header">
           <span class="close" @click="emit('close')">×</span>
           <span class="title">题库管理</span>
-          <span class="count">{{ stats.total }} 题</span>
+          <span v-if="currentSubjectName" class="header-filter-hint">
+            <span class="hf-subject">{{ currentSubjectName }}</span>
+            <span v-if="currentCategoryName" class="hf-arrow">›</span>
+            <span v-if="currentCategoryName" class="hf-category">{{ currentCategoryName }}</span>
+          </span>
+          <span class="count">{{ localStats.total }} 题</span>
         </div>
 
         <div class="bm-body">
           <!-- 概览 -->
           <div class="stat-row">
-            <div class="stat"><b style="animation-delay: 0s">{{ stats.total }}</b><span>总题量</span></div>
+            <div class="stat"><b style="animation-delay: 0s">{{ localStats.total }}</b><span>总题量</span></div>
             <div
-              v-for="(t, ti) in stats.byType"
+              v-for="(t, ti) in localStats.byType"
               :key="t.type"
               class="stat"
             ><b :style="{ animationDelay: (0.06 + ti * 0.06) + 's' }">{{ t.n }}</b><span>{{ TYPE_LABEL[t.type] || t.type }}</span></div>
@@ -356,10 +414,17 @@ async function batchDelete() {
             <button class="btn btn-primary sm" @click="showImport = true">批量导入</button>
             <button class="btn btn-outline sm" @click="openNew">新增题目</button>
             <button class="btn btn-outline sm" @click="exportExcel">导出 Excel</button>
-            <button class="btn btn-outline sm" :class="{ on: batchMode && batchAction === 'move' }" @click="batchMode ? toggleBatch() : startBatch('move')">批量移动</button>
-            <button class="btn btn-outline sm" :class="{ on: batchMode && batchAction === 'tag' }" @click="batchMode ? toggleBatch() : startBatch('tag')">批量加标签</button>
-            <button class="btn btn-outline sm" :class="{ on: batchMode && batchAction === 'diff' }" @click="batchMode ? toggleBatch() : startBatch('diff')">批量难度</button>
-            <button class="btn btn-outline sm" :class="{ on: batchMode && batchAction === 'delete' }" @click="batchMode ? toggleBatch() : startBatch('delete')">批量删除</button>
+            <div class="tb-dropdown">
+              <button class="btn btn-outline sm" :class="{ on: batchMode }" @click="batchMode ? toggleBatch() : startBatch('move')">
+                批量操作 ▾
+              </button>
+              <div v-if="batchDropdownOpen" class="tb-dropdown-menu">
+                <button @click="startBatch('move')">批量移动</button>
+                <button @click="startBatch('tag')">批量加标签</button>
+                <button @click="startBatch('diff')">批量难度</button>
+                <button @click="startBatch('delete')">批量删除</button>
+              </div>
+            </div>
           </div>
 
           <!-- 批量操作条：点击按钮后在此处滑出，不占底部 -->
@@ -409,11 +474,12 @@ async function batchDelete() {
               <option v-for="c in chapters" :key="c.id" :value="c.id">{{ c.name }}</option>
             </select>
             <input v-model="keyword" class="input" placeholder="搜索题干关键词…" />
+            <button v-if="subjectId || categoryId || keyword || tagFilter.length" class="clear-filters" @click="keyword = ''; subjectId = ''; categoryId = ''; tagFilter = []; page = 1; loadList(); loadMeta()">清空</button>
           </div>
 
-          <!-- 标签筛选 -->
+          <!-- 标签筛选（折叠在筛选行内，紧凑显示） -->
           <div v-if="allTags.length" class="tag-filter">
-            <span class="tf-label">标签：</span>
+            <span class="tf-label">🏷</span>
             <button
               v-for="t in allTags"
               :key="t"
@@ -421,7 +487,7 @@ async function batchDelete() {
               :class="{ on: tagFilter.includes(t) }"
               @click="toggleTagFilter(t)"
             >#{{ t }}</button>
-            <button v-if="tagFilter.length" class="tag-clear" @click="tagFilter = []; loadList()">清空筛选</button>
+            <button v-if="tagFilter.length" class="tag-clear" @click="tagFilter = []; loadList()">✕ 清除</button>
           </div>
 
           <!-- 列表 -->
@@ -433,41 +499,30 @@ async function batchDelete() {
               <label v-if="batchMode" class="q-check">
                 <input type="checkbox" :checked="selectedIds.has(q.id)" @change="toggleSelect(q)" />
               </label>
-              <div class="q-top">
-                <span class="q-type">{{ TYPE_LABEL[q.type] || q.type }}</span>
-                <span class="q-cat">{{ q.category_name ? '章节-' + q.category_name : '未分类' }}</span>
-                <span
-                  v-if="notedIds.has(q.id)"
-                  class="q-note"
-                  title="有笔记，点击查看/编辑"
-                  @click.stop="openNote(q)"
-                ><Icon name="note" :size="14"/></span>
-                <span
-                  v-if="q.images && q.images.length"
-                  class="q-img-badge"
-                  title="含题干配图"
-                >图</span>
-                <button v-if="!batchMode" class="mini tag-btn" @click="openTagEditor(q)"><Icon name="tag" :size="11"/> 标签</button>
-                <span v-if="!batchMode && q.tags && q.tags.length" class="q-tags">
-                  <span v-for="t in q.tags" :key="t" class="q-tag" @click="toggleTagFilter(t)">#{{ t }}</span>
-                </span>
+              <div class="q-head">
+                <span class="q-type" :class="'type-' + q.type">{{ TYPE_LABEL[q.type] || q.type }}</span>
+                <span class="q-cat">{{ qPosLabel(q) }}</span>
+                <span class="q-diff" v-if="q.difficulty">{{ '★'.repeat(Number(q.difficulty)) }}</span>
+                <span v-if="q.images && q.images.length" class="q-img-badge" title="含题干配图">🖼</span>
+                <span v-if="notedIds.has(q.id)" class="q-note-dot" title="有笔记">📝</span>
                 <span class="q-spacer"></span>
-                <button v-if="!batchMode" class="mini" @click="openEdit(q)">编辑</button>
-                <button
-                  v-if="!batchMode"
-                  class="mini danger"
-                  @click="confirmId = confirmId === q.id ? null : q.id"
-                >{{ confirmId === q.id ? '取消' : '删除' }}</button>
+                <div class="q-actions">
+                  <button class="qa-btn" title="编辑" @click="openEdit(q)">✎</button>
+                  <button class="qa-btn" title="标签" @click="openTagEditor(q)">🏷</button>
+                  <button class="qa-btn del" title="删除" @click="confirmId = confirmId === q.id ? null : q.id">{{ confirmId === q.id ? '取消' : '✕' }}</button>
+                </div>
               </div>
               <div class="q-stem">{{ q.stem }}</div>
-              <div class="q-bottom">
-                <span class="q-ans">答案 {{ answerText(q) }}</span>
-                <span class="q-diff">难度 {{ q.difficulty || 3 }}</span>
+              <div class="q-foot">
+                <span class="q-ans">答案：{{ answerText(q) }}</span>
                 <span v-if="q.source" class="q-src">{{ q.source }}</span>
+                <span v-if="q.tags && q.tags.length" class="q-tags">
+                  <span v-for="t in q.tags" :key="t" class="q-tag" @click.stop="toggleTagFilter(t)">#{{ t }}</span>
+                </span>
               </div>
               <div v-if="q.type === 'essay' && keywordText(q)" class="q-kw">{{ keywordText(q) }}</div>
               <div v-if="confirmId === q.id" class="confirm">
-                <span>确定删除这道题？答题记录会保留。</span>
+                <span>确定删除？答题记录会保留。</span>
                 <button class="mini danger solid" @click="doDelete(q.id)">确认删除</button>
               </div>
             </div>
@@ -475,9 +530,18 @@ async function batchDelete() {
 
           <!-- 分页 -->
           <div v-if="list.total > pageSize" class="pager">
-            <button class="mini" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
-            <span class="pg">{{ page }} / {{ totalPages }}</span>
-            <button class="mini" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页</button>
+            <button class="mini" :disabled="page <= 1" @click="goPage(page - 1)">‹ 上一页</button>
+            <template v-for="p in pageNumbers" :key="p">
+              <button v-if="p === '…'" class="mini pg-dot" disabled>…</button>
+              <button v-else class="mini" :class="{ active: p === page }" @click="goPage(p)">{{ p }}</button>
+            </template>
+            <button class="mini" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页 ›</button>
+            <select v-model.number="pageSize" class="pg-size" @change="page = 1; loadList()">
+              <option :value="10">10条/页</option>
+              <option :value="20">20条/页</option>
+              <option :value="50">50条/页</option>
+            </select>
+            <span class="pg-total">{{ list.total }} 题</span>
           </div>
         </div>
       </div>
@@ -598,29 +662,33 @@ async function batchDelete() {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 14px 16px;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
-.bm-header .title { flex: 1; font-size: 16px; font-weight: 700; color: var(--text); }
-.bm-header .close { font-size: 22px; color: var(--muted); cursor: pointer; line-height: 1; }
+.bm-header .title { flex: 1; font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: -.3px; }
+.bm-header .close { font-size: 22px; color: var(--muted); cursor: pointer; line-height: 1; transition: color .2s; }
 .bm-header .close:hover { color: var(--brand); }
-.bm-header .count { font-size: 12px; color: var(--brand); }
+.bm-header .count { font-size: 12px; color: var(--brand); font-weight: 600; background: color-mix(in srgb, var(--brand) 10%, transparent); padding: 2px 10px; border-radius: 12px; flex-shrink: 0; }
+.header-filter-hint { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); padding: 2px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-faint); flex-shrink: 0; }
+.hf-subject { color: var(--brand); font-weight: 500; }
+.hf-arrow { color: var(--muted); }
+.hf-category { color: var(--text); }
 
-.bm-body { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.bm-body { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; }
 
-.stat-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.stat-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .stat {
   flex: 1;
   min-width: 72px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 9px 6px;
+  border-radius: 10px;
+  padding: 10px 8px;
   text-align: center;
-  background: color-mix(in srgb, var(--brand) 4%, transparent);
-  transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--brand) 4%, transparent), transparent);
+  transition: all .2s;
 }
-.stat:hover { border-color: var(--brand); transform: translateY(-1px); box-shadow: var(--glow-soft); }
+.stat:hover { border-color: var(--brand); transform: translateY(-2px); box-shadow: 0 4px 16px color-mix(in srgb, var(--brand) 12%, transparent); }
 .stat b {
   display: block; font-size: 17px;
   background: var(--num-grad);
@@ -630,11 +698,26 @@ async function batchDelete() {
 }
 .stat span { font-size: 11px; color: var(--muted); }
 
-.toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
-.btn.sm { padding: 6px 14px; font-size: 12px; }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
+.tb-dropdown { position: relative; }
+.tb-dropdown-menu {
+  position: absolute; top: 100%; right: 0; z-index: 20; min-width: 150px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  padding: 4px; margin-top: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.3);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.tb-dropdown-menu button {
+  background: none; border: none; border-radius: 6px; padding: 8px 14px;
+  font-size: 13px; color: var(--text); cursor: pointer; text-align: left;
+  transition: background .1s;
+}
+.tb-dropdown-menu button:hover { background: color-mix(in srgb, var(--brand) 10%, transparent); color: var(--brand); }
+.btn.sm { padding: 6px 16px; font-size: 12px; }
 
-.filters { display: flex; gap: 8px; flex-wrap: wrap; }
-.filters .input { flex: 1; min-width: 120px; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
+.filters .input { flex: 1; min-width: 130px; }
+.clear-filters { background: none; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 11px; padding: 4px 10px; cursor: pointer; white-space: nowrap; transition: all .15s; }
+.clear-filters:hover { border-color: var(--bad); color: var(--bad); }
 .input {
   background: var(--input-solid-bg);
   border: 1px solid var(--line);
@@ -657,44 +740,44 @@ async function batchDelete() {
 .q-item {
   position: relative;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: 11px 12px;
-  background: color-mix(in srgb, var(--brand) 3%, transparent);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: var(--card);
+  transition: all .2s;
 }
+.q-item:hover { border-color: var(--brand); box-shadow: 0 4px 16px color-mix(in srgb, var(--brand) 10%, transparent); transform: translateY(-1px); }
 /* 批量模式才给复选框留位，平时不空 */
 .q-list.is-batch .q-item { padding-left: 44px; }
-.q-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.q-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .q-type {
-  font-size: 11px;
-  color: var(--brand);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 1px 6px;
+  font-size: 11px; font-weight: 600;
+  border-radius: 4px; padding: 1px 7px;
 }
+.q-type.type-single { background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand); }
+.q-type.type-multiple { background: color-mix(in srgb, #a78bfa 14%, transparent); color: #a78bfa; }
+.q-type.type-judge { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+.q-type.type-essay { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
 .q-cat { font-size: 11px; color: var(--muted); }
-.q-note {
-  font-size: 13px;
-  color: var(--warn-soft);
-  cursor: pointer;
-  padding: 1px 5px;
-  border: 1px solid rgba(255, 193, 84, 0.45);
-  border-radius: 4px;
-  background: rgba(255, 193, 84, 0.12);
-}
-.q-note:hover { background: rgba(255, 193, 84, 0.22); }
-.q-img-badge {
-  font-size: 11px;
-  color: var(--brand);
-  cursor: default;
-  padding: 1px 6px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--brand) 10%, transparent);
-}
+.q-diff { font-size: 11px; color: var(--warn); }
+.q-img-badge { font-size: 11px; cursor: default; }
+.q-note-dot { font-size: 12px; cursor: pointer; }
 .q-spacer { flex: 1; }
+.q-actions { display: flex; gap: 2px; opacity: 0; transition: opacity .15s; }
+.q-item:hover .q-actions { opacity: 1; }
+.qa-btn {
+  background: none; border: 1px solid transparent; border-radius: 6px;
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; cursor: pointer; color: var(--muted); transition: all .15s;
+}
+.qa-btn:hover { border-color: var(--line); background: var(--bg-faint); color: var(--text); }
+.qa-btn.del:hover { border-color: var(--bad); color: var(--bad); }
 .q-stem { font-size: 13px; color: var(--text); line-height: 1.65; }
-.q-bottom { display: flex; gap: 12px; margin-top: 7px; font-size: 11px; color: var(--muted); }
+.q-foot { display: flex; gap: 10px; margin-top: 8px; font-size: 11px; color: var(--muted); align-items: center; flex-wrap: wrap; }
 .q-ans { color: var(--ok); }
+.q-src { color: var(--muted); }
+.q-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.q-tag { cursor: pointer; color: var(--brand); }
+.q-tag:hover { text-decoration: underline; }
 .q-kw { font-size: 11px; color: var(--brand); margin-top: 5px; line-height: 1.6; opacity: 0.9; }
 
 .mini {
@@ -724,8 +807,11 @@ async function batchDelete() {
   color: var(--bad-soft);
 }
 
-.pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 6px 0 2px; }
-.pg { font-size: 12px; color: var(--muted); }
+.pager { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 0 4px; flex-wrap: wrap; }
+.pg-total { font-size: 11px; color: var(--muted); margin-left: 12px; }
+.pg-size { border: 1px solid var(--line); border-radius: 6px; background: var(--bg-faint); color: var(--text); font-size: 11px; padding: 4px 8px; margin-left: 8px; cursor: pointer; transition: border-color .15s; }
+.pg-size:hover { border-color: var(--brand); }
+.pg-dot { border: none !important; cursor: default !important; color: var(--muted) !important; }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.18s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
@@ -804,16 +890,17 @@ async function batchDelete() {
 }
 .note-save:hover { background: color-mix(in srgb, var(--brand) 12%, transparent); box-shadow: var(--glow-soft); }
 
-/* 标签筛选 */
-.tag-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-.tf-label { font-size: 12px; color: var(--muted); }
+/* 标签筛选（紧凑行内） */
+.tag-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 6px 0 2px; }
+.tf-label { font-size: 12px; color: var(--muted); margin-right: 2px; }
+.tag-clear { font-size: 10px; color: var(--muted); background: none; border: none; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+.tag-clear:hover { color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, transparent); }
 .tag-chip {
-  border: 1px solid var(--line); background: rgba(255,255,255,.03); color: var(--muted);
-  border-radius: 20px; padding: 3px 10px; font-size: 12px; cursor: pointer; transition: all .15s;
+  font-size: 11px; border: 1px solid var(--line); border-radius: 12px; padding: 2px 10px;
+  background: var(--bg-faint); color: var(--muted); cursor: pointer; transition: all .15s;
 }
-.tag-chip:hover { border-color: var(--brand); color: var(--brand); }
-.tag-chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
-.tag-clear { font-size: 11px; color: var(--muted); background: none; border: none; cursor: pointer; text-decoration: underline; }
+.tag-chip:hover { border-color: var(--brand); color: var(--text); }
+.tag-chip.on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); font-weight: 500; }
 
 /* 题目项标签（与「标签」按钮同一行显示） */
 .q-check { position: absolute; left: 12px; top: 14px; display: flex; align-items: center; }
@@ -847,7 +934,7 @@ async function batchDelete() {
 .tag-save:hover { background: var(--brand-light); box-shadow: var(--glow-soft); }
 
 /* 批量操作条：从按钮下方滑出，不再固定底部 */
-.batch-bar { background: var(--card-solid); border: 1px solid var(--brand); border-radius: var(--radius-sm); box-shadow: var(--glow-soft); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.batch-bar { background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 6%, transparent), transparent); border: 1px solid var(--brand); border-radius: 10px; box-shadow: 0 4px 16px color-mix(in srgb, var(--brand) 10%, transparent); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .batch-enter-active, .batch-leave-active { transition: opacity .18s ease, transform .18s ease, max-height .22s ease, margin .22s ease; overflow: hidden; }
 .batch-enter-from, .batch-leave-to { opacity: 0; transform: translateY(-6px); max-height: 0; margin-top: -12px; }
 .batch-enter-to, .batch-leave-from { opacity: 1; transform: translateY(0); max-height: 200px; }

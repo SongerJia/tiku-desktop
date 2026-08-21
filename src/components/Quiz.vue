@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import Icon from './Icon.vue'
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
@@ -6,8 +6,9 @@ import { tiku } from '../api/tiku.js'
 import { showConfirm } from '../utils/confirm.js'
 import { celebrate } from '../utils/celebrate.js'
 import { showToast } from '../utils/toast.js'
-import KbReader from './KbReader.vue'
 import { speakText } from '../utils/speech.js'
+import QuestionRenderer from './QuestionRenderer.vue'
+import PaperWriter from './PaperWriter.vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
 import { useFocusTrap } from '../composables/useFocusTrap.js'
 
@@ -31,7 +32,9 @@ const props = defineProps({
   daily: { default: false },
   wide: { default: false },
   // 断点续做：传 { questions, idx } 直接恢复练习
-  resume: { default: null }
+  resume: { default: null },
+  // 科目配置（控制题型显示、UI 偏好等）
+  subjectConfig: { default: () => ({}) }
 })
 const emit = defineEmits(['exit'])
 useBodyLock(() => true) // 答题页挂载即锁背景滚动（全屏 mask 覆盖），卸载自动释放
@@ -72,56 +75,12 @@ const isRecite = computed(() => !!props.recite && !isExam.value)  // 考试与�
 const q = computed(() => questions.value[idx.value] || null)
 const isMultiple = computed(() => q.value && q.value.type === 'multiple')
 const isEssay = computed(() => q.value && q.value.type === 'essay')
+const isPaper = computed(() => q.value && q.value.type === 'paper')
 const isDone = computed(() => idx.value >= questions.value.length)
+const selectedForConfirm = ref(false) // 已选答案但未确认（防手滑）
 // 交卷后的「逐题解析」：每题记录你的作答 vs 正确答案 + 解析，供复盘
 const reviews = ref([])
 const showReview = ref(false)
-
-// 逐题解析页的「相关文档」：已关联(kb_links) + L2 推荐(kbSuggestDocs)，按 qid 惰性加载
-const rDocs = ref({})
-const reader = ref({ show: false, doc: null })
-
-// 知识库双链跳转：在已加载的关联文档缓存（rDocs）中查找目标文档
-function onReaderOpenDoc(docId) {
-  const id = String(docId)
-  const pool = Object.values(rDocs.value).flatMap(v => [...(v.linked || []), ...(v.suggested || [])])
-  const d = pool.find(x => String(x.doc_id ?? x.id) === id)
-  if (d) reader.value = { show: true, doc: { id: d.doc_id ?? d.id, type: d.type || 'md', title: d.title } }
-}
-
-async function loadRDocs(qid) {
-  if (rDocs.value[qid]) return
-  const [linked, suggested] = await Promise.all([tiku.kbLinksForQuestion(qid), tiku.kbSuggestDocs(qid, 5)])
-  rDocs.value = { ...rDocs.value, [qid]: { linked, suggested } }
-}
-
-function openReader(qid, d) {
-  reader.value = { show: true, doc: { id: d.doc_id ?? d.id, type: d.type, title: d.title } }
-}
-
-async function linkDoc(qid, d) {
-  await tiku.kbLink({ docId: d.id, questionId: qid })
-  const cur = rDocs.value[qid]
-  rDocs.value = {
-    ...rDocs.value,
-    [qid]: {
-      linked: [...cur.linked, { doc_id: d.id, type: d.type, title: d.title, note: '' }],
-      suggested: cur.suggested.filter(x => x.id !== d.id)
-    }
-  }
-}
-
-async function unlinkDoc(qid, d) {
-  await tiku.kbUnlink(d.doc_id, qid)
-  const cur = rDocs.value[qid]
-  rDocs.value = {
-    ...rDocs.value,
-    [qid]: {
-      linked: cur.linked.filter(x => x.doc_id !== d.doc_id),
-      suggested: cur.suggested
-    }
-  }
-}
 
 // 背题模式下直接从题目本身取答案，不经过 submitAnswer（那会写记录）
 const reciteAnswer = computed(() => (q.value && q.value.answer) || [])
@@ -291,6 +250,7 @@ function select(key) {
     else selected.value.push(key)
   } else {
     selected.value = [key]
+    selectedForConfirm.value = true // 单选选完进入确认态
   }
 }
 
@@ -450,7 +410,21 @@ const examRecorded = ref(false)
 const resultMeta = ref(null)
 const reasonPick = ref('')
 const reasonBusy = ref(false)
-const cardBatching = ref(false)
+// ===== 转记忆卡功能已移除 =====
+function startAnother() {
+  // 再来一组：重新开始练习（随机 10 题）
+  idx.value = 0; questions.value = []; results.value = []; reviews.value = []
+  sessionCorrect.value = 0; sessionStart.value = Date.now(); sessionEnd.value = 0
+  result.value = null; selected.value = []; showReview.value = false
+  mode.value = 'practice'; order.value = 'random'; isRecite.value = false
+  loadQuestions({ mode: 'practice', order: 'random', limit: 10, subjectId: props.subjectId, categoryId: props.categoryId, tags: props.tags, year: props.year })
+}
+
+function onPaperSubmit(paperData) {
+  // 论文提交：标记为已作答，进入下一题
+  result.value = { correct: true, answer: [], analysis: '论文已提交' }
+  results.value[idx.value] = { isCorrect: true, paperData }
+}
 const donePct = computed(() => questions.value.length ? Math.round(sessionCorrect.value / questions.value.length * 100) : 0)
 const doneXp = computed(() => sessionCorrect.value * 10 + wrongs.value.length * 2)
 watch(isDone, async (v) => {
@@ -484,23 +458,7 @@ async function pickReason(reason) {
   } catch (e) { showToast('记录失败：' + (e.message || e), 'err') }
   finally { reasonBusy.value = false }
 }
-// 本场错题一键转记忆卡（addCardFromQuestion 内部按 source_question_id 去重）
-async function batchToCards() {
-  if (cardBatching.value || !wrongs.value.length) return
-  cardBatching.value = true
-  try {
-    let created = 0, dup = 0
-    for (const w of wrongs.value) {
-      if (!w.qid) continue
-      const r = await tiku.addCardFromQuestion(w.qid)
-      if (r && r.ok) { if (r.duplicate) dup++; else created++ }
-    }
-    if (created) showToast(`已生成 ${created} 张记忆卡${dup ? `，${dup} 张已存在` : ''}，可在「记忆卡」复习`, 'ok')
-    else if (dup) showToast(`这 ${dup} 道题已有记忆卡，未重复生成`, 'ok')
-    else showToast('生成失败，请重试', 'err')
-  } catch (e) { showToast('生成失败：' + (e.message || e), 'err') }
-  finally { cardBatching.value = false }
-}
+// ===== 转记忆卡功能已移除 =====
 
 // 考试模式：手动提前交卷（带确认，当前题未提交会先提交再结束）
 async function manualFinish() {
@@ -640,20 +598,11 @@ async function toggleFav() {
   favSet.value = new Set(favSet.value)
 }
 
-function optionClass(key) {
-  // 背题模式：直接把正确项标绿，不存在“选错”状态
-  if (isRecite.value) return { right: reciteAnswer.value.includes(key) }
-  if (!result.value) return { sel: selected.value.includes(key) }
-  const correct = result.value.answer.includes(key)
-  const chosen = selected.value.includes(key)
-  if (correct) return { right: true }
-  if (chosen && !correct) return { wrong: true }
-  return {}
-}
+// ===== 旧 optionClass 已迁移至 QuestionRenderer 组件 =====
 </script>
 
 <template>
-  <div :class="wide ? 'quiz-mask' : 'quiz'">
+<div :class="wide ? 'quiz-mask' : 'quiz'">
    <div :class="wide ? 'quiz-modal' : ''">
     <div class="bar">
       <button class="back" @click="onExit">← 返回</button>
@@ -663,11 +612,13 @@ function optionClass(key) {
         <span v-if="isRecite" class="recite-tag">背题</span>
       </span>
       <span v-if="isExam && !isDone" class="timer" :class="{ warn: timeLeft <= 60 }"><Icon name="clock" :size="14"/> {{ timeText }}</span>
-      <span v-if="!loading && !isDone && !isRecite" class="kb-hint" style="font-size:11px;color:var(--muted);margin-left:auto;opacity:.7">⌨ 1-9 选 · Enter 提交/下一题 · F 收藏</span>
+      <span v-if="!loading && !isDone" class="kb-hint">⌨ 1-9 选 · Enter 提交/下一题 · F 收藏</span>
       <button v-if="isExam && !isDone" class="fav submit-exam" @click="manualFinish">交卷</button>
-      <button class="fav" :class="{ on: q && favSet.has(q.id) }" @click="toggleFav" :disabled="!q"><Icon name="star" :size="14"/> 收藏</button>
-      <button class="fav note-btn" :class="{ on: hasNote }" @click="noteOpen = !noteOpen" :disabled="!q"><Icon name="note" :size="14"/> 笔记</button>
       <button v-if="!isRecite && !isDone" class="fav" :class="{ on: showCard }" @click="showCard = !showCard" :disabled="!q"><Icon name="grid" :size="14"/> 答题卡</button>
+    </div>
+    <!-- 进度条 -->
+    <div v-if="!loading && !isDone" class="progress-bar">
+      <div class="pb-fill" :style="{ width: ((idx + 1) / questions.length * 100) + '%' }"></div>
     </div>
 
     <SkeletonCards v-if="loading" :count="2" />
@@ -689,27 +640,8 @@ function optionClass(key) {
           </div>
           <div class="rv-row"><span class="rv-k">你的答案</span><span class="rv-v">{{ r.type === 'essay' ? (r.your || '（未作答）') : optText(r.options, r.your) }}</span></div>
           <div class="rv-row"><span class="rv-k">正确答案</span><span class="rv-v ans">{{ r.type === 'essay' ? ((r.answer && r.answer.length) ? r.answer.join('；') : '（主观题·自评）') : optText(r.options, r.answer) }}</span></div>
-          <div v-if="r.analysis" class="rv-analysis"><b>解析：</b>{{ r.analysis }}</div>
-          <div class="rv-docs">
-            <div class="rv-docs-head">
-              <span class="rv-docs-t">相关文档</span>
-              <button v-if="!rDocs[r.qid]" class="rv-docs-btn" @click="loadRDocs(r.qid)">查看</button>
-            </div>
-            <template v-if="rDocs[r.qid]">
-              <div v-if="!rDocs[r.qid].linked.length && !rDocs[r.qid].suggested.length" class="rv-docs-empty">暂无关联文档，可在知识库阅读页手动关联</div>
-              <div v-for="d in rDocs[r.qid].linked" :key="'l' + d.doc_id" class="rv-doc">
-                <span class="rv-doc-badge" :class="d.type">{{ d.type === 'pdf' ? 'PDF' : 'MD' }}</span>
-                <span class="rv-doc-t" @click="openReader(r.qid, d)">{{ d.title }}</span>
-                <button class="rv-doc-act" @click="unlinkDoc(r.qid, d)">解除</button>
-              </div>
-              <div v-for="d in rDocs[r.qid].suggested" :key="'s' + d.id" class="rv-doc sug">
-                <span class="rv-doc-badge" :class="d.type">{{ d.type === 'pdf' ? 'PDF' : 'MD' }}</span>
-                <span class="rv-doc-t" @click="openReader(r.qid, d)">{{ d.title }}</span>
-                <span class="rv-doc-reason">{{ d.reason }}</span>
-                <button class="rv-doc-act" @click="linkDoc(r.qid, d)">关联</button>
-              </div>
-            </template>
-          </div>
+<div v-if="r.analysis" class="rv-analysis"><b>解析：</b>{{ r.analysis }}</div>
+          <div class="rv-docs-empty">暂无关联资料</div>
         </div>
       </div>
       <button class="rv-done" @click="onExit">回到首页</button>
@@ -723,15 +655,11 @@ function optionClass(key) {
         <!-- 结果主卡：正确率 + 对比 + 四格 -->
         <div class="result-hero">
           <div class="rh-sub">{{ props.paperId ? '模拟卷完成' : '本场练习完成' }} · 共 {{ questions.length }} 题</div>
-          <div v-if="props.paperId" class="rh-score">
-            <b class="score">{{ Math.round(earnedScore * 10) / 10 }}</b><span class="rh-score-total"> / {{ paperScore }} 分</span>
+          <div class="rh-pct">{{ donePct }}<small>%</small></div>
+          <div class="rh-delta" :class="{ down: resultMeta?.weekDelta < 0 }">
+            {{ resultMeta ? (resultMeta.weekDelta >= 0 ? '比上周平均 +' + resultMeta.weekDelta + '%' : '比上周平均 ' + resultMeta.weekDelta + '%') : '用时 ' + fmtDuration(sessionEnd.value - sessionStart.value) }}
+            <span v-if="resultMeta" class="rh-delta-sub"> · 连续 {{ resultMeta.streak }} 天</span>
           </div>
-          <div v-else class="rh-pct">{{ donePct }}<small>%</small></div>
-          <div v-if="!props.paperId && resultMeta" class="rh-delta" :class="{ down: resultMeta.weekDelta < 0 }">
-            {{ resultMeta.weekDelta >= 0 ? '比上周平均 +' + resultMeta.weekDelta + '%' : '比上周平均 ' + resultMeta.weekDelta + '%' }}
-            <span class="rh-delta-sub"> · 连续 {{ resultMeta.streak }} 天</span>
-          </div>
-          <div v-else-if="!props.paperId" class="rh-delta">用时 {{ fmtDuration(sessionEnd.value - sessionStart.value) }}</div>
           <div class="rh-grid">
             <div class="rh-item"><b>{{ sessionCorrect }}</b><span>答对</span></div>
             <div class="rh-item"><b :class="{ warn: wrongs.length }">{{ wrongs.length }}</b><span>待复习</span></div>
@@ -740,28 +668,30 @@ function optionClass(key) {
           </div>
         </div>
 
-        <!-- 错题区：排期提示 + 错因选择 + 行动 -->
+        <!-- 错题区 -->
         <div v-if="wrongs.length && !props.paperId" class="done-wrongs">
-          <div class="dw-title">{{ wrongs.length }} 道错题已排入复习队列，明天再见</div>
+          <div class="dw-title">{{ wrongs.length }} 道错题已排入复习队列</div>
           <div v-for="w in wrongs.slice(0, 5)" :key="w.qid" class="dw-item">
             <span class="dw-badge">{{ typeLabel(w.type) }}</span>
             <span class="dw-stem">{{ w.stem }}</span>
           </div>
           <div class="dw-reason">
-            <div class="dw-reason-q">刚才的错题，主要因为？</div>
+            <div class="dw-reason-q">主要错因？</div>
             <div class="dw-reason-opts">
               <button v-for="r in ['粗心', '知识点不懂', '时间不够']" :key="r" class="reason-opt" :class="{ on: reasonPick === r }" :disabled="reasonBusy" @click="pickReason(r)">{{ r }}</button>
             </div>
-            <div class="dw-reason-hint">选择后用于「错因分析」：定位你最容易丢分的习惯</div>
           </div>
           <div class="dw-actions">
             <button class="btn-review" @click="redoWrongs">重做这 {{ wrongs.length }} 道错题</button>
-            <button class="btn-review ghost" :disabled="cardBatching" @click="batchToCards">{{ cardBatching ? '生成中…' : wrongs.length + ' 题转记忆卡' }}</button>
           </div>
         </div>
 
-        <button v-if="reviews.length" class="btn-review" @click="showReview = true">查看逐题解析</button>
-        <button class="back-home" @click="onExit">返回首页</button>
+        <div class="done-actions">
+          <button class="btn-review primary" @click="showReview = true">查看逐题解析</button>
+          <button class="btn-review" @click="redoWrongs" v-if="wrongs.length">重做错题</button>
+          <button class="btn-review" @click="onExit">返回首页</button>
+          <button class="btn-review ghost" @click="startAnother" style="margin-left:auto">再来一组 ›</button>
+        </div>
       </template>
     </div>
 
@@ -804,22 +734,27 @@ function optionClass(key) {
         </label>
       </div>
 
-      <!-- 选择题 / 判断题：选项作答 -->
-      <div v-if="!isEssay" class="options">
-        <div
-          v-for="opt in q.options"
-          :key="opt.key"
-          class="option"
-          :class="optionClass(opt.key)"
-          @click="select(opt.key)"
-        >
-          <span class="key">{{ opt.key }}</span>
-          <span class="text">{{ opt.text }}</span>
-          <span v-if="optionClass(opt.key).sel" class="mark sel"><Icon name="check" :size="14"/></span>
-          <span v-else-if="optionClass(opt.key).right" class="mark right"><Icon name="check" :size="14"/></span>
-          <span v-else-if="optionClass(opt.key).wrong" class="mark wrong"><Icon name="x" :size="14"/></span>
-        </div>
-      </div>
+      <!-- 论文模式 -->
+      <PaperWriter
+        v-if="q && q.type === 'paper'"
+        :question="q"
+        :submitted="!!result"
+        :duration-min="props.durationMin || 120"
+        @submit="onPaperSubmit"
+      />
+
+      <!-- 题型渲染：根据 question.type 和 subjectConfig 自动选择对应组件 -->
+      <QuestionRenderer
+        v-else-if="q && !isEssay"
+        :question="q"
+        :selected="selected"
+        :submitted="!!result"
+        :correct="result?.correct"
+        :answer="q.answer"
+        :config="subjectConfig"
+        :mode="props.mode"
+        @select="select($event[0])"
+      />
 
       <!-- 问答题：文本作答 + 采分点对照（背题模式不作答，见下方背题面板） -->
       <div v-else-if="!isRecite" class="essay">
@@ -886,10 +821,19 @@ function optionClass(key) {
       <!-- 选择题：提交 + 结果 -->
       <template v-if="!isEssay && !isRecite">
         <div v-if="!result" class="actions">
-          <button class="submit" :disabled="!selected.length" @click="submit">提交答案</button>
+          <button v-if="!isMultiple && selectedForConfirm" class="submit confirm" @click="submit">✓ 确认答案</button>
+          <button v-else class="submit" :disabled="!selected.length" @click="submit">提交答案</button>
+          <button v-if="!isMultiple && selectedForConfirm" class="undo" @click="selectedForConfirm = false; selected = []">撤销</button>
         </div>
 
-        <div v-else class="result">
+        <div v-else-if="result" class="result result-banner">
+          <div class="rb-icon" :class="result.isCorrect ? 'ok' : 'no'">{{ result.isCorrect ? '✓' : '✗' }}</div>
+          <div class="rb-text">
+            <span class="rb-title" :class="result.isCorrect ? 'ok' : 'no'">{{ result.isCorrect ? '回答正确' : '回答错误' }}</span>
+            <span class="rb-ans">正确答案：{{ result.answer.join('、') }}</span>
+          </div>
+        </div>
+        <div v-else-if="result" class="result">
           <div :class="result.isCorrect ? 'ok' : 'no'">
             {{ result.isCorrect ? '回答正确' : '回答错误' }}
             <span class="ans">正确答案：{{ result.answer.join('、') }}</span>
@@ -973,8 +917,6 @@ function optionClass(key) {
         </div>
       </div>
     </div>
-
-    <KbReader :show="reader.show" :doc="reader.doc" @close="reader.show = false" @open-doc="onReaderOpenDoc" />
 </template>
 
 <style scoped>
@@ -1011,14 +953,17 @@ function optionClass(key) {
   border-radius: 16px;
   box-shadow: var(--shadow), var(--glow-soft);
   overflow-y: auto;
-  padding: 18px 20px;
+  padding: 20px 24px;
 }
-.bar { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
+.bar { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; flex-wrap: wrap; }
+.kb-hint { font-size: 11px; color: var(--muted); margin-left: auto; opacity: .6; letter-spacing: .2px; padding: 2px 8px; background: var(--bg-faint); border-radius: 6px; }
+.progress-bar { height: 3px; background: var(--line); border-radius: 2px; margin-bottom: 16px; overflow: hidden; }
+.pb-fill { height: 100%; background: var(--brand); border-radius: 2px; transition: width .3s ease; }
 .back, .fav {
   border: 1px solid var(--line);
   background: var(--bg-faint);
   color: var(--text);
-  padding: 6px 12px;
+  padding: 6px 14px;
   border-radius: 8px;
   font-size: 13px;
   cursor: pointer;
@@ -1060,7 +1005,7 @@ function optionClass(key) {
 
 .meta { margin-bottom: 14px; }
 .tag { display: inline-block; background: var(--brand-light); color: var(--brand); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; font-size: 12px; margin-right: 8px; }
-.stem { font-size: 15px; font-weight: 500; line-height: 1.5; }
+.stem { font-size: 16px; font-weight: 500; line-height: 1.6; margin-bottom: 16px; padding: 0 4px; }
 
 .q-images { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
 .q-audio { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; flex-wrap: wrap; }
@@ -1087,53 +1032,7 @@ function optionClass(key) {
 .mc-toggle { font-size: 11px; color: var(--muted); flex-shrink: 0; }
 .mc-body { padding: 4px 14px 12px; font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto; }
 
-.options { display: flex; flex-direction: column; gap: 8px; }
-.option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 11px 13px;
-  cursor: pointer;
-  color: var(--text);
-  background: var(--bg-faint);
-  position: relative;
-  transition: border-color .15s, background .15s, transform .12s, box-shadow .15s;
-}
-.option:hover { border-color: var(--brand); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); }
-.option:active { transform: scale(0.99); }
-.option .key {
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
-  border: 1px solid var(--line);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  flex-shrink: 0;
-  transition: all .15s;
-}
-.option.sel { background: var(--brand-light); border-color: var(--brand); }
-.option.sel .key { background: var(--brand); border-color: var(--brand); color: #fff; }
-.option.sel .text { color: var(--brand); font-weight: 500; }
-.option.right { background: rgba(47, 191, 143, 0.12); border-color: var(--ok); }
-.option.right .key { border-color: var(--ok); color: var(--ok); }
-.option.wrong { background: rgba(229, 83, 95, 0.12); border-color: var(--bad); }
-.option.wrong .key { border-color: var(--bad); color: var(--bad); }
-.option .mark {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.option .mark.sel { color: var(--brand); }
-.option .mark.right { color: var(--ok); }
-.option .mark.wrong { color: var(--bad); }
+/* 选项渲染已迁移至 QuestionRenderer 组件 */
 .key { font-weight: 600; width: 22px; text-align: center; color: var(--brand); }
 .text { line-height: 1.5; }
 
@@ -1247,6 +1146,10 @@ function optionClass(key) {
   cursor: pointer;
   transition: all .2s;
 }
+.submit.confirm { background: var(--ok); border-color: var(--ok); color: #fff; font-size: 15px; padding: 10px 28px; }
+.submit.confirm:hover { filter: brightness(1.1); }
+.undo { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 10px; padding: 8px 18px; font-size: 13px; cursor: pointer; transition: all .15s; }
+.undo:hover { border-color: var(--bad); color: var(--bad); }
 .submit, .next {
   width: 100%;
   background: var(--brand);
@@ -1261,12 +1164,22 @@ function optionClass(key) {
 .grade-no:hover { box-shadow: 0 0 16px rgba(255, 77, 109, 0.4); }
 
 .result { margin-top: 14px; }
+.result-banner { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 14px; background: color-mix(in srgb, var(--line) 30%, transparent); }
+.result-banner .rb-icon { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; flex-shrink: 0; }
+.result-banner .rb-icon.ok { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+.result-banner .rb-icon.no { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
+.result-banner .rb-text { display: flex; flex-direction: column; gap: 2px; }
+.result-banner .rb-title { font-size: 17px; font-weight: 700; }
+.result-banner .rb-title.ok { color: var(--ok); }
+.result-banner .rb-title.no { color: var(--bad); }
+.result-banner .rb-ans { font-size: 12px; color: var(--muted); }
 .ok { color: var(--ok); font-weight: 600; text-shadow: 0 0 8px color-mix(in srgb, var(--ok) 45%, transparent); }
 .no { color: var(--bad); font-weight: 600; text-shadow: 0 0 8px rgba(255, 77, 109, 0.45); }
 .ans { color: var(--muted); font-weight: 400; margin-left: 8px; }
 .analysis { margin: 10px 0; color: var(--text); opacity: .85; line-height: 1.6; }
 
-.done { text-align: center; }
+.done { text-align: center; animation: doneIn .4s ease; }
+@keyframes doneIn { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
 .done h2 { color: var(--brand); text-shadow: var(--glow-soft); }
 .done .score { color: var(--brand); font-size: 18px; }
 .done p { color: var(--muted); margin: 8px 0 16px; }
@@ -1348,50 +1261,15 @@ function optionClass(key) {
 .rv-v { flex: 1; line-height: 1.6; }
 .rv-v.ans { color: var(--ok); font-weight: 600; }
 .rv-analysis { margin-top: 6px; color: var(--text); opacity: .85; line-height: 1.6; font-size: 13px; }
-.rv-docs { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
-.rv-docs-head { display: flex; align-items: center; justify-content: space-between; }
-.rv-docs-t { font-size: 12px; font-weight: 500; color: var(--brand); }
-.rv-docs-btn {
-  font-size: 11px;
-  color: var(--muted);
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 1px 10px;
-  cursor: pointer;
-}
-.rv-docs-btn:hover { color: var(--brand); border-color: var(--brand); }
-.rv-docs-empty { font-size: 12px; color: var(--muted); }
-.rv-doc { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.rv-doc.sug { opacity: .85; }
-.rv-doc-badge {
-  font-size: 10px;
-  padding: 0 6px;
-  border-radius: 6px;
-  border: 1px solid var(--line);
-  color: var(--muted);
-  flex-shrink: 0;
-}
-.rv-doc-badge.pdf { color: #e85f3d; border-color: rgba(232, 95, 61, 0.4); }
-.rv-doc-badge.md { color: var(--brand); border-color: var(--line); }
-.rv-doc-t { flex: 1; color: var(--text); cursor: pointer; }
-.rv-doc-t:hover { color: var(--brand); }
-.rv-doc-reason { font-size: 11px; color: var(--muted); flex-shrink: 0; }
-.rv-doc-act {
-  font-size: 11px;
-  color: var(--muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.rv-doc-act:hover { color: var(--brand); }
+.rv-docs-empty { font-size: 12px; color: var(--muted); margin-top: 8px; }
 .btn-review {
   width: 100%; background: rgba(255, 255, 255, 0.06); border: 1px solid var(--brand);
   color: var(--brand); padding: 10px 24px; border-radius: 24px; font-size: 14px; font-weight: 600;
   cursor: pointer; transition: all .2s; margin-bottom: 2px;
 }
 .btn-review:hover { box-shadow: var(--glow-soft); background: var(--brand-light); }
+.btn-review.ghost { background: transparent; border-color: var(--line); color: var(--muted); font-weight: 400; }
+.btn-review.ghost:hover { border-color: var(--brand); color: var(--brand); }
 /* 结果页次按钮：返回首页（与主操作区分层级） */
 .back-home {
   width: 100%; background: transparent; border: 1px solid var(--line);
@@ -1399,6 +1277,10 @@ function optionClass(key) {
   cursor: pointer; transition: all .2s; margin-top: 2px;
 }
 .back-home:hover { color: var(--text); border-color: var(--brand); }
+.done-actions { display: flex; gap: 8px; margin-top: 14px; }
+.done-actions .btn-review { flex: 1; }
+.done-actions .btn-review.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+.done-actions .btn-review.primary:hover { filter: brightness(1.1); }
 /* 答题反馈动画 */
 .result { animation: resultIn .3s ease; }
 @keyframes resultIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
@@ -1410,10 +1292,10 @@ function optionClass(key) {
 
 /* 答题卡导航 */
 .ac-mask { position: fixed; inset: 0; background: var(--modal-mask); display: flex; align-items: center; justify-content: center; z-index: 400; padding: 16px; }
-.ac-panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; width: min(420px, 92vw); box-shadow: var(--glow-soft); }
-.ac-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; margin-bottom: 10px; }
+.ac-panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; width: min(420px, 92vw); max-height: 80vh; display: flex; flex-direction: column; box-shadow: var(--glow-soft); }
+.ac-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; margin-bottom: 10px; flex-shrink: 0; }
 .ac-x { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; }
-.ac-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+.ac-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; overflow-y: auto; max-height: 60vh; padding: 2px; }
 .ac-cell { aspect-ratio: 1; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 12px; cursor: pointer; transition: transform .1s ease; }
 .ac-cell:hover { transform: scale(1.08); }
 .ac-cell.current { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand) inset; font-weight: 700; }

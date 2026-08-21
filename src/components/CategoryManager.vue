@@ -2,10 +2,12 @@
 // 科目管理弹窗：新建科目/章节、改名、删除（删除级联其下题目，强确认）
 // 入口：我的 → 数据管理 → 科目管理
 import Icon from './Icon.vue'
+import SubjectConfigModal from './SubjectConfigModal.vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
 import { useFocusTrap } from '../composables/useFocusTrap.js'
 import { ref, onMounted, watch } from 'vue'
 import { tiku } from '../api/tiku.js'
+import { loadSubjectConfig, saveSubjectConfig, DEFAULT_CONFIG } from '../utils/subjectConfig.js'
 import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
 import { showPrompt } from '../utils/prompt.js'
@@ -20,8 +22,9 @@ const tree = ref([])
 const expanded = ref(new Set())
 const loading = ref(false)
 const newSubject = ref('')
-const newChapter = ref('')       // 待挂章节的科目 id
-const chapterFor = ref(null)     // 当前正在添加章节的科目 id
+const newChapter = ref('')
+const chapterFor = ref(null)
+const cfgModal = ref({ show: false, subject: null, config: null })
 
 async function load() {
   loading.value = true
@@ -87,6 +90,14 @@ async function remove(node) {
     await load()
   } catch (e) { showToast('删除失败：' + (e.message || '未知错误'), 'err') }
 }
+async function openConfig(subject) {
+  const cfg = await loadSubjectConfig(subject.id)
+  cfgModal.value = { show: true, subject, config: cfg }
+}
+async function onConfigSave(cfg) {
+  const s = cfgModal.value.subject
+  if (s) await saveSubjectConfig(s.id, cfg)
+}
 </script>
 
 <template>
@@ -97,7 +108,7 @@ async function remove(node) {
           <span class="cat-title"><Icon name="folder" :size="15"/> 科目管理</span>
           <span class="cat-close" @click="emit('close')">×</span>
         </div>
-        <p class="cat-tip">科目是全局维度（题库 / 复习 / 每日一题 / 知识库都跟随科目）。</p>
+        <p class="cat-tip">科目是全局维度（题库 / 复习 / 每日一题都跟随科目）。</p>
 
         <!-- 新建科目 -->
         <div class="cat-add-row">
@@ -116,6 +127,7 @@ async function remove(node) {
               <span class="cat-count" v-if="s.children && s.children.length">{{ s.children.length }} 章节</span>
               <span class="cat-ops">
                 <button class="op-btn" @click="chapterFor = chapterFor === s.id ? null : s.id">+ 章节</button>
+                <button class="op-btn" @click="openConfig(s)">配置</button>
                 <button class="op-btn" @click="rename(s)">改名</button>
                 <button class="op-btn danger" @click="remove(s)">删除</button>
               </span>
@@ -139,6 +151,7 @@ async function remove(node) {
       </div>
     </div>
   </transition>
+  <SubjectConfigModal :show="cfgModal.show" :subject="cfgModal.subject" :config="cfgModal.config" @close="cfgModal.show = false" @save="onConfigSave" />
 </template>
 
 <style scoped>

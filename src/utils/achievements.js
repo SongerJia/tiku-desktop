@@ -7,12 +7,7 @@ export const ACH_SERIES = [
   { key: 'quiz', name: '刷题达人', icon: 'target' },
   { key: 'streak', name: '连续打卡', icon: 'fire' },
   { key: 'master', name: '掌握之路', icon: 'trophy' },
-  { key: 'wrong', name: '错题大师', icon: 'shield' },
-  { key: 'cards', name: '记忆卡达人', icon: 'card' },
-  { key: 'focus', name: '专注达人', icon: 'hourglass' },
-  { key: 'kb', name: '知识库', icon: 'book' },
-  { key: 'notes', name: '笔记整理', icon: 'note' },
-  { key: 'fav', name: '收藏卷宗', icon: 'star' }
+  { key: 'wrong', name: '错题大师', icon: 'shield' }
 ]
 
 export const ACH_RARITY = {
@@ -38,22 +33,7 @@ export const ACH_DEFS = [
   { key: 'masterCount', name: '掌握量', icon: 'trophy', series: 'master', metric: 'mastered', tiers: [20, 50, 200, 500], desc: '掌握题目', fmt: (m, t) => `${m.mastered}/${t}` },
   // ===== 错题大师（wrong）：2 个维度 =====
   { key: 'wrongCount', name: '错题积累', icon: 'shield', series: 'wrong', metric: 'wrongCount', tiers: [10, 50, 100, 200], desc: '错题本积累', fmt: (m, t) => `${m.wrongCount}/${t}` },
-  { key: 'wrongClear', name: '错题毕业', icon: 'shield', series: 'wrong', metric: 'wrongGraduated', tiers: [50, 100, 200, 300], desc: '错题毕业', fmt: (m, t) => `${m.wrongGraduated}/${t}` },
-  // ===== 记忆卡达人（cards）：2 个维度 =====
-  { key: 'cardCount', name: '建卡量', icon: 'card', series: 'cards', metric: 'cardsCount', tiers: [1, 10, 50, 100], desc: '制作记忆卡', fmt: (m, t) => `${Math.min(m.cardsCount, t)}/${t}` },
-  { key: 'cardReview', name: '复习量', icon: 'card', series: 'cards', metric: 'reviewCount', tiers: [20, 50, 200, 500], desc: '累计复习', fmt: (m, t) => `${m.reviewCount}/${t}` },
-  // ===== 专注达人（focus）：1 个维度 =====
-  { key: 'focusMin', name: '专注时长', icon: 'hourglass', series: 'focus', metric: 'focusMin', tiers: [30, 300, 1500, 5000], desc: '累计专注', fmt: (m, t) => `${m.focusMin}/${t}` },
-  // ===== 知识库（kb）：3 个维度 =====
-  { key: 'kbDocs', name: '藏书阁', icon: 'book', series: 'kb', metric: 'kbDocs', tiers: [1, 10, 50, 100], desc: '导入文档', fmt: (m, t) => `${Math.min(m.kbDocs, t)}/${t}` },
-  { key: 'kbRead', name: '阅读家', icon: 'book', series: 'kb', metric: 'kbReadCount', tiers: [10, 50, 200, 500], desc: '阅读文档', fmt: (m, t) => `${m.kbReadCount}/${t}` },
-  { key: 'kbLink', name: '织网', icon: 'book', series: 'kb', metric: 'kbLinks', tiers: [5, 10, 50, 100], desc: '题目联动', fmt: (m, t) => `${m.kbLinks}/${t}` },
-  // ===== 笔记整理（notes）：2 个维度 =====
-  { key: 'noteCount', name: '笔记量', icon: 'note', series: 'notes', metric: 'notesCount', tiers: [1, 10, 50, 100], desc: '写满笔记', fmt: (m, t) => `${Math.min(m.notesCount, t)}/${t}` },
-  { key: 'noteTags', name: '标签量', icon: 'note', series: 'notes', metric: 'tagsUsed', tiers: [5, 15, 30, 60], desc: '使用标签', fmt: (m, t) => `${m.tagsUsed}/${t}` },
-  // ===== 收藏卷宗（fav）：2 个维度 =====
-  { key: 'favCount', name: '收藏量', icon: 'star', series: 'fav', metric: 'favCount', tiers: [10, 20, 50, 100], desc: '收藏题目', fmt: (m, t) => `${m.favCount}/${t}` },
-  { key: 'favGroup', name: '收藏分组', icon: 'star', series: 'fav', metric: 'favGroups', tiers: [1, 2, 5, 10], desc: '收藏分组', fmt: (m, t) => `${m.favGroups}/${t}` }
+  { key: 'wrongClear', name: '错题毕业', icon: 'shield', series: 'wrong', metric: 'wrongGraduated', tiers: [50, 100, 200, 300], desc: '错题毕业', fmt: (m, t) => `${m.wrongGraduated}/${t}` }
 ]
 
 // 计算每项归类成就的状态：tier 0=未达铜 / 1=铜 / 2=银 / 3=金 / 4=白金

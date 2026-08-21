@@ -6,12 +6,14 @@ import { printHtml } from '../utils/print.js'
 import { showToast } from '../utils/toast.js'
 import { showConfirm } from '../utils/confirm.js'
 import { detectSubjectLang } from '../utils/speech.js'
-import CardSupplement from './CardSupplement.vue'
 
 const emit = defineEmits(['start'])
 const items = ref([])
 const similarMap = ref({})   // question_id -> 相似题列表
 const expanded = ref(new Set())
+const batchMode = ref(false)
+const selectedIds = ref(new Set())
+const reasonFilter = ref('') // 按错因筛选
 
 // 错题自动分组（方向 5）：全部 / 今日到期 / 本周到期 / 常错 Top
 const wrongGroup = ref('all')
@@ -32,6 +34,7 @@ const filteredItems = computed(() => {
   const kw = filterKw.value.trim().toLowerCase()
   const sid = Number(filterSubject.value)
   const cid = Number(filterCategory.value)
+  const rea = reasonFilter.value
   return items.value.filter(it => {
     // 分组条件（组合式，不能提前 return，否则跳过科目/章节/搜索筛选）
     if (wrongGroup.value === 'today' && !(it.next_review_at && it.next_review_at <= now)) return false
@@ -40,9 +43,35 @@ const filteredItems = computed(() => {
     if (sid && Number(it.subject_id) !== sid) return false
     if (cid && Number(it.category_id) !== cid) return false
     if (kw && !String(it.stem || '').toLowerCase().includes(kw)) return false
+    if (rea && it.reason !== rea) return false
     return true
   })
 })
+// 错因分布统计
+const reasonStats = computed(() => {
+  const map = {}
+  items.value.forEach(it => {
+    const r = it.reason || '未标记'
+    map[r] = (map[r] || 0) + 1
+  })
+  const total = items.value.length
+  return Object.entries(map)
+    .sort((a, b) => b[1] - a[1])
+    .map(([reason, count]) => ({ reason, count, pct: total ? Math.round((count / total) * 100) : 0 }))
+})
+// 批量标记错因
+const batchReason = ref('')
+async function batchMarkReason() {
+  if (!batchReason.value || !selectedIds.value.size) return
+  const ids = [...selectedIds.value]
+  try {
+    await Promise.all(ids.map(qid => tiku.setWrongReason(qid, batchReason.value)))
+    showToast(`已标记 ${ids.length} 题错因为「${batchReason.value}」`, 'ok')
+    selectedIds.value = new Set()
+    batchMode.value = false
+    await load()
+  } catch (e) { showToast('标记失败', 'err') }
+}
 
 // 筛选：科目 → 章节（联动）→ 题干模糊搜索
 const filterSubject = ref('')
@@ -74,32 +103,6 @@ async function loadReviewCurve() {
   try { reviewCurve.value = await tiku.getReviewCurve(30) } catch (e) { reviewCurve.value = { dist: [], items: [] } }
 }
 
-// 一键生成记忆卡（方向 10）：弹补充表单（内部查重→关联或新建）
-const cardBusy = ref(new Set())
-const cardSup = ref(null)    // { it, lang }
-async function genCard(it) {
-  if (cardBusy.value.has(it.question_id)) return
-  cardBusy.value = new Set(cardBusy.value).add(it.question_id)
-  try {
-    // 科目名 → 语言（英语/日语显示音标音频）；章节名 → 卡片分类
-    let subjName = ''
-    let catName = ''
-    try {
-      const cats = await tiku.getCategories()
-      const s = (cats || []).find(c => String(c.id) === String(it.subject_id))
-      if (s) {
-        subjName = s.name
-        const ch = (s.children || []).find(c => String(c.id) === String(it.category_id))
-        if (ch) catName = ch.name
-      }
-    } catch (e) {}
-    cardSup.value = { it: { ...it, cat: catName }, lang: detectSubjectLang(subjName) || '' }
-  } catch (e) { showToast('打开失败：' + (e.message || '未知错误'), 'err') }
-  finally {
-    cardBusy.value = new Set(cardBusy.value); cardBusy.value.delete(it.question_id)
-  }
-}
-
 // 手动移除错题（软删）：不再显示、不再进复习队列；之后再次答错会自动回来
 async function removeWrong(it) {
   const ok = await showConfirm(`确定从错题本移除这道题？\n之后再次答错会自动重新加入。`, { title: '移除错题', danger: true })
@@ -107,6 +110,11 @@ async function removeWrong(it) {
   await tiku.removeWrongBook(it.question_id)
   items.value = items.value.filter(x => x.question_id !== it.question_id)
   showToast('已从错题本移除', 'ok')
+}
+function toggleBatchSel(qid) {
+  const s = new Set(selectedIds.value)
+  if (s.has(qid)) s.delete(qid); else s.add(qid)
+  selectedIds.value = s
 }
 
 const typeLabel = (t) => ({ single: '单选', multiple: '多选', judge: '判断', essay: '问答' }[t] || t)
@@ -200,6 +208,39 @@ async function toggleSimilar(qid) {
       <button class="wb-group" :class="{ on: wrongGroup === 'stubborn' }" @click="wrongGroup = 'stubborn'">常错 Top <em>{{ groupCounts.stubborn }}</em></button>
     </div>
 
+    <!-- 错因分布 + 按错因筛选 -->
+    <div v-if="reasonStats.length" class="wb-reasons">
+      <span class="wb-reason-label">错因分布：</span>
+      <button
+        v-for="rs in reasonStats"
+        :key="rs.reason"
+        class="wb-reason-chip"
+        :class="{ on: reasonFilter === rs.reason, active: reasonFilter === rs.reason }"
+        @click="reasonFilter = reasonFilter === rs.reason ? '' : rs.reason"
+      >
+        {{ rs.reason === '未标记' ? '未标记' : rs.reason }}
+        <span class="wb-reason-pct">{{ rs.pct }}%</span>
+        <span class="wb-reason-bar">
+          <span class="wb-reason-fill" :style="{ width: rs.pct + '%' }"></span>
+        </span>
+      </button>
+    </div>
+
+    <!-- 批量操作 -->
+    <div v-if="items.length" class="wb-batch">
+      <button class="ghost" :class="{ on: batchMode }" @click="batchMode = !batchMode; selectedIds = new Set()">
+        {{ batchMode ? '退出批量' : '批量标记错因' }}
+      </button>
+      <template v-if="batchMode">
+        <span class="wb-batch-count">已选 {{ selectedIds.size }} 题</span>
+        <select v-model="batchReason" class="input sm">
+          <option value="">选择错因…</option>
+          <option v-for="r in ['粗心', '知识点不懂', '时间不够', '审题不清', '其他']" :key="r" :value="r">{{ r }}</option>
+        </select>
+        <button class="ghost" :disabled="!batchReason || !selectedIds.size" @click="batchMarkReason">批量标记</button>
+      </template>
+    </div>
+
     <!-- 复习节奏（记忆曲线） -->
     <div v-if="dueTotal" class="curve-card">
       <div class="curve-title">复习节奏 · 未来 30 天到期 {{ dueTotal }} 题</div>
@@ -218,7 +259,10 @@ async function toggleSimilar(qid) {
 
     <EmptyState v-if="!items.length" icon="check" text="暂无活跃错题" sub="继续保持！答错的题会自动进错题本并按遗忘曲线排期" />
     <EmptyState v-else-if="!filteredItems.length" icon="folder" text="该分组下暂无错题" />
-    <div v-for="it in filteredItems" :key="it.question_id" class="card">
+    <div v-for="it in filteredItems" :key="it.question_id" class="card" :class="{ 'batch-sel': selectedIds.has(it.question_id) }">
+      <div v-if="batchMode" class="batch-check-col">
+        <input type="checkbox" :checked="selectedIds.has(it.question_id)" @change="toggleBatchSel(it.question_id)" />
+      </div>
       <div class="stem">{{ it.stem }}</div>
       <div class="meta">
         <span class="mem-badge" :class="memBadge(it).cls">{{ memBadge(it).text }}</span>
@@ -233,7 +277,6 @@ async function toggleSimilar(qid) {
       </div>
       <div class="actions">
         <button class="primary" @click="emit('start', { mode: 'wrong' })">复习这批错题</button>
-        <button class="ghost" @click="genCard(it)">生成记忆卡</button>
         <button class="ghost" @click="toggleSimilar(it.question_id)">
           {{ expanded.has(it.question_id) ? '收起相似题' : '相似题推荐' }}
         </button>
@@ -251,21 +294,6 @@ async function toggleSimilar(qid) {
       </div>
     </div>
   </div>
-
-  <!-- 转卡补充表单 -->
-  <CardSupplement
-    v-if="cardSup"
-    :show="true"
-    :front="cardSup.it.stem || ''"
-    :back="(cardSup.it.analysis ? '【解析】' + cardSup.it.analysis : '') || (answerText(cardSup.it) || '')"
-    :category="cardSup.it.cat || ''"
-    :subject-id="cardSup.it.subject_id || null"
-    :category-id="cardSup.it.category_id || null"
-    :source-question-id="cardSup.it.question_id"
-    :lang="cardSup.lang"
-    @close="cardSup = null"
-    @created="cardSup = null; load()"
-  />
 </template>
 
 <style scoped>
@@ -321,6 +349,29 @@ button { border: none; padding: 7px 14px; border-radius: 8px; font-size: 13px; c
   outline: none;
 }
 .reason-select:focus { border-color: var(--brand); }
+
+/* 错因分布 */
+.wb-reasons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+.wb-reason-label { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+.wb-reason-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid var(--line); border-radius: 16px; padding: 4px 10px;
+  font-size: 11px; color: var(--muted); cursor: pointer; transition: all .15s;
+  background: var(--bg-faint);
+}
+.wb-reason-chip:hover { border-color: var(--brand); color: var(--text); }
+.wb-reason-chip.on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, transparent); color: var(--brand); }
+.wb-reason-pct { font-weight: 700; font-size: 10px; }
+.wb-reason-bar { width: 30px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.wb-reason-fill { height: 100%; background: var(--brand); border-radius: 2px; }
+
+/* 批量操作 */
+.wb-batch { display: flex; align-items: center; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+.wb-batch-count { font-size: 12px; color: var(--muted); }
+.wb-batch .input.sm { width: 120px; font-size: 12px; padding: 4px 8px; }
+.batch-check-col { display: flex; align-items: center; padding-right: 8px; }
+.batch-check-col input { width: 18px; height: 18px; accent-color: var(--brand); cursor: pointer; }
+.card.batch-sel { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
 .sim-item { border-left: 2px solid var(--brand); padding-left: 8px; }
 .sim-stem { font-size: 12px; color: var(--text); line-height: 1.5; }
 .sim-ans { font-size: 11px; color: var(--ok); margin-top: 2px; }

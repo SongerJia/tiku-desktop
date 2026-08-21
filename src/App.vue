@@ -7,21 +7,19 @@ import UnifiedSearch from './components/UnifiedSearch.vue'
 import AppToast from './components/AppToast.vue'
 import AppConfirm from './components/AppConfirm.vue'
 import AppPrompt from './components/AppPrompt.vue'
-import WelcomeGuide from './components/WelcomeGuide.vue'
+import SubjectConfigModal from './components/SubjectConfigModal.vue'
 import LogoMark from './components/LogoMark.vue'
-// 大组件按需拆包：进入对应视图/弹层才加载，首屏 bundle 瘦身（KbReader 的 Vditor/pdfjs 随 chunk 拆出）
+// 大组件按需拆包：进入对应视图/弹层才加载，首屏 bundle 瘦身
 const Quiz = defineAsyncComponent(() => import('./components/Quiz.vue'))
 const Knowledge = defineAsyncComponent(() => import('./components/Knowledge.vue'))
-const KbLibrary = defineAsyncComponent(() => import('./components/KbLibrary.vue'))
 const Stats = defineAsyncComponent(() => import('./components/Stats.vue'))
 const Profile = defineAsyncComponent(() => import('./components/Profile.vue'))
 const PracticeSetup = defineAsyncComponent(() => import('./components/PracticeSetup.vue'))
 const BankManager = defineAsyncComponent(() => import('./components/BankManager.vue'))
-const KbManager = defineAsyncComponent(() => import('./components/KbManager.vue'))
-const CardManager = defineAsyncComponent(() => import('./components/CardManager.vue'))
 const MockExamSetup = defineAsyncComponent(() => import('./components/MockExamSetup.vue'))
 import { tiku } from './api/tiku.js'
 import { useResponsive } from './composables/useResponsive.js'
+import { useSubjectConfig } from './composables/useSubjectConfig.js'
 import { applyAppearance } from './utils/appearance.js'
 import { showToast } from './utils/toast.js'
 
@@ -30,7 +28,7 @@ const { isWide } = useResponsive()
 const tabs = [
   { key: 'home', label: '首页', icon: 'home' },
   { key: 'bank', label: '题库', icon: 'bank' },
-  { key: 'kb', label: '知识库', icon: 'doc' },
+  { key: 'practice', label: '刷题', icon: 'bolt' },
   { key: 'stats', label: '学习统计', icon: 'stats' },
   { key: 'profile', label: '我的', icon: 'me' }
 ]
@@ -47,24 +45,17 @@ const setup = ref({ active: false, categoryId: null, subjectId: null, presetMode
 const showBank = ref(false)
 const bankSubjectId = ref(null) // 入口初始科目：tab 页=当前科目，我的页=null 全部
 const bankCategoryId = ref(null) // 入口初始章节（题库页内选中的章节；我的页=null 全部章节）
-// 文档管理（知识库：搜索/重命名/移动/删除/导入）
-const showKbManager = ref(false)
-const kbSubjectId = ref(null) // 入口初始科目（知识库页 scope=all 时传 null=全部；我的页同理）
-const kbCategoryId = ref(null) // 入口初始章节（顶部选章节时跟随 currentChapter；全部范围时为 null）
-const showCardManager = ref(false)
-const cardsSubjectId = ref(null) // 记忆卡管理入口初始科目：我的页=当前科目
-const cardsCategoryId = ref(null) // 记忆卡管理入口初始章节：我的页=当前章节
-const kbRefreshToken = ref(0)
 // 模拟卷组卷 / 我的试卷
 const mock = ref({ active: false })
 // 统一搜索（题目 + 知识文档）
 const showSearch = ref(false)
 // 切回首页时的刷新计数（驱动 Home 重新加载实时数据）
 const homeRefresh = ref(0)
-// 题库管理弹窗变更计数（驱动 Knowledge 刷新列表，同 kbRefreshToken 机制）
+// 题库管理弹窗变更计数（驱动 Knowledge 刷新列表）
 const bankRefreshToken = ref(0)
-// 首启欢迎引导（settings 无 seen_welcome 时显示一次）
-const showWelcome = ref(false)
+// 科目配置
+const { config: subjectConfig, refreshConfig: refreshSubjectConfig, updateConfig: updateSubjectConfig } = useSubjectConfig(currentSubject)
+const showSubjectConfig = ref(false)
 
 // PC 侧栏宽度：可拖动右边缘调整，本地持久化
 const SIDEBAR_MIN = 180
@@ -99,11 +90,7 @@ onMounted(async () => {
     if (saved >= SIDEBAR_MIN && saved <= SIDEBAR_MAX) sidebarWidth.value = saved
   } catch (e) { /* 忽略 */ }
   currentSubject.value = await tiku.getCurrentSubject()
-  await applyAppearance() // 应用上次保存的主题与字号
-  try {
-    const seen = await tiku.getSetting('seen_welcome')
-    showWelcome.value = !seen
-  } catch (e) { /* 忽略 */ }
+await applyAppearance() // 应用上次保存的主题与字号
   // 若本次启动数据库由损坏自动从备份恢复，提示用户（数据可能回滚到最近一次备份）
   try {
     const st = await tiku.getDbStatus()
@@ -129,25 +116,22 @@ async function onBankChanged() {
   currentSubject.value = await tiku.getCurrentSubject()
   bankRefreshToken.value++ // 题库管理弹窗变更 → 刷新 Knowledge 题库列表
 }
-// 文档管理变更：通知知识库页刷新列表
-function onKbChanged() { kbRefreshToken.value++ }
 
 function switchTab(key) {
+  // 刷题按钮：短按 = 快速刷 5 题（跳过配置弹层），长按功能保留
+  if (key === 'practice') {
+    onQuickStart()
+    return
+  }
   currentTab.value = key
   quiz.value.active = false
   // 切回首页时刷新（每日任务/习惯/专注数据是实时的）
   if (key === 'home') homeRefresh.value++
 }
-// 知识库范围：'current' 跟随顶部科目（tab 默认）
-const kbScope = ref('current')
-function onTabClick(key) {
-  if (key === 'kb') kbScope.value = 'current'
-  switchTab(key)
-}
-// 子组件请求跳转（如每日任务「阅读」→ 知识库 Tab；我的页可携带分组定位）
+
+// 子组件请求跳转（如每日任务「阅读」→ 题库 Tab；我的页可携带分组定位）
 const profileSection = ref('') // Profile 页内要定位的分组（如 goals 学习目标）
 function onGoto(tab, section) {
-  if (tab === 'kb') kbScope.value = 'current' // 常规跳转跟随顶部科目
   if (tab === 'profile' && section) profileSection.value = section
   switchTab(tab)
 }
@@ -172,7 +156,8 @@ function onStart(payload = {}) {
     subjectId: currentSubject.value.id,
     presetMode: m,
     subjectName: currentSubject.value.name || '',
-    scopeLabel: payload.categoryId ? '本章节' : (currentSubject.value.name || '全部')
+    scopeLabel: payload.categoryId ? '本章节' : (currentSubject.value.name || '全部'),
+    year: payload.year || null  // 真题年份
   }
 }
 
@@ -189,6 +174,7 @@ function onSetupConfirm(cfg) {
     recite: !!cfg.recite,
     paperId: null,
     tags: cfg.tags && cfg.tags.length ? cfg.tags : null,
+    year: cfg.year || null,
     resume: null
   }
   setup.value.active = false
@@ -274,10 +260,10 @@ function onMockConfirm(cfg) {
 
 const iconHome = `<svg viewBox="0 0 24 24"><path d="M12 3l-9 8h3v10h5v-6h4v6h5V11h3z"/></svg>`
 const iconBank = `<svg viewBox="0 0 24 24"><path d="M4 6h16v2H4zM4 11h16v2H4zM4 16h16v2H4zM6 3h12l1 2H5z"/></svg>`
-const iconDoc = `<svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6zM14 3v5h5l-5-5zM9 12h8v1.5H9zM9 15.5h8V17H9zM9 9h3v1.5H9z"/></svg>`
+const iconBolt = `<svg viewBox="0 0 24 24"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg>`
 const iconStats = `<svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>`
 const iconMe = `<svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>`
-const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, me: iconMe }
+const icons = { home: iconHome, bank: iconBank, bolt: iconBolt, stats: iconStats, me: iconMe }
 </script>
 
 <template>
@@ -289,21 +275,21 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
         <LogoMark :size="34" class="side-logo-img" />
         <span class="side-name">知识记忆小助手</span>
       </div>
-      <nav class="side-nav">
+<nav class="side-nav">
         <button
           v-for="t in tabs"
           :key="t.key"
           class="side-item"
-          :class="{ active: currentTab === t.key && !quiz.active }"
-          @click="onTabClick(t.key)"
+          :class="{ active: currentTab === t.key && !quiz.active, 'side-practice': t.key === 'practice' }"
+          @click="switchTab(t.key)"
+          @contextmenu.prevent="t.key === 'practice' && onStart({ mode: 'practice' })"
         >
-          <span class="side-icon" v-html="icons[t.icon]"></span>
+          <span class="side-icon" :class="{ 'bolt-icon': t.key === 'practice' }" v-html="icons[t.icon]"></span>
           <span class="side-label">{{ t.label }}</span>
+          <span v-if="t.key === 'practice'" class="side-longtip" title="右键/长按打开详细配置">⋯</span>
         </button>
-      </nav>
-      <div class="side-foot">本地数据 · 离线可用</div>
-      <div class="sidebar-resize" title="拖动调整侧栏宽度" @mousedown="startResize"></div>
-    </aside>
+</nav>
+</aside>
 
     <!-- 主列：顶部栏 + 内容 +（窄屏）底部 Tab -->
     <div class="main-col">
@@ -313,8 +299,11 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
           <span class="sb-name">{{ currentChapter ? currentSubject.name + ' / ' + currentChapter.name : currentSubject.name }}</span>
           <span class="arrow">▾</span>
         </button>
-        <button class="top-search" title="统一搜索（题目 + 知识文档）" @click="showSearch = true">
+        <button class="top-search" title="搜索题目" @click="showSearch = true">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        </button>
+        <button class="top-cfg" title="科目配置" @click="showSubjectConfig = true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         </button>
       </header>
 
@@ -334,14 +323,14 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
           :resume="quiz.resume"
           :questionId="quiz.questionId"
           :daily="quiz.daily"
+          :subjectConfig="subjectConfig"
           @exit="exitQuiz"
         />
         <template v-else>
           <Transition name="fade" mode="out-in">
             <div :key="currentTab" class="tab-page">
-              <Home v-if="currentTab === 'home'" :subject="currentSubject" :current-chapter-id="currentChapter?.id ?? null" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" @quick="onQuickStart" @manage-cards="(catId) => { showCardManager = true; cardsSubjectId = currentSubject.id; cardsCategoryId = catId ?? null }" />
-              <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" :current-chapter-id="currentChapter?.id ?? null" :refresh-token="bankRefreshToken" @start="onStart" @manage="(cat) => { showBank = true; bankSubjectId = currentSubject.id; bankCategoryId = cat || null }" />
-              <KbLibrary v-else-if="currentTab === 'kb'" :subject="currentSubject" :current-chapter-id="currentChapter?.id ?? null" :scope="kbScope" :refresh-token="kbRefreshToken" @manage="(catId) => { showKbManager = true; kbSubjectId = kbScope === 'all' ? null : currentSubject.id; kbCategoryId = kbScope === 'all' ? null : (catId ?? null) }" />
+              <Home v-if="currentTab === 'home'" :subject="currentSubject" :current-chapter-id="currentChapter?.id ?? null" :refresh-key="homeRefresh" @start="onStart" @start-mock="onStartMock" @goto="onGoto" @daily="startDailyPuzzle" @quick="onQuickStart" />
+              <Knowledge v-else-if="currentTab === 'bank'" :subject="currentSubject" :subject-config="subjectConfig" :current-chapter-id="currentChapter?.id ?? null" :refresh-token="bankRefreshToken" @start="onStart" @manage="(cat) => { showBank = true; bankSubjectId = currentSubject.id; bankCategoryId = cat || null }" />
               <Stats v-else-if="currentTab === 'stats'" :subject="currentSubject" @goto="onGoto" />
               <Profile
             v-else-if="currentTab === 'profile'"
@@ -350,8 +339,6 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
             @reset="currentTab = 'home'"
             @start="onStart"
             @open-bank="showBank = true; bankSubjectId = currentSubject.id; bankCategoryId = currentChapter?.id ?? null"
-            @open-kb-manager="showKbManager = true; kbSubjectId = currentSubject.id; kbCategoryId = currentChapter?.id ?? null"
-            @open-card-manager="showCardManager = true; cardsSubjectId = currentSubject.id; cardsCategoryId = currentChapter?.id ?? null"
           />
             </div>
           </Transition>
@@ -363,10 +350,11 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
           v-for="t in tabs"
           :key="t.key"
           class="tab-item"
-          :class="{ active: currentTab === t.key && !quiz.active }"
-          @click="onTabClick(t.key)"
+          :class="{ active: currentTab === t.key && !quiz.active, 'tab-practice': t.key === 'practice' }"
+          @click="switchTab(t.key)"
+          @contextmenu.prevent="t.key === 'practice' && onStart({ mode: 'practice' })"
         >
-          <span class="tab-icon" v-html="icons[t.icon]"></span>
+          <span class="tab-icon" :class="{ 'bolt-icon': t.key === 'practice' }" v-html="icons[t.icon]"></span>
           <span>{{ t.label }}</span>
         </div>
       </nav>
@@ -399,10 +387,6 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
       @changed="onBankChanged"
     />
 
-    <KbManager :show="showKbManager" :initial-subject-id="kbSubjectId" :initial-category-id="kbCategoryId" @close="showKbManager = false" @changed="onKbChanged" />
-
-    <CardManager :show="showCardManager" :wide="isWide" :initial-subject-id="cardsSubjectId" :initial-category-id="cardsCategoryId" @close="showCardManager = false" @changed="homeRefresh++" />
-
     <MockExamSetup
       v-if="mock.active"
       :show="mock.active"
@@ -416,7 +400,7 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
     <AppToast />
     <AppConfirm />
     <AppPrompt />
-    <WelcomeGuide :show="showWelcome" @close="showWelcome = false" />
+    <SubjectConfigModal :show="showSubjectConfig" :subject="currentSubject" :config="subjectConfig" @close="showSubjectConfig = false" @save="updateSubjectConfig" />
   </div>
 </template>
 
@@ -453,8 +437,53 @@ const icons = { home: iconHome, bank: iconBank, doc: iconDoc, stats: iconStats, 
   transition: border-color .2s, box-shadow .2s, color .2s;
 }
 .top-search:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow-soft); }
+.top-cfg {
+  margin-left: 6px;
+  width: 34px; height: 34px; border-radius: 10px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--brand) 6%, transparent);
+  color: var(--muted); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: border-color .2s, box-shadow .2s, color .2s;
+}
+.top-cfg:hover { border-color: var(--brand); color: var(--brand); box-shadow: var(--glow-soft); }
 .tab-page { height: 100%; }
 .fade-enter-active, .fade-leave-active { transition: opacity .16s ease, transform .16s ease; }
 .fade-enter-from { opacity: 0; transform: translateY(6px); }
 .fade-leave-to { opacity: 0; }
+
+/* 刷题按钮：品牌色突出 */
+.side-practice {
+  margin: 6px 0;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 18%, transparent), color-mix(in srgb, var(--brand2) 12%, transparent));
+  border: 1px solid color-mix(in srgb, var(--brand) 40%, transparent);
+  border-radius: 12px;
+  font-weight: 600;
+}
+.side-practice:hover { border-color: var(--brand); box-shadow: var(--glow); }
+.side-practice .bolt-icon { color: var(--brand); }
+.side-practice.active { border-color: var(--brand); background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 25%, transparent), color-mix(in srgb, var(--brand2) 18%, transparent)); }
+.side-longtip { margin-left: auto; font-size: 11px; color: var(--muted); opacity: 0.5; letter-spacing: 1px; }
+
+/* 移动端底部：刷题按钮居中凸起 */
+.tab-practice {
+  position: relative;
+  transform: translateY(-6px);
+}
+.tab-practice .tab-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--brand), var(--brand2));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--brand) 50%, transparent);
+  margin-bottom: 2px;
+  transition: transform .2s, box-shadow .2s;
+}
+.tab-practice:active .tab-icon { transform: scale(.92); box-shadow: 0 2px 8px color-mix(in srgb, var(--brand) 40%, transparent); }
+.tab-practice .tab-icon svg { width: 22px; height: 22px; fill: #fff; }
+.tab-practice span:last-child { color: var(--brand); font-weight: 600; }
 </style>

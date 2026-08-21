@@ -20,7 +20,6 @@ async function exportReport() {
   <div class="kpi"><b>${r.answered}</b><span>答题数</span></div>
   <div class="kpi"><b>${r.accuracy}%</b><span>正确率</span></div>
   <div class="kpi"><b>${r.xp}</b><span>获得 XP</span></div>
-  <div class="kpi"><b>${r.focus}</b><span>专注分钟</span></div>
 </div>
 <div class="sec">近 7 天答题分布</div>
 <div class="bars">${bar}</div>
@@ -30,7 +29,6 @@ async function exportReport() {
   <tr><td>累计已做</td><td>${r.totalAnswered} 题</td></tr>
   <tr><td>掌握</td><td>${r.mastered} 题</td></tr>
   <tr><td>活跃错题</td><td>${r.wrongActive} 题</td></tr>
-  <tr><td>知识库</td><td>${r.kbDocs} 篇文档 · ${r.kbLinks} 条联动 · 阅读 ${r.kbRead} 次</td></tr>
 </table>`
   const style = `
 h1 { margin: 0 0 4px; }
@@ -263,7 +261,7 @@ const reasonTip = computed(() => {
   const top = list[0]
   if (!top || top.pct < 20) return null
   if (top.reason === '粗心') return `你的错因集中在<b>粗心（${top.pct}%）</b>：下次答题先放慢速度、逐项核对选项，正确率预计可提升`
-  if (top.reason === '知识点不懂') return `你的错因集中在<b>知识点不懂（${top.pct}%）</b>：错题解析里的知识点建议做一张记忆卡，反复巩固`
+  if (top.reason === '知识点不懂') return `你的错因集中在<b>知识点不懂（${top.pct}%）</b>：错题解析里的知识点建议反复巩固`
   if (top.reason === '时间不够') return `你的错因集中在<b>时间不够（${top.pct}%）</b>：先做有把握的题，拿不准的标记后回查，别在单题上恋战`
   return `你的错因集中在「${top.reason}」（${top.pct}%）：针对这个习惯调整答题节奏`
 })
@@ -486,7 +484,7 @@ async function loadAnalysis() {
         <div class="card-title">每日任务 <span class="quest-xp">每个 +20 XP</span></div>
         <div v-if="quest.claimed" class="quest-claimed">{{ quest.claimed }} 已完成，XP 已到账</div>
         <div v-if="!quest.tasks.length" class="quest-empty">
-          <span>未设置任务，去「我的 → 学习目标」设置每日刷题 / 复习 / 阅读目标吧</span>
+          <span>未设置任务，去「我的 → 学习目标」设置每日刷题目标吧</span>
           <button class="quest-set" @click="emit('goto', 'profile', 'goals')">去设置 ›</button>
         </div>
         <div v-else class="quest-list">
@@ -546,11 +544,11 @@ async function loadAnalysis() {
             <div class="bw-desc">保持当前复习节奏</div>
           </div>
           <div class="bw-vs">VS</div>
-          <div class="bw-item weak">
+          <div class="bw-item weak" @click="emit('goto', 'bank')" style="cursor:pointer">
             <div class="bw-label">最弱</div>
             <div class="bw-name" :title="bestWeak.weak.cat">{{ bestWeak.weak.cat }}</div>
             <div class="bw-rate"><CountUp :value="bestWeak.weak.rate" /><small>%</small></div>
-            <div class="bw-desc">错题转卡 · 优先攻克</div>
+            <div class="bw-desc">点击去题库 · 优先攻克</div>
           </div>
         </div>
       </div>
@@ -597,15 +595,15 @@ async function loadAnalysis() {
 </template>
 
 <style scoped>
-.stats { display: flex; flex-direction: column; gap: 14px; }
-.stats-head { display: flex; align-items: center; justify-content: space-between; }
-.stats-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--text); }
+.stats { display: flex; flex-direction: column; gap: 16px; }
+.stats-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+.stats-title { margin: 0; font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -.3px; }
 
 /* 统计范围切换：跟随顶部 / 总览 */
-.stats-scope { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.stats-scope { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 0; }
 .scope-label { font-size: 12px; color: var(--muted); }
 .filter-chip {
-  font-size: 12px; padding: 6px 14px;
+  font-size: 12px; padding: 6px 16px;
   border: 1px solid var(--line); border-radius: 999px;
   background: transparent; color: var(--text); cursor: pointer;
   transition: all .15s;
@@ -617,31 +615,32 @@ async function loadAnalysis() {
 /* KPI 数据条 */
 .kpi-strip {
   display: flex; align-items: stretch; gap: 0;
-  border: 1px solid var(--line); border-radius: 14px; padding: 12px 8px;
+  border: 1px solid var(--line); border-radius: 14px; padding: 14px 10px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 7%, transparent), color-mix(in srgb, var(--brand2) 4%, transparent));
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--brand) 6%, transparent);
 }
-.kpi-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
-.kpi-sep { width: 1px; background: var(--line); margin: 4px 6px; }
-.kpi-num { font-size: 20px; font-weight: 700; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
-.kpi-num small { font-size: 12px; color: var(--muted); font-weight: 400; }
-.kpi-label { font-size: 11px; color: var(--muted); }
+.kpi-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 2px 0; }
+.kpi-sep { width: 1px; background: var(--line); margin: 6px 8px; }
+.kpi-num { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi-num small { font-size: 13px; color: var(--muted); font-weight: 400; }
+.kpi-label { font-size: 11px; color: var(--muted); font-weight: 500; }
 
 /* 热力图（GitHub 贡献图） */
-.heat-card { display: flex; flex-direction: column; gap: 10px; overflow-x: clip; overflow-y: visible; } /* 横向裁剪防页面滚动条；纵向 visible 不裁右上光斑与 hover 流光 */
+.heat-card { display: flex; flex-direction: column; gap: 12px; overflow-x: clip; overflow-y: visible; padding: 18px; }
 .heat-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .heat-scope { font-size: 11px; color: var(--muted); font-weight: 400; margin-left: 6px; }
 .heat-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); margin-left: auto; }
-.heat-legend .heat-cell { width: 12px; height: 12px; cursor: default; }
+.heat-legend .heat-cell { width: 12px; height: 12px; cursor: default; border-radius: 2px; }
 .heat-year-nav { display: flex; align-items: center; gap: 6px; }
-.hy-btn { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; }
+.hy-btn { width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center; }
 .hy-btn:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
 .hy-btn:disabled { opacity: .35; cursor: default; }
-.hy-year { font-size: 12px; font-weight: 600; color: var(--text); min-width: 72px; text-align: center; }
+.hy-year { font-size: 13px; font-weight: 600; color: var(--text); min-width: 80px; text-align: center; }
 .hy-year small { font-size: 10px; color: var(--muted); font-weight: 400; }
-.heat-flex { display: flex; gap: 16px; align-items: stretch; }
-.heat-stats { display: grid; grid-template-columns: repeat(2, auto); gap: 10px 18px; align-content: center; flex-shrink: 0; }
-.hs-item { display: flex; flex-direction: column; align-items: center; gap: 1px; }
-.hs-item b { font-size: 16px; color: var(--text); font-variant-numeric: tabular-nums; }
+.heat-flex { display: flex; gap: 20px; align-items: stretch; }
+.heat-stats { display: grid; grid-template-columns: repeat(2, auto); gap: 8px 20px; align-content: center; flex-shrink: 0; }
+.hs-item { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 8px; border-radius: 8px; background: var(--bg-faint); }
+.hs-item b { font-size: 17px; color: var(--text); font-variant-numeric: tabular-nums; }
 .hs-item b.hot { color: var(--warn); }
 .hs-item span { font-size: 10px; color: var(--muted); }
 .heat-main { flex: 1; min-width: 0; overflow: hidden; }

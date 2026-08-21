@@ -87,7 +87,7 @@ function openReleases() {
         <h3 class="ab-name">{{ info.name }}</h3>
         <div class="ab-ver">v{{ info.version }}</div>
         <p class="ab-desc">
-          本地优先的刷题 + 知识库 all-in-one 学习工具。<br />
+          本地优先的刷题学习工具。<br />
           数据全存本机 SQLite，可离线，多端用 GitHub 仓库同步。
         </p>
         <div class="ab-stack">

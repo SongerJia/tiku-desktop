@@ -1,15 +1,14 @@
 <script setup>
 import Icon from './Icon.vue'
-import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import SkeletonCards from './SkeletonCards.vue'
 import CountUp from './CountUp.vue'
 import { tiku } from '../api/tiku.js'
 import { showToast } from '../utils/toast.js'
 import { vTilt } from '../utils/tilt.js' // 统一 3D 倾斜指令（2026-08-14 去重：此前 Home 内联同逻辑）
-import CardsPanel from './CardsPanel.vue'
 
 const props = defineProps({ subject: Object, refreshKey: { default: 0 }, currentChapterId: { type: [Number, String], default: null } })
-const emit = defineEmits(['start', 'start-mock', 'goto', 'daily', 'quick', 'manage-cards'])
+const emit = defineEmits(['start', 'start-mock', 'goto', 'daily', 'quick'])
 
 const summary = ref({ total: 0, learned: 0, mastered: 0, today: 0, wrongCount: 0, accuracy: 0, weekAccuracy: 0, weekDelta: 0, streak: 0 })
 const dailyGoal = ref(0)
@@ -20,22 +19,20 @@ const xpTotal = ref(0)
 // 等级进度（门面精美③）：xpStats 的 level 曲线信息，首页渲染 Lv 徽章 + 渐变进度条
 // 字段对齐：后端返回 curLevelXp(本级已得)/nextLevelXp(本级所需)/levelPct
 const lvInfo = ref({ level: 1, curLevelXp: 0, nextLevelXp: 100, pct: 0 })
-const examDate = ref('')
-const weakPoints = ref([])
-const weakAccuracy = ref([])
 const dailyBrief = ref({ answered: 0, correct: 0, pct: 0, mastered: 0 }) // 昨日小结（问候卡下）
 
 onMounted(load)
 watch(() => props.subject.id, load)
 watch(() => props.refreshKey, load) // 切回首页时刷新实时数据
 
-// 首页问候语：按时段切换
+// 首页问候语：按时段切换 + 个性化数据
 const greeting = computed(() => {
   const h = new Date().getHours()
-  if (h < 6) return '夜深了，注意休息'
-  if (h < 12) return '早上好，继续加油'
-  if (h < 18) return '下午好，保持专注'
-  return '晚上好，今天也在进步'
+  const base = h < 6 ? '夜深了' : h < 12 ? '早上好' : h < 18 ? '下午好' : '晚上好'
+  const parts = [base]
+  if (summary.value.streak > 0) parts.push(`🔥 连续打卡 ${summary.value.streak} 天`)
+  else if (dailyBrief.value.pct > 0) parts.push(`昨天正确率 ${dailyBrief.value.pct}%`)
+  return parts.join(' · ')
 })
 const todayStr = computed(() => {
   const d = new Date()
@@ -57,14 +54,7 @@ const growthText = computed(() => {
   return parts.join(' · ')
 })
 
-// 考试倒计时（设了考试日显示天数；没设显示引导）
-const examLeft = computed(() => {
-  if (!examDate.value) return null
-  const target = new Date(examDate.value + 'T00:00:00')
-  const now = new Date(); now.setHours(0, 0, 0, 0)
-  const days = Math.round((target - now) / 86400000)
-  return { date: examDate.value, days, over: days < 0 }
-})
+// 考试倒计时已移除
 
 // 今日刷题进度（目标 KPI 格）
 const goalPct = computed(() => dailyGoal.value ? Math.min(100, Math.round((summary.value.today / dailyGoal.value) * 100)) : 0)
@@ -108,7 +98,13 @@ const hoursLeft = computed(() => 24 - new Date().getHours()) // 今天还剩几�
 const goalLeft = computed(() => Math.max(0, (dailyGoal.value || 0) - (summary.value.today || 0))) // 距今日目标还差
 const lvGap = computed(() => Math.max(0, lvInfo.value.nextLevelXp - lvInfo.value.curLevelXp)) // 距下一级还差
 const lvQues = computed(() => Math.ceil(lvGap.value / 10)) // 答对折算：每对 +10 XP → 约再刷几题
-const cardMins = computed(() => Math.max(1, Math.ceil((cardStats.value.due || 0) * 0.5))) // 到期卡预计复习分钟
+// ===== 卡片相关已移除 =====
+const showYearPicker = ref(false)
+const yearOptions = Array.from({ length: 10 }, (_, i) => String(2026 - i))
+function startYearExam(year) {
+  showYearPicker.value = false
+  emit('start', { mode: 'exam', year: year })
+}
 
 // H13 破纪录：历史最长连击（localStorage 持久化）
 const bestStreak = ref(0)
@@ -139,18 +135,9 @@ function trackReviewDone() {
 const adviceText = computed(() => {
   const h = new Date().getHours()
   if (h < 12) return dueReviews.value > 0 ? '早上大脑清醒：先复习到期错题，再刷今日目标' : '早上大脑清醒：适合攻克记忆类内容'
-  if (h < 18) return weakPoints.value.length ? `下午状态稳：攻坚薄弱点「${String(weakPoints.value[0].stem || '').slice(0, 12)}…」` : '下午状态稳：适合做整卷模拟考'
-  return dueReviews.value > 0 ? '晚上收尾：把今天的新错题转成记忆卡，明天再复习' : '晚上适合整理：回顾今天的错因，标记一下为什么错'
+  if (h < 18) return '下午状态稳：适合做整卷模拟考'
+  return '晚上适合整理：回顾今天的错因，标记一下为什么错'
 })
-
-// H21 番茄完成反馈：work 阶段完成时番茄条上方绿闪
-const focusDoneFlash = ref(false)
-let focusFlashTimer = null
-function flashFocusDone() {
-  focusDoneFlash.value = true
-  clearTimeout(focusFlashTimer)
-  focusFlashTimer = setTimeout(() => { focusDoneFlash.value = false }, 3200)
-}
 
 // 3D 倾斜指令已统一到 ../utils/tilt.js（vTilt，含重力变量与防御）
 
@@ -159,17 +146,12 @@ async function load() {
   const seq = ++loadSeq
   loading.value = true
   const sid = props.subject && props.subject.id
-  const [sumR, goalR, fsR, cardsR, weakR, accR, puzzleR, dueR, xpR, exR, briefR] = await Promise.allSettled([
+  const [sumR, goalR, puzzleR, dueR, xpR, briefR] = await Promise.allSettled([
     tiku.getSummary(sid),
     tiku.getSetting(sid ? `daily_goal_${sid}` : 'daily_goal'),
-    tiku.focusStats(),
-    tiku.cardsStats({ subjectId: sid }),
-    tiku.getWeakPoints(5, sid),
-    tiku.getCategoryAccuracy(sid),
     tiku.getDailyPuzzle(sid),
     tiku.reviewDueStats(sid),
     tiku.xpStats(),
-    tiku.getSetting(sid ? `exam_date_${sid}` : 'exam_date'),
     tiku.getDailyBrief()
   ])
   if (seq !== loadSeq) return // 已被更新的加载取代，丢弃本次结果
@@ -180,33 +162,9 @@ async function load() {
     try { dailyGoal.value = Number((await tiku.getSetting('daily_goal')) || 0) } catch (e) { dailyGoal.value = 0 }
     if (seq !== loadSeq) return
   }
-  if (fsR.status === 'fulfilled' && fsR.value) { focusToday.value = fsR.value.today; focusWeek.value = fsR.value.week }
-  if (cardsR.status === 'fulfilled' && cardsR.value) cardStats.value = cardsR.value
-  weakPoints.value = weakR.status === 'fulfilled' && Array.isArray(weakR.value) ? weakR.value : []
-  weakAccuracy.value = accR.status === 'fulfilled' && Array.isArray(accR.value) ? accR.value.slice(0, 3) : []
-  dailyPuzzle.value = puzzleR.status === 'fulfilled' ? puzzleR.value : null
+dailyPuzzle.value = puzzleR.status === 'fulfilled' ? puzzleR.value : null
   dueReviews.value = dueR.status === 'fulfilled' && dueR.value ? dueR.value.due || 0 : 0
-  trackReviewDone() // H16 复习完成对比
-  trackBestStreak() // H13 破纪录追踪
-  xpTotal.value = xpR.status === 'fulfilled' && xpR.value ? (xpR.value.total || 0) : 0
-  if (xpR.status === 'fulfilled' && xpR.value) {
-    const x = xpR.value
-    lvInfo.value = {
-      level: x.level || 1,
-      curLevelXp: x.curLevelXp || 0,
-      nextLevelXp: x.nextLevelXp || 100,
-      today: x.today || 0,
-      week: x.week || 0,
-      pct: x.levelPct || 0
-    }
-  }
-  // 考试日：科目 key 优先，未设置则全局兜底
-  if (exR.status === 'fulfilled') examDate.value = exR.value || ''
   if (briefR.status === 'fulfilled' && briefR.value) dailyBrief.value = briefR.value
-  if (!examDate.value && sid) {
-    try { examDate.value = (await tiku.getSetting('exam_date')) || '' } catch (e) { examDate.value = '' }
-    if (seq !== loadSeq) return
-  }
   loading.value = false
 }
 
@@ -220,96 +178,6 @@ function startSmartReview() {
   else showToast('当前没有到期复习和错题，去刷几道新题吧', 'ok')
 }
 
-// ---- 番茄钟 ----
-const cardsOpen = ref(false)
-// 记忆卡面板请求「去管理」→ 带上当前章节 id 一并抛出（供 App 打开记忆卡管理弹窗并预选章节）
-function onManageCards(catId) {
-  cardsOpen.value = false
-  emit('manage-cards', catId ?? null)
-}
-const cardStats = ref({ total: 0, due: 0 })
-const focusMinutes = ref(25)
-const focusLeft = ref(0)
-const focusRunning = ref(false)
-const focusToday = ref(0)
-const focusWeek = ref(0)
-const focusPhase = ref('work')   // 'work' 25 分钟 | 'break' 5 分钟（番茄循环）
-const pomodoroCount = ref(0)     // 本日完成的番茄数（会话内累计）
-const paused = ref(false)
-let focusTimer = null
-
-const focusText = computed(() => {
-  const m = Math.floor(focusLeft.value / 60)
-  const s = focusLeft.value % 60
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-})
-function startFocus() {
-  if (focusRunning.value) return
-  focusPhase.value = 'work'
-  focusLeft.value = 25 * 60
-  focusRunning.value = true
-  paused.value = false
-  focusTimer = setInterval(tick, 1000)
-}
-function tick() {
-  if (paused.value) return
-  focusLeft.value--
-  if (focusLeft.value <= 0) phaseComplete()
-}
-let focusCompleting = false // 防重入：记账 await 期间 tick 再次触发
-async function phaseComplete() {
-  if (focusCompleting) return
-  focusCompleting = true
-  try {
-    if (focusPhase.value === 'work') {
-      pomodoroCount.value++
-      flashFocusDone() // H21 番茄完成绿闪
-      try {
-        await tiku.addFocusSession(25)
-        const fs = await tiku.focusStats()
-        focusToday.value = fs.today
-      } catch (e) {}
-      showToast(`🍅 第 ${pomodoroCount.value} 个番茄完成，+50 XP，休息一下`, 'ok')
-      focusPhase.value = 'break'
-      focusLeft.value = 5 * 60
-    } else {
-      focusPhase.value = 'work'
-      focusLeft.value = 25 * 60
-      showToast(`休息结束，开始第 ${pomodoroCount.value + 1} 个番茄 💪`, 'ok')
-    }
-  } finally { focusCompleting = false }
-}
-function pauseFocus() {
-  paused.value = !paused.value
-}
-function skipBreak() {
-  if (focusPhase.value === 'break') {
-    focusPhase.value = 'work'
-    focusLeft.value = 25 * 60
-  }
-}
-async function stopFocus(completed = false) {
-  clearInterval(focusTimer)
-  focusTimer = null
-  focusRunning.value = false
-  paused.value = false
-  if (completed && focusPhase.value === 'work' && !focusCompleting) { // focusCompleting 防与 phaseComplete 并发双记账
-    await tiku.addFocusSession(focusMinutes.value)
-    const fs = await tiku.focusStats()
-    focusToday.value = fs.today
-  }
-  focusLeft.value = 0
-}
-// 记忆卡复习/增删后刷新首页「到期」角标
-async function onCardsUpdated() {
-  try {
-    const r = await tiku.cardsStats({ subjectId: props.subject.id })
-    if (r) cardStats.value = r
-  } catch (e) { /* 忽略 */ }
-}
-onBeforeUnmount(() => {
-  if (focusTimer) clearInterval(focusTimer)
-})
 </script>
 
 <template>
@@ -395,9 +263,10 @@ onBeforeUnmount(() => {
             <div><b>今日复习</b><span class="db-sub">{{ dueReviews }} 题到期 · SM-2 排期</span></div>
             <em>{{ dueReviews }}</em>
           </div>
-          <div class="dock-btn daily" @click="startDaily" :class="{ disabled: !(dailyPuzzle && dailyPuzzle.question) }">
+          <div class="dock-btn daily" @click="startDaily" :class="{ disabled: !(dailyPuzzle && dailyPuzzle.question), fresh: dailyPuzzle && dailyPuzzle.question && !dailyPuzzle.state.answered }">
             <div><b>每日一题</b><span class="db-sub">{{ dailyPuzzle && dailyPuzzle.question ? (dailyPuzzle.state.answered ? '今天已答 · 查看解析' : '30 秒搞定 · 攒连击') : '明天再来' }}</span></div>
             <em>{{ dailyPuzzle && dailyPuzzle.state ? dailyPuzzle.state.streak : 0 }}</em>
+            <span v-if="dailyPuzzle && dailyPuzzle.question && !dailyPuzzle.state.answered" class="daily-dot">NEW</span>
             <!-- H20：未答→题干预览；已答→结果反馈 -->
             <span v-if="dailyPuzzle && dailyPuzzle.question && !dailyPuzzle.state.answered" class="tip tip-wide">
               {{ typeLabel(dailyPuzzle.question.type) }} · {{ (dailyPuzzle.question.stem || '').slice(0, 40) }}{{ (dailyPuzzle.question.stem || '').length > 40 ? '…' : '' }}
@@ -442,42 +311,6 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- 考试倒计时（压缩单行小条：设了考试日显示天数，没设显示引导） -->
-      <div v-if="examLeft" class="exam-mini" @click="emit('goto', 'profile', 'goals')">
-        <span class="em-ico"><Icon name="clock" :size="13"/></span>
-        <span class="em-name">{{ examLeft.over ? '考试日已过' : '目标考试日' }} · {{ examLeft.date }}</span>
-        <span class="em-num" :class="{ over: examLeft.over }">{{ examLeft.over ? '已过' : examLeft.days + ' 天' }}</span>
-      </div>
-      <div v-else class="exam-mini guide" @click="emit('goto', 'profile', 'goals')">
-        <span class="em-ico"><Icon name="clock" :size="13"/></span>
-        <span class="em-name">设置目标考试日，首页显示倒计时</span>
-        <span class="em-num">去设置 ›</span>
-      </div>
-
-      <!-- 番茄完成反馈（H21） -->
-      <div v-if="focusDoneFlash" class="focus-done">
-        <span class="fd-ico"><Icon name="check" :size="15"/></span>
-        <span>专注完成！第 {{ pomodoroCount }} 个番茄 +50 XP，休息一下</span>
-      </div>
-
-      <!-- 番茄专注（单行） -->
-      <div class="card focus-bar" v-tilt="{ flat: true }">
-        <span class="fb-ico"><Icon name="clock" :size="16"/></span>
-        <div class="fb-info">
-          <span class="fb-title">番茄专注</span>
-          <span class="fb-sub">今日 {{ focusToday }} 分钟 · 已 {{ pomodoroCount }} 个番茄</span>
-        </div>
-        <div class="fb-ctrl">
-          <span v-if="focusRunning" class="focus-time" :class="{ break: focusPhase === 'break' }">{{ focusText }}</span>
-          <button v-if="!focusRunning" class="btn btn-primary" @click="startFocus">25:00 开始</button>
-          <template v-else>
-            <button class="btn" @click="pauseFocus">{{ paused ? '继续' : '暂停' }}</button>
-            <button v-if="focusPhase === 'break'" class="btn" @click="skipBreak">跳过休息</button>
-            <button class="btn" @click="stopFocus(false)">停止</button>
-          </template>
-        </div>
-      </div>
-
       <!-- 更多功能（v-tilt flat：保留倾斜特效但不开 preserve-3d，grid 子格 hover 命中不偏移） -->
       <div class="card more-card" v-tilt="{ flat: true }">
         <div class="card-title">更多功能</div>
@@ -496,44 +329,39 @@ onBeforeUnmount(() => {
             <span class="mi-ico all"><Icon name="book" :size="16"/></span>
             <span class="mi-main">全部刷题</span>
           </div>
-          <div class="more-item" @click="emit('goto', 'kb')">
-            <span class="mi-ico kb"><Icon name="doc" :size="16"/></span>
-            <span class="mi-main">知识库</span>
-          </div>
           <div class="more-item" @click="emit('start-mock')">
             <span class="mi-ico exam"><Icon name="clock" :size="16"/></span>
             <span class="mi-main">模拟考试</span>
           </div>
-          <div class="more-item" @click="cardsOpen = true">
-            <span class="mi-ico cards"><Icon name="bookmark" :size="16"/></span>
-            <span class="mi-main">记忆卡</span>
-            <span v-if="cardStats.due > 0" class="mi-count due">{{ cardStats.due }} 到期</span>
-            <span class="tip" v-if="cardStats.due > 0">{{ cardStats.due }} 张到期，预计 {{ cardMins }} 分钟复习完，别让卡堆积</span>
+          <div class="more-item" @click="showYearPicker = true">
+            <span class="mi-ico year"><Icon name="calendar" :size="16"/></span>
+            <span class="mi-main">真题模式</span>
+            <span class="tip">按年份刷真题 · 限时组卷</span>
           </div>
-        </div>
+          </div>
       </div>
 
-      <!-- 薄弱点（沉底：不占首屏，有数据才显示） -->
-      <div v-if="weakPoints.length || weakAccuracy.length" class="card weak-card" v-tilt="{ flat: true }">
-        <div class="card-title"><Icon name="info" :size="14"/> 待攻克薄弱点</div>
-        <div v-if="weakPoints.length" class="weak-list">
-          <div v-for="w in weakPoints" :key="w.id" class="weak-item" @click="emit('goto', 'bank')">
-            <span class="weak-stem">{{ w.stem || '（空题干）' }}</span>
-            <span class="weak-meta">
-              <span class="weak-tag" v-if="w.cat">{{ w.cat }}</span>
-              <span class="weak-count">错 {{ w.wrong_count }} 次</span>
-            </span>
-          </div>
-        </div>
-        <div v-if="weakAccuracy.length" class="weak-cats">
-          <div v-for="a in weakAccuracy" :key="a.cat" class="weak-cat">
-            <span class="weak-cat-name">{{ a.cat }}</span>
-            <span class="weak-cat-rate" :class="{ low: a.rate < 60 }">正确率 {{ a.rate }}%</span>
-          </div>
-        </div>
-      </div>
+      <!-- 薄弱点已移除，改用 Knowledge.vue 章节掌握度进度条 -->
 
-      <CardsPanel :show="cardsOpen" :subject="props.subject" :current-chapter-id="props.currentChapterId ?? null" @close="cardsOpen = false" @updated="onCardsUpdated" @manage="onManageCards" />
+      <!-- 真题年份选择 -->
+      <transition name="fade">
+        <div v-if="showYearPicker" class="yp-mask" @click.self="showYearPicker = false">
+          <div class="yp-panel">
+            <div class="yp-head">
+              <span class="yp-title">选择真题年份</span>
+              <button class="yp-close" @click="showYearPicker = false">✕</button>
+            </div>
+            <div class="yp-grid">
+              <button
+                v-for="y in yearOptions"
+                :key="y"
+                class="yp-btn"
+                @click="startYearExam(y)"
+              >{{ y }}</button>
+            </div>
+          </div>
+        </div>
+      </transition>
     </template>
   </div>
 </template>
@@ -548,17 +376,18 @@ onBeforeUnmount(() => {
 }
 
 /* 问候卡 + 成长总结 */
-.greet-card { padding: 16px; }
+.greet-card { padding: 18px; border-radius: 14px; }
 .greet-head { display: flex; align-items: baseline; justify-content: space-between; }
-.greet-title { font-size: 17px; font-weight: 600; color: var(--text); }
+.greet-title { font-size: 18px; font-weight: 700; color: var(--text); letter-spacing: -.3px; }
 .greet-date { font-size: 12px; color: var(--muted); }
 .growth-bar {
   display: flex; align-items: center; gap: 8px;
-  margin-top: 12px; padding: 10px 12px;
-  background: color-mix(in srgb, var(--brand) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--brand) 35%, transparent);
-  border-radius: 10px; cursor: pointer; transition: all .15s;
+  margin-top: 12px; padding: 10px 14px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 10%, transparent), transparent);
+  border: 1px solid color-mix(in srgb, var(--brand) 25%, transparent);
+  border-radius: 10px; cursor: pointer; transition: all .2s;
 }
+.growth-bar:hover { border-color: var(--brand); box-shadow: 0 2px 12px color-mix(in srgb, var(--brand) 15%, transparent); }
 /* 昨日小结条 */
 .brief-bar {
   display: flex; align-items: center; gap: 8px;
@@ -639,6 +468,8 @@ onBeforeUnmount(() => {
 .dock-btn.review b { color: var(--brand-soft); }
 .dock-btn.review em { color: var(--brand); }
 .dock-btn.daily { background: rgba(47, 191, 143, 0.10); border: 1px solid rgba(47, 191, 143, 0.35); }
+.dock-btn.daily.fresh { background: rgba(47, 191, 143, 0.18); border-color: var(--ok); box-shadow: 0 0 16px rgba(47, 191, 143, 0.2); }
+.daily-dot { position: absolute; top: -4px; right: -4px; font-size: 9px; font-weight: 700; color: #fff; background: var(--ok); border-radius: 8px; padding: 1px 6px; line-height: 1.4; }
 .dock-btn.daily:hover { box-shadow: var(--glow-soft); }
 .dock-btn.daily b { color: var(--ok); }
 .dock-btn.daily em { color: var(--ok); }
@@ -716,15 +547,15 @@ onBeforeUnmount(() => {
 .focus-time.break { color: var(--warn); }
 
 /* 更多功能 */
-.more-card { padding: 12px 16px; }
-.more-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+.more-card { padding: 14px 18px; }
+.more-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
 .more-item {
   display: flex; align-items: center; gap: 10px;
-  padding: 12px; border: 1px solid var(--line); border-radius: 12px;
-  cursor: pointer; transition: all .15s; background: rgba(148, 163, 184, 0.05);
+  padding: 14px; border: 1px solid var(--line); border-radius: 12px;
+  cursor: pointer; transition: all .2s; background: var(--card);
 }
-.more-item:hover { border-color: var(--brand); box-shadow: var(--glow-soft); }
-.mi-ico { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.more-item:hover { border-color: var(--brand); box-shadow: 0 4px 16px color-mix(in srgb, var(--brand) 12%, transparent); transform: translateY(-1px); }
+.mi-ico { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .mi-ico.wrong { background: rgba(255, 77, 109, 0.14); color: var(--bad); }
 .mi-ico.fav { background: rgba(244, 114, 182, 0.14); color: var(--bad-soft); }
 .mi-ico.all { background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand); }
@@ -1037,4 +868,18 @@ onBeforeUnmount(() => {
 @media (max-width: 820px) {
   .more-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
 }
+
+/* 真题年份选择 */
+.yp-mask { position: fixed; inset: 0; z-index: 90; background: var(--modal-mask); display: flex; align-items: center; justify-content: center; }
+.yp-panel { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 20px; width: 320px; max-width: 92vw; }
+.yp-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.yp-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.yp-close { background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; }
+.yp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.yp-btn {
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 8px;
+  background: var(--bg-faint); color: var(--text); font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.yp-btn:hover { border-color: var(--brand); color: var(--brand); }
 </style>

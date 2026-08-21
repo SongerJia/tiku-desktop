@@ -36,6 +36,7 @@ const audioSrc = ref('')        // 实际可播放的 URL（http / file / base64
 const uploading = ref(false)
 // 题干配图的预览 dataURL（getImage 是异步的，模板里不能直接 :src=Promise）
 const thumbUrls = ref([])
+const previewMode = ref(false)
 watch(images, async (list) => {
   thumbUrls.value = []
   if (!list || !list.length) return
@@ -296,9 +297,29 @@ async function save() {
         <div class="qe-header">
           <span class="close" @click="emit('close')">×</span>
           <span class="title">{{ isEdit ? '编辑题目' : '新增题目' }}</span>
+          <button class="preview-toggle" @click="previewMode = !previewMode">{{ previewMode ? '返回编辑' : '预览' }}</button>
         </div>
 
-        <div class="qe-body" @paste="onPaste">
+        <div v-if="previewMode" class="preview-area">
+          <div class="pv-type">{{ { single: '单选', multiple: '多选', judge: '判断', essay: '问答' }[type] || type }}</div>
+          <div class="pv-stem">{{ stem }}</div>
+          <div v-if="thumbUrls.length" class="pv-images">
+            <img v-for="(u, i) in thumbUrls" :key="i" :src="u" class="pv-img" />
+          </div>
+          <div v-if="!isEssay && !isJudge" class="pv-options">
+            <div v-for="opt in options" :key="opt.key" class="pv-opt" :class="{ on: answer.includes(opt.key) }">
+              <span class="pv-key">{{ opt.key }}</span>
+              <span class="pv-text">{{ opt.text || '（空）' }}</span>
+            </div>
+          </div>
+          <div v-if="isJudge" class="pv-judge">
+            <span class="pv-ans">{{ answer.includes('A') ? '✓ 正确' : '✗ 错误' }}</span>
+          </div>
+          <div v-if="answer.length" class="pv-answer">答案：{{ answer.join('、') }}</div>
+          <div v-if="analysis" class="pv-analysis">{{ analysis }}</div>
+        </div>
+
+        <div v-else class="qe-body" @paste="onPaste">
           <div class="field">
             <label>所属科目 / 章节</label>
             <div class="cat-row">
@@ -467,6 +488,23 @@ async function save() {
 .qe-header .title { flex: 1; font-size: 16px; font-weight: 700; color: var(--text); }
 .qe-header .close { font-size: 22px; color: var(--muted); cursor: pointer; line-height: 1; }
 .qe-header .close:hover { color: var(--brand); }
+.preview-toggle { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 4px 12px; font-size: 12px; color: var(--muted); cursor: pointer; transition: all .15s; }
+.preview-toggle:hover { border-color: var(--brand); color: var(--brand); }
+.preview-area { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.pv-type { font-size: 11px; font-weight: 600; color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, transparent); display: inline-block; padding: 2px 8px; border-radius: 4px; align-self: flex-start; }
+.pv-stem { font-size: 14px; line-height: 1.6; color: var(--text); }
+.pv-images { display: flex; gap: 8px; flex-wrap: wrap; }
+.pv-img { max-height: 200px; border-radius: 8px; border: 1px solid var(--line); }
+.pv-options { display: flex; flex-direction: column; gap: 6px; }
+.pv-opt { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.pv-opt.on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, transparent); }
+.pv-key { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--muted); }
+.pv-opt.on .pv-key { border-color: var(--brand); background: var(--brand); color: #fff; }
+.pv-text { font-size: 13px; color: var(--text); }
+.pv-judge { font-size: 14px; font-weight: 600; }
+.pv-ans { color: var(--ok); }
+.pv-answer { font-size: 12px; color: var(--ok); font-weight: 500; }
+.pv-analysis { font-size: 12px; color: var(--muted); line-height: 1.5; padding: 8px; background: var(--bg-faint); border-radius: 8px; }
 
 .qe-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 .field { display: flex; flex-direction: column; gap: 6px; }

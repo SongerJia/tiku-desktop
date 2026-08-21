@@ -1,11 +1,9 @@
 <script setup>
-import { ref, watch, onBeforeUnmount, defineAsyncComponent } from 'vue'
+import { ref, watch, onBeforeUnmount } from 'vue'
 import { useBodyLock } from '../composables/useBodyLock.js'
 import { useFocusTrap } from '../composables/useFocusTrap.js'
 import { tiku } from '../api/tiku.js'
 import { useEsc } from '../utils/useEsc.js'
-// KbReader 含 Vditor/pdfjs 大依赖，懒加载避免拖进首屏主包
-const KbReader = defineAsyncComponent(() => import('./KbReader.vue'))
 import SimpleQuestion from './SimpleQuestion.vue'
 
 const props = defineProps({ show: Boolean })
@@ -15,16 +13,9 @@ const emit = defineEmits(['close'])
 
 const keyword = ref('')
 const loading = ref(false)
-const qDocs = ref([])      // 文档命中
 const qQuestions = ref([]) // 题目命中
 const searched = ref(false)
-const reader = ref({ show: false, doc: null })
 
-// 双链跳转：搜索结果里找 doc，打开新文档
-function onReaderOpenDoc(docId) {
-  const d = qDocs.value.find(x => String(x.id) === String(docId))
-  if (d) reader.value = { show: true, doc: { id: d.id, type: d.type || 'md', title: d.title } }
-}
 const sq = ref({ show: false, q: null })
 
 let timer = null
@@ -33,11 +24,10 @@ let seq = 0
 watch(() => props.show, v => {
   if (v) {
     keyword.value = ''
-    qDocs.value = []
     qQuestions.value = []
     searched.value = false
     loading.value = false
-    seq++ // 让进行中的旧请求作废，防过期结果写入
+    seq++
     setTimeout(() => document.getElementById('us-input')?.focus(), 50)
   }
 })
@@ -45,7 +35,7 @@ watch(() => props.show, v => {
 function onInput() {
   clearTimeout(timer)
   const kw = keyword.value.trim()
-  if (!kw) { qDocs.value = []; qQuestions.value = []; searched.value = false; loading.value = false; return }
+  if (!kw) { qQuestions.value = []; searched.value = false; loading.value = false; return }
   timer = setTimeout(() => doSearch(kw), 300)
 }
 
@@ -53,23 +43,15 @@ async function doSearch(kw) {
   const my = ++seq
   loading.value = true
   try {
-    const [docs, questions] = await Promise.all([
-      tiku.kbSearch(kw, 20),
-      tiku.getQuestions({ keyword: kw, limit: 10 })
-    ])
+    const questions = await tiku.getQuestions({ keyword: kw, limit: 10 })
     if (my !== seq) return
-    qDocs.value = docs
     qQuestions.value = questions
     searched.value = true
   } catch (e) {
-    if (my === seq) { qDocs.value = []; qQuestions.value = []; searched.value = true }
+    if (my === seq) { qQuestions.value = []; searched.value = true }
   } finally {
     if (my === seq) loading.value = false
   }
-}
-
-function openDoc(d) {
-  reader.value = { show: true, doc: { id: d.id, type: d.type || 'md', title: d.title } }
 }
 
 function openQuestion(q) {
@@ -81,7 +63,7 @@ function typeLabel(t) {
 }
 
 onBeforeUnmount(() => clearTimeout(timer))
-useEsc(() => { if (!reader.value.show) emit('close') }) // 阅读器打开时 Esc 由 KbReader 处理（先保存再关），避免连搜索层一起关
+useEsc(() => emit('close'))
 </script>
 
 <template>
@@ -92,15 +74,15 @@ useEsc(() => { if (!reader.value.show) emit('close') }) // 阅读器打开时 Es
           id="us-input"
           v-model="keyword"
           class="input us-input"
-          placeholder="统一搜索：题目 / 知识文档（中英文均可）"
+          placeholder="搜索题目（中英文均可）"
           @input="onInput"
         />
         <button class="btn" @click="emit('close')">关闭</button>
       </div>
       <div v-if="loading" class="us-loading">搜索中…</div>
       <div v-else class="us-body">
-        <template v-if="keyword.trim() && searched && !qDocs.length && !qQuestions.length">
-          <div class="us-empty">没有命中「{{ keyword.trim() }}」的题目或文档</div>
+        <template v-if="keyword.trim() && searched && !qQuestions.length">
+          <div class="us-empty">没有命中「{{ keyword.trim() }}」的题目</div>
         </template>
 
         <section v-if="qQuestions.length" class="us-sec">
@@ -118,29 +100,9 @@ useEsc(() => { if (!reader.value.show) emit('close') }) // 阅读器打开时 Es
             </div>
           </div>
         </section>
-
-        <section v-if="qDocs.length" class="us-sec">
-          <h3 class="us-sec-title">知识文档命中（{{ qDocs.length }}）</h3>
-          <div class="us-rows">
-            <div
-              v-for="d in qDocs"
-              :key="d.id"
-              class="us-row"
-              @click="openDoc(d)"
-            >
-              <span class="badge us-badge-pdf" :class="d.type">{{ d.type === 'pdf' ? 'PDF' : 'MD' }}</span>
-              <div class="us-doc">
-                <span class="us-row-text">{{ d.title }}</span>
-                <span v-if="d.matchedBlocks && d.matchedBlocks.length" class="us-snip">{{ d.matchedBlocks[0].snippet }}</span>
-              </div>
-              <span class="us-arrow">›</span>
-            </div>
-          </div>
-        </section>
       </div>
     </div>
 
-    <KbReader :show="reader.show" :doc="reader.doc" @close="reader.show = false" @open-doc="onReaderOpenDoc" />
     <SimpleQuestion :show="sq.show" :q="sq.q" @close="sq.show = false" />
   </div>
 </template>
@@ -209,7 +171,4 @@ useEsc(() => { if (!reader.value.show) emit('close') }) // 阅读器打开时 Es
   overflow: hidden;
 }
 .us-arrow { font-size: 18px; color: var(--brand); }
-.us-badge-pdf.pdf { background: rgba(232, 95, 61, 0.15); color: #e85f3d; }
-[data-theme="light"] .us-badge-pdf.pdf { color: #b23c1f; }
-[data-theme="eye"] .us-badge-pdf.pdf { color: #96411f; }
 </style>

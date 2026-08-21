@@ -4,7 +4,7 @@ import SkeletonCards from './SkeletonCards.vue'
 import QuestionDetail from './QuestionDetail.vue'
 import { tiku } from '../api/tiku.js'
 
-const props = defineProps({ subject: Object, refreshToken: { type: Number, default: 0 }, currentChapterId: { type: [Number, String], default: null } })
+const props = defineProps({ subject: Object, subjectConfig: { default: () => ({}) }, refreshToken: { type: Number, default: 0 }, currentChapterId: { type: [Number, String], default: null } })
 const emit = defineEmits(['start', 'manage'])
 
 const keyword = ref('')
@@ -18,6 +18,18 @@ const loadingMore = ref(false)
 const PAGE = 50
 const showAllCh = ref(false) // 章节筛选：折叠「更多」展开态（方案②）
 const detailId = ref(null) // 当前查看详情的题目 id
+const yearFilter = ref('') // 年份筛选（年份维度启用时）
+const diffFilter = ref('') // 难度筛选（难度维度启用时）
+const tagFilter = ref('') // 标签筛选（标签维度启用时）
+
+const hasDim = (key) => props.subjectConfig.dims && props.subjectConfig.dims.includes(key)
+const yearOptions = Array.from({ length: 10 }, (_, i) => String(2026 - i))
+const chapterMastery = ref({}) // { chapterId: { answered, correct, pct } }
+function masteryClass(pct) {
+  if (pct >= 80) return 'mastery-high'
+  if (pct >= 50) return 'mastery-mid'
+  return 'mastery-low'
+}
 
 let alive = true // 卸载后作废在途请求结果（须在 watch/onMounted 之前声明，避免 setup 同步触发时 TDZ）
 let fetchSeq = 0 // 代际计数：快速切章节/搜索/加载更多并发时旧请求作废，防慢响应覆盖
@@ -40,6 +52,19 @@ async function load() {
   currentChapterId.value = target
   if (was === target) await fetchQuestions()
   loading.value = false
+  // 加载章节掌握度
+  fetchMastery()
+}
+
+async function fetchMastery() {
+  const sid = props.subject.id
+  if (!sid) return
+  try {
+    const m = await tiku.getChapterMastery(sid)
+    if (m) chapterMastery.value = m
+  } catch (e) {
+    // 后端不支持则静默降级
+  }
 }
 
 onBeforeUnmount(() => { alive = false })
@@ -55,6 +80,9 @@ async function fetchQuestions() {
       subjectId: props.subject.id || undefined,
       categoryId: currentChapterId.value || undefined,
       keyword: keyword.value.trim() || undefined,
+      year: yearFilter.value || undefined,
+      difficulty: diffFilter.value || undefined,
+      tags: tagFilter.value || undefined,
       page: 1,
       pageSize: PAGE
     })
@@ -78,6 +106,9 @@ async function loadMore() {
       subjectId: props.subject.id || undefined,
       categoryId: currentChapterId.value || undefined,
       keyword: keyword.value.trim() || undefined,
+      year: yearFilter.value || undefined,
+      difficulty: diffFilter.value || undefined,
+      tags: tagFilter.value || undefined,
       page: next,
       pageSize: PAGE
     })
@@ -134,27 +165,52 @@ function typeLabel(t) {
           class="filter-chip"
           :class="{ active: currentChapterId === ch.id }"
           @click="currentChapterId = ch.id"
-        >{{ ch.name }}</button>
+        >
+          <span class="ch-name">{{ ch.name }}</span>
+          <span v-if="chapterMastery[ch.id]" class="ch-mastery" :class="masteryClass(chapterMastery[ch.id].pct)">
+            {{ chapterMastery[ch.id].pct }}%
+          </span>
+          <span v-if="chapterMastery[ch.id]" class="ch-bar">
+            <span class="ch-bar-fill" :style="{ width: chapterMastery[ch.id].pct + '%' }"></span>
+          </span>
+        </button>
         <button v-if="chapters.length > 6" class="filter-chip more-chip" @click="showAllCh = !showAllCh">
           {{ showAllCh ? '收起 ▴' : `更多 (${chapters.length - 6}) ▾` }}
         </button>
+      </div>
+
+      <!-- 动态筛选维度（根据科目配置） -->
+      <div v-if="hasDim('year') || hasDim('difficulty') || hasDim('tag')" class="dim-filter">
+        <select v-if="hasDim('year')" v-model="yearFilter" class="dim-select" @change="fetchQuestions">
+          <option value="">全部年份</option>
+          <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
+        </select>
+        <select v-if="hasDim('difficulty')" v-model="diffFilter" class="dim-select" @change="fetchQuestions">
+          <option value="">全部难度</option>
+          <option value="1">★ 简单</option>
+          <option value="2">★★ 中等</option>
+          <option value="3">★★★ 困难</option>
+          <option value="4">★★★★ 较难</option>
+          <option value="5">★★★★★ 极难</option>
+        </select>
+        <input v-if="hasDim('tag')" v-model="tagFilter" class="dim-input" placeholder="标签筛选" @keyup.enter="fetchQuestions" />
       </div>
     </div>
 
     <SkeletonCards v-if="loading" :count="4" />
     <div v-else-if="!questions.length" class="empty card">暂无知识点</div>
     <div v-else class="question-list">
-      <div
-        v-for="q in questions"
-        :key="q.id"
-        class="card q-card"
-        @click="openDetail(q)"
-      >
+      <div v-for="q in questions" :key="q.id" class="card q-card" @click="openDetail(q)">
         <div class="q-meta">
-          <span class="badge">{{ typeLabel(q.type) }}</span>
+          <span class="badge" :class="'badge-' + q.type">{{ typeLabel(q.type) }}</span>
           <span class="q-stem">{{ q.stem }}</span>
         </div>
-        <div class="q-arrow">›</div>
+        <div class="q-info">
+          <span v-if="q.year" class="qi-year">{{ q.year }}</span>
+          <span v-if="q.difficulty" class="qi-diff">{{ '★'.repeat(Number(q.difficulty)) }}</span>
+          <span v-if="q.tags && q.tags.length" class="qi-tag">{{ q.tags[0] }}{{ q.tags.length > 1 ? ' +' + (q.tags.length - 1) : '' }}</span>
+          <span class="qi-arrow">›</span>
+        </div>
       </div>
       <button v-if="questions.length < total" class="load-more" :disabled="loadingMore" @click="loadMore">
         {{ loadingMore ? '加载中…' : `加载更多（${total - questions.length} 道）` }}
@@ -171,14 +227,15 @@ function typeLabel(t) {
 </template>
 
 <style scoped>
-.search-card { padding: 14px; }
+.search-card { padding: 16px; }
 .search-row {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 12px;
+  align-items: center;
 }
 .search-row .input { flex: 1; }
-/* 与知识库工具条按钮一致：全局胶囊圆角（24px），不用小圆角 */
+/* 与工具条按钮一致：全局胶囊圆角（24px），不用小圆角 */
 .manage-btn { flex-shrink: 0; }
 
 .chapter-filter {
@@ -206,6 +263,15 @@ function typeLabel(t) {
   font-weight: 600;
   box-shadow: 0 2px 10px color-mix(in srgb, var(--brand) 32%, transparent);
 }
+.ch-name { white-space: nowrap; }
+.ch-mastery { font-size: 10px; font-weight: 700; margin-left: 4px; flex-shrink: 0; }
+.ch-mastery.mastery-high { color: var(--ok); }
+.ch-mastery.mastery-mid { color: var(--warn); }
+.ch-mastery.mastery-low { color: var(--bad); }
+.ch-bar { display: inline-flex; width: 40px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; margin-left: 4px; vertical-align: middle; }
+.ch-bar-fill { height: 100%; border-radius: 2px; transition: width .4s ease; background: var(--brand); }
+.filter-chip.active .ch-bar { background: rgba(255,255,255,0.3); }
+.filter-chip.active .ch-bar-fill { background: #fff; }
 .more-chip {
   border-style: dashed;
   border-color: rgba(255, 184, 77, 0.5);
@@ -214,6 +280,21 @@ function typeLabel(t) {
   font-weight: 600;
 }
 .more-chip:hover { border-color: var(--warn); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); }
+
+.dim-filter { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.dim-select {
+  border: 1px solid var(--line); border-radius: 16px; padding: 5px 12px;
+  background: var(--bg-faint); color: var(--text); font-size: 12px;
+  cursor: pointer; font-family: inherit; transition: border-color .2s;
+  min-width: 90px;
+}
+.dim-select:hover, .dim-select:focus { border-color: var(--brand); outline: none; }
+.dim-input {
+  border: 1px solid var(--line); border-radius: 16px; padding: 5px 12px;
+  background: var(--bg-faint); color: var(--text); font-size: 12px;
+  font-family: inherit; width: 100px; transition: border-color .2s;
+}
+.dim-input:focus { border-color: var(--brand); outline: none; }
 
 .question-list { display: flex; flex-direction: column; gap: 10px; }
 .load-more {
@@ -229,14 +310,14 @@ function typeLabel(t) {
 .load-more:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-light); }
 .q-card {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px;
+  flex-direction: column;
+  padding: 14px 16px;
   margin-bottom: 0;
   cursor: pointer;
-  transition: transform .1s, border-color .2s, box-shadow .2s;
+  transition: all .2s;
+  border-radius: 12px;
 }
-.q-card:hover { border-color: var(--brand); box-shadow: var(--glow-soft); }
+.q-card:hover { border-color: var(--brand); box-shadow: 0 4px 16px color-mix(in srgb, var(--brand) 10%, transparent); }
 .q-card:active { transform: scale(0.99); }
 .q-meta {
   display: flex;
@@ -247,6 +328,10 @@ function typeLabel(t) {
   overflow: hidden;
 }
 .q-meta .badge { white-space: nowrap; flex-shrink: 0; }
+.badge-single { background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand); }
+.badge-multiple { background: color-mix(in srgb, #a78bfa 14%, transparent); color: #a78bfa; }
+.badge-judge { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+.badge-essay { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
 .q-stem {
   font-size: 14px;
   color: var(--text);
@@ -257,9 +342,14 @@ function typeLabel(t) {
   overflow: hidden;
   min-width: 0;
 }
+.q-info { display: flex; align-items: center; gap: 6px; margin-left: 12px; flex-shrink: 0; }
+.qi-year { font-size: 11px; color: var(--muted); background: var(--bg-faint); padding: 1px 6px; border-radius: 4px; }
+.qi-diff { font-size: 11px; color: var(--warn); }
+.qi-tag { font-size: 10px; color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, transparent); padding: 1px 6px; border-radius: 4px; }
+.qi-arrow { font-size: 20px; color: var(--brand); margin-left: 4px; text-shadow: var(--glow-soft); }
 .q-arrow { font-size: 20px; color: var(--brand); margin-left: 8px; text-shadow: var(--glow-soft); }
 
-/* 知识库铺开（2026-08-12）：题目卡渐变边框 + hover 流光 */
+/* 铺开（2026-08-12）：题目卡渐变边框 + hover 流光 */
 .q-card {
   border: 1px solid transparent;
   background-image:
@@ -271,7 +361,7 @@ function typeLabel(t) {
 }
 .q-card:hover { box-shadow: var(--glow-soft); }
 
-/* 知识库加浓（2026-08-12）：stagger 交错入场 */
+/* 加浓（2026-08-12）：stagger 交错入场 */
 .knowledge > * { animation: riseIn .4s cubic-bezier(.2, .7, .3, 1) both; }
 .knowledge > *:nth-child(2) { animation-delay: .06s; }
 .knowledge > *:nth-child(3) { animation-delay: .12s; }
